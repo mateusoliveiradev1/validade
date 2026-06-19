@@ -21,7 +21,7 @@
     "test:mutation": "stryker run stryker.config.json",
     "security": "pnpm security:env && pnpm security:secrets && pnpm security:data && turbo run security",
     "security:env": "node scripts/check-env-example.mjs",
-    "security:secrets": "secretlint \"apps/**/*\" \"packages/**/*\" \"scripts/**/*\" \"*.json\" \"*.yaml\" \"*.yml\" \"*.md\" \".env.example\" --secretlintrc .secretlintrc.json",
+    "security:secrets": "secretlint \"apps/**/*\" \"packages/**/*\" \"scripts/**/*\" \"docs/**/*\" \".github/**/*\" \"*.json\" \"*.yaml\" \"*.yml\" \"*.md\" \".env.example\" --secretlintrc .secretlintrc.json",
     "security:data": "node scripts/check-no-real-data.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security"
   },
