@@ -57,7 +57,7 @@ describe("domain product and risk vocabulary", () => {
       mode: "flv_inspection",
       productId: "produto-ficticio-maca-001",
       lotCode: "LOTE-FICTICIO-FLV-001",
-      receivedOn: "2030-01-10",
+      receivedAt: "2030-01-10",
       qualityWindowDays: 4,
     };
 
@@ -85,7 +85,7 @@ describe("domain product and risk vocabulary", () => {
         categoryId: "categoria-ficticia-flv",
         displayName: "Maca Ficticia de Teste",
         lotRequirements: {
-          receivedOn: true,
+          receivedAt: true,
           qualityWindowDays: true,
         },
       },
@@ -94,7 +94,7 @@ describe("domain product and risk vocabulary", () => {
     expect(products.map((product) => product.mode)).toEqual(["formal_validity", "flv_inspection"]);
     expect(products[0]?.lotRequirements).toEqual({ expiresAt: true });
     expect(products[1]?.lotRequirements).toEqual({
-      receivedOn: true,
+      receivedAt: true,
       qualityWindowDays: true,
     });
   });
