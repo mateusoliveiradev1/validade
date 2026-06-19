@@ -75,10 +75,10 @@ export function Field({
   label: string;
   value: string;
   onChangeText: (value: string) => void;
-  placeholder?: string;
-  error?: string;
-  keyboardType?: KeyboardTypeOptions;
-  editable?: boolean;
+  placeholder?: string | undefined;
+  error?: string | undefined;
+  keyboardType?: KeyboardTypeOptions | undefined;
+  editable?: boolean | undefined;
 }) {
   return (
     <View style={styles.fieldGroup}>

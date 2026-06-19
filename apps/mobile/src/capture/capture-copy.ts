@@ -17,6 +17,7 @@ export const captureCopy = {
   byCategory: "Por categoria",
   internalIdentity: "Gerar identificação interna",
   otherLocation: "Outro local",
+  repeatLot: "Registrar outro lote",
 } as const;
 
 export const productModeLabels = {
@@ -36,6 +37,10 @@ export const operationalLocations = [
 
 export function requiredFieldError(field: string): string {
   return `Informe ${field} para registrar este lote.`;
+}
+
+export function lotRegisteredCopy(location: string, time: string): string {
+  return `Lote registrado em ${location} às ${time}.`;
 }
 
 export function formatLocation(location: OperationalLocation): string {

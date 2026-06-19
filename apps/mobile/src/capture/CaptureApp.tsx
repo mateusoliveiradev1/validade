@@ -5,8 +5,9 @@ import { captureCopy, productModeLabels } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
 import { ProductFormScreen } from "./ProductFormScreen";
+import { LotRegistrationScreen } from "./LotRegistrationScreen";
 
-type CaptureScreen = "discovery" | "product-form" | "confirmed";
+type CaptureScreen = "discovery" | "product-form" | "confirmed" | "lot-registration";
 
 export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [screen, setScreen] = useState<CaptureScreen>("discovery");
@@ -44,10 +45,22 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
         <Text style={styles.productName}>{selectedProduct.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {selectedProduct.categoryId}</Text>
         <Text style={styles.metadata}>Perfil operacional: {productModeLabels[mode]}</Text>
-        <PrimaryAction label={captureCopy.confirmProduct} onPress={() => undefined} />
-        <StatusNotice>O formulário de lote será aberto após esta confirmação.</StatusNotice>
+        <PrimaryAction
+          label={captureCopy.confirmProduct}
+          onPress={() => setScreen("lot-registration")}
+        />
         <SecondaryAction label={captureCopy.backAndReview} onPress={() => setScreen("discovery")} />
       </ScrollView>
+    );
+  }
+
+  if (screen === "lot-registration" && selectedProduct !== undefined) {
+    return (
+      <LotRegistrationScreen
+        repository={repository}
+        product={selectedProduct}
+        onBack={() => setScreen("discovery")}
+      />
     );
   }
 

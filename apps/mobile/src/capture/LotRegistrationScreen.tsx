@@ -1,0 +1,479 @@
+import { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  calculateLotRisk,
+  type CategoryRuleProfile,
+  type ProductMode,
+  type ProductRuleOverride,
+  type RiskCalculationLot,
+  type RiskWindows,
+} from "@validade-zero/domain";
+import type { OperationalLocation } from "@validade-zero/contracts";
+import type { CaptureProductRecord, CaptureRepository } from "./repository";
+import {
+  captureCopy,
+  formatLocation,
+  lotRegisteredCopy,
+  operationalLocations,
+  productModeLabels,
+  requiredFieldError,
+} from "./capture-copy";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  SelectionRow,
+  StatusNotice,
+} from "./capture-ui";
+
+const LOCAL_ACTOR_LABEL = "Colaborador local";
+
+export function LotRegistrationScreen({
+  repository,
+  product,
+  onBack,
+}: {
+  repository: CaptureRepository;
+  product: CaptureProductRecord;
+  onBack: () => void;
+}) {
+  const mode = product.productRuleOverride?.mode ?? product.categoryRuleProfile.mode;
+  const [printedIdentity, setPrintedIdentity] = useState("");
+  const [generatedIdentity, setGeneratedIdentity] = useState<string | undefined>();
+  const [quantity, setQuantity] = useState("");
+  const [location, setLocation] = useState<OperationalLocation | undefined>();
+  const [customLocationName, setCustomLocationName] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [receivedAt, setReceivedAt] = useState("");
+  const [qualityWindowDays, setQualityWindowDays] = useState("");
+  const [saveError, setSaveError] = useState<string | undefined>();
+  const [savedMessage, setSavedMessage] = useState<string | undefined>();
+
+  const resolvedLocation = resolveLocation(location, customLocationName);
+  const approximateQuantity = parseNonNegativeQuantity(quantity);
+  const identityValue = generatedIdentity ?? printedIdentity.trim();
+  const hasRequiredDates =
+    (mode === "formal_validity" && isIsoDate(expiresAt)) ||
+    (mode === "flv_inspection" && isIsoDate(receivedAt) && isPositiveInteger(qualityWindowDays)) ||
+    (mode === "receiving_monitored" && isIsoDate(receivedAt));
+  const canSave =
+    identityValue.length > 0 &&
+    approximateQuantity !== undefined &&
+    resolvedLocation !== undefined &&
+    hasRequiredDates;
+  const riskAssessment = useMemo(
+    () => calculatePreview(product, mode, identityValue, expiresAt, receivedAt, qualityWindowDays),
+    [expiresAt, identityValue, mode, product, qualityWindowDays, receivedAt],
+  );
+
+  function generateInternalIdentity(): void {
+    setGeneratedIdentity(`INTERNO-LOCAL-${Date.now().toString(36).toUpperCase()}`);
+    setPrintedIdentity("");
+  }
+
+  async function saveLot(): Promise<void> {
+    if (!canSave || approximateQuantity === undefined || resolvedLocation === undefined) {
+      setSaveError("Revise os campos destacados antes de registrar este lote.");
+      return;
+    }
+
+    try {
+      const lot = buildLotInput({
+        productId: product.id,
+        mode,
+        identityValue,
+        generatedIdentity,
+        approximateQuantity,
+        location: resolvedLocation,
+        expiresAt,
+        receivedAt,
+        qualityWindowDays,
+      });
+      const snapshot = await repository.saveLot({ lot, actorLabel: LOCAL_ACTOR_LABEL });
+      const occurredAt = new Date(snapshot.currentObservation.occurredAt);
+
+      setSavedMessage(
+        lotRegisteredCopy(
+          formatLocation(snapshot.currentObservation.location),
+          occurredAt.toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "UTC",
+          }),
+        ),
+      );
+      setSaveError(undefined);
+    } catch {
+      setSaveError(
+        "Não foi possível registrar este lote neste aparelho. Revise os campos destacados e tente novamente.",
+      );
+    }
+  }
+
+  function resetForAnotherLot(): void {
+    setPrintedIdentity("");
+    setGeneratedIdentity(undefined);
+    setQuantity("");
+    setLocation(undefined);
+    setCustomLocationName("");
+    setExpiresAt("");
+    setReceivedAt("");
+    setQualityWindowDays("");
+    setSaveError(undefined);
+    setSavedMessage(undefined);
+  }
+
+  if (savedMessage !== undefined) {
+    return (
+      <ScrollView contentContainerStyle={styles.screen}>
+        <ScreenHeader title="Lote registrado" body={product.displayName} />
+        <StatusNotice>{savedMessage}</StatusNotice>
+        <Text style={styles.metadata}>Registro atribuído a: {LOCAL_ACTOR_LABEL}</Text>
+        <PrimaryAction label={captureCopy.repeatLot} onPress={resetForAnotherLot} />
+        <SecondaryAction label={captureCopy.backAndReview} onPress={onBack} />
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <ScreenHeader
+        title={captureCopy.registerLot}
+        body="Confirme cada dado deste lote antes do registro."
+      />
+      <View style={styles.productSummary}>
+        <Text style={styles.productName}>{product.displayName}</Text>
+        <Text style={styles.metadata}>Categoria: {product.categoryId}</Text>
+        <Text style={styles.metadata}>Perfil: {productModeLabels[mode]}</Text>
+      </View>
+      <Field
+        label="Identificação impressa do lote"
+        value={printedIdentity}
+        onChangeText={(value) => {
+          setPrintedIdentity(value);
+          setGeneratedIdentity(undefined);
+        }}
+        error={
+          identityValue.length === 0 ? requiredFieldError("a identificação do lote") : undefined
+        }
+      />
+      <SecondaryAction label={captureCopy.internalIdentity} onPress={generateInternalIdentity} />
+      {generatedIdentity === undefined ? null : (
+        <StatusNotice>
+          Identificação interna: {generatedIdentity}. Não é código do fornecedor.
+        </StatusNotice>
+      )}
+      <Field
+        label="Quantidade aproximada"
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="numeric"
+        error={
+          approximateQuantity === undefined
+            ? requiredFieldError("a quantidade aproximada")
+            : undefined
+        }
+      />
+      <Text style={styles.sectionLabel}>Local inicial</Text>
+      <View style={styles.locationList}>
+        {operationalLocations.map((option) => (
+          <SelectionRow
+            key={option.kind}
+            label={option.label}
+            selected={location?.kind === option.kind}
+            onPress={() => setLocation({ kind: option.kind } as OperationalLocation)}
+          />
+        ))}
+      </View>
+      {location?.kind === "other" ? (
+        <Field
+          label="Nome do outro local"
+          value={customLocationName}
+          onChangeText={setCustomLocationName}
+          error={
+            resolveLocation(location, customLocationName) === undefined
+              ? requiredFieldError("o nome do outro local")
+              : undefined
+          }
+        />
+      ) : null}
+      {resolvedLocation === undefined ? (
+        <Text style={styles.errorText}>{requiredFieldError("o local inicial")}</Text>
+      ) : null}
+      {mode === "formal_validity" ? (
+        <DateField label="Data de validade" value={expiresAt} onChangeText={setExpiresAt} />
+      ) : null}
+      {mode === "flv_inspection" || mode === "receiving_monitored" ? (
+        <DateField label="Data de recebimento" value={receivedAt} onChangeText={setReceivedAt} />
+      ) : null}
+      {mode === "flv_inspection" ? (
+        <Field
+          label="Janela de qualidade (dias)"
+          value={qualityWindowDays}
+          onChangeText={setQualityWindowDays}
+          keyboardType="numeric"
+          error={
+            isPositiveInteger(qualityWindowDays)
+              ? undefined
+              : requiredFieldError("a janela de qualidade")
+          }
+        />
+      ) : null}
+      <StatusNotice>
+        Avaliação operacional: {riskAssessment.state}. Próxima orientação: {riskAssessment.command}.
+      </StatusNotice>
+      {saveError === undefined ? null : <StatusNotice tone="error">{saveError}</StatusNotice>}
+      <PrimaryAction
+        label={captureCopy.registerLot}
+        disabled={!canSave}
+        onPress={() => void saveLot()}
+      />
+      <SecondaryAction label={captureCopy.backAndReview} onPress={onBack} />
+    </ScrollView>
+  );
+}
+
+function DateField({
+  label,
+  value,
+  onChangeText,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const valid = isIsoDate(value);
+
+  return (
+    <View style={styles.dateGroup}>
+      <Field
+        label={label}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="AAAA-MM-DD"
+        error={valid ? undefined : requiredFieldError(label.toLocaleLowerCase("pt-BR"))}
+      />
+      {valid ? <Text style={styles.metadata}>Prévia: {formatLongDate(value)}</Text> : null}
+    </View>
+  );
+}
+
+function resolveLocation(
+  location: OperationalLocation | undefined,
+  customLocationName: string,
+): OperationalLocation | undefined {
+  if (location === undefined) {
+    return undefined;
+  }
+
+  if (location.kind !== "other") {
+    return location;
+  }
+
+  return customLocationName.trim().length === 0
+    ? undefined
+    : { kind: "other", customName: customLocationName };
+}
+
+function parseNonNegativeQuantity(value: string): number | undefined {
+  if (value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function isPositiveInteger(value: string): boolean {
+  const parsed = Number(value);
+
+  return Number.isInteger(parsed) && parsed > 0;
+}
+
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function formatLongDate(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "UTC" }).format(
+    new Date(`${value}T00:00:00.000Z`),
+  );
+}
+
+function calculatePreview(
+  product: CaptureProductRecord,
+  mode: ProductMode,
+  identityValue: string,
+  expiresAt: string,
+  receivedAt: string,
+  qualityWindowDays: string,
+) {
+  const categoryProfile: CategoryRuleProfile = {
+    categoryId: product.categoryRuleProfile.categoryId,
+    mode: product.categoryRuleProfile.mode,
+    ...(product.categoryRuleProfile.windows === undefined
+      ? {}
+      : { windows: toRiskWindows(product.categoryRuleProfile.windows) }),
+    ...(product.categoryRuleProfile.maxPhysicalConfirmationAgeHours === undefined
+      ? {}
+      : {
+          maxPhysicalConfirmationAgeHours:
+            product.categoryRuleProfile.maxPhysicalConfirmationAgeHours,
+        }),
+  };
+  const productOverride: ProductRuleOverride | undefined =
+    product.productRuleOverride === undefined
+      ? undefined
+      : {
+          productId: product.id,
+          ...(product.productRuleOverride.mode === undefined
+            ? {}
+            : { mode: product.productRuleOverride.mode }),
+          ...(product.productRuleOverride.windows === undefined
+            ? {}
+            : { windows: toRiskWindows(product.productRuleOverride.windows) }),
+          ...(product.productRuleOverride.maxPhysicalConfirmationAgeHours === undefined
+            ? {}
+            : {
+                maxPhysicalConfirmationAgeHours:
+                  product.productRuleOverride.maxPhysicalConfirmationAgeHours,
+              }),
+        };
+  const lotCode = identityValue.length === 0 ? "IDENTIFICACAO-PENDENTE" : identityValue;
+  const lot: RiskCalculationLot =
+    mode === "formal_validity"
+      ? { mode, productId: product.id, lotCode, ...(isIsoDate(expiresAt) ? { expiresAt } : {}) }
+      : mode === "flv_inspection"
+        ? {
+            mode,
+            productId: product.id,
+            lotCode,
+            ...(isIsoDate(receivedAt) ? { receivedAt } : {}),
+            ...(isPositiveInteger(qualityWindowDays)
+              ? { qualityWindowDays: Number(qualityWindowDays) }
+              : {}),
+          }
+        : {
+            mode,
+            productId: product.id,
+            lotCode,
+            ...(isIsoDate(receivedAt) ? { receivedAt } : {}),
+          };
+
+  return calculateLotRisk({
+    currentDate: new Date().toISOString().slice(0, 10),
+    categoryProfile,
+    ...(productOverride === undefined ? {} : { productOverride }),
+    lot,
+  });
+}
+
+function toRiskWindows(input: {
+  radarDays?: number | undefined;
+  markdownDays?: number | undefined;
+  criticalDays?: number | undefined;
+  expiredDays?: number | undefined;
+  qualityWindowDays?: number | undefined;
+}): Partial<RiskWindows> {
+  return {
+    ...(input.radarDays === undefined ? {} : { radarDays: input.radarDays }),
+    ...(input.markdownDays === undefined ? {} : { markdownDays: input.markdownDays }),
+    ...(input.criticalDays === undefined ? {} : { criticalDays: input.criticalDays }),
+    ...(input.expiredDays === undefined ? {} : { expiredDays: input.expiredDays }),
+    ...(input.qualityWindowDays === undefined
+      ? {}
+      : { qualityWindowDays: input.qualityWindowDays }),
+  };
+}
+
+function buildLotInput({
+  productId,
+  mode,
+  identityValue,
+  generatedIdentity,
+  approximateQuantity,
+  location,
+  expiresAt,
+  receivedAt,
+  qualityWindowDays,
+}: {
+  productId: string;
+  mode: ProductMode;
+  identityValue: string;
+  generatedIdentity: string | undefined;
+  approximateQuantity: number;
+  location: OperationalLocation;
+  expiresAt: string;
+  receivedAt: string;
+  qualityWindowDays: string;
+}) {
+  const base = {
+    productId,
+    identity: {
+      identitySource:
+        generatedIdentity === undefined ? ("printed" as const) : ("generated_internal" as const),
+      value: identityValue,
+    },
+    approximateQuantity,
+    initialLocation: location,
+  };
+
+  if (mode === "formal_validity") {
+    return { ...base, mode, expiresAt };
+  }
+
+  if (mode === "flv_inspection") {
+    return { ...base, mode, receivedAt, qualityWindowDays: Number(qualityWindowDays) };
+  }
+
+  return { ...base, mode, receivedAt };
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: "#F5F7EF",
+    gap: 16,
+    padding: 16,
+  },
+  productSummary: {
+    backgroundColor: "#E6EEE4",
+    gap: 4,
+    padding: 16,
+  },
+  productName: {
+    color: "#112016",
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  metadata: {
+    color: "#3F5546",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  sectionLabel: {
+    color: "#112016",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  locationList: {
+    gap: 8,
+  },
+  dateGroup: {
+    gap: 4,
+  },
+  errorText: {
+    color: "#B42318",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+});

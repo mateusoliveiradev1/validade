@@ -101,12 +101,27 @@ export function ProductFormScreen({
       ))}
       <SecondaryAction
         label="Definir exceção de perfil"
-        onPress={() => setOverrideMode(overrideMode === undefined ? categoryMode : undefined)}
+        onPress={() =>
+          setOverrideMode(
+            overrideMode === undefined ? firstAlternativeMode(categoryMode) : undefined,
+          )
+        }
       />
       {overrideMode === undefined ? null : (
-        <StatusNotice>
-          Exceção explícita do produto: {productModeLabels[overrideMode]}.
-        </StatusNotice>
+        <>
+          <StatusNotice>
+            Exceção explícita do produto: {productModeLabels[overrideMode]}.
+          </StatusNotice>
+          <Text style={styles.sectionLabel}>Perfil específico deste produto</Text>
+          {Object.entries(productModeLabels).map(([mode, label]) => (
+            <SelectionRow
+              key={`override-${mode}`}
+              label={`Usar ${label} como exceção`}
+              selected={overrideMode === mode}
+              onPress={() => setOverrideMode(mode as ProductMode)}
+            />
+          ))}
+        </>
       )}
       <Field label="Fornecedor opcional" value={supplierName} onChangeText={setSupplierName} />
       {supplierName.trim().length === 0 ? (
@@ -146,3 +161,11 @@ const styles = StyleSheet.create({
     marginTop: -12,
   },
 });
+
+function firstAlternativeMode(mode: ProductMode): ProductMode {
+  if (mode === "formal_validity") {
+    return "flv_inspection";
+  }
+
+  return "formal_validity";
+}
