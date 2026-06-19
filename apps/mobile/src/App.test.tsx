@@ -23,7 +23,7 @@ describe("Validade Zero mobile smoke", () => {
     const { default: App } = await import("../App");
     let tree: ReactTestRenderer | undefined;
 
-    await act(async () => {
+    act(() => {
       tree = create(<App />);
     });
 

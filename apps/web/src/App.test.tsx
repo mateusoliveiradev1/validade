@@ -10,12 +10,14 @@ describe("Validade Zero web smoke", () => {
   it("renders safe smoke copy and updates API status after click", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        Response.json({
-          status: "ok",
-          service: "validade-zero-api",
-          checkedAt: "2026-06-19T03:00:00.000Z",
-        }),
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            status: "ok",
+            service: "validade-zero-api",
+            checkedAt: "2026-06-19T03:00:00.000Z",
+          }),
+        ),
       ),
     );
 
@@ -27,9 +29,7 @@ describe("Validade Zero web smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verificar API" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("api-status").textContent).toContain(
-        "validade-zero-api: ok",
-      );
+      expect(screen.getByTestId("api-status").textContent).toContain("validade-zero-api: ok");
     });
   });
 });

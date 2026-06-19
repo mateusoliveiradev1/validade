@@ -33,10 +33,10 @@ export function createInMemorySafeProbeAdapter(
   });
 
   return {
-    async read() {
-      return current;
+    read() {
+      return Promise.resolve(current);
     },
-    async write(input) {
+    write(input) {
       current = SafeProbePayloadSchema.parse({
         probeId,
         value: input.value,
@@ -45,7 +45,7 @@ export function createInMemorySafeProbeAdapter(
         store: input.store,
       });
 
-      return current;
+      return Promise.resolve(current);
     },
   };
 }

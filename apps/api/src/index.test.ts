@@ -4,7 +4,7 @@ import app from "./index";
 describe("validade zero API smoke", () => {
   it("returns a safe health response", async () => {
     const response = await app.request("/health");
-    const body = await response.json();
+    const body = (await response.json()) as unknown;
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
@@ -22,7 +22,7 @@ describe("validade zero API smoke", () => {
         "content-type": "application/json",
       },
     });
-    const body = await response.json();
+    const body = (await response.json()) as unknown;
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
@@ -40,7 +40,7 @@ describe("validade zero API smoke", () => {
         "content-type": "application/json",
       },
     });
-    const body = await response.json();
+    const body = (await response.json()) as unknown;
 
     expect(response.status).toBe(400);
     expect(JSON.stringify(body)).toContain("invalid_probe_payload");

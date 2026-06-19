@@ -11,17 +11,23 @@
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint",
-    "format": "turbo run format",
-    "format:check": "turbo run format:check",
+    "lint": "eslint . && node scripts/check-boundaries.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "turbo run test",
     "test:smoke": "turbo run test:smoke",
     "security": "turbo run security",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.4",
     "turbo": "^2.9.18",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
   }
 }

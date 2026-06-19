@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.turbo
+.expo
+.wrangler
+.vercel
+playwright-report
+test-results
+.maestro/artifacts
+pnpm-lock.yaml
+AGENTS.md
+.planning
+.agents
+.codex

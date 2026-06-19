@@ -1,10 +1,6 @@
 import { Hono } from "hono";
 import { createLocalProviderRegistry } from "@validade-zero/adapters";
-import {
-  HEALTH_SERVICE_NAME,
-  HealthContract,
-  SafeProbeContract,
-} from "@validade-zero/contracts";
+import { HEALTH_SERVICE_NAME, HealthContract, SafeProbeContract } from "@validade-zero/contracts";
 
 const app = new Hono();
 const providers = createLocalProviderRegistry();
@@ -40,9 +36,7 @@ app.post("/probe", async (context) => {
     return context.json({ error: "invalid_probe_payload" }, 400);
   }
 
-  const payload = SafeProbeContract.payload.parse(
-    await providers.safeProbe.write(parsed.data),
-  );
+  const payload = SafeProbeContract.payload.parse(await providers.safeProbe.write(parsed.data));
 
   return context.json(payload);
 });

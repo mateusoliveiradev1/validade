@@ -51,9 +51,12 @@ export const fictitiousProducts: readonly FictitiousProductFixture[] = [
   },
 ];
 
-export function assertFixtureIsFictitious(
-  fixture: { marker?: string; storeName?: string; displayName?: string; productName?: string },
-): void {
+export function assertFixtureIsFictitious(fixture: {
+  marker?: string;
+  storeName?: string;
+  displayName?: string;
+  productName?: string;
+}): void {
   const searchableText = [
     fixture.marker,
     fixture.storeName,

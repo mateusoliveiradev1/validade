@@ -36,9 +36,7 @@ export function App() {
       <p style={{ margin: 0, fontWeight: 700, letterSpacing: "0.08em" }}>
         Ambiente seguro para desenvolvimento
       </p>
-      <h1 style={{ margin: 0, fontSize: "clamp(2rem, 7vw, 4rem)" }}>
-        Validade Zero
-      </h1>
+      <h1 style={{ margin: 0, fontSize: "clamp(2rem, 7vw, 4rem)" }}>Validade Zero</h1>
       <p style={{ maxWidth: "42rem", margin: 0, fontSize: "1.125rem" }}>
         Smoke web ficticio para validar contrato compartilhado, API local e ausencia de dados reais.
       </p>
