@@ -104,14 +104,15 @@ behavior_unverified: 0
 
 ## Human Verification Required
 
-None for source-code verification. Repository-owner GitHub settings remain documented in `01-05-USER-SETUP.md`:
+None. Repository-owner GitHub settings from `01-05-USER-SETUP.md` were completed on 2026-06-19:
 
-- Enable dependency graph.
-- Enable Dependabot alerts.
-- Enable secret scanning.
-- Enable branch protection requiring checks before merge.
+- Dependency graph SBOM is available.
+- Dependabot alerts are enabled.
+- Dependabot security updates are enabled.
+- Secret scanning and push protection are enabled.
+- Branch protection for `main` requires `Quality gates`, `Dependency review`, and `Analyze JavaScript and TypeScript`.
 
-These are dashboard setup tasks, not code gaps.
+No source-code or repository-settings gaps remain for Phase 1.
 
 ## Gaps Summary
 
