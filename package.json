@@ -1,0 +1,27 @@
+{
+  "name": "validade-zero",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "test": "turbo run test",
+    "test:smoke": "turbo run test:smoke",
+    "security": "turbo run security",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3"
+  }
+}
