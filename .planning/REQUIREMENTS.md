@@ -105,49 +105,49 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | TBD | Pending |
-| FND-02 | TBD | Pending |
-| FND-03 | TBD | Pending |
-| FND-04 | TBD | Pending |
-| CAT-01 | TBD | Pending |
-| CAT-02 | TBD | Pending |
-| CAT-03 | TBD | Pending |
-| CAT-04 | TBD | Pending |
-| LOC-01 | TBD | Pending |
-| LOC-02 | TBD | Pending |
-| LOC-03 | TBD | Pending |
-| LOC-04 | TBD | Pending |
-| RSK-01 | TBD | Pending |
-| RSK-02 | TBD | Pending |
-| RSK-03 | TBD | Pending |
-| RSK-04 | TBD | Pending |
-| RSK-05 | TBD | Pending |
-| PSH-01 | TBD | Pending |
-| PSH-02 | TBD | Pending |
-| PSH-03 | TBD | Pending |
-| PSH-04 | TBD | Pending |
-| PSH-05 | TBD | Pending |
-| MRK-01 | TBD | Pending |
-| MRK-02 | TBD | Pending |
-| MRK-03 | TBD | Pending |
-| MRK-04 | TBD | Pending |
-| SYN-01 | TBD | Pending |
-| SYN-02 | TBD | Pending |
-| SYN-03 | TBD | Pending |
-| AUD-01 | TBD | Pending |
-| AUD-02 | TBD | Pending |
-| AUD-03 | TBD | Pending |
-| AUD-04 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
+| FND-01 | Phase 1 | Pending |
+| FND-02 | Phase 1 | Pending |
+| FND-03 | Phase 1 | Pending |
+| FND-04 | Phase 1 | Pending |
+| CAT-01 | Phase 3 | Pending |
+| CAT-02 | Phase 3 | Pending |
+| CAT-03 | Phase 3 | Pending |
+| CAT-04 | Phase 2 | Pending |
+| LOC-01 | Phase 3 | Pending |
+| LOC-02 | Phase 3 | Pending |
+| LOC-03 | Phase 3 | Pending |
+| LOC-04 | Phase 2 | Pending |
+| RSK-01 | Phase 2 | Pending |
+| RSK-02 | Phase 2 | Pending |
+| RSK-03 | Phase 4 | Pending |
+| RSK-04 | Phase 4 | Pending |
+| RSK-05 | Phase 5 | Pending |
+| PSH-01 | Phase 5 | Pending |
+| PSH-02 | Phase 5 | Pending |
+| PSH-03 | Phase 4 | Pending |
+| PSH-04 | Phase 8 | Pending |
+| PSH-05 | Phase 5 | Pending |
+| MRK-01 | Phase 6 | Pending |
+| MRK-02 | Phase 6 | Pending |
+| MRK-03 | Phase 6 | Pending |
+| MRK-04 | Phase 6 | Pending |
+| SYN-01 | Phase 7 | Pending |
+| SYN-02 | Phase 7 | Pending |
+| SYN-03 | Phase 7 | Pending |
+| AUD-01 | Phase 8 | Pending |
+| AUD-02 | Phase 8 | Pending |
+| AUD-03 | Phase 8 | Pending |
+| AUD-04 | Phase 1 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 9 | Pending |
 
 **Coverage:**
-- v1 requirements: 38 total
-- Mapped to phases: 0
-- Unmapped: 38
+- v1 requirements: 37 total
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-18 after initial definition*
+*Last updated: 2026-06-18 after roadmap creation*
