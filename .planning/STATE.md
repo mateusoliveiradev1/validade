@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3 - Mobile Lot Capture
 status: verification_pending
-stopped_at: Completed 03-04-PLAN.md; native Maestro verification blocked because maestro is not on PATH
-last_updated: "2026-06-19T17:09:19.556Z"
-last_activity: 2026-06-19 - Completed Phase 3 implementation; native Maestro verification is blocked because maestro is not on PATH
-last_activity_desc: Completed Phase 3 implementation; native Maestro verification is blocked because maestro is not on PATH
+stopped_at: Maestro and Android SDK are installed; native verification is blocked by the missing Windows Android Emulator Hypervisor Driver (AEHD), which requires administrative installation.
+last_updated: "2026-06-19T23:20:00.000Z"
+last_activity: 2026-06-19 - Configured Maestro 2.6.1, Java 21, Android SDK, and API 36 AVDs; Windows acceleration driver remains unavailable.
+last_activity_desc: Configured Maestro 2.6.1, Java 21, Android SDK, and API 36 AVDs; Windows acceleration driver remains unavailable.
 progress:
   total_phases: 9
   completed_phases: 3
@@ -23,14 +23,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-19 - Completed Phase 3 implementation; native Maestro verification is blocked because maestro is not on PATH
+**Last activity:** 2026-06-19 - Configured Maestro 2.6.1, Java 21, Android SDK, and API 36 AVDs; Windows acceleration driver remains unavailable.
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-18)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 3 Mobile Lot Capture implementation is complete. Run Maestro/native verification before closing the phase as human-verified.
+**Current focus:** Phase 3 Mobile Lot Capture implementation is complete. Maestro and the local Android runtime are configured; an administrator must enable/install the Windows emulator acceleration driver before the native smoke can run.
 
 ## Roadmap Progress
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 
 ## Next Step
 
-Install Maestro and run `pnpm.cmd test:e2e:mobile`, then use `$gsd-verify-work 3` to complete native/human verification.
+Complete the Windows Android Emulator Hypervisor Driver (AEHD) installation with administrator privileges, boot `ValidadeZeroApi36`, run `pnpm.cmd test:e2e:mobile`, then use `$gsd-verify-work 3` to complete native/human verification.
 
 ### Quick Tasks Completed
 
@@ -84,8 +84,8 @@ Install Maestro and run `pnpm.cmd test:e2e:mobile`, then use `$gsd-verify-work 3
 
 ## Session
 
-**Last session:** 2026-06-19T17:09:19.552Z
-**Stopped at:** Completed 03-04-PLAN.md; native Maestro verification blocked because maestro is not on PATH
+**Last session:** 2026-06-19T23:20:00.000Z
+**Stopped at:** Maestro and Android SDK are installed; native verification is blocked by the missing Windows Android Emulator Hypervisor Driver (AEHD), which requires administrative installation.
 **Resume file:** .planning/phases/03-mobile-lot-capture/03-04-SUMMARY.md
 
 ## Decisions

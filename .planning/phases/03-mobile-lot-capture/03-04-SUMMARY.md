@@ -19,7 +19,7 @@ key-files:
   modified: [apps/mobile/app.json, .maestro/smoke.yaml, apps/mobile/src/capture/CaptureApp.tsx]
 key-decisions:
   - "Camera output is lookup text only and returns to the same manual confirmation path."
-  - "Maestro remains an external native-runtime verification gate; it was not present in this environment."
+  - "Maestro 2.6.1 is installed and the local Android SDK/AVDs are configured; the Windows Android Emulator Hypervisor Driver remains the native-runtime gate."
 requirements-completed: [CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, LOC-03]
 duration: 12 min
 completed: 2026-06-19
@@ -41,12 +41,15 @@ status: complete
 - `pnpm.cmd lint` - passed
 - `pnpm.cmd test` - passed (19 files, 70 tests)
 - `pnpm.cmd check` - passed (typecheck, lint, format, tests, smoke, build, security)
-- `pnpm.cmd test:e2e:mobile` - blocked: `maestro` is not installed or on PATH in this environment.
+- `pnpm.cmd test:e2e:mobile` - blocked after installing Maestro 2.6.1: no connected device was available.
+- Windows native-runtime setup - Java 21, Android SDK platform-tools/emulator, API 36 platform, and x86_64/ARM AVDs configured.
+- x86_64 AVD boot - blocked: Android Emulator reports that the Android Emulator Hypervisor Driver (AEHD) is not installed.
+- ARM AVD fallback - unavailable: the Android Emulator rejects an ARM64 guest on this x86_64 host.
 
-## Self-Check: PASSED WITH NATIVE E2E BLOCKER
+## Self-Check: PASSED WITH WINDOWS ACCELERATION BLOCKER
 
-The optional camera, manual fallback, and Phase 3 smoke script are implemented and automated checks pass. Native Maestro execution still requires installing/configuring Maestro and an emulator or device.
+The optional camera, manual fallback, and Phase 3 smoke script are implemented and automated checks pass. Maestro, Java, the Android SDK, and AVDs are installed. Native execution now only requires an administrator to complete the AEHD installation (or enable an equivalent Windows Hypervisor Platform configuration) so an x86_64 AVD can boot.
 
 ## Next Phase Readiness
 
-Phase code is complete. Before treating Phase 3 as human-verified, run the Maestro smoke on a configured native runtime.
+Phase code is complete. Before treating Phase 3 as human-verified, complete the Windows acceleration setup, boot `ValidadeZeroApi36`, run the Maestro smoke, and complete `$gsd-verify-work 3`.
