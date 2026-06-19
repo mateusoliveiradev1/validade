@@ -85,7 +85,7 @@ Plans:
 3. Collaborator can move and confirm lots across operational locations.
 4. Last-seen data captures user, time, location, and approximate quantity.
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 **Wave 1**
 
@@ -97,11 +97,11 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md - Recent lot list and append-only physical observation workflow
+- [x] 03-03-PLAN.md - Recent lot list and append-only physical observation workflow
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-04-PLAN.md - Optional barcode lookup, accessibility hardening, and mobile smoke coverage
+- [x] 03-04-PLAN.md - Optional barcode lookup, accessibility hardening, and mobile smoke coverage
 
 ### Phase 4: Today Task Workflow
 
