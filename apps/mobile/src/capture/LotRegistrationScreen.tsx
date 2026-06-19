@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import DateTimePicker, {
   DateTimePickerAndroid,
-  type DateTimePickerEvent,
+  type DateTimePickerChangeEvent,
 } from "@react-native-community/datetimepicker";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
@@ -256,11 +256,8 @@ function DateField({
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
   const selectedDate = valid ? fromIsoDate(value) : new Date();
 
-  function updateDate(_event: DateTimePickerEvent, nextDate?: Date): void {
-    if (nextDate !== undefined) {
-      onChangeText(toIsoDate(nextDate));
-    }
-    setIosPickerVisible(false);
+  function updateDate(_event: DateTimePickerChangeEvent, nextDate: Date): void {
+    onChangeText(toIsoDate(nextDate));
   }
 
   function openPicker(): void {
@@ -270,7 +267,7 @@ function DateField({
         value: selectedDate,
         mode: "date",
         display: "calendar",
-        onChange: updateDate,
+        onValueChange: updateDate,
       });
       return;
     }
@@ -288,7 +285,13 @@ function DateField({
       />
       {valid ? <Text style={styles.metadata}>Prévia: {formatLongDate(value)}</Text> : null}
       {iosPickerVisible ? (
-        <DateTimePicker value={selectedDate} mode="date" display="spinner" onChange={updateDate} />
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="spinner"
+          onValueChange={updateDate}
+          onDismiss={() => setIosPickerVisible(false)}
+        />
       ) : null}
     </View>
   );

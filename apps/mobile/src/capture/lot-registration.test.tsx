@@ -102,14 +102,14 @@ function renderLotScreen(
 function selectDate(tree: ReactTestRenderer, label: string, value: Date): void {
   press(tree, label);
   const options = datePicker.open.mock.calls.at(-1)?.[0] as
-    | { onChange: (event: object, nextDate?: Date) => void }
+    | { onValueChange: (event: object, nextDate: Date) => void }
     | undefined;
 
   if (options === undefined) {
     throw new Error("Expected the native date picker to open.");
   }
 
-  options.onChange({ type: "set" }, value);
+  options.onValueChange({ type: "set" }, value);
 }
 
 describe("mode-aware lot registration", () => {
