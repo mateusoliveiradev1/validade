@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3 - Mobile Lot Capture
 status: ready_to_plan
-last_updated: "2026-06-19T15:41:50.616Z"
-last_activity: 2026-06-19 - Captured Phase 3 Mobile Lot Capture context
+last_updated: "2026-06-19T16:04:53.703Z"
+last_activity: 2026-06-19 - Approved Phase 3 Mobile Lot Capture UI design contract
 progress:
   total_phases: 9
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-19 - Captured Phase 3 Mobile Lot Capture context
+**Last activity:** 2026-06-19 - Approved Phase 3 Mobile Lot Capture UI design contract
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-18)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 3 Mobile Lot Capture context captured; ready to plan.
+**Current focus:** Phase 3 Mobile Lot Capture UI design contract approved; ready to plan.
 
 ## Roadmap Progress
 
@@ -54,7 +54,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 
 ## Next Step
 
-Discuss and plan Phase 3 Mobile Lot Capture.
+Plan Phase 3 Mobile Lot Capture using `03-UI-SPEC.md` as the visual and interaction source of truth.
 
 ### Quick Tasks Completed
 
