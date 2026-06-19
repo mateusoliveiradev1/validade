@@ -118,14 +118,16 @@ No source-code or repository-settings gaps remain for Phase 1.
 
 **No gaps found.** Phase goal achieved. Ready to proceed.
 
-## Documented Non-Blocking Security Findings
+## Remediated Security Findings
 
-After enabling Dependabot alerts, GitHub reported two open `medium` npm alerts in `pnpm-lock.yaml`:
+After enabling Dependabot alerts, GitHub reported two `medium` npm alerts in `pnpm-lock.yaml`: `qs` and `uuid`.
 
-- `qs`: remotely triggerable DoS in `qs.stringify` for null/undefined comma-format array entries with `encodeValuesOnly`.
-- `uuid`: missing buffer bounds check in v3/v5/v6 when `buf` is provided.
+Quick task `260619-a1b` resolved both alerts by adding pnpm workspace overrides and refreshing the lockfile:
 
-Per D-09, `high` and `critical` findings block readiness. These `medium` findings are documented as non-blocking risk/backlog items for dependency triage before release hardening.
+- `qs` now resolves to `6.15.2`.
+- `uuid` now resolves to `11.1.1`.
+
+Verification passed with `pnpm.cmd audit --json`, `pnpm.cmd check`, and the GitHub Dependabot open-alert API returning `[]`.
 
 ## Verification Metadata
 
