@@ -85,6 +85,24 @@ Plans:
 3. Collaborator can move and confirm lots across operational locations.
 4. Last-seen data captures user, time, location, and approximate quantity.
 
+**Plans:** 4 executable plans
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md - Runtime-validated capture contracts and durable local SQLite ledger
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md - Manual product discovery, confirmation, and mode-aware lot registration
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md - Recent lot list and append-only physical observation workflow
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md - Optional barcode lookup, accessibility hardening, and mobile smoke coverage
+
 ### Phase 4: Today Task Workflow
 
 **Goal:** Turn calculated risks into the mobile "Hoje" task experience that directs shelf work.
