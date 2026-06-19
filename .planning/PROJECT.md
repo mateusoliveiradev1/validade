@@ -14,13 +14,14 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 
 ### Validated
 
-(None yet - ship to validate)
+- [x] Validated in Phase 1: Base de engenharia com pnpm/Turborepo, TypeScript strict, quality gates, CI/security baseline e segurança para repositório público.
+- [x] Validated in Phase 2: O domínio diferencia produtos com validade formal, FLV por qualidade/inspeção e recebimento monitorado.
+- [x] Validated in Phase 2: Regras de risco por categoria/produto suportam janelas configuráveis, incluindo radar de 60 dias, rebaixa de 15 dias, crítico nos últimos 3 dias e retirada após vencimento.
+- [x] Validated in Phase 2: Lotes arriscados com dados essenciais ausentes ou presença física vencida permanecem `uncertain` em vez de seguros.
 
 ### Active
 
 - [ ] Colaboradores podem cadastrar e acompanhar produtos com validade por produto, lote, quantidade e localização.
-- [ ] O sistema diferencia produtos com validade formal, como ovos e itens embalados, de FLV fresco controlado por recebimento, qualidade e inspeção.
-- [ ] Regras de alerta são configuráveis por categoria e produto, incluindo preparação com até 60 dias e solicitação de rebaixa por volta de 15 dias antes do vencimento.
 - [ ] Cada risco gera uma tarefa com responsável, prazo, status, histórico e confirmação de execução.
 - [ ] Alertas push, lembretes recorrentes, caixa de tarefas e escalonamento continuam cobrando enquanto a pendência não for resolvida.
 - [ ] A tela principal mostra o que precisa ser conferido, rebaixado ou retirado no turno atual.
@@ -96,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-18 after initialization*
+*Last updated: 2026-06-19 after Phase 2 completion*
