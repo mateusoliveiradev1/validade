@@ -48,6 +48,7 @@ export default tseslint.config(
             "packages/domain/src/presence.test.ts",
             "packages/domain/src/profiles.test.ts",
             "packages/domain/src/risk.test.ts",
+            "packages/domain/src/risk.scenarios.test.ts",
             "packages/domain/src/types.test.ts",
             "packages/test-utils/src/fixtures.test.ts",
             "playwright.config.ts",
