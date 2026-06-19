@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   calculateLotRisk,
   type CategoryRuleProfile,
@@ -19,6 +23,7 @@ import {
   requiredFieldError,
 } from "./capture-copy";
 import {
+  DatePickerAction,
   Field,
   PrimaryAction,
   ScreenHeader,
@@ -247,19 +252,71 @@ function DateField({
   onChangeText: (value: string) => void;
 }) {
   const valid = isIsoDate(value);
+  const [touched, setTouched] = useState(false);
+  const [iosPickerVisible, setIosPickerVisible] = useState(false);
+  const selectedDate = valid ? fromIsoDate(value) : new Date();
+
+  function updateDate(_event: DateTimePickerEvent, nextDate?: Date): void {
+    if (nextDate !== undefined) {
+      onChangeText(toIsoDate(nextDate));
+    }
+    setIosPickerVisible(false);
+  }
+
+  function openPicker(): void {
+    setTouched(true);
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        value: selectedDate,
+        mode: "date",
+        display: "calendar",
+        onChange: updateDate,
+      });
+      return;
+    }
+
+    setIosPickerVisible(true);
+  }
 
   return (
     <View style={styles.dateGroup}>
-      <Field
+      <DatePickerAction
         label={label}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder="AAAA-MM-DD"
-        error={valid ? undefined : requiredFieldError(label.toLocaleLowerCase("pt-BR"))}
+        value={valid ? formatShortDate(value) : "Selecionar data"}
+        onPress={openPicker}
+        error={touched && !valid ? requiredFieldError(label.toLocaleLowerCase("pt-BR")) : undefined}
       />
       {valid ? <Text style={styles.metadata}>Prévia: {formatLongDate(value)}</Text> : null}
+      {iosPickerVisible ? (
+        <DateTimePicker value={selectedDate} mode="date" display="spinner" onChange={updateDate} />
+      ) : null}
     </View>
   );
+}
+
+function fromIsoDate(value: string): Date {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+
+  return new Date(year, month - 1, day, 12);
+}
+
+function toIsoDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatShortDate(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00.000Z`));
 }
 
 function resolveLocation(

@@ -5,6 +5,8 @@ import { createMemoryCaptureRepository } from "./memory-repository";
 import { LotRegistrationScreen } from "./LotRegistrationScreen";
 import type { CaptureProductRecord } from "./repository";
 
+const datePicker = vi.hoisted(() => ({ open: vi.fn() }));
+
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
@@ -24,8 +26,14 @@ vi.mock("react-native", async () => {
     ScrollView: host("ScrollView"),
     TextInput: host("TextInput"),
     Pressable: host("Pressable"),
+    Platform: { OS: "android" },
   };
 });
+
+vi.mock("@react-native-community/datetimepicker", () => ({
+  default: () => null,
+  DateTimePickerAndroid: datePicker,
+}));
 
 function createRepository() {
   let nextIdentifier = 1;
@@ -91,6 +99,19 @@ function renderLotScreen(
   return tree!;
 }
 
+function selectDate(tree: ReactTestRenderer, label: string, value: Date): void {
+  press(tree, label);
+  const options = datePicker.open.mock.calls.at(-1)?.[0] as
+    | { onChange: (event: object, nextDate?: Date) => void }
+    | undefined;
+
+  if (options === undefined) {
+    throw new Error("Expected the native date picker to open.");
+  }
+
+  options.onChange({ type: "set" }, value);
+}
+
 describe("mode-aware lot registration", () => {
   it("blocks incomplete formal-validity registration, calculates its operational window, and resets safely for repeat capture", async () => {
     const { repository, product } = await createProduct("formal_validity");
@@ -113,7 +134,7 @@ describe("mode-aware lot registration", () => {
       press(tree, "Área de venda");
     });
     act(() => {
-      getInput(tree, "Data de validade").props.onChangeText("2030-01-15");
+      selectDate(tree, "Data de validade", new Date(2030, 0, 15, 12));
     });
 
     expect(JSON.stringify(tree.toJSON())).toContain("Avaliação operacional");
@@ -139,7 +160,7 @@ describe("mode-aware lot registration", () => {
 
     expect(getInput(tree, "Identificação impressa do lote").props.value).toBe("");
     expect(getInput(tree, "Quantidade aproximada").props.value).toBe("");
-    expect(getInput(tree, "Data de validade").props.value).toBe("");
+    expect(JSON.stringify(tree.toJSON())).toContain("Selecionar data");
     expect(JSON.stringify(tree.toJSON())).toContain("Produto Exemplo FICTICIO");
   });
 

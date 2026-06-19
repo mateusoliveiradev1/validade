@@ -16,6 +16,7 @@
     "security": "node -e \"console.log('Mobile security checks start in Plan 03')\""
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "9.1.0",
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "expo": "^56.0.12",

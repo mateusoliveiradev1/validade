@@ -102,6 +102,38 @@ export function Field({
   );
 }
 
+export function DatePickerAction({
+  label,
+  value,
+  onPress,
+  error,
+}: {
+  label: string;
+  value: string;
+  onPress: () => void;
+  error?: string | undefined;
+}) {
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={[styles.dateAction, error === undefined ? undefined : styles.fieldError]}
+      >
+        <Text style={styles.dateActionValue}>{value}</Text>
+        <Text style={styles.dateActionHint}>Selecionar</Text>
+      </Pressable>
+      {error === undefined ? null : (
+        <Text accessibilityRole="alert" style={styles.errorText}>
+          {error}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export function SelectionRow({
   label,
   detail,
@@ -215,6 +247,28 @@ const styles = StyleSheet.create({
   },
   fieldError: {
     borderColor: colors.critical,
+  },
+  dateAction: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.mutedInk,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  dateActionValue: {
+    color: colors.ink,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  dateActionHint: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
   errorText: {
     color: colors.critical,
