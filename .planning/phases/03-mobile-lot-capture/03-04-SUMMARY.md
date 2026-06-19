@@ -19,7 +19,8 @@ key-files:
   modified: [apps/mobile/app.json, .maestro/smoke.yaml, apps/mobile/src/capture/CaptureApp.tsx]
 key-decisions:
   - "Camera output is lookup text only and returns to the same manual confirmation path."
-  - "Maestro 2.6.1 is installed and the local Android SDK/AVDs are configured; the Windows Android Emulator Hypervisor Driver remains the native-runtime gate."
+  - "The Android package is explicitly com.validadezero.app so the installed app and Maestro smoke share one stable identity."
+  - "Maestro smoke passed on an Android 16 AVD after completing the local Windows runtime setup."
 requirements-completed: [CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, LOC-03]
 duration: 12 min
 completed: 2026-06-19
@@ -41,15 +42,14 @@ status: complete
 - `pnpm.cmd lint` - passed
 - `pnpm.cmd test` - passed (19 files, 70 tests)
 - `pnpm.cmd check` - passed (typecheck, lint, format, tests, smoke, build, security)
-- `pnpm.cmd test:e2e:mobile` - blocked after installing Maestro 2.6.1: no connected device was available.
-- Windows native-runtime setup - Java 21, Android SDK platform-tools/emulator, API 36 platform, and x86_64/ARM AVDs configured.
-- x86_64 AVD boot - blocked: Android Emulator reports that the Android Emulator Hypervisor Driver (AEHD) is not installed.
-- ARM AVD fallback - unavailable: the Android Emulator rejects an ARM64 guest on this x86_64 host.
+- `pnpm.cmd test:e2e:mobile` - passed on Android 16/API 36 AVD: launched `com.validadezero.app`, then found `Localizar produto` and `Buscar manualmente`.
+- Windows native-runtime setup - Java 21, Maestro 2.6.1, Android SDK platform-tools/emulator, API 36 platform, and the AEHD driver are configured.
+- Native debug build - passed from a short local verification worktree; the primary checkout's pnpm/CMake paths exceed CMake's object-path limit on Windows.
 
-## Self-Check: PASSED WITH WINDOWS ACCELERATION BLOCKER
+## Self-Check: NATIVE SMOKE PASSED; HUMAN UAT PENDING
 
-The optional camera, manual fallback, and Phase 3 smoke script are implemented and automated checks pass. Maestro, Java, the Android SDK, and AVDs are installed. Native execution now only requires an administrator to complete the AEHD installation (or enable an equivalent Windows Hypervisor Platform configuration) so an x86_64 AVD can boot.
+The optional camera, manual fallback, and Phase 3 smoke script are implemented and automated checks pass. The actual Android app was built, installed, launched, and verified by Maestro. GSD conversational UAT remains intentionally open because it records a human's flow-level observations rather than automated test results.
 
 ## Next Phase Readiness
 
-Phase code is complete. Before treating Phase 3 as human-verified, complete the Windows acceleration setup, boot `ValidadeZeroApi36`, run the Maestro smoke, and complete `$gsd-verify-work 3`.
+Phase code is complete and native-verified. Before treating Phase 3 as human-verified, complete `$gsd-verify-work 3`.
