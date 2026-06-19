@@ -40,9 +40,12 @@ export default tseslint.config(
           allowDefaultProject: [
             "apps/api/src/index.test.ts",
             "apps/mobile/src/App.test.tsx",
+            "apps/web/e2e/smoke.spec.ts",
             "apps/web/src/App.test.tsx",
             "apps/web/vite.config.ts",
             "packages/config/src/index.test.ts",
+            "playwright.config.ts",
+            "vitest.config.ts",
           ],
         },
         tsconfigRootDir: import.meta.dirname,

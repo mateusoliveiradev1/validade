@@ -16,6 +16,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run --config vitest.config.ts",
     "test:smoke": "vitest run --config vitest.config.ts --project api --project web --project mobile",
+    "test:e2e:web": "playwright test --config playwright.config.ts",
+    "test:e2e:mobile": "maestro test .maestro/smoke.yaml",
+    "test:mutation": "stryker run stryker.config.json",
     "security": "pnpm security:env && pnpm security:secrets && pnpm security:data && turbo run security",
     "security:env": "node scripts/check-env-example.mjs",
     "security:secrets": "secretlint \"apps/**/*\" \"packages/**/*\" \"scripts/**/*\" \"*.json\" \"*.yaml\" \"*.yml\" \"*.md\" \".env.example\" --secretlintrc .secretlintrc.json",
@@ -25,8 +28,12 @@
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.9.3",
+    "@playwright/test": "^1.61.0",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.5.0",
     "globals": "^17.6.0",
     "prettier": "^3.8.4",
@@ -34,7 +41,6 @@
     "turbo": "^2.9.18",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
-    "vitest": "^4.1.9",
-    "@vitest/coverage-v8": "^4.1.9"
+    "vitest": "^4.1.9"
   }
 }
