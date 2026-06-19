@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { calculateLotRisk } from "./risk";
 import type { CategoryRuleProfile } from "./types";
 
@@ -16,6 +18,12 @@ const flvCategoryProfile = {
     qualityWindowDays: 3,
   },
 } as const;
+
+const presenceAwareCategoryProfile: CategoryRuleProfile = {
+  categoryId: "categoria-ficticia-ovos",
+  mode: "formal_validity",
+  maxPhysicalConfirmationAgeHours: 24,
+};
 
 function formalValidityInput(expiresAt: string) {
   return {
@@ -186,5 +194,78 @@ describe("risk severity precedence and product overrides", () => {
     expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_60_days");
     expect(categoryProfileWithDefaults).toEqual(originalCategoryProfile);
     expect(productOverride).toEqual(originalProductOverride);
+  });
+});
+
+describe("presence-aware risk uncertainty", () => {
+  it("returns blocking uncertain check_presence when the last physical confirmation is stale", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      currentTimestamp: "2026-06-19T12:00:00.000Z",
+      categoryProfile: presenceAwareCategoryProfile,
+      lastPhysicalConfirmation: {
+        status: "present",
+        confirmedAt: "2026-06-18T10:59:00.000Z",
+      },
+      lot: {
+        mode: "formal_validity",
+        productId: "produto-ficticio-ovos-001",
+        lotCode: "LOTE-FICTICIO-OVOS-001",
+        expiresAt: "2026-07-04",
+      },
+    });
+
+    expect(result.state).toBe("uncertain");
+    expect(result.command).toBe("check_presence");
+    expect(result.reasons.map((reason) => reason.code)).toContain("presence_stale");
+  });
+
+  it("returns blocking uncertain check_presence when risky lot has no physical confirmation", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      currentTimestamp: "2026-06-19T12:00:00.000Z",
+      categoryProfile: presenceAwareCategoryProfile,
+      lot: {
+        mode: "formal_validity",
+        productId: "produto-ficticio-ovos-001",
+        lotCode: "LOTE-FICTICIO-OVOS-001",
+        expiresAt: "2026-07-04",
+      },
+    });
+
+    expect(result.state).toBe("uncertain");
+    expect(result.command).toBe("check_presence");
+    expect(result.reasons.map((reason) => reason.code)).toContain("presence_missing");
+  });
+
+  it("keeps date-window risk when physical confirmation is fresh", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      currentTimestamp: "2026-06-19T12:00:00.000Z",
+      categoryProfile: presenceAwareCategoryProfile,
+      lastPhysicalConfirmation: {
+        status: "present",
+        confirmedAt: "2026-06-19T11:30:00.000Z",
+        approximateQuantity: 8,
+      },
+      lot: {
+        mode: "formal_validity",
+        productId: "produto-ficticio-ovos-001",
+        lotCode: "LOTE-FICTICIO-OVOS-001",
+        expiresAt: "2026-07-04",
+      },
+    });
+
+    expect(result.state).toBe("markdown_due");
+    expect(result.command).toBe("request_markdown");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_15_days");
+  });
+
+  it("does not use an implicit system clock inside risk calculation", () => {
+    const riskSourcePath = fileURLToPath(new URL("./risk.ts", import.meta.url));
+    const riskSource = readFileSync(riskSourcePath, "utf8");
+
+    expect(riskSource).not.toContain("Date.now(");
+    expect(riskSource).not.toContain("new Date()");
   });
 });

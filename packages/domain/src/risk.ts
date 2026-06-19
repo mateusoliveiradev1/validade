@@ -1,3 +1,4 @@
+import { classifyPhysicalConfirmationFreshness, type PhysicalConfirmation } from "./presence";
 import { resolveRuleProfile } from "./profiles";
 import type {
   CategoryRuleProfile,
@@ -50,8 +51,10 @@ export type RiskCalculationLot =
 
 export interface RiskCalculationInput {
   currentDate: string;
+  currentTimestamp?: string;
   categoryProfile: CategoryRuleProfile;
   productOverride?: ProductRuleOverride;
+  lastPhysicalConfirmation?: PhysicalConfirmation;
   lot: RiskCalculationLot;
 }
 
@@ -61,13 +64,27 @@ export function compareRiskSeverity(left: ConcreteRiskState, right: ConcreteRisk
 
 export function calculateLotRisk(input: RiskCalculationInput): RiskAssessment {
   const profile = resolveRuleProfile(input.categoryProfile, input.productOverride);
+  const dateRisk = calculateDateRisk(input, profile.windows);
 
+  return applyPresenceFreshness(input, dateRisk, profile.maxPhysicalConfirmationAgeHours);
+}
+
+function calculateDateRisk(
+  input: RiskCalculationInput,
+  windows: {
+    radarDays: number;
+    markdownDays: number;
+    criticalDays: number;
+    expiredDays: number;
+    qualityWindowDays?: number;
+  },
+): RiskAssessment {
   if (input.lot.mode === "formal_validity") {
     if (!input.lot.expiresAt) {
       return uncertainty("missing_required_date", "expiresAt");
     }
 
-    return calculateWindowRisk(input.currentDate, input.lot.expiresAt, "expiresAt", profile.windows);
+    return calculateWindowRisk(input.currentDate, input.lot.expiresAt, "expiresAt", windows);
   }
 
   if (input.lot.mode === "flv_inspection") {
@@ -75,7 +92,7 @@ export function calculateLotRisk(input: RiskCalculationInput): RiskAssessment {
       input.lot.qualityInspectionDueAt ??
       deriveQualityInspectionDueAt(
         input.lot.receivedAt,
-        input.lot.qualityWindowDays ?? profile.windows.qualityWindowDays,
+        input.lot.qualityWindowDays ?? windows.qualityWindowDays,
       );
 
     if (!qualityInspectionDueAt) {
@@ -86,7 +103,7 @@ export function calculateLotRisk(input: RiskCalculationInput): RiskAssessment {
       input.currentDate,
       qualityInspectionDueAt,
       "qualityInspectionDueAt",
-      profile.windows,
+      windows,
     );
   }
 
@@ -99,6 +116,37 @@ export function calculateLotRisk(input: RiskCalculationInput): RiskAssessment {
     command: "monitor",
     reasons: [],
   };
+}
+
+function applyPresenceFreshness(
+  input: RiskCalculationInput,
+  risk: RiskAssessment,
+  maxPhysicalConfirmationAgeHours: number | undefined,
+): RiskAssessment {
+  if (
+    maxPhysicalConfirmationAgeHours === undefined ||
+    input.currentTimestamp === undefined ||
+    risk.state === "safe" ||
+    risk.state === "uncertain"
+  ) {
+    return risk;
+  }
+
+  const freshness = classifyPhysicalConfirmationFreshness({
+    confirmation: input.lastPhysicalConfirmation,
+    currentTimestamp: input.currentTimestamp,
+    maxPhysicalConfirmationAgeHours,
+  });
+
+  if (freshness.status === "missing") {
+    return presenceUncertainty("presence_missing", "lastPhysicalConfirmation");
+  }
+
+  if (freshness.status === "stale") {
+    return presenceUncertainty("presence_stale", "lastPhysicalConfirmation.confirmedAt");
+  }
+
+  return risk;
 }
 
 function calculateWindowRisk(
@@ -171,6 +219,14 @@ function uncertainty(code: RiskReasonCode, field: string): RiskAssessment {
   return {
     state: "uncertain",
     command: "correct_data",
+    reasons: [reason(code, field)],
+  };
+}
+
+function presenceUncertainty(code: RiskReasonCode, field: string): RiskAssessment {
+  return {
+    state: "uncertain",
+    command: "check_presence",
     reasons: [reason(code, field)],
   };
 }
