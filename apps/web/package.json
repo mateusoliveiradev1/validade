@@ -10,7 +10,7 @@
     "lint": "pnpm typecheck",
     "format": "node -e \"console.log('format pending root formatter in Plan 03')\"",
     "format:check": "node -e \"console.log('format check pending root formatter in Plan 03')\"",
-    "test": "vitest run --environment jsdom",
+    "test": "vitest run --config ../../vitest.config.ts --project web",
     "test:smoke": "pnpm test",
     "security": "node -e \"console.log('Web security checks start in Plan 03')\""
   },

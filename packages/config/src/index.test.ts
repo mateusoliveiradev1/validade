@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseEnvExample } from "./index";
 
 function readEnvExample() {
-  const envPath = path.join(process.cwd(), "..", "..", ".env.example");
+  const envPath = fileURLToPath(new URL("../../../.env.example", import.meta.url));
   const content = readFileSync(envPath, "utf8");
   const entries = content
     .split(/\r?\n/)
