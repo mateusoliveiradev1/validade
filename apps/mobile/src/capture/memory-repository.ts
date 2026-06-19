@@ -135,6 +135,7 @@ export function createMemoryCaptureRepository(
           const matchesQuery =
             normalizedQuery === undefined ||
             normalizeProductLookup(lot.productDisplayName).includes(normalizedQuery) ||
+            products.get(lot.productId)?.gtin?.includes(normalizedQuery) === true ||
             lot.identity.value.toLocaleLowerCase("pt-BR").includes(normalizedQuery);
           const matchesLocation =
             parsedQuery.location === undefined ||

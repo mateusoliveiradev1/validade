@@ -6,14 +6,26 @@ import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./ca
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
 import { ProductFormScreen } from "./ProductFormScreen";
 import { LotRegistrationScreen } from "./LotRegistrationScreen";
+import { RecentLotList } from "./RecentLotList";
+import { LotDetailScreen } from "./LotDetailScreen";
+import { ObservationComposer } from "./ObservationComposer";
+import type { CaptureLotDetail } from "./repository";
 
-type CaptureScreen = "discovery" | "product-form" | "confirmed" | "lot-registration";
+type CaptureScreen =
+  | "discovery"
+  | "product-form"
+  | "confirmed"
+  | "lot-registration"
+  | "recent"
+  | "detail"
+  | "observation";
 
 export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [screen, setScreen] = useState<CaptureScreen>("discovery");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
   const [initialGtin, setInitialGtin] = useState<string | undefined>();
   const [initializationError, setInitializationError] = useState<string | undefined>();
+  const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
 
   useEffect(() => {
     void repository.initialize().catch(() => {
@@ -60,9 +72,48 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
         repository={repository}
         product={selectedProduct}
         onBack={() => setScreen("discovery")}
+        onSaved={() => setScreen("recent")}
       />
     );
   }
+
+  if (screen === "detail" && detail !== undefined)
+    return (
+      <LotDetailScreen
+        detail={detail}
+        onObserve={() => setScreen("observation")}
+        onBack={() => setScreen("recent")}
+      />
+    );
+  if (screen === "observation" && detail !== undefined)
+    return (
+      <ObservationComposer
+        repository={repository}
+        detail={detail}
+        onBack={() => setScreen("detail")}
+        onDone={() => {
+          void repository.loadLotDetail(detail.id).then((refreshed) => {
+            if (refreshed !== null) setDetail(refreshed);
+            setScreen("recent");
+          });
+        }}
+      />
+    );
+  if (screen === "recent")
+    return (
+      <RecentLotList
+        repository={repository}
+        onRegister={() => setScreen("discovery")}
+        onOpen={(lot) => {
+          void repository.loadLotDetail(lot.id).then((loaded) => {
+            if (loaded !== null) {
+              setDetail(loaded);
+              setScreen("detail");
+            }
+          });
+        }}
+      />
+    );
 
   return (
     <>

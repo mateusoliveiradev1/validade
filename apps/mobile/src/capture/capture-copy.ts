@@ -35,6 +35,21 @@ export const operationalLocations = [
   { kind: "other", label: captureCopy.otherLocation },
 ] as const;
 
+export const observationActions = [
+  ["present", "Confirmar presença"],
+  ["moved", "Mover lote"],
+  ["withdrawn", "Retirar lote"],
+  ["loss", "Registrar perda"],
+  ["not_found", "Marcar como não encontrado"],
+  ["probably_sold_out", "Registrar como provavelmente esgotado"],
+] as const;
+export const reinforcedObservationActions = [
+  "withdrawn",
+  "loss",
+  "not_found",
+  "probably_sold_out",
+] as const;
+
 export function requiredFieldError(field: string): string {
   return `Informe ${field} para registrar este lote.`;
 }

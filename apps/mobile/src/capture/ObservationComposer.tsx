@@ -1,0 +1,182 @@
+import { useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import type { OperationalLocation, PhysicalObservationInput } from "@validade-zero/contracts";
+import type { CaptureLotDetail, CaptureRepository } from "./repository";
+import { actionLabel, formatQuantity } from "./RecentLotList";
+import {
+  formatLocation,
+  observationActions,
+  operationalLocations,
+  requiredFieldError,
+} from "./capture-copy";
+import { ConfirmationSheet } from "./ConfirmationSheet";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  SelectionRow,
+  StatusNotice,
+} from "./capture-ui";
+
+type Action = (typeof observationActions)[number][0];
+
+export function ObservationComposer({
+  repository,
+  detail,
+  onDone,
+  onBack,
+}: {
+  repository: CaptureRepository;
+  detail: CaptureLotDetail;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const [action, setAction] = useState<Action | undefined>();
+  const [quantity, setQuantity] = useState(
+    detail.currentObservation.quantityState === "estimated"
+      ? String(detail.currentObservation.approximateQuantity)
+      : "",
+  );
+  const [quantityConfirmed, setQuantityConfirmed] = useState(false);
+  const [notEstimable, setNotEstimable] = useState(false);
+  const [destination, setDestination] = useState<OperationalLocation | undefined>();
+  const [correction, setCorrection] = useState(false);
+  const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+
+  const needsQuantity = action === "present" || action === "moved";
+  const canAppend =
+    action !== undefined &&
+    (!needsQuantity || notEstimable || (quantityConfirmed && validQuantity(quantity))) &&
+    (action !== "moved" || destination !== undefined) &&
+    (!correction || reason.trim().length > 0);
+  const currentLocation = detail.currentObservation.location;
+
+  function submit(): void {
+    if (!canAppend || action === undefined) {
+      setError("Revise os campos destacados antes de registrar a observação.");
+      return;
+    }
+    if (
+      action === "withdrawn" ||
+      action === "loss" ||
+      action === "not_found" ||
+      action === "probably_sold_out"
+    ) {
+      setConfirming(true);
+    } else {
+      void append();
+    }
+  }
+  async function append(): Promise<void> {
+    if (action === undefined) return;
+    const location = action === "moved" ? destination! : currentLocation;
+    const input: PhysicalObservationInput = {
+      status: action,
+      actorLabel: "Colaborador local",
+      occurredAt: new Date().toISOString(),
+      location,
+      ...(notEstimable
+        ? { quantityState: "not_estimable" as const }
+        : { quantityState: "estimated" as const, approximateQuantity: Number(quantity) }),
+      isCorrection: correction,
+      ...(correction ? { correctionReason: reason } : {}),
+    };
+    await repository.appendObservation(detail.id, input);
+    onDone();
+  }
+  if (confirming && action !== undefined)
+    return (
+      <ConfirmationSheet
+        summary={`${detail.productDisplayName} — lote ${detail.identity.value}. ${actionLabel(action)} em ${formatLocation(action === "moved" ? destination! : currentLocation)}, ${notEstimable ? "Não foi possível estimar" : `${quantity} unidades`}.`}
+        onConfirm={() => void append()}
+        onBack={() => setConfirming(false)}
+      />
+    );
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <ScreenHeader
+        title="Registrar observação"
+        body={`${detail.productDisplayName} — lote ${detail.identity.value}`}
+      />
+      <Text style={styles.metadata}>Última quantidade: {formatQuantity(detail)}</Text>
+      {observationActions.map(([value, label]) => (
+        <SelectionRow
+          key={value}
+          label={label}
+          selected={action === value}
+          onPress={() => setAction(value)}
+        />
+      ))}
+      {needsQuantity ? (
+        <>
+          <Field
+            label="Quantidade confirmada"
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="numeric"
+            error={
+              !notEstimable && (!quantityConfirmed || !validQuantity(quantity))
+                ? requiredFieldError("a quantidade confirmada")
+                : undefined
+            }
+          />
+          <SelectionRow
+            label="Confirmar quantidade informada"
+            selected={quantityConfirmed}
+            onPress={() => setQuantityConfirmed(!quantityConfirmed)}
+          />
+          <SelectionRow
+            label="Não foi possível estimar"
+            selected={notEstimable}
+            onPress={() => setNotEstimable(!notEstimable)}
+          />
+        </>
+      ) : null}
+      {action === "moved" ? (
+        <View style={styles.group}>
+          <Text style={styles.label}>Destino do lote</Text>
+          {operationalLocations.slice(0, 5).map((option) => (
+            <SelectionRow
+              key={option.kind}
+              label={option.label}
+              selected={destination?.kind === option.kind}
+              onPress={() => setDestination({ kind: option.kind } as OperationalLocation)}
+            />
+          ))}
+          {destination === undefined ? (
+            <Text style={styles.error}>{requiredFieldError("o destino")}</Text>
+          ) : null}
+        </View>
+      ) : null}
+      <SecondaryAction
+        label="Corrigir última observação"
+        onPress={() => setCorrection(!correction)}
+      />
+      {correction ? (
+        <Field
+          label="Motivo da correção"
+          value={reason}
+          onChangeText={setReason}
+          error={reason.trim() === "" ? requiredFieldError("o motivo da correção") : undefined}
+        />
+      ) : null}
+      {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
+      <PrimaryAction label="Registrar observação" disabled={!canAppend} onPress={submit} />
+      <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+    </ScrollView>
+  );
+}
+function validQuantity(value: string): boolean {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0;
+}
+const styles = StyleSheet.create({
+  screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
+  metadata: { color: "#3F5546", fontSize: 14, lineHeight: 20 },
+  group: { gap: 8 },
+  label: { color: "#112016", fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  error: { color: "#B42318", fontSize: 14, lineHeight: 20 },
+});
