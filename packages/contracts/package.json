@@ -20,6 +20,7 @@
     "security": "node -e \"console.log('No package-level security checks yet')\""
   },
   "dependencies": {
+    "@validade-zero/domain": "workspace:*",
     "zod": "^4.4.3"
   }
 }

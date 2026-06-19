@@ -41,6 +41,7 @@ export default tseslint.config(
           allowDefaultProject: [
             "apps/api/src/index.test.ts",
             "apps/mobile/src/App.test.tsx",
+            "apps/mobile/src/capture/capture-contract.test.ts",
             "apps/web/e2e/smoke.spec.ts",
             "apps/web/src/App.test.tsx",
             "apps/web/vite.config.ts",
@@ -55,7 +56,7 @@ export default tseslint.config(
             "playwright.config.ts",
             "vitest.config.ts",
           ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 16,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 17,
         },
         tsconfigRootDir: import.meta.dirname,
       },

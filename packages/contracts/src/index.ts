@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./capture";
+
 export const HEALTH_SERVICE_NAME = "validade-zero-api" as const;
 
 export const ActorRoleSchema = z.enum(["collaborator", "lead", "admin", "system"]);

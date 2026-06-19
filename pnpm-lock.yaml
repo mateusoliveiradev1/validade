@@ -91,6 +91,9 @@ importers:
       expo:
         specifier: ^56.0.12
         version: 56.0.12(@babel/core@7.29.7)(@expo/dom-webview@56.0.5)(react-dom@19.2.7(react@19.2.7))(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
+      expo-sqlite:
+        specifier: ~56.0.5
+        version: 56.0.5(expo@56.0.12)(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -166,6 +169,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@validade-zero/domain':
+        specifier: workspace:*
+        version: link:../domain
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2001,6 +2007,9 @@ packages:
     resolution: {integrity: sha512-Z7tMw1ytTXt5jqMcOP+OQteU1VuNK9Y02uuJtKQ1Sv69jXQKKg5cibLwGJow8yzZP+eAc18EmLGPal0bp36rvQ==}
     engines: {node: '>=8'}
 
+  await-lock@2.2.2:
+    resolution: {integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==}
+
   babel-plugin-polyfill-corejs2@0.4.17:
     resolution: {integrity: sha512-aTyf30K/rqAsNwN76zYrdtx8obu0E4KoUME29B1xj+B3WxgvWkp943vYQ+z8Mv3lw9xHXMHpvSPOBxzAkIa94w==}
     peerDependencies:
@@ -2501,6 +2510,13 @@ packages:
   expo-server@56.0.5:
     resolution: {integrity: sha512-SmM2p2g3Jrktpiazcst+OxhjSzOHXKAY4BPURHYHXvApzzoybMmrNF4IEZ8DKZ145BhSe4ydAmlEFCRTsdtgUQ==}
     engines: {node: '>=20.16.0'}
+
+  expo-sqlite@56.0.5:
+    resolution: {integrity: sha512-wHYRVLS5nUFEtli45wHaO+RjlRY8sQXyOSgENVk6I4zq7+FgySqjOk3YOYW6IKIMwhj5XzjMJO+pY8xKUy73Kw==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
 
   expo@56.0.12:
     resolution: {integrity: sha512-FxgdI/Yqva6iJOThZIHfvxlKPxs4EC4uScUnEswwSArR/Fj9k430O13R590LcOQTsdNsjIs+GBHwjfoAY6vmAQ==}
@@ -6245,6 +6261,8 @@ snapshots:
 
   astral-regex@2.0.0: {}
 
+  await-lock@2.2.2: {}
+
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.7):
     dependencies:
       '@babel/compat-data': 7.29.7
@@ -6808,6 +6826,13 @@ snapshots:
       react-native: 0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7)
 
   expo-server@56.0.5: {}
+
+  expo-sqlite@56.0.5(expo@56.0.12)(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7))(react@19.2.7):
+    dependencies:
+      await-lock: 2.2.2
+      expo: 56.0.12(@babel/core@7.29.7)(@expo/dom-webview@56.0.5)(react-dom@19.2.7(react@19.2.7))(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
+      react: 19.2.7
+      react-native: 0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7)
 
   expo@56.0.12(@babel/core@7.29.7)(@expo/dom-webview@56.0.5)(react-dom@19.2.7(react@19.2.7))(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)(typescript@6.0.3):
     dependencies:

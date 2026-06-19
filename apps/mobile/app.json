@@ -8,6 +8,9 @@
     "userInterfaceStyle": "automatic",
     "extra": {
       "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url"
-    }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }
