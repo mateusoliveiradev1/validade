@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+*.local
+
+# Build outputs and caches
+dist/
+build/
+coverage/
+.turbo/
+.expo/
+.wrangler/
+.vite/
+
+# Test and QA artifacts
+playwright-report/
+test-results/
+.maestro/artifacts/
+stryker-tmp/
+
+# Native/mobile generated output
+android/
+ios/
+
+# Evidence and operational media must stay out of the public repo.
+evidence/
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.webp

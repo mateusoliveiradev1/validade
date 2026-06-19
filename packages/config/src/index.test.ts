@@ -23,7 +23,7 @@ describe("public repo env example", () => {
     const parsed = parseEnvExample(readEnvExample());
 
     expect(parsed.API_BASE_URL).toBe("https://api.localhost.example.invalid");
-    expect(parsed.NEON_DATABASE_URL).toContain("example.invalid");
+    expect(parsed.NEON_DATABASE_URL).toBe("NEON_DATABASE_URL_EXAMPLE_INVALID");
     expect(parsed.CLOUDFLARE_ACCOUNT_ID).toBe("example-cloudflare-account-id");
   });
 

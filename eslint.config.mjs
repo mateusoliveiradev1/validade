@@ -42,6 +42,7 @@ export default tseslint.config(
             "apps/mobile/src/App.test.tsx",
             "apps/web/src/App.test.tsx",
             "apps/web/vite.config.ts",
+            "packages/config/src/index.test.ts",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
@@ -74,6 +75,16 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
     },
   },
   {

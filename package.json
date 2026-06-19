@@ -16,16 +16,21 @@
     "format:check": "prettier --check .",
     "test": "turbo run test",
     "test:smoke": "turbo run test:smoke",
-    "security": "turbo run security",
+    "security": "pnpm security:env && pnpm security:secrets && pnpm security:data && turbo run security",
+    "security:env": "node scripts/check-env-example.mjs",
+    "security:secrets": "secretlint \"apps/**/*\" \"packages/**/*\" \"scripts/**/*\" \"*.json\" \"*.yaml\" \"*.yml\" \"*.md\" \".env.example\" --secretlintrc .secretlintrc.json",
+    "security:data": "node scripts/check-no-real-data.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
     "eslint": "^10.5.0",
     "globals": "^17.6.0",
     "prettier": "^3.8.4",
+    "secretlint": "^13.0.2",
     "turbo": "^2.9.18",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1"
