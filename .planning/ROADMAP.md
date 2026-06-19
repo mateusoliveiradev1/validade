@@ -19,7 +19,7 @@
 3. Public repo has safe secret handling, .env examples, and no real operational data.
 4. CI can execute the baseline quality suite.
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 Plans:
 **Wave 1**
 
@@ -35,7 +35,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-04-PLAN.md - Test pyramid, safe fixtures, and smoke coverage
+- [x] 01-04-PLAN.md - Test pyramid, safe fixtures, and smoke coverage
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
