@@ -17,6 +17,9 @@
           "cameraPermission": "A câmera ajuda a localizar um produto. A busca manual continua disponível."
         }
       ]
-    ]
+    ],
+    "android": {
+      "package": "com.validadezero.app"
+    }
   }
 }
