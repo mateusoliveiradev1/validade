@@ -19,7 +19,7 @@
 3. Public repo has safe secret handling, .env examples, and no real operational data.
 4. CI can execute the baseline quality suite.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 Plans:
 **Wave 1**
 
@@ -39,7 +39,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 01-05-PLAN.md - CI, security docs, threat model, and README
+- [x] 01-05-PLAN.md - CI, security docs, threat model, and README
 
 ### Phase 2: Domain and Risk Core
 
