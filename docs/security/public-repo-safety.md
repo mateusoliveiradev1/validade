@@ -48,4 +48,3 @@ Use `@validade-zero/test-utils` fixtures for tests. Future fixtures must:
 ## Review Rule
 
 Any suspected production secret, real operational data, or real evidence asset is treated as a release blocker until removed and investigated. If a real secret was committed, rotate it outside the repo before considering the issue closed.
-
