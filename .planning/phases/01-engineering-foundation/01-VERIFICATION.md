@@ -118,6 +118,15 @@ No source-code or repository-settings gaps remain for Phase 1.
 
 **No gaps found.** Phase goal achieved. Ready to proceed.
 
+## Documented Non-Blocking Security Findings
+
+After enabling Dependabot alerts, GitHub reported two open `medium` npm alerts in `pnpm-lock.yaml`:
+
+- `qs`: remotely triggerable DoS in `qs.stringify` for null/undefined comma-format array entries with `encodeValuesOnly`.
+- `uuid`: missing buffer bounds check in v3/v5/v6 when `buf` is provided.
+
+Per D-09, `high` and `critical` findings block readiness. These `medium` findings are documented as non-blocking risk/backlog items for dependency triage before release hardening.
+
 ## Verification Metadata
 
 **Verification approach:** Goal-backward from roadmap success criteria and plan must-haves.
