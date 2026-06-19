@@ -85,11 +85,11 @@ Plans:
 3. Collaborator can move and confirm lots across operational locations.
 4. Last-seen data captures user, time, location, and approximate quantity.
 
-**Plans:** 4 executable plans
+**Plans:** 1/4 plans executed
 
 **Wave 1**
 
-- [ ] 03-01-PLAN.md - Runtime-validated capture contracts and durable local SQLite ledger
+- [x] 03-01-PLAN.md - Runtime-validated capture contracts and durable local SQLite ledger
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

@@ -3,14 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 3 - Mobile Lot Capture
-status: ready_to_execute
-last_updated: "2026-06-19T16:20:07.500Z"
-last_activity: 2026-06-19 - Created and verified four executable plans for Phase 3 Mobile Lot Capture
+status: in_progress
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-06-19T16:39:37.857Z"
+last_activity: 2026-06-19 - Completed Plan 03-01 capture contracts and local SQLite ledger
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
   percent: 22
 ---
 
@@ -21,14 +22,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-19 - Created and verified four executable plans for Phase 3 Mobile Lot Capture
+**Last activity:** 2026-06-19 - Completed Plan 03-01 capture contracts and local SQLite ledger
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-18)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 3 Mobile Lot Capture planned in four sequential waves; ready to execute.
+**Current focus:** Phase 3 Mobile Lot Capture in progress — Plan 03-01 complete; continue with the manual discovery and lot-registration flow in 03-02.
 
 ## Roadmap Progress
 
@@ -36,7 +37,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 |-------|--------|-------|
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
-| 3 | Planned | Mobile Lot Capture - 4 executable plans ready |
+| 3 | In Progress | Mobile Lot Capture - 1/4 plans executed |
 | 4 | Pending | Today Task Workflow |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
@@ -54,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 
 ## Next Step
 
-Execute Phase 3 Mobile Lot Capture with `$gsd-execute-phase 3`. The approved `03-UI-SPEC.md` remains the visual and interaction source of truth.
+Continue Phase 3 Mobile Lot Capture with Plan 03-02. The approved `03-UI-SPEC.md` remains the visual and interaction source of truth.
 
 ### Quick Tasks Completed
 
@@ -75,3 +76,15 @@ Execute Phase 3 Mobile Lot Capture with `$gsd-execute-phase 3`. The approved `03
 | Phase 02 P02 | 5min | 3 tasks | 6 files |
 | Phase 02 P03 | 6min | 3 tasks | 10 files |
 | Phase 02 P04 | 5min | 3 tasks | 8 files |
+| Phase 03 P01 | 11 min | 2 tasks | 13 files |
+
+## Session
+
+**Last session:** 2026-06-19T16:39:24.539Z
+**Stopped at:** Completed 03-01-PLAN.md
+**Resume file:** .planning/phases/03-mobile-lot-capture/03-02-PLAN.md
+
+## Decisions
+
+- [Phase 03]: Capture contracts preserve product-mode and quantity-state discriminants at the persistence boundary. — Required lot dates and explicit quantity uncertainty cannot be lost in optional fields.
+- [Phase 03]: Local corrections append observations and refresh only the latest lot snapshot. — This preserves the original physical fact without claiming Phase 8 audit scope.
