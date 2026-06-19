@@ -54,6 +54,24 @@ Plans:
 3. Critical domain rules have TDD coverage and mutation-ready structure.
 4. Domain logic has no dependency on UI, database, or provider SDKs.
 
+**Plans:** 0/4 plans complete
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md - Domain test harness and product/rule vocabulary
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md - Formal-validity and FLV risk-window engine
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-03-PLAN.md - Physical presence uncertainty and operational commands
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-04-PLAN.md - Scenario matrix, mutation readiness, and boundary verification
+
 ### Phase 3: Mobile Lot Capture
 
 **Goal:** Deliver the first mobile workflow for registering products/lots and confirming physical presence by location.
