@@ -54,7 +54,7 @@ Plans:
 3. Critical domain rules have TDD coverage and mutation-ready structure.
 4. Domain logic has no dependency on UI, database, or provider SDKs.
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 Plans:
 **Wave 1**
 
@@ -62,7 +62,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md - Formal-validity and FLV risk-window engine
+- [x] 02-02-PLAN.md - Formal-validity and FLV risk-window engine
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
