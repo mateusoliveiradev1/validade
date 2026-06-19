@@ -45,6 +45,7 @@ export interface RiskWindows {
   markdownDays: number;
   criticalDays: number;
   expiredDays: number;
+  qualityWindowDays?: number;
 }
 
 export interface RuleProfile {
@@ -73,23 +74,24 @@ export interface ProductBase {
 export interface FormalValidityProduct extends ProductBase {
   mode: "formal_validity";
   lotRequirements: {
-    expiresOn: true;
-    receivedOn?: boolean;
+    expiresAt: true;
+    receivedAt?: boolean;
   };
 }
 
 export interface FlvInspectionProduct extends ProductBase {
   mode: "flv_inspection";
   lotRequirements: {
-    receivedOn: true;
+    receivedAt: true;
     qualityWindowDays: true;
+    qualityInspectionDueAt?: boolean;
   };
 }
 
 export interface ReceivingMonitoredProduct extends ProductBase {
   mode: "receiving_monitored";
   lotRequirements: {
-    receivedOn: true;
+    receivedAt: true;
   };
 }
 
@@ -106,19 +108,20 @@ export interface LotBase {
 
 export interface FormalValidityLotInput extends LotBase {
   mode: "formal_validity";
-  expiresOn: string;
-  receivedOn?: string;
+  expiresAt: string;
+  receivedAt?: string;
 }
 
 export interface FlvInspectionLotInput extends LotBase {
   mode: "flv_inspection";
-  receivedOn: string;
-  qualityWindowDays: number;
+  receivedAt?: string;
+  qualityWindowDays?: number;
+  qualityInspectionDueAt?: string;
 }
 
 export interface ReceivingMonitoredLotInput extends LotBase {
   mode: "receiving_monitored";
-  receivedOn: string;
+  receivedAt: string;
 }
 
 export type LotInput =

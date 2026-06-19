@@ -53,7 +53,7 @@ describe("domain product and risk vocabulary", () => {
       mode: "formal_validity",
       productId: "produto-ficticio-ovos-001",
       lotCode: "LOTE-FICTICIO-OVOS-001",
-      expiresOn: "2030-01-15",
+      expiresAt: "2030-01-15",
     };
     const flvInspectionLot: FlvInspectionLotInput = {
       mode: "flv_inspection",
@@ -65,8 +65,8 @@ describe("domain product and risk vocabulary", () => {
 
     expect(modeForLot(formalValidityLot)).toBe("formal_validity");
     expect(modeForLot(flvInspectionLot)).toBe("flv_inspection");
-    expect(formalValidityLot).toHaveProperty("expiresOn");
-    expect(flvInspectionLot).not.toHaveProperty("expiresOn");
+    expect(formalValidityLot).toHaveProperty("expiresAt");
+    expect(flvInspectionLot).not.toHaveProperty("expiresAt");
     expect(flvInspectionLot).toHaveProperty("qualityWindowDays");
   });
 
@@ -78,7 +78,7 @@ describe("domain product and risk vocabulary", () => {
         categoryId: "categoria-ficticia-ovos",
         displayName: "Ovos Ficticios Granja Exemplo",
         lotRequirements: {
-          expiresOn: true,
+          expiresAt: true,
         },
       },
       {
@@ -97,7 +97,7 @@ describe("domain product and risk vocabulary", () => {
       "formal_validity",
       "flv_inspection",
     ]);
-    expect(products[0]?.lotRequirements).toEqual({ expiresOn: true });
+    expect(products[0]?.lotRequirements).toEqual({ expiresAt: true });
     expect(products[1]?.lotRequirements).toEqual({
       receivedOn: true,
       qualityWindowDays: true,

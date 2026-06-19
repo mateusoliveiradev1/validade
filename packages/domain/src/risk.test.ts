@@ -9,6 +9,14 @@ const categoryProfile: CategoryRuleProfile = {
   mode: "formal_validity",
 };
 
+const flvCategoryProfile = {
+  categoryId: "categoria-ficticia-flv",
+  mode: "flv_inspection",
+  windows: {
+    qualityWindowDays: 3,
+  },
+} as const;
+
 function formalValidityInput(expiresAt: string) {
   return {
     currentDate,
@@ -50,5 +58,92 @@ describe("formal-validity risk windows", () => {
     expect(result.state).toBe("critical");
     expect(result.command).toBe("monitor");
     expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_3_days");
+  });
+});
+
+describe("FLV quality-window and missing-data uncertainty", () => {
+  it("calculates FLV critical risk from receivedAt plus qualityWindowDays", () => {
+    const result = calculateLotRisk({
+      currentDate: "2026-06-22",
+      categoryProfile: flvCategoryProfile,
+      lot: {
+        mode: "flv_inspection",
+        productId: "produto-ficticio-maca-001",
+        lotCode: "LOTE-FICTICIO-FLV-001",
+        receivedAt: "2026-06-19",
+      },
+    });
+
+    expect(result.state).toBe("critical");
+    expect(result.command).toBe("monitor");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_3_days");
+  });
+
+  it("calculates FLV expired risk after the quality window", () => {
+    const result = calculateLotRisk({
+      currentDate: "2026-06-23",
+      categoryProfile: flvCategoryProfile,
+      lot: {
+        mode: "flv_inspection",
+        productId: "produto-ficticio-maca-001",
+        lotCode: "LOTE-FICTICIO-FLV-001",
+        receivedAt: "2026-06-19",
+      },
+    });
+
+    expect(result.state).toBe("expired");
+    expect(result.command).toBe("withdraw_now");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expired");
+  });
+
+  it("uses a direct qualityInspectionDueAt date when one is present", () => {
+    const result = calculateLotRisk({
+      currentDate: "2026-06-22",
+      categoryProfile: flvCategoryProfile,
+      lot: {
+        mode: "flv_inspection",
+        productId: "produto-ficticio-maca-001",
+        lotCode: "LOTE-FICTICIO-FLV-001",
+        qualityInspectionDueAt: "2026-06-22",
+      },
+    });
+
+    expect(result.state).toBe("critical");
+    expect(result.command).toBe("monitor");
+  });
+
+  it("returns uncertain and correct_data for a formal lot without expiresAt", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      categoryProfile,
+      lot: {
+        mode: "formal_validity",
+        productId: "produto-ficticio-ovos-001",
+        lotCode: "LOTE-FICTICIO-OVOS-001",
+      },
+    });
+
+    expect(result.state).toBe("uncertain");
+    expect(result.command).toBe("correct_data");
+    expect(result.reasons.map((reason) => reason.code)).toContain("missing_required_date");
+  });
+
+  it("returns uncertain and correct_data for FLV without quality-window inputs", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      categoryProfile: {
+        categoryId: "categoria-ficticia-flv",
+        mode: "flv_inspection",
+      },
+      lot: {
+        mode: "flv_inspection",
+        productId: "produto-ficticio-maca-001",
+        lotCode: "LOTE-FICTICIO-FLV-001",
+      },
+    });
+
+    expect(result.state).toBe("uncertain");
+    expect(result.command).toBe("correct_data");
+    expect(result.reasons.map((reason) => reason.code)).toContain("missing_quality_window");
   });
 });
