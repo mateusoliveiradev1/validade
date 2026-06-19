@@ -77,9 +77,7 @@ export const OperationalLocationSchema = z.discriminatedUnion("kind", [
 
 export const LotIdentitySchema = z.discriminatedUnion("identitySource", [
   z.object({ identitySource: z.literal("printed"), value: IdentifierSchema }).strict(),
-  z
-    .object({ identitySource: z.literal("generated_internal"), value: IdentifierSchema })
-    .strict(),
+  z.object({ identitySource: z.literal("generated_internal"), value: IdentifierSchema }).strict(),
 ]);
 
 const CaptureLotBaseSchema = z.object({

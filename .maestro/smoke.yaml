@@ -1,6 +1,5 @@
 appId: com.validadezero.app
 ---
 - launchApp
-- assertVisible: "Validade Zero"
-- assertVisible: "Nenhum dado real neste ambiente"
-- assertVisible: "Checagem de base pronta"
+- assertVisible: "Localizar produto"
+- assertVisible: "Buscar manualmente"

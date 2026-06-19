@@ -15,12 +15,16 @@ export function ProductDiscoveryScreen({
   repository,
   onConfirmProduct,
   onCreateProduct,
+  onScanCode,
+  initialLookup,
 }: {
   repository: CaptureRepository;
   onConfirmProduct: (product: CaptureProductRecord) => void;
   onCreateProduct: (initialGtin?: string) => void;
+  onScanCode?: (() => void) | undefined;
+  initialLookup?: string | undefined;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialLookup ?? "");
   const [matches, setMatches] = useState<readonly CaptureProductRecord[]>([]);
   const [candidate, setCandidate] = useState<CaptureProductRecord | undefined>();
   const [message, setMessage] = useState<string | undefined>();
@@ -61,6 +65,9 @@ export function ProductDiscoveryScreen({
         placeholder="Ex.: alface ou 7890000000001"
       />
       <PrimaryAction label={captureCopy.manualSearch} onPress={() => void searchManually()} />
+      {onScanCode === undefined ? null : (
+        <SecondaryAction label="Ler código" onPress={onScanCode} />
+      )}
       <View style={styles.shortcuts}>
         <SecondaryAction
           label={captureCopy.recent}

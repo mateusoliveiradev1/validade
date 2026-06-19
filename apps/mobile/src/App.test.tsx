@@ -33,6 +33,10 @@ vi.mock("expo-sqlite", () => ({
       withTransactionAsync: (task: () => Promise<void>) => task(),
     }),
 }));
+vi.mock("expo-camera", () => ({
+  CameraView: () => null,
+  useCameraPermissions: () => [{ granted: false }, () => Promise.resolve(false)],
+}));
 
 describe("Validade Zero mobile smoke", () => {
   it("renders the manual product-discovery entry point", async () => {

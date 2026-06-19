@@ -9,6 +9,7 @@ import { LotRegistrationScreen } from "./LotRegistrationScreen";
 import { RecentLotList } from "./RecentLotList";
 import { LotDetailScreen } from "./LotDetailScreen";
 import { ObservationComposer } from "./ObservationComposer";
+import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
 
 type CaptureScreen =
@@ -18,7 +19,8 @@ type CaptureScreen =
   | "lot-registration"
   | "recent"
   | "detail"
-  | "observation";
+  | "observation"
+  | "barcode";
 
 export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [screen, setScreen] = useState<CaptureScreen>("discovery");
@@ -26,6 +28,7 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [initialGtin, setInitialGtin] = useState<string | undefined>();
   const [initializationError, setInitializationError] = useState<string | undefined>();
   const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
+  const [scannedLookup, setScannedLookup] = useState<string | undefined>();
 
   useEffect(() => {
     void repository.initialize().catch(() => {
@@ -114,6 +117,16 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
         }}
       />
     );
+  if (screen === "barcode")
+    return (
+      <BarcodeLookupAssistant
+        onBack={() => setScreen("discovery")}
+        onLookup={(value) => {
+          setScannedLookup(value);
+          setScreen("discovery");
+        }}
+      />
+    );
 
   return (
     <>
@@ -130,6 +143,8 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
           setInitialGtin(gtin);
           setScreen("product-form");
         }}
+        onScanCode={() => setScreen("barcode")}
+        {...(scannedLookup === undefined ? {} : { initialLookup: scannedLookup })}
       />
     </>
   );

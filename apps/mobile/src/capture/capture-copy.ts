@@ -49,6 +49,8 @@ export const reinforcedObservationActions = [
   "not_found",
   "probably_sold_out",
 ] as const;
+export const cameraFallbackCopy =
+  "Não foi possível usar a câmera. Você pode buscar o produto por nome ou código.";
 
 export function requiredFieldError(field: string): string {
   return `Informe ${field} para registrar este lote.`;

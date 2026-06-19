@@ -19,6 +19,7 @@
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "expo": "^56.0.12",
+    "expo-camera": "~56.0.8",
     "expo-sqlite": "~56.0.5",
     "react": "^19.2.7",
     "react-native": "^0.86.0"

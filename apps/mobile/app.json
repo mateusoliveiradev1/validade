@@ -10,7 +10,13 @@
       "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "A câmera ajuda a localizar um produto. A busca manual continua disponível."
+        }
+      ]
     ]
   }
 }

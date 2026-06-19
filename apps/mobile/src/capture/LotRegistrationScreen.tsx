@@ -33,10 +33,12 @@ export function LotRegistrationScreen({
   repository,
   product,
   onBack,
+  onSaved,
 }: {
   repository: CaptureRepository;
   product: CaptureProductRecord;
   onBack: () => void;
+  onSaved?: () => void;
 }) {
   const mode = product.productRuleOverride?.mode ?? product.categoryRuleProfile.mode;
   const [printedIdentity, setPrintedIdentity] = useState("");
@@ -104,6 +106,7 @@ export function LotRegistrationScreen({
         ),
       );
       setSaveError(undefined);
+      onSaved?.();
     } catch {
       setSaveError(
         "Não foi possível registrar este lote neste aparelho. Revise os campos destacados e tente novamente.",
