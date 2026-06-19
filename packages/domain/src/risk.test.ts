@@ -147,3 +147,44 @@ describe("FLV quality-window and missing-data uncertainty", () => {
     expect(result.reasons.map((reason) => reason.code)).toContain("missing_quality_window");
   });
 });
+
+describe("risk severity precedence and product overrides", () => {
+  it("keeps expired dominating markdown_due and lower states", () => {
+    const result = calculateLotRisk(formalValidityInput("2026-06-18"));
+
+    expect(result.state).toBe("expired");
+    expect(result.state).not.toBe("markdown_due");
+    expect(result.command).toBe("withdraw_now");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expired");
+  });
+
+  it("uses product markdownDays override so a 10-day item is radar instead of markdown_due", () => {
+    const categoryProfileWithDefaults: CategoryRuleProfile = {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity",
+      windows: {
+        markdownDays: 15,
+      },
+    };
+    const productOverride = {
+      productId: "produto-ficticio-ovos-001",
+      windows: {
+        markdownDays: 7,
+      },
+    } as const;
+    const originalCategoryProfile = structuredClone(categoryProfileWithDefaults);
+    const originalProductOverride = structuredClone(productOverride);
+
+    const result = calculateLotRisk({
+      ...formalValidityInput("2026-06-29"),
+      categoryProfile: categoryProfileWithDefaults,
+      productOverride,
+    });
+
+    expect(result.state).toBe("radar");
+    expect(result.state).not.toBe("markdown_due");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_60_days");
+    expect(categoryProfileWithDefaults).toEqual(originalCategoryProfile);
+    expect(productOverride).toEqual(originalProductOverride);
+  });
+});
