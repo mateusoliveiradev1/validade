@@ -1,16 +1,19 @@
 export const DOMAIN_BOUNDARY = {
   packageName: "@validade-zero/domain",
-  owns: "future risk, lot, task, and audit business rules",
+  owns: "pure product, lot, risk, presence, and task-command business rules",
   forbiddenDependencies: ["apps/*", "database clients", "provider SDKs", "UI packages"],
-  phaseOneStatus: "reserved-boundary-no-business-rules",
+  phaseTwoStatus: "domain-vocabulary-active-no-infrastructure-dependencies",
 } as const;
 
 export type DomainBoundary = typeof DOMAIN_BOUNDARY;
 
 export function describeDomainBoundary(): string {
   return [
-    `${DOMAIN_BOUNDARY.packageName} is reserved for ${DOMAIN_BOUNDARY.owns}.`,
-    "Phase 1 intentionally avoids product, lot, task, and risk rules.",
+    `${DOMAIN_BOUNDARY.packageName} owns ${DOMAIN_BOUNDARY.owns}.`,
+    "It exposes pure TypeScript vocabulary and rules for future apps to consume.",
     `Forbidden dependencies: ${DOMAIN_BOUNDARY.forbiddenDependencies.join(", ")}.`,
   ].join(" ");
 }
+
+export * from "./profiles";
+export * from "./types";
