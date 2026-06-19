@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Validade Zero",
+    "slug": "validade-zero",
+    "scheme": "validadezero",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "extra": {
+      "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const HEALTH_SERVICE_NAME = "validade-zero-api" as const;
+
 export const ActorRoleSchema = z.enum(["collaborator", "lead", "admin", "system"]);
 
 export const ActorContextSchema = z.object({
@@ -24,7 +26,7 @@ export const AuditEventSchema = z.object({
 
 export const HealthResponseSchema = z.object({
   status: z.enum(["ok"]),
-  service: z.literal("validade-zero-api"),
+  service: z.literal(HEALTH_SERVICE_NAME),
   checkedAt: z.string().datetime({ offset: true }),
 });
 

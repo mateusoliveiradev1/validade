@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { createLocalProviderRegistry } from "@validade-zero/adapters";
-import { HealthContract, SafeProbeContract } from "@validade-zero/contracts";
+import {
+  HEALTH_SERVICE_NAME,
+  HealthContract,
+  SafeProbeContract,
+} from "@validade-zero/contracts";
 
 const app = new Hono();
 const providers = createLocalProviderRegistry();
@@ -8,7 +12,7 @@ const providers = createLocalProviderRegistry();
 app.get("/health", (context) => {
   const payload = HealthContract.response.parse({
     status: "ok",
-    service: "validade-zero-api",
+    service: HEALTH_SERVICE_NAME,
     checkedAt: new Date().toISOString(),
   });
 

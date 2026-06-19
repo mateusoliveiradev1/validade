@@ -1,0 +1,30 @@
+{
+  "name": "@validade-zero/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "expo/AppEntry",
+  "scripts": {
+    "dev": "expo start",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm typecheck",
+    "format": "node -e \"console.log('format pending root formatter in Plan 03')\"",
+    "format:check": "node -e \"console.log('format check pending root formatter in Plan 03')\"",
+    "test": "vitest run",
+    "test:smoke": "pnpm test",
+    "security": "node -e \"console.log('Mobile security checks start in Plan 03')\""
+  },
+  "dependencies": {
+    "@validade-zero/contracts": "workspace:*",
+    "expo": "^56.0.12",
+    "react": "^19.2.7",
+    "react-native": "^0.86.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-test-renderer": "^19.1.0",
+    "react-test-renderer": "^19.2.7",
+    "vitest": "^4.1.9"
+  }
+}
