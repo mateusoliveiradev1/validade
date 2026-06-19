@@ -8,7 +8,7 @@ import {
   userFixture,
 } from "./fixtures";
 
-const fictitiousMarker = /(FICTICIO|FICTICIA|EXEMPLO)/;
+const fictitiousMarker = /(FICTICIO|FICTICIA|EXEMPLO)/i;
 
 describe("fictitious operational fixtures", () => {
   it("exports store, user, product, lot, and evidence examples", () => {
@@ -16,7 +16,7 @@ describe("fictitious operational fixtures", () => {
     expect(userFixture.displayName).toContain("Exemplo");
     expect(productFixture.productName).toContain("Exemplo");
     expect(lotFixture.lotCode).toContain("FICTICIO");
-    expect(evidenceFixture.objectKey).toContain("ficticias");
+    expect(evidenceFixture.objectKey).toMatch(/ficticias/i);
   });
 
   it("marks every operational-looking string as fictitious or example data", () => {

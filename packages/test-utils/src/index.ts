@@ -1,3 +1,5 @@
+export * from "./fixtures";
+
 export interface FictitiousStoreFixture {
   storeId: string;
   storeName: string;
