@@ -9,7 +9,7 @@
 
 - [x] **FND-01**: Developer can work in a pnpm/Turborepo monorepo with isolated apps, shared packages, cacheable tasks, and consistent scripts.
 - [x] **FND-02**: Developer can rely on strict TypeScript, shared contracts, runtime validation, lint rules, and dependency boundaries across the repo.
-- [ ] **FND-03**: Developer can run TDD-focused unit tests, integration tests, E2E checks, security checks, and quality gates from documented commands.
+- [x] **FND-03**: Developer can run TDD-focused unit tests, integration tests, E2E checks, security checks, and quality gates from documented commands.
 - [x] **FND-04**: Public repository never contains production secrets, real customer/store data, or private evidence assets.
 
 ### Catalog and Lots
@@ -60,7 +60,7 @@
 - [ ] **AUD-01**: System records an audit trail for task creation, assignment, action, escalation, evidence upload, and resolution.
 - [ ] **AUD-02**: System enforces role-based access for collaborator, lead, and admin workflows.
 - [ ] **AUD-03**: Evidence photos are stored outside Postgres with controlled access and only object references in the database.
-- [ ] **AUD-04**: Security checks include dependency audit, secret scanning, authorization tests, and threat-model review before release.
+- [x] **AUD-04**: Security checks include dependency audit, secret scanning, authorization tests, and threat-model review before release.
 
 ### UI / UX / Copy
 
@@ -107,7 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | FND-01 | Phase 1 | Complete |
 | FND-02 | Phase 1 | Complete |
-| FND-03 | Phase 1 | Pending |
+| FND-03 | Phase 1 | Complete |
 | FND-04 | Phase 1 | Complete |
 | CAT-01 | Phase 3 | Pending |
 | CAT-02 | Phase 3 | Pending |
@@ -137,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-01 | Phase 8 | Pending |
 | AUD-02 | Phase 8 | Pending |
 | AUD-03 | Phase 8 | Pending |
-| AUD-04 | Phase 1 | Pending |
+| AUD-04 | Phase 1 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
