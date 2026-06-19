@@ -15,7 +15,7 @@
     "lint": "pnpm typecheck",
     "format": "node -e \"console.log('format pending root formatter in Plan 03')\"",
     "format:check": "node -e \"console.log('format check pending root formatter in Plan 03')\"",
-    "test": "vitest run --config ../../vitest.config.ts --project config",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project config",
     "test:smoke": "pnpm typecheck",
     "security": "node -e \"console.log('No package-level security checks yet')\""
   },
