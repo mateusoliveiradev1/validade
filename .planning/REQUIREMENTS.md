@@ -17,14 +17,14 @@
 - [ ] **CAT-01**: Admin can register products with category, supplier, code/GTIN when available, and operational rule profile.
 - [ ] **CAT-02**: Collaborator can register lots with product, quantity, validity date or quality window, received date, and current location.
 - [ ] **CAT-03**: Collaborator can use camera/barcode assistance to find products while still manually confirming lot, validity, and quantity.
-- [ ] **CAT-04**: Admin can distinguish formal-validity items from FLV fresh items controlled by quality and inspection rules.
+- [x] **CAT-04**: Admin can distinguish formal-validity items from FLV fresh items controlled by quality and inspection rules.
 
 ### Locations and Presence
 
 - [ ] **LOC-01**: Collaborator can move lots between sales area, stock, cold room, promotional island, and withdrawal/loss area.
 - [ ] **LOC-02**: Collaborator can confirm that a lot is still present, moved, sold out/probably gone, withdrawn, lost, or not found.
 - [ ] **LOC-03**: System tracks last physical presence with user, time, location, and approximate quantity.
-- [ ] **LOC-04**: System treats unverified risky lots as uncertain instead of safe.
+- [x] **LOC-04**: System treats unverified risky lots as uncertain instead of safe.
 
 ### Risk and Tasks
 
@@ -112,11 +112,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAT-01 | Phase 3 | Pending |
 | CAT-02 | Phase 3 | Pending |
 | CAT-03 | Phase 3 | Pending |
-| CAT-04 | Phase 2 | Pending |
+| CAT-04 | Phase 2 | Complete |
 | LOC-01 | Phase 3 | Pending |
 | LOC-02 | Phase 3 | Pending |
 | LOC-03 | Phase 3 | Pending |
-| LOC-04 | Phase 2 | Pending |
+| LOC-04 | Phase 2 | Complete |
 | RSK-01 | Phase 2 | Pending |
 | RSK-02 | Phase 2 | Pending |
 | RSK-03 | Phase 4 | Pending |

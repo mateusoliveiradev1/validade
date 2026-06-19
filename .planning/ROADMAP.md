@@ -54,11 +54,11 @@ Plans:
 3. Critical domain rules have TDD coverage and mutation-ready structure.
 4. Domain logic has no dependency on UI, database, or provider SDKs.
 
-**Plans:** 0/4 plans complete
+**Plans:** 1/4 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md - Domain test harness and product/rule vocabulary
+- [x] 02-01-PLAN.md - Domain test harness and product/rule vocabulary
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
