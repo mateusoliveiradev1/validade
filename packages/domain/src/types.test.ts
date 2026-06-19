@@ -40,6 +40,7 @@ describe("domain product and risk vocabulary", () => {
       "missing_required_date",
       "missing_received_date",
       "missing_quality_window",
+      "presence_conditionally_resolved",
       "presence_missing",
       "presence_stale",
       "expired",

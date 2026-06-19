@@ -123,20 +123,43 @@ function applyPresenceFreshness(
   risk: RiskAssessment,
   maxPhysicalConfirmationAgeHours: number | undefined,
 ): RiskAssessment {
+  if (risk.state === "uncertain") {
+    return risk;
+  }
+
+  if (
+    input.lastPhysicalConfirmation?.status === "not_found" ||
+    input.lastPhysicalConfirmation?.status === "probably_sold_out"
+  ) {
+    return {
+      ...risk,
+      reasons: [
+        ...risk.reasons,
+        reason("presence_conditionally_resolved", "lastPhysicalConfirmation.status"),
+      ],
+    };
+  }
+
   if (
     maxPhysicalConfirmationAgeHours === undefined ||
     input.currentTimestamp === undefined ||
-    risk.state === "safe" ||
-    risk.state === "uncertain"
+    risk.state === "safe"
   ) {
     return risk;
   }
 
-  const freshness = classifyPhysicalConfirmationFreshness({
-    confirmation: input.lastPhysicalConfirmation,
-    currentTimestamp: input.currentTimestamp,
-    maxPhysicalConfirmationAgeHours,
-  });
+  const freshness = classifyPhysicalConfirmationFreshness(
+    input.lastPhysicalConfirmation
+      ? {
+          confirmation: input.lastPhysicalConfirmation,
+          currentTimestamp: input.currentTimestamp,
+          maxPhysicalConfirmationAgeHours,
+        }
+      : {
+          currentTimestamp: input.currentTimestamp,
+          maxPhysicalConfirmationAgeHours,
+        },
+  );
 
   if (freshness.status === "missing") {
     return presenceUncertainty("presence_missing", "lastPhysicalConfirmation");
