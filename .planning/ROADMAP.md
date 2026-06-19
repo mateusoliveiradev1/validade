@@ -54,7 +54,7 @@ Plans:
 3. Critical domain rules have TDD coverage and mutation-ready structure.
 4. Domain logic has no dependency on UI, database, or provider SDKs.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 
@@ -70,7 +70,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-04-PLAN.md - Scenario matrix, mutation readiness, and boundary verification
+- [x] 02-04-PLAN.md - Scenario matrix, mutation readiness, and boundary verification
 
 ### Phase 3: Mobile Lot Capture
 
