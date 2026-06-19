@@ -44,6 +44,8 @@ export default tseslint.config(
             "apps/web/src/App.test.tsx",
             "apps/web/vite.config.ts",
             "packages/config/src/index.test.ts",
+            "packages/domain/src/profiles.test.ts",
+            "packages/domain/src/types.test.ts",
             "packages/test-utils/src/fixtures.test.ts",
             "playwright.config.ts",
             "vitest.config.ts",

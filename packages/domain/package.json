@@ -15,8 +15,11 @@
     "lint": "pnpm typecheck",
     "format": "node -e \"console.log('format pending root formatter in Plan 03')\"",
     "format:check": "node -e \"console.log('format check pending root formatter in Plan 03')\"",
-    "test": "node -e \"console.log('Domain tests start with Phase 2 rules')\"",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project domain",
     "test:smoke": "pnpm typecheck",
     "security": "node -e \"console.log('No package-level security checks yet')\""
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
   }
 }
