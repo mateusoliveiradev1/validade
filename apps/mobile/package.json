@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@validade-zero/contracts": "workspace:*",
+    "@validade-zero/domain": "workspace:*",
     "expo": "^56.0.12",
     "expo-sqlite": "~56.0.5",
     "react": "^19.2.7",

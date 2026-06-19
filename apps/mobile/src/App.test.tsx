@@ -15,11 +15,27 @@ vi.mock("react-native", async () => {
       React.createElement("Text", null, children),
     View: ({ children }: { children: React.ReactNode }) =>
       React.createElement("View", null, children),
+    ScrollView: ({ children }: { children: React.ReactNode }) =>
+      React.createElement("ScrollView", null, children),
+    TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
+    Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
+      React.createElement("Pressable", props, children),
   };
 });
 
+vi.mock("expo-sqlite", () => ({
+  openDatabaseAsync: () =>
+    Promise.resolve({
+      execAsync: () => Promise.resolve(undefined),
+      getAllAsync: () => Promise.resolve([]),
+      getFirstAsync: () => Promise.resolve(null),
+      runAsync: () => Promise.resolve(undefined),
+      withTransactionAsync: (task: () => Promise<void>) => task(),
+    }),
+}));
+
 describe("Validade Zero mobile smoke", () => {
-  it("renders safe smoke copy", async () => {
+  it("renders the manual product-discovery entry point", async () => {
     const { default: App } = await import("../App");
     let tree: ReactTestRenderer | undefined;
 
@@ -30,9 +46,8 @@ describe("Validade Zero mobile smoke", () => {
     expect(tree).toBeDefined();
     const rendered = JSON.stringify(tree?.toJSON());
 
-    expect(rendered).toContain("Validade Zero");
-    expect(rendered).toContain("Nenhum dado real neste ambiente");
-    expect(rendered).toContain("Checagem de base pronta");
-    expect(rendered).toContain("validade-zero-api");
+    expect(rendered).toContain("Localizar produto");
+    expect(rendered).toContain("Buscar produto por nome ou código");
+    expect(rendered).toContain("Buscar manualmente");
   });
 });
