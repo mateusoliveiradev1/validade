@@ -69,8 +69,8 @@ describe("physical confirmation recency profiles", () => {
     };
 
     expect(resolveRuleProfile(categoryProfile).maxPhysicalConfirmationAgeHours).toBe(24);
-    expect(resolveRuleProfile(categoryProfile, productOverride).maxPhysicalConfirmationAgeHours).toBe(
-      12,
-    );
+    expect(
+      resolveRuleProfile(categoryProfile, productOverride).maxPhysicalConfirmationAgeHours,
+    ).toBe(12);
   });
 });

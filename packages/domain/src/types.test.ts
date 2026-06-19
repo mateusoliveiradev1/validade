@@ -16,11 +16,7 @@ function modeForLot(lot: LotInput) {
 
 describe("domain product and risk vocabulary", () => {
   it("exports the locked product modes, risk states, commands, and reason codes", () => {
-    expect(PRODUCT_MODES).toEqual([
-      "formal_validity",
-      "flv_inspection",
-      "receiving_monitored",
-    ]);
+    expect(PRODUCT_MODES).toEqual(["formal_validity", "flv_inspection", "receiving_monitored"]);
     expect(RISK_STATES).toEqual([
       "safe",
       "radar",
@@ -95,10 +91,7 @@ describe("domain product and risk vocabulary", () => {
       },
     ];
 
-    expect(products.map((product) => product.mode)).toEqual([
-      "formal_validity",
-      "flv_inspection",
-    ]);
+    expect(products.map((product) => product.mode)).toEqual(["formal_validity", "flv_inspection"]);
     expect(products[0]?.lotRequirements).toEqual({ expiresAt: true });
     expect(products[1]?.lotRequirements).toEqual({
       receivedOn: true,

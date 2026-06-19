@@ -22,6 +22,7 @@ playwright-report/
 test-results/
 .maestro/artifacts/
 stryker-tmp/
+.stryker-tmp/
 
 # Native/mobile generated output
 android/

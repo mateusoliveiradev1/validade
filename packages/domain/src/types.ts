@@ -1,8 +1,4 @@
-export const PRODUCT_MODES = [
-  "formal_validity",
-  "flv_inspection",
-  "receiving_monitored",
-] as const;
+export const PRODUCT_MODES = ["formal_validity", "flv_inspection", "receiving_monitored"] as const;
 
 export type ProductMode = (typeof PRODUCT_MODES)[number];
 
@@ -129,10 +125,7 @@ export interface ReceivingMonitoredLotInput extends LotBase {
   receivedAt: string;
 }
 
-export type LotInput =
-  | FormalValidityLotInput
-  | FlvInspectionLotInput
-  | ReceivingMonitoredLotInput;
+export type LotInput = FormalValidityLotInput | FlvInspectionLotInput | ReceivingMonitoredLotInput;
 
 export interface RiskReason {
   code: RiskReasonCode;

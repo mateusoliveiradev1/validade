@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.turbo/**",
       "**/.expo/**",
+      "**/.stryker-tmp/**",
       "**/playwright-report/**",
       ".agents/**",
       ".codex/**",

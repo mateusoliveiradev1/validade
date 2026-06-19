@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_RISK_WINDOWS,
-  DEFAULT_RULE_PROFILE,
-  resolveRuleProfile,
-} from "./profiles";
+import { DEFAULT_RISK_WINDOWS, DEFAULT_RULE_PROFILE, resolveRuleProfile } from "./profiles";
 import type { CategoryRuleProfile, ProductRuleOverride } from "./types";
 
 describe("domain rule profiles", () => {
@@ -63,8 +59,6 @@ describe("domain rule profiles", () => {
       mode: "receiving_monitored",
     };
 
-    expect(resolveRuleProfile(categoryProfile, productOverride).mode).toBe(
-      "receiving_monitored",
-    );
+    expect(resolveRuleProfile(categoryProfile, productOverride).mode).toBe("receiving_monitored");
   });
 });
