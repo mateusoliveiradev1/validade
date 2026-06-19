@@ -19,11 +19,11 @@
 3. Public repo has safe secret handling, .env examples, and no real operational data.
 4. CI can execute the baseline quality suite.
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md - Root workspace and shared package boundaries
+- [x] 01-01-PLAN.md - Root workspace and shared package boundaries
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
