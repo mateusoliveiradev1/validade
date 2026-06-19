@@ -16,7 +16,7 @@ export function resolveRuleProfile(
   categoryProfile: CategoryRuleProfile,
   productOverride?: ProductRuleOverride,
 ): RuleProfile {
-  return {
+  const resolved: RuleProfile = {
     mode: productOverride?.mode ?? categoryProfile.mode,
     windows: {
       ...DEFAULT_RISK_WINDOWS,
@@ -24,4 +24,14 @@ export function resolveRuleProfile(
       ...productOverride?.windows,
     },
   };
+
+  const maxPhysicalConfirmationAgeHours =
+    productOverride?.maxPhysicalConfirmationAgeHours ??
+    categoryProfile.maxPhysicalConfirmationAgeHours;
+
+  if (maxPhysicalConfirmationAgeHours !== undefined) {
+    resolved.maxPhysicalConfirmationAgeHours = maxPhysicalConfirmationAgeHours;
+  }
+
+  return resolved;
 }

@@ -51,18 +51,21 @@ export interface RiskWindows {
 export interface RuleProfile {
   mode: ProductMode;
   windows: RiskWindows;
+  maxPhysicalConfirmationAgeHours?: number;
 }
 
 export interface CategoryRuleProfile {
   categoryId: string;
   mode: ProductMode;
   windows?: Partial<RiskWindows>;
+  maxPhysicalConfirmationAgeHours?: number;
 }
 
 export interface ProductRuleOverride {
   productId: string;
   mode?: ProductMode;
   windows?: Partial<RiskWindows>;
+  maxPhysicalConfirmationAgeHours?: number;
 }
 
 export interface ProductBase {
