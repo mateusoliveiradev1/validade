@@ -18,6 +18,16 @@ Validade Zero starts with smoke-level confidence in Phase 1. The goal is to prov
 - `pnpm test:e2e:mobile` runs the Maestro smoke flow against a locally available mobile app build or emulator target.
 - `pnpm test:mutation` runs Stryker. Phase 1 keeps thresholds at zero because critical domain rules begin in Phase 2.
 
+## Phase 2 Domain Rules
+
+Phase 2 turns `packages/domain/src` into the executable rule surface for product modes, risk windows, physical-presence uncertainty, operational commands, and conditional presence resolutions.
+
+- `pnpm --filter @validade-zero/domain test` is the fast feedback command for domain unit and scenario coverage.
+- `pnpm --filter @validade-zero/domain typecheck` verifies the strict TypeScript domain boundary.
+- `pnpm test:mutation` runs Stryker against `packages/domain/src/**/*.ts` through the existing `stryker.config.json` mutation target.
+- Mutation thresholds are still configured at zero, so mutation output must be reviewed for surviving mutants in critical branches before Phase 2 is considered verified.
+- `pnpm lint` includes `scripts/check-boundaries.mjs`, which helps confirm the domain package stays free of UI, app, provider, database, and adapter dependencies.
+
 ## Future E2E Matrix
 
 Future phases should extend this matrix with real flows as they are implemented:
