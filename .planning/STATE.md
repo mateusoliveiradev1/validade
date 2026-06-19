@@ -4,14 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3 - Mobile Lot Capture
 status: in_progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-06-19T16:39:37.857Z"
-last_activity: 2026-06-19 - Completed Plan 03-01 capture contracts and local SQLite ledger
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-06-19T16:57:23.865Z"
+last_activity: 2026-06-19 - Completed Plan 03-02 manual product and lot capture flow
+last_activity_desc: Completed Plan 03-02 manual product and lot capture flow
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 22
 ---
 
@@ -22,14 +23,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-19 - Completed Plan 03-01 capture contracts and local SQLite ledger
+**Last activity:** 2026-06-19 - Completed Plan 03-02 manual product and lot capture flow
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-18)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 3 Mobile Lot Capture in progress — Plan 03-01 complete; continue with the manual discovery and lot-registration flow in 03-02.
+**Current focus:** Phase 3 Mobile Lot Capture in progress — Plans 03-01 and 03-02 complete; continue with the recent-list and physical-observation workflow in 03-03.
 
 ## Roadmap Progress
 
@@ -37,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 |-------|--------|-------|
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
-| 3 | In Progress | Mobile Lot Capture - 1/4 plans executed |
+| 3 | In Progress | Mobile Lot Capture - 2/4 plans executed |
 | 4 | Pending | Today Task Workflow |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
@@ -55,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 
 ## Next Step
 
-Continue Phase 3 Mobile Lot Capture with Plan 03-02. The approved `03-UI-SPEC.md` remains the visual and interaction source of truth.
+Continue Phase 3 Mobile Lot Capture with Plan 03-03. The approved `03-UI-SPEC.md` remains the visual and interaction source of truth.
 
 ### Quick Tasks Completed
 
@@ -77,14 +78,17 @@ Continue Phase 3 Mobile Lot Capture with Plan 03-02. The approved `03-UI-SPEC.md
 | Phase 02 P03 | 6min | 3 tasks | 10 files |
 | Phase 02 P04 | 5min | 3 tasks | 8 files |
 | Phase 03 P01 | 11 min | 2 tasks | 13 files |
+| Phase 03 P02 | 14 min | 2 tasks | 13 files |
 
 ## Session
 
-**Last session:** 2026-06-19T16:39:24.539Z
-**Stopped at:** Completed 03-01-PLAN.md
-**Resume file:** .planning/phases/03-mobile-lot-capture/03-02-PLAN.md
+**Last session:** 2026-06-19T16:57:23.731Z
+**Stopped at:** Completed 03-02-PLAN.md
+**Resume file:** .planning/phases/03-mobile-lot-capture/03-03-PLAN.md
 
 ## Decisions
 
 - [Phase 03]: Capture contracts preserve product-mode and quantity-state discriminants at the persistence boundary. — Required lot dates and explicit quantity uncertainty cannot be lost in optional fields.
 - [Phase 03]: Local corrections append observations and refresh only the latest lot snapshot. — This preserves the original physical fact without claiming Phase 8 audit scope.
+- [Phase 03]: Manual product lookup remains the initial mobile path and a candidate must be explicitly confirmed before lot entry. — Barcode assistance comes later and cannot create an implicit registration.
+- [Phase 03]: The lot form uses the Phase 2 risk calculator for immediate operational feedback. — Risk rules stay in the pure domain package instead of being duplicated in React Native.

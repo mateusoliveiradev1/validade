@@ -85,7 +85,7 @@ Plans:
 3. Collaborator can move and confirm lots across operational locations.
 4. Last-seen data captures user, time, location, and approximate quantity.
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 **Wave 1**
 
@@ -93,7 +93,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md - Manual product discovery, confirmation, and mode-aware lot registration
+- [x] 03-02-PLAN.md - Manual product discovery, confirmation, and mode-aware lot registration
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
