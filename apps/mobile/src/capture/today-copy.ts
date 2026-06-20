@@ -6,6 +6,10 @@ export const todayCopy = {
   safeWithWorkHeader: "Area de venda segura, ainda ha tarefas do turno",
   criticalHeader: (count: number) => `Area de venda com ${count} risco(s) agora`,
   refresh: "Atualizar tarefas",
+  refreshSuccess: (activeTaskCount: number) =>
+    activeTaskCount === 0
+      ? "Atualizacao concluida. Nenhuma tarefa ativa."
+      : `Atualizacao concluida. ${activeTaskCount} ${activeTaskCount === 1 ? "tarefa ativa" : "tarefas ativas"}.`,
   emptyHeading: "Area de venda segura agora",
   emptyBody:
     "Nenhum lote exige acao neste momento. Voce pode registrar um lote novo ou conferir os recentes.",

@@ -130,11 +130,15 @@ describe("Today accessibility and copy hardening", () => {
   });
 
   it("protects 48dp touch targets and accessible names in local primitives", () => {
+    const appPath = fileURLToPath(new URL("../../App.tsx", import.meta.url));
     const captureUiPath = fileURLToPath(new URL("./capture-ui.tsx", import.meta.url));
     const todayPath = fileURLToPath(new URL("./TodayScreen.tsx", import.meta.url));
+    const appSource = readFileSync(appPath, "utf8");
     const captureUiSource = readFileSync(captureUiPath, "utf8");
     const todaySource = readFileSync(todayPath, "utf8");
 
+    expect(appSource).toContain("StatusBar.currentHeight");
+    expect(appSource).toContain("paddingTop");
     expect(captureUiSource.match(/minHeight:\s*48/g)?.length).toBeGreaterThanOrEqual(3);
     expect(todaySource).toContain("minHeight: 48");
     expect(captureUiSource).toContain("accessibilityLabel={label}");
@@ -167,6 +171,8 @@ describe("Today accessibility and copy hardening", () => {
     const source = readFileSync(todayPath, "utf8");
 
     expect(source).toContain("Atualizando tarefas");
+    expect(source).toContain("disabled={isRefreshing}");
+    expect(source).toContain('StatusNotice tone="success"');
     expect(source).toContain("refreshError");
     expect(source).not.toContain("ActivityIndicator");
   });

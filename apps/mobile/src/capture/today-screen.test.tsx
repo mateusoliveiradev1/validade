@@ -211,6 +211,39 @@ describe("TodayScreen", () => {
     );
   });
 
+  it("shows pending and completion feedback for a successful manual refresh", async () => {
+    let refreshCount = 0;
+    let finishManualRefresh: ((result: TodayTaskRefreshResult) => void) | undefined;
+    const manualRefresh = new Promise<TodayTaskRefreshResult>((resolve) => {
+      finishManualRefresh = resolve;
+    });
+    const repository = createRepository(() => {
+      refreshCount += 1;
+
+      return refreshCount === 1 ? Promise.resolve(emptyRefresh()) : manualRefresh;
+    });
+    const tree = await renderTodayScreen(repository);
+    const refreshButton = tree.root.findByProps({ accessibilityLabel: "Atualizar tarefas" });
+
+    act(() => {
+      refreshButton.props.onPress();
+    });
+
+    const loadingButton = tree.root.findByProps({ accessibilityLabel: "Atualizando tarefas" });
+
+    expect(loadingButton.props.accessibilityState).toEqual({ disabled: true });
+
+    await act(async () => {
+      finishManualRefresh?.(refreshWith({ tasks: [expiredTask()] }));
+      await manualRefresh;
+    });
+
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Atualizacao concluida. 1 tarefa ativa.");
+    expect(rendered).toContain("Ovos FICTICIOS");
+  });
+
   it("renders active sections in operational order with complete row anatomy", async () => {
     const repository = createRepository(() =>
       Promise.resolve(

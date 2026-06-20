@@ -20,6 +20,7 @@ vi.mock("react-native", async () => {
     TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
+    StatusBar: (props: Record<string, unknown>) => React.createElement("StatusBar", props),
   };
 });
 

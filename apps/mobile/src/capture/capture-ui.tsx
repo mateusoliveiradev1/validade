@@ -7,16 +7,7 @@ import {
   View,
   type KeyboardTypeOptions,
 } from "react-native";
-
-const colors = {
-  dominant: "#F5F7EF",
-  secondary: "#E6EEE4",
-  ink: "#112016",
-  mutedInk: "#3F5546",
-  accent: "#166534",
-  onAccent: "#FFFFFF",
-  critical: "#B42318",
-} as const;
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
 export function ScreenHeader({ title, body }: { title: string; body?: string }) {
   return (
@@ -43,20 +34,38 @@ export function PrimaryAction({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.primaryAction, disabled ? styles.primaryActionDisabled : undefined]}
+      style={({ pressed }) => [
+        styles.primaryAction,
+        pressed && !disabled ? styles.primaryActionPressed : undefined,
+        disabled ? styles.primaryActionDisabled : undefined,
+      ]}
     >
       <Text style={styles.primaryActionLabel}>{label}</Text>
     </Pressable>
   );
 }
 
-export function SecondaryAction({ label, onPress }: { label: string; onPress: () => void }) {
+export function SecondaryAction({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={styles.secondaryAction}
+      style={({ pressed }) => [
+        styles.secondaryAction,
+        pressed && !disabled ? styles.secondaryActionPressed : undefined,
+        disabled ? styles.secondaryActionDisabled : undefined,
+      ]}
     >
       <Text style={styles.secondaryActionLabel}>{label}</Text>
     </Pressable>
@@ -89,7 +98,7 @@ export function Field({
         keyboardType={keyboardType}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.mutedInk}
+        placeholderTextColor={captureColors.mutedInk}
         style={[styles.field, error === undefined ? undefined : styles.fieldError]}
         value={value}
       />
@@ -164,14 +173,25 @@ export function StatusNotice({
   tone = "info",
 }: {
   children: ReactNode;
-  tone?: "info" | "error";
+  tone?: "info" | "error" | "success";
 }) {
   return (
     <View
+      accessibilityLiveRegion="polite"
       accessibilityRole="alert"
-      style={[styles.notice, tone === "error" ? styles.noticeError : undefined]}
+      style={[
+        styles.notice,
+        tone === "error" ? styles.noticeError : undefined,
+        tone === "success" ? styles.noticeSuccess : undefined,
+      ]}
     >
-      <Text style={[styles.noticeText, tone === "error" ? styles.noticeErrorText : undefined]}>
+      <Text
+        style={[
+          styles.noticeText,
+          tone === "error" ? styles.noticeErrorText : undefined,
+          tone === "success" ? styles.noticeSuccessText : undefined,
+        ]}
+      >
         {children}
       </Text>
     </View>
@@ -180,78 +200,93 @@ export function StatusNotice({
 
 const styles = StyleSheet.create({
   header: {
-    gap: 8,
-    marginBottom: 24,
+    gap: captureSpacing.small,
+    marginBottom: captureSpacing.large,
   },
   title: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 28,
     fontWeight: "600",
     lineHeight: 34,
   },
   body: {
-    color: colors.mutedInk,
+    color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
   },
   primaryAction: {
     alignItems: "center",
-    backgroundColor: colors.accent,
+    backgroundColor: captureColors.accent,
+    borderRadius: captureRadii.small,
     justifyContent: "center",
     minHeight: 48,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  primaryActionPressed: {
+    backgroundColor: captureColors.accentPressed,
+  },
   primaryActionDisabled: {
-    backgroundColor: colors.mutedInk,
+    backgroundColor: captureColors.disabled,
+    opacity: 0.68,
   },
   primaryActionLabel: {
-    color: colors.onAccent,
+    color: captureColors.onAccent,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,
   },
   secondaryAction: {
     alignItems: "center",
-    borderColor: colors.ink,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
     borderWidth: 1,
     justifyContent: "center",
     minHeight: 48,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  secondaryActionPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  secondaryActionDisabled: {
+    opacity: 0.56,
+  },
   secondaryActionLabel: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,
   },
   fieldGroup: {
-    gap: 4,
+    gap: captureSpacing.xsmall,
   },
   fieldLabel: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
   },
   field: {
-    backgroundColor: "#FFFFFF",
-    borderColor: colors.mutedInk,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
     borderWidth: 1,
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 16,
     minHeight: 48,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
   fieldError: {
-    borderColor: colors.critical,
+    borderColor: captureColors.critical,
   },
   dateAction: {
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: colors.mutedInk,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -260,55 +295,66 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   dateActionValue: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 16,
     lineHeight: 24,
   },
   dateActionHint: {
-    color: colors.accent,
+    color: captureColors.accent,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
   },
   errorText: {
-    color: colors.critical,
+    color: captureColors.critical,
     fontSize: 14,
     lineHeight: 20,
   },
   selectionRow: {
-    backgroundColor: colors.secondary,
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: "transparent",
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
     minHeight: 48,
     padding: 16,
   },
   selectionRowSelected: {
-    backgroundColor: "#D5E7D9",
-    borderColor: colors.accent,
+    backgroundColor: captureColors.accentSoft,
+    borderColor: captureColors.accent,
     borderWidth: 2,
   },
   selectionLabel: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,
   },
   selectionDetail: {
-    color: colors.mutedInk,
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
   },
   notice: {
-    backgroundColor: colors.secondary,
+    backgroundColor: captureColors.surfaceMuted,
+    borderRadius: captureRadii.medium,
     padding: 16,
   },
   noticeError: {
-    backgroundColor: "#FCE8E6",
+    backgroundColor: captureColors.criticalSurface,
   },
   noticeText: {
-    color: colors.ink,
+    color: captureColors.ink,
     fontSize: 14,
     lineHeight: 20,
   },
   noticeErrorText: {
-    color: colors.critical,
+    color: captureColors.critical,
+  },
+  noticeSuccess: {
+    backgroundColor: captureColors.accentSoft,
+  },
+  noticeSuccessText: {
+    color: captureColors.accent,
   },
 });

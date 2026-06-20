@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/contracts";
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { CaptureRepository, TodayTaskRefreshSource } from "./repository";
 import {
   dueLabel,
@@ -36,11 +37,20 @@ export function TodayScreen({
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
   const [futureAttention, setFutureAttention] = useState<readonly FutureAttentionRecord[]>([]);
   const [refreshError, setRefreshError] = useState<string | undefined>();
+  const [refreshFeedback, setRefreshFeedback] = useState<string | undefined>();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function refreshTasks(source: TodayTaskRefreshSource): Promise<void> {
+    if (isRefreshing) {
+      return;
+    }
+
     setIsRefreshing(true);
     setRefreshError(undefined);
+
+    if (source === "manual_refresh") {
+      setRefreshFeedback(undefined);
+    }
 
     try {
       const current = now();
@@ -52,7 +62,12 @@ export function TodayScreen({
 
       setTasks(result.tasks);
       setFutureAttention(result.futureAttention);
+
+      if (source === "manual_refresh") {
+        setRefreshFeedback(todayCopy.refreshSuccess(result.metadata.activeTaskCount));
+      }
     } catch {
+      setRefreshFeedback(undefined);
       setRefreshError(todayCopy.refreshError);
     } finally {
       setIsRefreshing(false);
@@ -91,11 +106,15 @@ export function TodayScreen({
         </Text>
         <SecondaryAction
           label={isRefreshing ? "Atualizando tarefas" : todayCopy.refresh}
+          disabled={isRefreshing}
           onPress={() => void refreshTasks("manual_refresh")}
         />
       </View>
 
       {refreshError === undefined ? null : <StatusNotice tone="error">{refreshError}</StatusNotice>}
+      {refreshFeedback === undefined ? null : (
+        <StatusNotice tone="success">{refreshFeedback}</StatusNotice>
+      )}
 
       {tasks.length === 0 ? (
         <View style={styles.emptyState}>
@@ -108,7 +127,7 @@ export function TodayScreen({
         <View style={styles.taskList}>
           {overdueTasks.length === 0 ? null : (
             <View style={styles.taskSection}>
-              <Text style={styles.sectionTitle}>{todayCopy.sections.overdue}</Text>
+              <SectionHeading count={overdueTasks.length} title={todayCopy.sections.overdue} />
               {overdueTasks.map((task) => (
                 <TodayTaskRow
                   key={task.id}
@@ -134,7 +153,7 @@ export function TodayScreen({
 
             return (
               <View key={section} style={styles.taskSection}>
-                <Text style={styles.sectionTitle}>{todayCopy.sections[section]}</Text>
+                <SectionHeading count={sectionTasks.length} title={todayCopy.sections[section]} />
                 {sectionTasks.map((task) => (
                   <TodayTaskRow
                     key={task.id}
@@ -186,25 +205,43 @@ export function TodayTaskRow({
   const title = `${task.productDisplayName} - lote ${task.lotIdentity.value}`;
   const location = `Local: ${formatLocation(task.currentLocation)}`;
   const due = `${dueLabel(task, referenceTime)} - Severidade ${severityLabel(task)} - ${task.ownerLabel}`;
+  const isCritical = task.severity === "critical" || task.severity === "high";
 
   return (
     <Pressable
+      accessibilityHint="Abre a tarefa para resolver este risco"
       accessibilityRole="button"
       accessibilityLabel={`${action}: ${task.productDisplayName}, lote ${task.lotIdentity.value}`}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.taskRow,
-        task.severity === "critical" || task.severity === "high"
-          ? styles.taskRowCritical
-          : undefined,
+        isCritical ? styles.taskRowCritical : undefined,
+        pressed ? (isCritical ? styles.taskRowCriticalPressed : styles.taskRowPressed) : undefined,
       ]}
     >
-      <Text style={styles.taskAction}>{action}</Text>
+      <View style={styles.taskHeader}>
+        <Text style={styles.taskAction}>{action}</Text>
+        <View style={[styles.riskTag, isCritical ? styles.riskTagCritical : undefined]}>
+          <Text style={[styles.taskReason, isCritical ? styles.taskReasonCritical : undefined]}>
+            {riskReasonLabel(task)}
+          </Text>
+        </View>
+      </View>
       <Text style={styles.taskTitle}>{title}</Text>
-      <Text style={styles.taskMeta}>{location}</Text>
-      <Text style={styles.taskMeta}>{due}</Text>
-      <Text style={styles.taskReason}>{riskReasonLabel(task)}</Text>
+      <View style={styles.taskMetaGroup}>
+        <Text style={styles.taskMeta}>{location}</Text>
+        <Text style={styles.taskMeta}>{due}</Text>
+      </View>
     </Pressable>
+  );
+}
+
+function SectionHeading({ title, count }: { title: string; count: number }) {
+  return (
+    <View style={styles.sectionHeading}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionCount}>{count === 1 ? "1 tarefa" : `${count} tarefas`}</Text>
+    </View>
   );
 }
 
@@ -219,97 +256,154 @@ function isSalesAreaBlockingTask(task: TodayTaskRecord): boolean {
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
+    backgroundColor: captureColors.background,
     flexGrow: 1,
-    gap: 16,
-    padding: 16,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
+    paddingBottom: captureSpacing.xxlarge,
   },
   safetyHeader: {
-    backgroundColor: "#E6EEE4",
-    gap: 16,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
     minHeight: 156,
-    padding: 16,
+    padding: 18,
   },
   safetyHeaderCritical: {
-    backgroundColor: "#FCE8E6",
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
   },
   safetyVerdict: {
-    color: "#112016",
-    fontSize: 28,
-    fontWeight: "600",
-    lineHeight: 34,
+    color: captureColors.ink,
+    fontSize: 26,
+    fontWeight: "700",
+    lineHeight: 32,
   },
   safetyBody: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
   },
   emptyState: {
-    gap: 16,
-    paddingVertical: 32,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.large,
+    padding: 20,
   },
   emptyTitle: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 25,
   },
   emptyBody: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
   },
   taskList: {
-    gap: 24,
+    gap: captureSpacing.xlarge,
   },
   taskSection: {
-    gap: 8,
+    gap: captureSpacing.small,
+  },
+  sectionHeading: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    gap: captureSpacing.small,
+    justifyContent: "space-between",
   },
   taskRow: {
-    backgroundColor: "#E6EEE4",
-    gap: 8,
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
     minHeight: 48,
-    padding: 16,
+    padding: captureSpacing.large,
   },
   taskRowCritical: {
-    backgroundColor: "#FCE8E6",
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  taskRowPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  taskRowCriticalPressed: {
+    backgroundColor: captureColors.criticalSurfacePressed,
+  },
+  taskHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: captureSpacing.small,
+    justifyContent: "space-between",
   },
   taskAction: {
-    color: "#112016",
-    fontSize: 20,
-    fontWeight: "600",
-    lineHeight: 25,
+    color: captureColors.ink,
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 23,
   },
   taskTitle: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,
   },
   taskMeta: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
+  },
+  taskMetaGroup: {
+    gap: captureSpacing.xsmall,
+  },
+  riskTag: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderRadius: captureRadii.small,
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.xsmall,
+  },
+  riskTagCritical: {
+    backgroundColor: captureColors.criticalTag,
   },
   taskReason: {
-    color: "#B42318",
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  taskReasonCritical: {
+    color: captureColors.critical,
   },
   futureSection: {
-    backgroundColor: "#FFF4D7",
-    gap: 8,
-    padding: 16,
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.small,
+    padding: captureSpacing.large,
   },
   sectionTitle: {
-    color: "#112016",
-    fontSize: 20,
-    fontWeight: "600",
-    lineHeight: 25,
+    color: captureColors.ink,
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 23,
+  },
+  sectionCount: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
   },
   futureItem: {
-    color: "#3F5546",
+    color: captureColors.warningInk,
     fontSize: 14,
     lineHeight: 20,
   },
