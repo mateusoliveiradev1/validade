@@ -147,6 +147,24 @@ Plans:
 3. Every push maps to a persistent in-app task.
 4. Critical risk remains visible until physically resolved.
 
+**Plans:** 4/4 plans ready
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md - Alert cadence policy and runtime contracts
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md - Mobile alert state, Expo channel, and local scheduling
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md - Hoje alert UI, escalation acknowledgement, and push-open fallback
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-04-PLAN.md - API/provider cron seam, smoke, docs, and regression evidence
+
 ### Phase 6: Markdown/Rebaixa Workflow
 
 **Goal:** Track the full markdown lifecycle from request to shelf confirmation with optional evidence.
