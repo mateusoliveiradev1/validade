@@ -5,6 +5,8 @@ import {
   type SafeProbeWriteInput,
 } from "@validade-zero/contracts";
 
+export * from "./alerts";
+
 export interface SafeProbeAdapter {
   read(): Promise<SafeProbePayload>;
   write(input: SafeProbeWriteInput): Promise<SafeProbePayload>;

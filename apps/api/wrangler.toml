@@ -6,3 +6,6 @@ workers_dev = true
 [vars]
 VALIDADE_ZERO_APP_ENV = "local"
 SAFE_PROBE_DEFAULT_VALUE = "sonda-segura-ficticia"
+
+[triggers]
+crons = ["*/15 * * * *"]
