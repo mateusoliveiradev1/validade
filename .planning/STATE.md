@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 6
 status: ready_to_plan
-stopped_at: Phase 6 context gathered
-last_updated: "2026-06-20T21:58:42.324Z"
+stopped_at: Phase 6 UI-SPEC approved
+last_updated: "2026-06-20T22:16:38.481Z"
 last_activity: 2026-06-20 - Completed Phase 5 Push and Escalation
 progress:
   total_phases: 9
@@ -93,9 +93,9 @@ Discuss and plan Phase 6 - Markdown/Rebaixa Workflow.
 
 ## Session
 
-**Last session:** 2026-06-20T21:58:42.318Z
-**Stopped at:** Phase 6 context gathered
-**Resume file:** .planning/phases/06-markdown-rebaixa-workflow/06-CONTEXT.md
+**Last session:** 2026-06-20T22:16:38.475Z
+**Stopped at:** Phase 6 UI-SPEC approved
+**Resume file:** .planning/phases/06-markdown-rebaixa-workflow/06-UI-SPEC.md
 
 ## Decisions
 
