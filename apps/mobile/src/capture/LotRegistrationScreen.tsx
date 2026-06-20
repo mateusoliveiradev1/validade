@@ -17,6 +17,7 @@ import type { CaptureProductRecord, CaptureRepository } from "./repository";
 import {
   captureCopy,
   formatLocation,
+  formatOperationalTime,
   lotRegisteredCopy,
   operationalLocations,
   productModeLabels,
@@ -98,16 +99,10 @@ export function LotRegistrationScreen({
         qualityWindowDays,
       });
       const snapshot = await repository.saveLot({ lot, actorLabel: LOCAL_ACTOR_LABEL });
-      const occurredAt = new Date(snapshot.currentObservation.occurredAt);
-
       setSavedMessage(
         lotRegisteredCopy(
           formatLocation(snapshot.currentObservation.location),
-          occurredAt.toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "UTC",
-          }),
+          formatOperationalTime(snapshot.currentObservation.occurredAt),
         ),
       );
       setSaveError(undefined);

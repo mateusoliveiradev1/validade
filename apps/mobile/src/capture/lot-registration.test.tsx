@@ -152,7 +152,7 @@ describe("mode-aware lot registration", () => {
 
     expect(JSON.stringify(tree.toJSON())).toContain("Lote registrado em");
     expect(JSON.stringify(tree.toJSON())).toContain("Área de venda");
-    expect(JSON.stringify(tree.toJSON())).toContain("09:00");
+    expect(JSON.stringify(tree.toJSON())).toContain("06:00");
 
     act(() => {
       press(tree, "Registrar outro lote");

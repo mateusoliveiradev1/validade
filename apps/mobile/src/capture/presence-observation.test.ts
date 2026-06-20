@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatObservationTimestamp } from "./capture-copy";
+import { formatObservationTimestamp, formatOperationalTime } from "./capture-copy";
 import { createMemoryCaptureRepository } from "./memory-repository";
 
 describe("recent physical presence", () => {
@@ -51,6 +51,7 @@ describe("recent physical presence", () => {
 
 describe("observation timestamp presentation", () => {
   it("shows the operational date and minute without exposing seconds", () => {
-    expect(formatObservationTimestamp("2030-01-10T00:29:12.000Z")).toBe("10/01/2030, 00:29");
+    expect(formatObservationTimestamp("2030-01-10T00:29:12.000Z")).toBe("09/01/2030, 21:29");
+    expect(formatOperationalTime("2030-01-10T00:29:12.000Z")).toBe("21:29");
   });
 });

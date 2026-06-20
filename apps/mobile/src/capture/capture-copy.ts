@@ -1,5 +1,7 @@
 import type { OperationalLocation } from "@validade-zero/contracts";
 
+const operationalTimeZone = "America/Sao_Paulo";
+
 export const captureCopy = {
   appName: "Validade Zero",
   discoveryTitle: "Localizar produto",
@@ -68,7 +70,16 @@ export function formatObservationTimestamp(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "UTC",
+    timeZone: operationalTimeZone,
+  }).format(new Date(value));
+}
+
+export function formatOperationalTime(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: operationalTimeZone,
   }).format(new Date(value));
 }
 
