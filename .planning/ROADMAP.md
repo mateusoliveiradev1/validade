@@ -147,7 +147,7 @@ Plans:
 3. Every push maps to a persistent in-app task.
 4. Critical risk remains visible until physically resolved.
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 Plans:
 **Wave 1**
 
@@ -159,7 +159,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-03-PLAN.md - Hoje alert UI, escalation acknowledgement, and push-open fallback
+- [x] 05-03-PLAN.md - Hoje alert UI, escalation acknowledgement, and push-open fallback
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
