@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4 - Today Task Workflow
 status: in_progress
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-06-20T02:24:06.317Z"
-last_activity: 2026-06-20 - Phase 4 Plan 01 complete; local Today task foundation verified.
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-06-20T02:34:16.730Z"
+last_activity: 2026-06-20 - Phase 4 Plan 02 complete; Hoje entry surface verified.
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 33
 ---
 
@@ -22,14 +22,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Phase 4 Plan 01 complete; local Today task foundation verified.
+**Last activity:** 2026-06-20 - Phase 4 Plan 02 complete; Hoje entry surface verified.
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 4 — today task workflow, next plan 04-02 Hoje entry surface
+**Current focus:** Phase 4 — today task workflow, next plan 04-03 task resolution
 
 ## Roadmap Progress
 
@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
 | 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
-| 4 | In Progress | Today Task Workflow - 1/4 plans executed; next 04-02 Hoje entry surface |
+| 4 | In Progress | Today Task Workflow - 2/4 plans executed; next 04-03 task resolution |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
 | 7 | Pending | Offline Sync |
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue `$gsd-execute-phase 4` from `.planning/phases/04-today-task-workflow/04-02-PLAN.md`.
+Continue `$gsd-execute-phase 4` from `.planning/phases/04-today-task-workflow/04-03-PLAN.md`.
 
 ### Quick Tasks Completed
 
@@ -82,12 +82,13 @@ Continue `$gsd-execute-phase 4` from `.planning/phases/04-today-task-workflow/04
 | Phase 03 P03 | 9 min | 2 tasks | 10 files |
 | Phase 03 P04 | 12 min | 2 tasks | 15 files |
 | Phase 04 P01 | 10 min | 2 tasks | 14 files |
+| Phase 04 P02 | 10 min | 2 tasks | 7 files |
 
 ## Session
 
-**Last session:** 2026-06-20T02:24:06.154Z
-**Stopped at:** Completed 04-01-PLAN.md
-**Resume file:** .planning/phases/04-today-task-workflow/04-02-PLAN.md
+**Last session:** 2026-06-20T02:34:16.725Z
+**Stopped at:** Completed 04-02-PLAN.md
+**Resume file:** .planning/phases/04-today-task-workflow/04-03-PLAN.md
 
 ## Decisions
 

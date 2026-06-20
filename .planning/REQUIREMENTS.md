@@ -38,7 +38,7 @@
 
 - [ ] **PSH-01**: Collaborator receives push reminders for assigned and critical tasks.
 - [ ] **PSH-02**: System repeats or escalates reminders while tasks remain unresolved.
-- [ ] **PSH-03**: Collaborator can open a mobile "Hoje" view that lists what must be checked, rebaixado, moved, or withdrawn in the current shift.
+- [x] **PSH-03**: Collaborator can open a mobile "Hoje" view that lists what must be checked, rebaixado, moved, or withdrawn in the current shift.
 - [ ] **PSH-04**: Lead can see whether the sales area is safe or has pending critical risks before shift close.
 - [ ] **PSH-05**: System does not rely on push alone; every push corresponds to a persistent in-app task.
 
@@ -64,9 +64,9 @@
 
 ### UI / UX / Copy
 
-- [ ] **UI-01**: Mobile first screen answers "Área de venda segura?" and prioritizes critical operational tasks over passive charts.
-- [ ] **UI-02**: Copy uses direct operational language such as "Retirar agora", "Pedir rebaixa", "Conferir ovos", and "Rebaixa atrasada".
-- [ ] **UI-03**: Interface supports one-hand use, large touch targets, high contrast, clear critical states, and reduced ambiguity in store conditions.
+- [x] **UI-01**: Mobile first screen answers "Área de venda segura?" and prioritizes critical operational tasks over passive charts.
+- [x] **UI-02**: Copy uses direct operational language such as "Retirar agora", "Pedir rebaixa", "Conferir ovos", and "Rebaixa atrasada".
+- [x] **UI-03**: Interface supports one-hand use, large touch targets, high contrast, clear critical states, and reduced ambiguity in store conditions.
 - [ ] **UI-04**: Design work passes Impeccable shaping, critique, polish, hardening, accessibility, and copy review before v1 completion.
 
 ## v2 Requirements
@@ -124,7 +124,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSK-05 | Phase 5 | Pending |
 | PSH-01 | Phase 5 | Pending |
 | PSH-02 | Phase 5 | Pending |
-| PSH-03 | Phase 4 | Pending |
+| PSH-03 | Phase 4 | Complete |
 | PSH-04 | Phase 8 | Pending |
 | PSH-05 | Phase 5 | Pending |
 | MRK-01 | Phase 6 | Pending |
@@ -138,9 +138,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-02 | Phase 8 | Pending |
 | AUD-03 | Phase 8 | Pending |
 | AUD-04 | Phase 1 | Complete |
-| UI-01 | Phase 4 | Pending |
-| UI-02 | Phase 4 | Pending |
-| UI-03 | Phase 4 | Pending |
+| UI-01 | Phase 4 | Complete |
+| UI-02 | Phase 4 | Complete |
+| UI-03 | Phase 4 | Complete |
 | UI-04 | Phase 9 | Pending |
 
 **Coverage:**
