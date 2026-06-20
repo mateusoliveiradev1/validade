@@ -51,16 +51,13 @@ export type TaskResolutionAction = (typeof TASK_RESOLUTION_ACTIONS)[number];
 
 export type TodayRiskAttention = "active_task" | "future_attention" | "none";
 
-export interface TodayTaskLocation {
-  kind:
-    | "area_de_venda"
-    | "estoque"
-    | "camara_fria"
-    | "ilha_promocional"
-    | "retirada_perda"
-    | "other";
-  customName?: string;
-}
+export type TodayTaskLocation =
+  | { kind: "area_de_venda" }
+  | { kind: "estoque" }
+  | { kind: "camara_fria" }
+  | { kind: "ilha_promocional" }
+  | { kind: "retirada_perda" }
+  | { kind: "other"; customName: string };
 
 export interface TodayTaskCandidateInput {
   lotId: string;

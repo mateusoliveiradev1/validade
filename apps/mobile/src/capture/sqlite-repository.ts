@@ -1,12 +1,16 @@
 import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  FutureAttentionRecordSchema,
   OperationalLocationSchema,
   PhysicalObservationInputSchema,
   type CaptureLotInput,
   type CaptureProductInput,
+  type FutureAttentionRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type TaskResolutionCommand,
+  type TodayTaskRecord,
 } from "@validade-zero/contracts";
 import * as SQLite from "expo-sqlite";
 import type {
@@ -17,10 +21,15 @@ import type {
   CaptureRepository,
   CaptureRepositoryDependencies,
   RecentLotsQuery,
+  RefreshTodayTasksInput,
   SaveLotInput,
+  TodayTaskRefreshResult,
 } from "./repository";
 import {
+  createFutureAttentionRecord,
   createInitialObservation,
+  createTodayTaskRecord,
+  deriveTaskCandidateFromLot,
   nextGeneratedId,
   normalizeProductLookup,
   parseLotId,
@@ -28,6 +37,9 @@ import {
   parseObservationInput,
   parseProductInput,
   parseRecentLotsQuery,
+  parseTaskResolutionCommand,
+  parseTodayTaskRecord,
+  sortTodayTasks,
 } from "./repository";
 
 interface ProductRow {
@@ -80,6 +92,44 @@ interface ObservationRow {
   approximate_quantity: number | null;
   is_correction: number;
   correction_reason: string | null;
+}
+
+interface TodayTaskRow {
+  id: string;
+  active_key: string;
+  lot_id: string;
+  product_display_name: string;
+  lot_identity_source: string;
+  lot_identity_value: string;
+  current_location_kind: string;
+  current_location_custom_name: string | null;
+  risk_state: string;
+  severity: string;
+  due_bucket: string;
+  required_resolution: string;
+  section: string;
+  owner_label: string;
+  status: string;
+  source_risk_json: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  recheck_parent_id: string | null;
+  responsible_actor_label: string | null;
+  resolution_history_json: string | null;
+}
+
+interface FutureAttentionRow {
+  id: string;
+  lot_id: string;
+  product_display_name: string;
+  lot_identity_source: string;
+  lot_identity_value: string;
+  current_location_kind: string;
+  current_location_custom_name: string | null;
+  source_risk_reasons_json: string;
+  observed_at: string;
 }
 
 const LOT_SELECT = `
@@ -393,6 +443,153 @@ export function createSQLiteCaptureRepository(
     };
   }
 
+  async function refreshTodayTasks(input: RefreshTodayTasksInput): Promise<TodayTaskRefreshResult> {
+    await initialize();
+    const refreshedAt = dependencies.clock();
+    const db = await getDatabase();
+    const lots = await listRecentLots({ limit: 100 });
+
+    await db.runAsync("DELETE FROM today_future_attention");
+
+    for (const lot of lots) {
+      const detail = await loadLotDetail(lot.id);
+
+      if (detail === null) {
+        continue;
+      }
+
+      const future = createFutureAttentionRecord({
+        lot: detail,
+        id: `future:${detail.id}:radar`,
+        observedAt: input.currentTimestamp,
+        currentDate: input.currentDate,
+        currentTimestamp: input.currentTimestamp,
+      });
+
+      if (future !== null) {
+        await upsertFutureAttention(db, future);
+      }
+
+      const candidate = deriveTaskCandidateFromLot({
+        lot: detail,
+        currentDate: input.currentDate,
+        currentTimestamp: input.currentTimestamp,
+      });
+
+      if (candidate === null) {
+        continue;
+      }
+
+      const existing = await db.getFirstAsync<TodayTaskRow>(
+        "SELECT * FROM today_tasks WHERE active_key = ?",
+        candidate.activeKey,
+      );
+
+      if (existing !== null && existing.status !== "active") {
+        continue;
+      }
+
+      const existingTask = existing === null ? undefined : mapTodayTask(existing);
+      const record = createTodayTaskRecord({
+        candidate,
+        lotIdentity: detail.identity,
+        id: existingTask?.id ?? nextGeneratedId(dependencies),
+        createdAt: existingTask?.createdAt ?? refreshedAt,
+        updatedAt: refreshedAt,
+      });
+
+      await upsertTodayTask(
+        db,
+        existingTask?.resolutionHistory === undefined
+          ? record
+          : { ...record, resolutionHistory: existingTask.resolutionHistory },
+      );
+    }
+
+    const tasks = await listActiveTodayTasks();
+    const futureAttention = await listFutureAttention();
+
+    return {
+      metadata: {
+        refreshedAt,
+        activeTaskCount: tasks.length,
+        futureAttentionCount: futureAttention.length,
+        source: input.source,
+      },
+      tasks,
+      futureAttention,
+    };
+  }
+
+  async function listActiveTodayTasks(): Promise<readonly TodayTaskRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE status = 'active' ORDER BY priority ASC, created_at ASC",
+    );
+
+    return sortTodayTasks(rows.map(mapTodayTask));
+  }
+
+  async function listFutureAttention(): Promise<readonly FutureAttentionRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<FutureAttentionRow>(
+      "SELECT * FROM today_future_attention ORDER BY observed_at ASC, lot_id ASC",
+    );
+
+    return rows.map(mapFutureAttention);
+  }
+
+  async function resolveTodayTask(input: TaskResolutionCommand): Promise<TodayTaskRecord> {
+    await initialize();
+    const command = parseTaskResolutionCommand(input);
+    const db = await getDatabase();
+    const existingRow = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      command.taskId,
+    );
+
+    if (existingRow === null) {
+      throw new Error(`Cannot resolve an unknown Today task: ${command.taskId}`);
+    }
+
+    const existing = mapTodayTask(existingRow);
+    const resolutionHistory = [
+      ...(existing.resolutionHistory ?? []),
+      {
+        action: command.action,
+        actorLabel: command.actorLabel,
+        occurredAt: command.occurredAt,
+        ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
+      },
+    ];
+    const resolved = parseTodayTaskRecord({
+      ...existing,
+      status: "resolved",
+      updatedAt: command.occurredAt,
+      resolvedAt: command.occurredAt,
+      responsibleActorLabel: command.actorLabel,
+      resolutionHistory,
+    });
+
+    await upsertTodayTask(db, resolved);
+
+    return resolved;
+  }
+
+  async function loadTodayTask(taskId: string): Promise<TodayTaskRecord | null> {
+    await initialize();
+    const validatedTaskId = parseLotId(taskId);
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      validatedTaskId,
+    );
+
+    return row === null ? null : mapTodayTask(row);
+  }
+
   return {
     initialize,
     createProduct,
@@ -401,6 +598,11 @@ export function createSQLiteCaptureRepository(
     appendObservation,
     listRecentLots,
     loadLotDetail,
+    refreshTodayTasks,
+    listActiveTodayTasks,
+    listFutureAttention,
+    resolveTodayTask,
+    loadTodayTask,
   };
 }
 
@@ -461,12 +663,55 @@ async function initializeDatabase(
       correction_reason TEXT,
       FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
     );
+    CREATE TABLE IF NOT EXISTS today_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      active_key TEXT NOT NULL UNIQUE,
+      lot_id TEXT NOT NULL,
+      product_display_name TEXT NOT NULL,
+      lot_identity_source TEXT NOT NULL,
+      lot_identity_value TEXT NOT NULL,
+      current_location_kind TEXT NOT NULL,
+      current_location_custom_name TEXT,
+      risk_state TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      due_bucket TEXT NOT NULL,
+      required_resolution TEXT NOT NULL,
+      section TEXT NOT NULL,
+      owner_label TEXT NOT NULL,
+      status TEXT NOT NULL,
+      source_risk_json TEXT NOT NULL,
+      priority INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT,
+      recheck_parent_id TEXT,
+      responsible_actor_label TEXT,
+      resolution_history_json TEXT,
+      FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
+    );
+    CREATE TABLE IF NOT EXISTS today_future_attention (
+      id TEXT PRIMARY KEY NOT NULL,
+      lot_id TEXT NOT NULL,
+      product_display_name TEXT NOT NULL,
+      lot_identity_source TEXT NOT NULL,
+      lot_identity_value TEXT NOT NULL,
+      current_location_kind TEXT NOT NULL,
+      current_location_custom_name TEXT,
+      source_risk_reasons_json TEXT NOT NULL,
+      observed_at TEXT NOT NULL,
+      FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
+    );
     CREATE INDEX IF NOT EXISTS capture_products_normalized_name_idx
       ON capture_products(normalized_name);
     CREATE INDEX IF NOT EXISTS capture_products_gtin_idx ON capture_products(gtin);
     CREATE INDEX IF NOT EXISTS capture_lots_identity_value_idx ON capture_lots(identity_value);
     CREATE INDEX IF NOT EXISTS capture_observations_lot_occurred_at_idx
       ON capture_observations(lot_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS today_tasks_status_priority_due_idx
+      ON today_tasks(status, priority, due_bucket, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
+    CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
+    CREATE INDEX IF NOT EXISTS today_future_attention_lot_idx ON today_future_attention(lot_id);
   `);
 }
 
@@ -509,6 +754,96 @@ async function insertObservation(
     observation.quantityState === "estimated" ? observation.approximateQuantity : null,
     observation.isCorrection ? 1 : 0,
     observation.correctionReason ?? null,
+  );
+}
+
+async function upsertTodayTask(
+  db: SQLite.SQLiteDatabase,
+  task: TodayTaskRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO today_tasks (
+      id, active_key, lot_id, product_display_name, lot_identity_source, lot_identity_value,
+      current_location_kind, current_location_custom_name, risk_state, severity, due_bucket,
+      required_resolution, section, owner_label, status, source_risk_json, priority,
+      created_at, updated_at, resolved_at, recheck_parent_id, responsible_actor_label,
+      resolution_history_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      active_key = excluded.active_key,
+      lot_id = excluded.lot_id,
+      product_display_name = excluded.product_display_name,
+      lot_identity_source = excluded.lot_identity_source,
+      lot_identity_value = excluded.lot_identity_value,
+      current_location_kind = excluded.current_location_kind,
+      current_location_custom_name = excluded.current_location_custom_name,
+      risk_state = excluded.risk_state,
+      severity = excluded.severity,
+      due_bucket = excluded.due_bucket,
+      required_resolution = excluded.required_resolution,
+      section = excluded.section,
+      owner_label = excluded.owner_label,
+      status = excluded.status,
+      source_risk_json = excluded.source_risk_json,
+      priority = excluded.priority,
+      updated_at = excluded.updated_at,
+      resolved_at = excluded.resolved_at,
+      recheck_parent_id = excluded.recheck_parent_id,
+      responsible_actor_label = excluded.responsible_actor_label,
+      resolution_history_json = excluded.resolution_history_json`,
+    task.id,
+    task.activeKey,
+    task.lotId,
+    task.productDisplayName,
+    task.lotIdentity.identitySource,
+    task.lotIdentity.value,
+    task.currentLocation.kind,
+    task.currentLocation.kind === "other" ? task.currentLocation.customName : null,
+    task.riskState,
+    task.severity,
+    task.dueBucket,
+    task.requiredResolution,
+    task.section,
+    task.ownerLabel,
+    task.status,
+    JSON.stringify(task.sourceRisk),
+    task.priority,
+    task.createdAt,
+    task.updatedAt,
+    task.resolvedAt ?? null,
+    task.recheckParentId ?? null,
+    task.responsibleActorLabel ?? null,
+    task.resolutionHistory === undefined ? null : JSON.stringify(task.resolutionHistory),
+  );
+}
+
+async function upsertFutureAttention(
+  db: SQLite.SQLiteDatabase,
+  record: FutureAttentionRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO today_future_attention (
+      id, lot_id, product_display_name, lot_identity_source, lot_identity_value,
+      current_location_kind, current_location_custom_name, source_risk_reasons_json, observed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      lot_id = excluded.lot_id,
+      product_display_name = excluded.product_display_name,
+      lot_identity_source = excluded.lot_identity_source,
+      lot_identity_value = excluded.lot_identity_value,
+      current_location_kind = excluded.current_location_kind,
+      current_location_custom_name = excluded.current_location_custom_name,
+      source_risk_reasons_json = excluded.source_risk_reasons_json,
+      observed_at = excluded.observed_at`,
+    record.id,
+    record.lotId,
+    record.productDisplayName,
+    record.lotIdentity.identitySource,
+    record.lotIdentity.value,
+    record.currentLocation.kind,
+    record.currentLocation.kind === "other" ? record.currentLocation.customName : null,
+    JSON.stringify(record.sourceRiskReasons),
+    record.observedAt,
   );
 }
 
@@ -611,6 +946,56 @@ function mapObservation(row: ObservationRow): CaptureObservationRecord {
   });
 
   return { ...observation, id: row.id, lotId: row.lot_id };
+}
+
+function mapTodayTask(row: TodayTaskRow): TodayTaskRecord {
+  return parseTodayTaskRecord({
+    id: row.id,
+    activeKey: row.active_key,
+    lotId: row.lot_id,
+    productDisplayName: row.product_display_name,
+    lotIdentity: {
+      identitySource: row.lot_identity_source,
+      value: row.lot_identity_value,
+    },
+    currentLocation: mapLocation(row.current_location_kind, row.current_location_custom_name),
+    riskState: row.risk_state,
+    severity: row.severity,
+    dueBucket: row.due_bucket,
+    requiredResolution: row.required_resolution,
+    section: row.section,
+    ownerLabel: row.owner_label,
+    status: row.status,
+    sourceRisk: parseJson(row.source_risk_json),
+    priority: row.priority,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.resolved_at === null ? {} : { resolvedAt: row.resolved_at }),
+    ...(row.recheck_parent_id === null ? {} : { recheckParentId: row.recheck_parent_id }),
+    ...(row.responsible_actor_label === null
+      ? {}
+      : { responsibleActorLabel: row.responsible_actor_label }),
+    ...(row.resolution_history_json === null
+      ? {}
+      : { resolutionHistory: parseJson(row.resolution_history_json) }),
+  });
+}
+
+function mapFutureAttention(row: FutureAttentionRow): FutureAttentionRecord {
+  return FutureAttentionRecordSchema.parse({
+    id: row.id,
+    lotId: row.lot_id,
+    productDisplayName: row.product_display_name,
+    lotIdentity: {
+      identitySource: row.lot_identity_source,
+      value: row.lot_identity_value,
+    },
+    currentLocation: mapLocation(row.current_location_kind, row.current_location_custom_name),
+    riskState: "radar",
+    section: "future_attention",
+    sourceRiskReasons: parseJson(row.source_risk_reasons_json),
+    observedAt: row.observed_at,
+  });
 }
 
 function mapLocation(kind: string, customName: string | null): OperationalLocation {

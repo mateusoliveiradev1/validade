@@ -4,9 +4,25 @@ import {
   PhysicalObservationInputSchema,
   type CaptureLotInput,
   type CaptureProductInput,
+  type FutureAttentionRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type TaskRefreshMetadata,
+  TaskResolutionCommandSchema,
+  TodayTaskRecordSchema,
+  type TaskResolutionCommand,
+  type TodayTaskRecord,
 } from "@validade-zero/contracts";
+import {
+  calculateLotRisk,
+  compareTodayTaskPriority,
+  deriveFutureAttentionCandidate,
+  deriveTodayTaskCandidate,
+  type CategoryRuleProfile,
+  type ProductRuleOverride,
+  type RiskCalculationLot,
+  type RiskWindows,
+} from "@validade-zero/domain";
 
 export interface CaptureRepositoryDependencies {
   clock: () => string;
@@ -46,6 +62,24 @@ export interface RecentLotsQuery {
   limit?: number;
 }
 
+export type TodayTaskRefreshSource =
+  | "today_open"
+  | "manual_refresh"
+  | "lot_change"
+  | "observation_change";
+
+export interface RefreshTodayTasksInput {
+  currentDate: string;
+  currentTimestamp: string;
+  source: TodayTaskRefreshSource;
+}
+
+export interface TodayTaskRefreshResult {
+  metadata: TaskRefreshMetadata;
+  tasks: readonly TodayTaskRecord[];
+  futureAttention: readonly FutureAttentionRecord[];
+}
+
 export interface CaptureRepository {
   initialize(): Promise<void>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
@@ -57,6 +91,11 @@ export interface CaptureRepository {
   ): Promise<CaptureObservationRecord>;
   listRecentLots(query?: RecentLotsQuery): Promise<readonly CaptureLotSnapshot[]>;
   loadLotDetail(lotId: string): Promise<CaptureLotDetail | null>;
+  refreshTodayTasks(input: RefreshTodayTasksInput): Promise<TodayTaskRefreshResult>;
+  listActiveTodayTasks(): Promise<readonly TodayTaskRecord[]>;
+  listFutureAttention(): Promise<readonly FutureAttentionRecord[]>;
+  resolveTodayTask(input: TaskResolutionCommand): Promise<TodayTaskRecord>;
+  loadTodayTask(taskId: string): Promise<TodayTaskRecord | null>;
 }
 
 export function normalizeProductLookup(value: string): string {
@@ -77,6 +116,14 @@ export function parseLotInput(input: CaptureLotInput): CaptureLotInput {
 
 export function parseObservationInput(input: PhysicalObservationInput): PhysicalObservationInput {
   return PhysicalObservationInputSchema.parse(input);
+}
+
+export function parseTodayTaskRecord(input: unknown): TodayTaskRecord {
+  return TodayTaskRecordSchema.parse(input);
+}
+
+export function parseTaskResolutionCommand(input: unknown): TaskResolutionCommand {
+  return TaskResolutionCommandSchema.parse(input);
 }
 
 export function parseLotId(value: string): string {
@@ -128,6 +175,138 @@ export function nextGeneratedId(dependencies: CaptureRepositoryDependencies): st
   return parseLotId(dependencies.createId());
 }
 
+export function createTodayTaskRecord(input: {
+  candidate: NonNullable<ReturnType<typeof deriveTodayTaskCandidate>>;
+  lotIdentity: CaptureLotDetail["identity"];
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}): TodayTaskRecord {
+  return TodayTaskRecordSchema.parse({
+    id: input.id,
+    activeKey: input.candidate.activeKey,
+    lotId: input.candidate.lotId,
+    productDisplayName: input.candidate.productDisplayName,
+    lotIdentity: input.lotIdentity,
+    currentLocation: input.candidate.currentLocation,
+    riskState: input.candidate.riskState,
+    severity: input.candidate.severity,
+    dueBucket: input.candidate.dueBucket,
+    requiredResolution: input.candidate.requiredResolution,
+    section: input.candidate.section,
+    ownerLabel: input.candidate.ownerLabel,
+    status: "active",
+    sourceRisk: input.candidate.sourceRisk,
+    priority: input.candidate.priority,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+    ...(input.candidate.recheckParentId === undefined
+      ? {}
+      : { recheckParentId: input.candidate.recheckParentId }),
+  });
+}
+
+export function createFutureAttentionRecord(input: {
+  lot: CaptureLotDetail;
+  id: string;
+  observedAt: string;
+  currentDate: string;
+  currentTimestamp: string;
+}): FutureAttentionRecord | null {
+  const productOverride = toProductRuleOverride(input.lot.product);
+  const assessment = calculateLotRisk({
+    currentDate: input.currentDate,
+    currentTimestamp: input.currentTimestamp,
+    categoryProfile: toCategoryRuleProfile(input.lot.product.categoryRuleProfile),
+    ...(productOverride === undefined ? {} : { productOverride }),
+    lastPhysicalConfirmation: {
+      status: input.lot.currentObservation.status,
+      confirmedAt: input.lot.currentObservation.occurredAt,
+      ...(input.lot.currentObservation.quantityState === "estimated"
+        ? { approximateQuantity: input.lot.currentObservation.approximateQuantity }
+        : {}),
+    },
+    lot: toRiskCalculationLot(input.lot),
+  });
+  const candidate = deriveFutureAttentionCandidate({
+    lotId: input.lot.id,
+    productDisplayName: input.lot.productDisplayName,
+    lotIdentity: input.lot.identity.value,
+    currentLocation: input.lot.currentObservation.location,
+    assessment,
+    observedAt: input.observedAt,
+  });
+
+  if (candidate === null) {
+    return null;
+  }
+
+  return {
+    id: input.id,
+    lotId: candidate.lotId,
+    productDisplayName: candidate.productDisplayName,
+    lotIdentity: {
+      identitySource: input.lot.identity.identitySource,
+      value: candidate.lotIdentity,
+    },
+    currentLocation: candidate.currentLocation,
+    riskState: "radar",
+    section: "future_attention",
+    sourceRiskReasons: [...candidate.sourceRisk.reasons],
+    observedAt: candidate.observedAt,
+  };
+}
+
+export function deriveTaskCandidateFromLot(input: {
+  lot: CaptureLotDetail;
+  currentDate: string;
+  currentTimestamp: string;
+}) {
+  const productOverride = toProductRuleOverride(input.lot.product);
+
+  const assessment = calculateLotRisk({
+    currentDate: input.currentDate,
+    currentTimestamp: input.currentTimestamp,
+    categoryProfile: toCategoryRuleProfile(input.lot.product.categoryRuleProfile),
+    ...(productOverride === undefined ? {} : { productOverride }),
+    lastPhysicalConfirmation: {
+      status: input.lot.currentObservation.status,
+      confirmedAt: input.lot.currentObservation.occurredAt,
+      ...(input.lot.currentObservation.quantityState === "estimated"
+        ? { approximateQuantity: input.lot.currentObservation.approximateQuantity }
+        : {}),
+    },
+    lot: toRiskCalculationLot(input.lot),
+  });
+
+  return deriveTodayTaskCandidate({
+    lotId: input.lot.id,
+    productDisplayName: input.lot.productDisplayName,
+    lotIdentity: input.lot.identity.value,
+    currentLocation: input.lot.currentObservation.location,
+    assessment,
+    observedAt: input.currentTimestamp,
+  });
+}
+
+export function sortTodayTasks(tasks: readonly TodayTaskRecord[]): TodayTaskRecord[] {
+  return [...tasks].sort((left, right) => {
+    const priorityDifference = left.priority - right.priority;
+
+    if (priorityDifference !== 0) {
+      return priorityDifference;
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+  });
+}
+
+export function sortTodayTaskRecordsFromCandidates(
+  tasks: readonly NonNullable<ReturnType<typeof deriveTodayTaskCandidate>>[],
+) {
+  return [...tasks].sort(compareTodayTaskPriority);
+}
+
 function validateActorLabel(value: string): string {
   const parsed = value.trim();
 
@@ -136,4 +315,86 @@ function validateActorLabel(value: string): string {
   }
 
   return parsed;
+}
+
+function toProductRuleOverride(product: CaptureProductRecord): ProductRuleOverride | undefined {
+  if (product.productRuleOverride === undefined) {
+    return undefined;
+  }
+
+  return {
+    productId: product.id,
+    ...(product.productRuleOverride.mode === undefined
+      ? {}
+      : { mode: product.productRuleOverride.mode }),
+    ...(product.productRuleOverride.windows === undefined
+      ? {}
+      : { windows: toRiskWindows(product.productRuleOverride.windows) }),
+    ...(product.productRuleOverride.maxPhysicalConfirmationAgeHours === undefined
+      ? {}
+      : {
+          maxPhysicalConfirmationAgeHours:
+            product.productRuleOverride.maxPhysicalConfirmationAgeHours,
+        }),
+  };
+}
+
+function toCategoryRuleProfile(
+  profile: CaptureProductRecord["categoryRuleProfile"],
+): CategoryRuleProfile {
+  return {
+    categoryId: profile.categoryId,
+    mode: profile.mode,
+    ...(profile.windows === undefined ? {} : { windows: toRiskWindows(profile.windows) }),
+    ...(profile.maxPhysicalConfirmationAgeHours === undefined
+      ? {}
+      : { maxPhysicalConfirmationAgeHours: profile.maxPhysicalConfirmationAgeHours }),
+  };
+}
+
+type LooseRiskWindows = {
+  readonly [Key in keyof RiskWindows]?: RiskWindows[Key] | undefined;
+};
+
+function toRiskWindows(windows: LooseRiskWindows): Partial<RiskWindows> {
+  return {
+    ...(windows.radarDays === undefined ? {} : { radarDays: windows.radarDays }),
+    ...(windows.markdownDays === undefined ? {} : { markdownDays: windows.markdownDays }),
+    ...(windows.criticalDays === undefined ? {} : { criticalDays: windows.criticalDays }),
+    ...(windows.expiredDays === undefined ? {} : { expiredDays: windows.expiredDays }),
+    ...(windows.qualityWindowDays === undefined
+      ? {}
+      : { qualityWindowDays: windows.qualityWindowDays }),
+  };
+}
+
+function toRiskCalculationLot(lot: CaptureLotDetail): RiskCalculationLot {
+  if (lot.mode === "formal_validity") {
+    return {
+      mode: "formal_validity",
+      productId: lot.productId,
+      lotCode: lot.identity.value,
+      expiresAt: lot.expiresAt,
+    };
+  }
+
+  if (lot.mode === "flv_inspection") {
+    return {
+      mode: "flv_inspection",
+      productId: lot.productId,
+      lotCode: lot.identity.value,
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      ...(lot.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+      ...(lot.qualityWindowDays === undefined ? {} : { qualityWindowDays: lot.qualityWindowDays }),
+    };
+  }
+
+  return {
+    mode: "receiving_monitored",
+    productId: lot.productId,
+    lotCode: lot.identity.value,
+    receivedAt: lot.receivedAt,
+  };
 }

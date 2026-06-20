@@ -1,4 +1,10 @@
-import type { CaptureProductInput, PhysicalObservationInput } from "@validade-zero/contracts";
+import type {
+  CaptureProductInput,
+  FutureAttentionRecord,
+  PhysicalObservationInput,
+  TaskResolutionCommand,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import type {
   CaptureLotDetail,
   CaptureLotSnapshot,
@@ -7,10 +13,15 @@ import type {
   CaptureRepository,
   CaptureRepositoryDependencies,
   RecentLotsQuery,
+  RefreshTodayTasksInput,
+  TodayTaskRefreshResult,
   SaveLotInput,
 } from "./repository";
 import {
+  createFutureAttentionRecord,
   createInitialObservation,
+  createTodayTaskRecord,
+  deriveTaskCandidateFromLot,
   nextGeneratedId,
   normalizeProductLookup,
   parseLotId,
@@ -18,6 +29,9 @@ import {
   parseObservationInput,
   parseProductInput,
   parseRecentLotsQuery,
+  parseTaskResolutionCommand,
+  parseTodayTaskRecord,
+  sortTodayTasks,
 } from "./repository";
 
 export function createMemoryCaptureRepository(
@@ -26,6 +40,8 @@ export function createMemoryCaptureRepository(
   const products = new Map<string, CaptureProductRecord>();
   const lots = new Map<string, CaptureLotSnapshot>();
   const observations = new Map<string, CaptureObservationRecord[]>();
+  const todayTasks = new Map<string, TodayTaskRecord>();
+  const futureAttention = new Map<string, FutureAttentionRecord>();
 
   async function initialize(): Promise<void> {
     return Promise.resolve();
@@ -174,6 +190,139 @@ export function createMemoryCaptureRepository(
     });
   }
 
+  async function refreshTodayTasks(input: RefreshTodayTasksInput): Promise<TodayTaskRefreshResult> {
+    const refreshedAt = dependencies.clock();
+    futureAttention.clear();
+
+    for (const lotId of lots.keys()) {
+      const detail = await loadLotDetail(lotId);
+
+      if (detail === null) {
+        continue;
+      }
+
+      const candidate = deriveTaskCandidateFromLot({
+        lot: detail,
+        currentDate: input.currentDate,
+        currentTimestamp: input.currentTimestamp,
+      });
+      const future = createFutureAttentionRecord({
+        lot: detail,
+        id: `future:${detail.id}:radar`,
+        observedAt: input.currentTimestamp,
+        currentDate: input.currentDate,
+        currentTimestamp: input.currentTimestamp,
+      });
+
+      if (future !== null) {
+        futureAttention.set(future.id, future);
+      }
+
+      if (candidate === null) {
+        continue;
+      }
+
+      const existing = [...todayTasks.values()].find(
+        (task) => task.activeKey === candidate.activeKey,
+      );
+
+      if (existing === undefined) {
+        const record = createTodayTaskRecord({
+          candidate,
+          lotIdentity: detail.identity,
+          id: nextGeneratedId(dependencies),
+          createdAt: refreshedAt,
+          updatedAt: refreshedAt,
+        });
+        todayTasks.set(record.id, record);
+        continue;
+      }
+
+      if (existing.status !== "active") {
+        continue;
+      }
+
+      todayTasks.set(
+        existing.id,
+        parseTodayTaskRecord({
+          ...existing,
+          productDisplayName: candidate.productDisplayName,
+          lotIdentity: detail.identity,
+          currentLocation: candidate.currentLocation,
+          riskState: candidate.riskState,
+          severity: candidate.severity,
+          dueBucket: candidate.dueBucket,
+          requiredResolution: candidate.requiredResolution,
+          section: candidate.section,
+          sourceRisk: candidate.sourceRisk,
+          priority: candidate.priority,
+          updatedAt: refreshedAt,
+        }),
+      );
+    }
+
+    const tasks = await listActiveTodayTasks();
+    const future = await listFutureAttention();
+
+    return {
+      metadata: {
+        refreshedAt,
+        activeTaskCount: tasks.length,
+        futureAttentionCount: future.length,
+        source: input.source,
+      },
+      tasks,
+      futureAttention: future,
+    };
+  }
+
+  function listActiveTodayTasks(): Promise<readonly TodayTaskRecord[]> {
+    return Promise.resolve(sortTodayTasks([...todayTasks.values()].filter(isActiveTask)));
+  }
+
+  function listFutureAttention(): Promise<readonly FutureAttentionRecord[]> {
+    return Promise.resolve([...futureAttention.values()]);
+  }
+
+  function resolveTodayTask(input: TaskResolutionCommand): Promise<TodayTaskRecord> {
+    return Promise.resolve().then(() => {
+      const command = parseTaskResolutionCommand(input);
+      const existing = todayTasks.get(command.taskId);
+
+      if (existing === undefined) {
+        throw new Error(`Cannot resolve an unknown Today task: ${command.taskId}`);
+      }
+
+      const resolutionHistory = [
+        ...(existing.resolutionHistory ?? []),
+        {
+          action: command.action,
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
+        },
+      ];
+      const resolved = parseTodayTaskRecord({
+        ...existing,
+        status: "resolved",
+        updatedAt: command.occurredAt,
+        resolvedAt: command.occurredAt,
+        responsibleActorLabel: command.actorLabel,
+        resolutionHistory,
+      });
+
+      todayTasks.set(resolved.id, resolved);
+
+      return resolved;
+    });
+  }
+
+  function loadTodayTask(taskId: string): Promise<TodayTaskRecord | null> {
+    const validatedTaskId = parseLotId(taskId);
+
+    return Promise.resolve(todayTasks.get(validatedTaskId) ?? null);
+  }
+
   return {
     initialize,
     createProduct,
@@ -182,5 +331,14 @@ export function createMemoryCaptureRepository(
     appendObservation,
     listRecentLots,
     loadLotDetail,
+    refreshTodayTasks,
+    listActiveTodayTasks,
+    listFutureAttention,
+    resolveTodayTask,
+    loadTodayTask,
   };
+}
+
+function isActiveTask(task: TodayTaskRecord): boolean {
+  return task.status === "active";
 }
