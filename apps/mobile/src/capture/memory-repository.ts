@@ -18,8 +18,10 @@ import type {
   SaveLotInput,
 } from "./repository";
 import {
+  assertRecheckResolutionHasEvidence,
   createFutureAttentionRecord,
   createInitialObservation,
+  createSalesAreaRecheckTask,
   createTodayTaskRecord,
   deriveTaskCandidateFromLot,
   nextGeneratedId,
@@ -31,6 +33,7 @@ import {
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
   parseTodayTaskRecord,
+  shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
 
@@ -293,6 +296,8 @@ export function createMemoryCaptureRepository(
         throw new Error(`Cannot resolve an unknown Today task: ${command.taskId}`);
       }
 
+      assertRecheckResolutionHasEvidence(existing, command);
+
       const resolutionHistory = [
         ...(existing.resolutionHistory ?? []),
         {
@@ -312,6 +317,16 @@ export function createMemoryCaptureRepository(
       });
 
       todayTasks.set(resolved.id, resolved);
+
+      if (shouldCreateSalesAreaRecheck(existing, command)) {
+        const recheck = createSalesAreaRecheckTask({
+          parentTask: existing,
+          id: nextGeneratedId(dependencies),
+          occurredAt: command.occurredAt,
+        });
+
+        todayTasks.set(recheck.id, recheck);
+      }
 
       return resolved;
     });

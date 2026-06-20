@@ -181,7 +181,15 @@ describe("today task repository", () => {
       source: "observation_change",
     });
 
-    await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({
+        activeKey: `recheck:${task.id}`,
+        requiredResolution: "sales_area_recheck",
+        riskState: "uncertain",
+        status: "active",
+        recheckParentId: task.id,
+      }),
+    ]);
     await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
       status: "resolved",
       responsibleActorLabel: "Ana FICTICIA",
@@ -193,6 +201,43 @@ describe("today task repository", () => {
       ],
     });
     expect(resolved.resolvedAt).toBe("2030-01-10T12:10:00.000Z");
+
+    const recheck = (await repository.listActiveTodayTasks())[0];
+
+    expect(recheck).toBeDefined();
+
+    if (recheck === undefined) {
+      throw new Error("Expected a sales-area recheck task after withdrawal.");
+    }
+
+    await expect(
+      repository.resolveTodayTask({
+        taskId: recheck.id,
+        action: "complete_recheck",
+        actorLabel: "Ana FICTICIA",
+        occurredAt: "2030-01-10T12:20:00.000Z",
+      }),
+    ).rejects.toThrow("requires photo metadata");
+
+    await repository.resolveTodayTask({
+      taskId: recheck.id,
+      action: "complete_recheck",
+      actorLabel: "Ana FICTICIA",
+      occurredAt: "2030-01-10T12:25:00.000Z",
+      evidence: { kind: "photo_recorded_placeholder" },
+    });
+
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
+    await expect(repository.loadTodayTask(recheck.id)).resolves.toMatchObject({
+      status: "resolved",
+      responsibleActorLabel: "Ana FICTICIA",
+      resolutionHistory: [
+        expect.objectContaining({
+          action: "complete_recheck",
+          evidence: { kind: "photo_recorded_placeholder" },
+        }),
+      ],
+    });
   });
 
   it("rejects malformed task resolution commands at the repository boundary", async () => {

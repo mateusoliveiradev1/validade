@@ -26,8 +26,10 @@ import type {
   TodayTaskRefreshResult,
 } from "./repository";
 import {
+  assertRecheckResolutionHasEvidence,
   createFutureAttentionRecord,
   createInitialObservation,
+  createSalesAreaRecheckTask,
   createTodayTaskRecord,
   deriveTaskCandidateFromLot,
   nextGeneratedId,
@@ -39,6 +41,7 @@ import {
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
   parseTodayTaskRecord,
+  shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
 
@@ -555,6 +558,8 @@ export function createSQLiteCaptureRepository(
     }
 
     const existing = mapTodayTask(existingRow);
+    assertRecheckResolutionHasEvidence(existing, command);
+
     const resolutionHistory = [
       ...(existing.resolutionHistory ?? []),
       {
@@ -573,7 +578,20 @@ export function createSQLiteCaptureRepository(
       resolutionHistory,
     });
 
-    await upsertTodayTask(db, resolved);
+    await db.withTransactionAsync(async () => {
+      await upsertTodayTask(db, resolved);
+
+      if (shouldCreateSalesAreaRecheck(existing, command)) {
+        await upsertTodayTask(
+          db,
+          createSalesAreaRecheckTask({
+            parentTask: existing,
+            id: nextGeneratedId(dependencies),
+            occurredAt: command.occurredAt,
+          }),
+        );
+      }
+    });
 
     return resolved;
   }

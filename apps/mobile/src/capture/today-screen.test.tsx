@@ -296,6 +296,40 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Alface FICTICIA - lote ALFACE-002");
   });
 
+  it("keeps the sales-area header unsafe while a recheck task is open", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(
+        refreshWith({
+          tasks: [
+            taskFixture({
+              id: "tarefa-reconferencia",
+              activeKey: "recheck:tarefa-vencida",
+              lotId: "lote-ovos",
+              productDisplayName: "Ovos FICTICIOS",
+              lotIdentity: { identitySource: "printed", value: "OVOS-001" },
+              riskState: "uncertain",
+              severity: "high",
+              dueBucket: "now",
+              requiredResolution: "sales_area_recheck",
+              section: "check_sales_area",
+              sourceRisk: {
+                state: "uncertain",
+                reasons: [{ code: "presence_conditionally_resolved", field: "sales_area_recheck" }],
+              },
+              priority: 1,
+              recheckParentId: "tarefa-vencida",
+            }),
+          ],
+        }),
+      ),
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Area de venda com 1 risco(s) agora");
+    expect(rendered).toContain("Reconferir area de venda");
+  });
+
   it("renders radar only under future attention and opens active tasks through callback", async () => {
     const openTask = vi.fn();
     const repository = createRepository(() =>

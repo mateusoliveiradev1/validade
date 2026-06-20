@@ -1,4 +1,9 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { TaskResolutionCommand, TodayTaskRecord } from "@validade-zero/contracts";
 import type { CaptureRepository } from "./repository";
@@ -53,6 +58,25 @@ function expiredTask(): TodayTaskRecord {
   };
 }
 
+function recheckTask(): TodayTaskRecord {
+  return {
+    ...expiredTask(),
+    id: "tarefa-reconferencia-ficticia",
+    activeKey: "recheck:tarefa-vencida-ficticia",
+    riskState: "uncertain",
+    severity: "high",
+    dueBucket: "now",
+    requiredResolution: "sales_area_recheck",
+    section: "check_sales_area",
+    sourceRisk: {
+      state: "uncertain",
+      reasons: [{ code: "presence_conditionally_resolved", field: "sales_area_recheck" }],
+    },
+    priority: 1,
+    recheckParentId: "tarefa-vencida-ficticia",
+  };
+}
+
 function createRepository(resolveTodayTask = vi.fn()): CaptureRepository {
   return {
     initialize: () => Promise.resolve(),
@@ -101,6 +125,18 @@ async function renderPanel(repository: CaptureRepository): Promise<ReactTestRend
   }
 
   return tree;
+}
+
+function findEnabledButton(tree: ReactTestRenderer, label: string): ReactTestInstance {
+  const button = tree.root
+    .findAllByProps({ accessibilityLabel: label })
+    .find((node) => node.props.accessibilityState?.disabled === false);
+
+  if (button === undefined) {
+    throw new Error(`Enabled button "${label}" was not rendered.`);
+  }
+
+  return button;
 }
 
 describe("TaskResolutionPanel", () => {
@@ -153,16 +189,23 @@ describe("TaskResolutionPanel", () => {
       await Promise.resolve();
     });
 
-    const submit = tree.root
-      .findAllByProps({ accessibilityLabel: "Retirar agora" })
-      .find((node) => node.props.accessibilityState?.disabled === false);
-
-    if (submit === undefined) {
-      throw new Error("Enabled withdrawal submit button was not rendered.");
-    }
+    const submit = findEnabledButton(tree, "Confirmar retirada");
 
     await act(async () => {
       submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Confirme antes de registrar");
+    expect(JSON.stringify(tree.toJSON())).toContain("Destino: Retirada/perda");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
+    );
+
+    const confirm = findEnabledButton(tree, "Confirmar retirada");
+
+    await act(async () => {
+      confirm.props.onPress();
       await Promise.resolve();
     });
 
@@ -175,5 +218,142 @@ describe("TaskResolutionPanel", () => {
       }),
     );
     expect(onDone).toHaveBeenCalledOnce();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Responsavel");
+    expect(JSON.stringify(tree.toJSON())).toContain("Equipe do turno");
+  });
+
+  it("requires a no-photo reason before completing a sales-area recheck", async () => {
+    const resolveTodayTask = vi.fn((command: TaskResolutionCommand) =>
+      Promise.resolve({ ...recheckTask(), status: "resolved", resolvedAt: command.occurredAt }),
+    );
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository(resolveTodayTask)}
+          task={recheckTask()}
+          onDone={() => undefined}
+          onBack={() => undefined}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    const recheck = tree.root.findByProps({ accessibilityLabel: "Confirmar reconferencia" });
+
+    await act(async () => {
+      recheck.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submitWithoutEvidence = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      submitWithoutEvidence.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Registre foto da area ou informe por que a foto nao foi feita antes de concluir.",
+    );
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+
+    const noPhotoReason = tree.root.findByProps({
+      accessibilityLabel: "Prioridade foi retirar o risco primeiro",
+    });
+
+    await act(async () => {
+      noPhotoReason.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submitWithReason = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      submitWithReason.props.onPress();
+      await Promise.resolve();
+    });
+
+    const confirm = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(resolveTodayTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "tarefa-reconferencia-ficticia",
+        action: "complete_recheck",
+        evidence: {
+          kind: "no_photo_reason",
+          reason: "Prioridade foi retirar o risco primeiro",
+        },
+        recheckParentId: "tarefa-vencida-ficticia",
+      }),
+    );
+  });
+
+  it("records photo placeholder evidence without local binary fields", async () => {
+    const resolveTodayTask = vi.fn((command: TaskResolutionCommand) =>
+      Promise.resolve({ ...recheckTask(), status: "resolved", resolvedAt: command.occurredAt }),
+    );
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository(resolveTodayTask)}
+          task={recheckTask()}
+          onDone={() => undefined}
+          onBack={() => undefined}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    const recheck = tree.root.findByProps({ accessibilityLabel: "Confirmar reconferencia" });
+    const photo = tree.root.findByProps({ accessibilityLabel: "Registrar foto da area" });
+
+    await act(async () => {
+      recheck.props.onPress();
+      photo.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    const confirm = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    const command = resolveTodayTask.mock.calls[0]?.[0];
+
+    expect(command?.evidence).toEqual({ kind: "photo_recorded_placeholder" });
+    expect(JSON.stringify(command)).not.toContain("uri");
+    expect(JSON.stringify(command)).not.toContain("base64");
+    expect(JSON.stringify(command)).not.toContain("objectKey");
   });
 });

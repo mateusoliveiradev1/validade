@@ -25,6 +25,33 @@ export const todayCopy = {
   expiredAction:
     "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
   localActor: "Colaborador local",
+  destinationLoss: "Destino: Retirada/perda",
+  confirmationTitle: "Confirme antes de registrar",
+  recheckConsequence:
+    "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
+  recheckFeedback:
+    "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+  evidenceRequired:
+    "Registre foto da area ou informe por que a foto nao foi feita antes de concluir.",
+  photoEvidence: "Registrar foto da area",
+  noPhotoReasonsTitle: "Sem foto",
+  noPhotoReasons: {
+    device_unavailable: "Aparelho sem camera disponivel",
+    connectivity_issue: "Internet instavel no corredor",
+    safety_priority: "Prioridade foi retirar o risco primeiro",
+    other: "Outro motivo",
+  },
+  customNoPhotoReason: "Descreva o motivo sem foto",
+  confirmLabels: {
+    withdraw: "Confirmar retirada",
+    record_loss: "Confirmar perda",
+    confirm_presence: "Confirmar presenca",
+    request_markdown: "Confirmar rebaixa",
+    mark_not_found: "Confirmar nao encontrado",
+    mark_probably_sold_out: "Confirmar provavelmente esgotado",
+    move_lot: "Confirmar movimentacao",
+    complete_recheck: "Confirmar reconferencia",
+  },
   resolutionOptions: {
     withdraw: "Retirar agora",
     record_loss: "Registrar perda",
@@ -50,7 +77,7 @@ export function todayActionLabel(task: TodayTaskRecord): string {
     return "Pedir rebaixa";
   }
 
-  return "Rever em 2h";
+  return "Reconferir area de venda";
 }
 
 export function dueLabel(task: TodayTaskRecord): string {

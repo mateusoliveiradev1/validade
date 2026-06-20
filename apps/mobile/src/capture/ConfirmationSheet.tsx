@@ -3,19 +3,25 @@ import { PrimaryAction, SecondaryAction } from "./capture-ui";
 
 export function ConfirmationSheet({
   summary,
+  title = "Confirme antes de registrar",
+  confirmLabel = "Confirmar registro",
+  backLabel = "Voltar e revisar",
   onConfirm,
   onBack,
 }: {
   summary: string;
+  title?: string;
+  confirmLabel?: string;
+  backLabel?: string;
   onConfirm: () => void;
   onBack: () => void;
 }) {
   return (
     <View style={styles.sheet}>
-      <Text style={styles.title}>Confirme antes de registrar</Text>
+      <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{summary}</Text>
-      <PrimaryAction label="Confirmar registro" onPress={onConfirm} />
-      <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+      <PrimaryAction label={confirmLabel} onPress={onConfirm} />
+      <SecondaryAction label={backLabel} onPress={onBack} />
     </View>
   );
 }

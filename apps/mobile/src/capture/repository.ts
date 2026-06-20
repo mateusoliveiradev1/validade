@@ -257,6 +257,62 @@ export function createFutureAttentionRecord(input: {
   };
 }
 
+export function createSalesAreaRecheckTask(input: {
+  parentTask: TodayTaskRecord;
+  id: string;
+  occurredAt: string;
+}): TodayTaskRecord {
+  return TodayTaskRecordSchema.parse({
+    id: input.id,
+    activeKey: `recheck:${input.parentTask.id}`,
+    lotId: input.parentTask.lotId,
+    productDisplayName: input.parentTask.productDisplayName,
+    lotIdentity: input.parentTask.lotIdentity,
+    currentLocation: input.parentTask.currentLocation,
+    riskState: "uncertain",
+    severity: "high",
+    dueBucket: "now",
+    requiredResolution: "sales_area_recheck",
+    section: "check_sales_area",
+    ownerLabel: input.parentTask.ownerLabel,
+    status: "active",
+    sourceRisk: {
+      state: "uncertain",
+      reasons: [{ code: "presence_conditionally_resolved", field: "sales_area_recheck" }],
+    },
+    priority: Math.max(1, input.parentTask.priority + 1),
+    createdAt: input.occurredAt,
+    updatedAt: input.occurredAt,
+    recheckParentId: input.parentTask.id,
+  });
+}
+
+export function shouldCreateSalesAreaRecheck(
+  task: TodayTaskRecord,
+  command: TaskResolutionCommand,
+): boolean {
+  const resolvesByRemoval = command.action === "withdraw" || command.action === "record_loss";
+
+  return (
+    resolvesByRemoval &&
+    task.currentLocation.kind === "area_de_venda" &&
+    (task.riskState === "expired" || task.riskState === "critical")
+  );
+}
+
+export function assertRecheckResolutionHasEvidence(
+  task: TodayTaskRecord,
+  command: TaskResolutionCommand,
+): void {
+  if (task.requiredResolution !== "sales_area_recheck" || command.action !== "complete_recheck") {
+    return;
+  }
+
+  if (command.evidence === undefined || command.evidence.kind === "photo_pending") {
+    throw new Error("Sales-area recheck resolution requires photo metadata or a no-photo reason.");
+  }
+}
+
 export function deriveTaskCandidateFromLot(input: {
   lot: CaptureLotDetail;
   currentDate: string;
