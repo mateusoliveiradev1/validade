@@ -132,9 +132,11 @@ const EARLY_JUSTIFICATION_REQUIRED_BLOCKER: MarkdownStartBlocker = {
 
 export function canStartMarkdownWorkflow(input: MarkdownStartInput): MarkdownStartEligibility {
   const freshness = classifyPhysicalConfirmationFreshness({
-    confirmation: input.physicalConfirmation,
     currentTimestamp: input.currentTimestamp,
     maxPhysicalConfirmationAgeHours: input.maxPhysicalConfirmationAgeHours,
+    ...(input.physicalConfirmation === undefined
+      ? {}
+      : { confirmation: input.physicalConfirmation }),
   });
 
   if (
