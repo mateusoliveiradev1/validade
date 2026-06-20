@@ -299,7 +299,9 @@ export function TaskResolutionPanel({
           body={`${task.productDisplayName} - lote ${task.lotIdentity.value}`}
         />
         <View style={styles.summary}>
-          <Text style={styles.summaryLine}>Local atual: {formatLocation(task.currentLocation)}</Text>
+          <Text style={styles.summaryLine}>
+            Local atual: {formatLocation(task.currentLocation)}
+          </Text>
           <Text style={styles.summaryLine}>Responsavel: {task.ownerLabel}</Text>
           <Text style={styles.summaryLine}>Etapa: {todayActionLabel(task)}</Text>
         </View>
@@ -497,9 +499,7 @@ function actionsForTask(task: TodayTaskRecord): readonly TaskResolutionAction[] 
   return STANDARD_RESOLUTION_ACTIONS;
 }
 
-function isMarkdownStageTask(
-  task: TodayTaskRecord,
-): task is TodayTaskRecord & {
+function isMarkdownStageTask(task: TodayTaskRecord): task is TodayTaskRecord & {
   requiredResolution: (typeof MARKDOWN_STAGE_RESOLUTIONS)[number];
 } {
   return MARKDOWN_STAGE_RESOLUTIONS.some(

@@ -205,7 +205,9 @@ function MarkdownEntry({
 
   return (
     <View style={styles.group}>
-      <StatusNotice>Este lote ainda nao esta na janela. Use excecao com justificativa.</StatusNotice>
+      <StatusNotice>
+        Este lote ainda nao esta na janela. Use excecao com justificativa.
+      </StatusNotice>
       <Text style={styles.label}>{todayCopy.markdown.earlyReasonLabel}</Text>
       {entryState.reasons.map((reason) => (
         <SelectionRow
@@ -221,7 +223,9 @@ function MarkdownEntry({
         onChangeText={onUpdateJustification}
       />
       <PrimaryAction
-        disabled={selectedReason === undefined || earlyJustification.trim().length === 0 || submitting}
+        disabled={
+          selectedReason === undefined || earlyJustification.trim().length === 0 || submitting
+        }
         label={todayCopy.markdown.earlyRequest}
         onPress={onRequestEarlyMarkdown}
       />

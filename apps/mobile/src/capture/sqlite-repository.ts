@@ -767,9 +767,7 @@ export function createSQLiteCaptureRepository(
           actorLabel: command.actorLabel,
           occurredAt: command.occurredAt,
           reason:
-            command.reason === "rule_window"
-              ? "Janela de rebaixa"
-              : command.earlyJustification,
+            command.reason === "rule_window" ? "Janela de rebaixa" : command.earlyJustification,
         },
       ],
       createdAt: command.occurredAt,
@@ -1072,9 +1070,7 @@ export function createSQLiteCaptureRepository(
     const workflow = mapMarkdownWorkflow(row);
 
     if (workflow.currentStage !== expectedStage || !isActiveMarkdownWorkflow(workflow)) {
-      throw new Error(
-        `Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`,
-      );
+      throw new Error(`Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`);
     }
 
     return workflow;
@@ -1776,7 +1772,9 @@ async function upsertMarkdownWorkflow(
     workflow.rejectionReason ?? null,
     workflow.appliedAt ?? null,
     workflow.appliedBy ?? null,
-    workflow.applicationEvidence === undefined ? null : JSON.stringify(workflow.applicationEvidence),
+    workflow.applicationEvidence === undefined
+      ? null
+      : JSON.stringify(workflow.applicationEvidence),
     workflow.shelfConfirmedAt ?? null,
     workflow.shelfConfirmedBy ?? null,
     workflow.shelfConfirmationEvidence === undefined
@@ -1955,9 +1953,7 @@ function mapTodayTask(row: TodayTaskRow): TodayTaskRecord {
     updatedAt: row.updated_at,
     ...(row.resolved_at === null ? {} : { resolvedAt: row.resolved_at }),
     ...(row.recheck_parent_id === null ? {} : { recheckParentId: row.recheck_parent_id }),
-    ...(row.markdown_workflow_id === null
-      ? {}
-      : { markdownWorkflowId: row.markdown_workflow_id }),
+    ...(row.markdown_workflow_id === null ? {} : { markdownWorkflowId: row.markdown_workflow_id }),
     ...(row.markdown_stage === null ? {} : { markdownStage: row.markdown_stage }),
     ...(row.responsible_actor_label === null
       ? {}

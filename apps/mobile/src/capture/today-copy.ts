@@ -73,8 +73,7 @@ export const todayCopy = {
     delayedApplication: "Aplicacao de rebaixa atrasada",
     delayedFinalConfirmation: "Conferencia da etiqueta atrasada",
     rejectionReason: "Motivo da reprovacao",
-    rejectionWarning:
-      "Reprovar rebaixa encerra este fluxo e o lote volta ao monitoramento.",
+    rejectionWarning: "Reprovar rebaixa encerra este fluxo e o lote volta ao monitoramento.",
     applicationEvidenceTitle: "Comprove a etiqueta aplicada",
     applicationPhoto: "Registrar foto da etiqueta/preco",
     finalEvidenceTitle: "Comprove na area de venda",

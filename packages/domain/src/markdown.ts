@@ -1,7 +1,4 @@
-import {
-  classifyPhysicalConfirmationFreshness,
-  type PhysicalConfirmation,
-} from "./presence";
+import { classifyPhysicalConfirmationFreshness, type PhysicalConfirmation } from "./presence";
 import type {
   RequiredResolution,
   TodayDueBucket,

@@ -10,6 +10,9 @@ appId: com.validadezero.app
 - assertVisible: "Ativar alertas do turno"
 - assertVisible: "Atualizar tarefas"
 - assertVisible: "Registrar lote"
+- assertVisible: "Conferir lotes recentes"
+# Phase 6 markdown/rebaixa smoke is fixture-driven in component tests.
+# This native smoke intentionally stays camera/storage-free until evidence storage lands.
 - tapOn: "Registrar lote"
 - assertVisible: "Localizar produto"
 - assertVisible: "Buscar manualmente"

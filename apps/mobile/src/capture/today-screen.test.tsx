@@ -412,10 +412,7 @@ describe("TodayScreen", () => {
   });
 
   it("renders markdown stage labels and keeps escalation status visible", async () => {
-    const finalTask = markdownStageTask(
-      "confirm_markdown_on_shelf",
-      "2030-01-09T18:00:00.000Z",
-    );
+    const finalTask = markdownStageTask("confirm_markdown_on_shelf", "2030-01-09T18:00:00.000Z");
     const repository = createRepository(
       () =>
         Promise.resolve(

@@ -28,10 +28,9 @@ export const RequiredResolutionSchema = z.enum(REQUIRED_RESOLUTIONS);
 
 export const TaskResolutionActionSchema = z.enum(TASK_RESOLUTION_ACTIONS);
 
-export const MarkdownTaskStageSchema = z.enum(MARKDOWN_WORKFLOW_STATUSES).exclude([
-  "rejected",
-  "shelf_confirmed",
-]);
+export const MarkdownTaskStageSchema = z
+  .enum(MARKDOWN_WORKFLOW_STATUSES)
+  .exclude(["rejected", "shelf_confirmed"]);
 
 export const SourceRiskReasonSchema = z
   .object({

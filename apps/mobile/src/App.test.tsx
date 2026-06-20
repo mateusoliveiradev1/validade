@@ -1,11 +1,7 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { MarkdownWorkflowRecord, TodayTaskRecord } from "@validade-zero/contracts";
-import type {
-  CaptureLotDetail,
-  CaptureRepository,
-  MarkdownEntryState,
-} from "./capture/repository";
+import type { CaptureLotDetail, CaptureRepository, MarkdownEntryState } from "./capture/repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;

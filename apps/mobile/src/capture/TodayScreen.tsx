@@ -345,6 +345,8 @@ export function TodayTaskRow({
   const location = `Local: ${formatLocation(task.currentLocation)}`;
   const due = `${dueLabel(task, referenceTime)} - Severidade ${severityLabel(task)} - ${task.ownerLabel}`;
   const isCritical = task.severity === "critical" || task.severity === "high";
+  const isWarningMarkdownDelay =
+    task.requiredResolution === "approve_markdown" && isOverdueTask(task, referenceTime);
 
   return (
     <Pressable
@@ -354,15 +356,34 @@ export function TodayTaskRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.taskRow,
+        isWarningMarkdownDelay ? styles.taskRowWarning : undefined,
         isCritical ? styles.taskRowCritical : undefined,
         highlighted ? styles.taskRowHighlighted : undefined,
-        pressed ? (isCritical ? styles.taskRowCriticalPressed : styles.taskRowPressed) : undefined,
+        pressed
+          ? isCritical
+            ? styles.taskRowCriticalPressed
+            : isWarningMarkdownDelay
+              ? styles.taskRowWarningPressed
+              : styles.taskRowPressed
+          : undefined,
       ]}
     >
       <View style={styles.taskHeader}>
         <Text style={styles.taskAction}>{action}</Text>
-        <View style={[styles.riskTag, isCritical ? styles.riskTagCritical : undefined]}>
-          <Text style={[styles.taskReason, isCritical ? styles.taskReasonCritical : undefined]}>
+        <View
+          style={[
+            styles.riskTag,
+            isWarningMarkdownDelay ? styles.riskTagWarning : undefined,
+            isCritical ? styles.riskTagCritical : undefined,
+          ]}
+        >
+          <Text
+            style={[
+              styles.taskReason,
+              isWarningMarkdownDelay ? styles.taskReasonWarning : undefined,
+              isCritical ? styles.taskReasonCritical : undefined,
+            ]}
+          >
             {riskReasonLabel(task)}
           </Text>
         </View>
@@ -632,6 +653,10 @@ const styles = StyleSheet.create({
     backgroundColor: captureColors.criticalSurface,
     borderColor: captureColors.criticalBorder,
   },
+  taskRowWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
   taskRowHighlighted: {
     borderColor: captureColors.accent,
     borderWidth: 2,
@@ -641,6 +666,9 @@ const styles = StyleSheet.create({
   },
   taskRowCriticalPressed: {
     backgroundColor: captureColors.criticalSurfacePressed,
+  },
+  taskRowWarningPressed: {
+    backgroundColor: captureColors.warningSurface,
   },
   taskHeader: {
     alignItems: "center",
@@ -679,6 +707,9 @@ const styles = StyleSheet.create({
   riskTagCritical: {
     backgroundColor: captureColors.criticalTag,
   },
+  riskTagWarning: {
+    backgroundColor: captureColors.warningSurface,
+  },
   taskReason: {
     color: captureColors.mutedInk,
     fontSize: 13,
@@ -687,6 +718,9 @@ const styles = StyleSheet.create({
   },
   taskReasonCritical: {
     color: captureColors.critical,
+  },
+  taskReasonWarning: {
+    color: captureColors.warningInk,
   },
   futureSection: {
     backgroundColor: captureColors.warningSurface,

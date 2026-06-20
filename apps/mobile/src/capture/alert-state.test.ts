@@ -225,6 +225,69 @@ describe("task alert state repository", () => {
     await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({ status: "active" });
   });
 
+  it("acknowledges delayed markdown approval without resolving the task or workflow", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await saveFormalLot({
+      repository,
+      displayName: "Queijo Rebaixa FICTICIO",
+      lotCode: "LOTE-QUEIJO-REBAIXA-FICTICIO",
+      expiresAt: "2030-01-20",
+      location: { kind: "area_de_venda" },
+    });
+    const refresh = await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp: "2030-01-10T09:00:00.000Z",
+      source: "today_open",
+    });
+    const requestTask = refresh.tasks[0];
+
+    if (requestTask === undefined) {
+      throw new Error("Expected markdown request task.");
+    }
+
+    const workflow = await repository.requestMarkdown({
+      lotId: requestTask.lotId,
+      sourceTaskId: requestTask.id,
+      actorLabel: "Colaboradora FICTICIA",
+      occurredAt: "2030-01-10T09:05:00.000Z",
+      reason: "rule_window",
+    });
+    const approvalTask = (await repository.listActiveTodayTasks()).find(
+      (task) => task.markdownWorkflowId === workflow.id,
+    );
+
+    if (approvalTask === undefined) {
+      throw new Error("Expected markdown approval task.");
+    }
+
+    await repository.refreshTaskAlertStates({
+      referenceTime: "2030-01-10T11:05:00.000Z",
+      isWithinShift: true,
+    });
+
+    await expect(
+      repository.acknowledgeEscalation({
+        taskId: approvalTask.id,
+        taskActiveKey: approvalTask.activeKey,
+        actorLabel: "Lider FICTICIO",
+        acknowledgedAt: "2030-01-10T11:10:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      escalationState: "leadership_acknowledged",
+      leadershipAcknowledgedAt: "2030-01-10T11:10:00.000Z",
+    });
+    await expect(repository.loadTodayTask(approvalTask.id)).resolves.toMatchObject({
+      status: "active",
+      requiredResolution: "approve_markdown",
+    });
+    await expect(repository.loadMarkdownWorkflowForLot(requestTask.lotId)).resolves.toMatchObject({
+      id: workflow.id,
+      status: "requested",
+      currentStage: "requested",
+    });
+  });
+
   it("starts sales-area recheck alert cadence immediately", async () => {
     const repository = createRepository();
     await repository.initialize();

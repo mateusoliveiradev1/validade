@@ -484,9 +484,7 @@ export function createMemoryCaptureRepository(
           actorLabel: command.actorLabel,
           occurredAt: command.occurredAt,
           reason:
-            command.reason === "rule_window"
-              ? "Janela de rebaixa"
-              : command.earlyJustification,
+            command.reason === "rule_window" ? "Janela de rebaixa" : command.earlyJustification,
         },
       ],
       createdAt: command.occurredAt,
@@ -740,9 +738,7 @@ export function createMemoryCaptureRepository(
     }
 
     if (workflow.currentStage !== expectedStage || !isActiveMarkdownWorkflow(workflow)) {
-      throw new Error(
-        `Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`,
-      );
+      throw new Error(`Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`);
     }
 
     return workflow;
