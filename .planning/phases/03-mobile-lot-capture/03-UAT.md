@@ -1,13 +1,9 @@
 ---
 status: complete
 phase: 03-mobile-lot-capture
-source:
-  - 03-01-SUMMARY.md
-  - 03-02-SUMMARY.md
-  - 03-03-SUMMARY.md
-  - 03-04-SUMMARY.md
+source: [03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md]
 started: 2026-06-19T23:34:02.8435128Z
-updated: 2026-06-19T21:50:01.2782427-03:00
+updated: 2026-06-19T21:56:00.0000000-03:00
 ---
 
 ## Current Test
@@ -17,43 +13,49 @@ updated: 2026-06-19T21:50:01.2782427-03:00
 ## Tests
 
 ### 1. Abrir a captura manual
-expected: A tela inicial mostra "Localizar produto", o campo de busca, "Buscar manualmente" e "Ler código" sem exigir câmera ou dados de venda.
+expected: A tela inicial permite busca manual e leitura opcional de código sem exigir câmera ou dados de venda.
 result: pass
 
 ### 2. Criar e confirmar um produto
-expected: Uma busca sem resultado permite abrir "Cadastrar produto"; ao informar nome e categoria, o produto aparece como "Produto confirmado" com categoria, perfil operacional e uma confirmação explícita antes do lote.
+expected: Uma busca sem resultado permite cadastrar e confirmar explicitamente um produto antes do lote.
 result: pass
 
 ### 3. Selecionar a data do lote
-expected: Depois de confirmar o produto, "Data de validade" abre o calendário nativo; a escolha aparece em DD/MM/AAAA com prévia por extenso, sem exigir AAAA-MM-DD nem mostrar aviso de desenvolvimento.
+expected: O calendário nativo informa a data em DD/MM/AAAA, sem exigir AAAA-MM-DD nem emitir aviso de desenvolvimento.
 result: pass
-previous_issue: "O campo aceitava somente texto AAAA-MM-DD e a primeira implementação do seletor usava uma API depreciada."
+previous_issue: "Campo aceitava apenas AAAA-MM-DD e o primeiro seletor usava API depreciada."
 fix_commits: [0d6d179, fe8e4e3]
 
 ### 4. Consultar e confirmar presença física
-expected: O lote recente mostra produto, identificação, local e quantidade. Ao abrir o lote e registrar "Confirmar presença", uma quantidade pré-preenchida válida fica sem erro em vermelho e recebe orientação para a confirmação explícita, ou a alternativa "Não foi possível estimar".
+expected: Quantidade pré-preenchida válida fica neutra e exige confirmação operacional explícita antes do registro.
 result: pass
-previous_issue: "Uma quantidade válida pré-preenchida aparecia como erro antes da confirmação operacional."
+previous_issue: "Quantidade válida pré-preenchida aparecia como erro antes da confirmação."
 fix_commits: [9dcddb9]
 
 ### 5. Proteger uma ação consequente
-expected: Ao marcar "Não encontrado", "Retirar lote", "Registrar perda" ou "Provavelmente esgotado", o app mostra "Confirme antes de registrar" e só grava a observação após "Confirmar registro".
+expected: Retirada, perda, não encontrado e provável esgotamento pedem confirmação antes de gravar.
 result: pass
 
 ### 6. Manter a busca manual como fallback
-expected: "Ler código" funciona apenas como ajuda de busca; voltar, negar a câmera ou não concluir uma leitura preserva a possibilidade de buscar por nome ou código e não cria lote automaticamente.
+expected: Câmera é apenas ajuda de busca; voltar ou não concluir uma leitura preserva a busca manual e não cria lote.
 result: pass
 
 ### 7. Abrir lotes recentes pelo atalho
-expected: Na tela "Localizar produto", tocar em "Recentes" abre "Lotes recentes", onde os lotes já registrados podem ser encontrados por produto, código ou identificação do lote.
+expected: Recentes abre Lotes recentes, onde lotes existentes podem ser encontrados por produto, código ou identificação.
 result: pass
-previous_issue: "O atalho Recentes mostrava apenas uma mensagem de apoio e não abria a lista de lotes existentes."
+previous_issue: "Recentes mostrava apenas uma mensagem e não abria a lista."
 fix_commits: [0e1fdb6]
+
+### 8. Mostrar horário operacional local
+expected: Lista e detalhe mostram data e hora America/Sao_Paulo, sem segundos e sem deslocamento UTC.
+result: pass
+previous_issue: "A lista mostrava 00:41 enquanto o horário local era 21:41."
+fix_commits: [9d1fef8]
 
 ## Summary
 
-total: 7
-passed: 7
+total: 8
+passed: 8
 issues: 0
 pending: 0
 skipped: 0
@@ -61,28 +63,26 @@ blocked: 0
 
 ## Gaps
 
-- truth: "A data de validade deve ser rápida e clara de informar em um telefone, com formato orientado e validação que não dependa de decorar AAAA-MM-DD."
+- truth: "Data de validade é rápida e clara de informar no telefone."
   status: fixed
-  reason: "User reported: Consegui registrar o lote, mas o campo de data precisa melhorar e muito ainda."
   severity: major
   test: 3
-  root_cause: "DateField was a free-text input that accepted only the ISO format AAAA-MM-DD; the first native-picker version used the deprecated onChange callback."
-  artifacts:
-    - path: "apps/mobile/src/capture/LotRegistrationScreen.tsx"
-      issue: "The date entry now uses the native picker with current callback APIs."
+  root_cause: "Entrada livre ISO e callback depreciado."
   missing: []
   fix_commits: [0d6d179, fe8e4e3]
 
-- truth: "O atalho Recentes abre a lista de lotes existentes a partir da busca inicial."
+- truth: "Recentes abre a lista de lotes existentes a partir da busca inicial."
   status: fixed
-  reason: "User reported: Ao tocar em Recentes, apareceu apenas uma mensagem de atalho de apoio."
   severity: major
   test: 7
-  root_cause: "ProductDiscoveryScreen não delegava a navegação para a tela recent já existente em CaptureApp."
-  artifacts:
-    - path: "apps/mobile/src/capture/ProductDiscoveryScreen.tsx"
-      issue: "Recentes agora chama onOpenRecent."
-    - path: "apps/mobile/src/capture/CaptureApp.tsx"
-      issue: "A descoberta conecta onOpenRecent à tela Lotes recentes."
+  root_cause: "A descoberta não delegava navegação para a tela recent."
   missing: []
   fix_commits: [0e1fdb6]
+
+- truth: "Horários de observação aparecem no fuso operacional America/Sao_Paulo."
+  status: fixed
+  severity: major
+  test: 8
+  root_cause: "Os formatadores de apresentação forçavam UTC."
+  missing: []
+  fix_commits: [9d1fef8]
