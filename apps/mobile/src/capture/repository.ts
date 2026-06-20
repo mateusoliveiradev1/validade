@@ -1,12 +1,20 @@
 import {
+  AlertDeliveryResultSchema,
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  DevicePushRegistrationCommandSchema,
   PhysicalObservationInputSchema,
+  PushOpenIntentSchema,
+  TaskAlertStateRecordSchema,
   type CaptureLotInput,
   type CaptureProductInput,
+  type AlertDeliveryResult,
+  type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type PushOpenIntent,
+  type TaskAlertStateRecord,
   type TaskRefreshMetadata,
   TaskResolutionCommandSchema,
   TodayTaskRecordSchema,
@@ -18,6 +26,8 @@ import {
   compareTodayTaskPriority,
   deriveFutureAttentionCandidate,
   deriveTodayTaskCandidate,
+  getNextAlertAction,
+  type AlertChannelState,
   type CategoryRuleProfile,
   type ProductRuleOverride,
   type RiskCalculationLot,
@@ -85,6 +95,33 @@ export interface TodayTaskRefreshResult {
   futureAttention: readonly FutureAttentionRecord[];
 }
 
+export interface RefreshTaskAlertStatesInput {
+  referenceTime: string;
+  isWithinShift?: boolean;
+  overdueTaskIds?: readonly string[];
+}
+
+export interface RecordAlertAttemptInput {
+  attemptId: string;
+  taskId: string;
+  taskActiveKey: string;
+  attemptedAt: string;
+  result: AlertDeliveryResult;
+}
+
+export interface AcknowledgeEscalationInput {
+  taskId: string;
+  taskActiveKey: string;
+  actorLabel: string;
+  acknowledgedAt: string;
+}
+
+export interface ResolvePushOpenIntentInput {
+  taskId: string;
+  taskActiveKey: string;
+  openedAt: string;
+}
+
 export interface CaptureRepository {
   initialize(): Promise<void>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
@@ -104,6 +141,15 @@ export interface CaptureRepository {
   listFutureAttention(): Promise<readonly FutureAttentionRecord[]>;
   resolveTodayTask(input: TaskResolutionCommand): Promise<TodayTaskRecord>;
   loadTodayTask(taskId: string): Promise<TodayTaskRecord | null>;
+  registerAlertDevice(input: DevicePushRegistrationCommand): Promise<DevicePushRegistrationCommand>;
+  loadAlertChannelState(): Promise<DevicePushRegistrationCommand | null>;
+  refreshTaskAlertStates(
+    input: RefreshTaskAlertStatesInput,
+  ): Promise<readonly TaskAlertStateRecord[]>;
+  listTaskAlertStates(): Promise<readonly TaskAlertStateRecord[]>;
+  recordAlertAttempt(input: RecordAlertAttemptInput): Promise<TaskAlertStateRecord>;
+  acknowledgeEscalation(input: AcknowledgeEscalationInput): Promise<TaskAlertStateRecord>;
+  resolvePushOpenIntent(input: ResolvePushOpenIntentInput): Promise<PushOpenIntent>;
 }
 
 export function normalizeProductLookup(value: string): string {
@@ -132,6 +178,22 @@ export function parseTodayTaskRecord(input: unknown): TodayTaskRecord {
 
 export function parseTaskResolutionCommand(input: unknown): TaskResolutionCommand {
   return TaskResolutionCommandSchema.parse(input);
+}
+
+export function parseAlertDeviceRegistration(input: unknown): DevicePushRegistrationCommand {
+  return DevicePushRegistrationCommandSchema.parse(input);
+}
+
+export function parseTaskAlertStateRecord(input: unknown): TaskAlertStateRecord {
+  return TaskAlertStateRecordSchema.parse(input);
+}
+
+export function parseAlertDeliveryResult(input: unknown): AlertDeliveryResult {
+  return AlertDeliveryResultSchema.parse(input);
+}
+
+export function parsePushOpenIntent(input: unknown): PushOpenIntent {
+  return PushOpenIntentSchema.parse(input);
 }
 
 export function parseLotId(value: string): string {
@@ -302,6 +364,136 @@ export function createSalesAreaRecheckTask(input: {
     createdAt: input.occurredAt,
     updatedAt: input.occurredAt,
     recheckParentId: input.parentTask.id,
+  });
+}
+
+export function deriveRefreshedTaskAlertState(input: {
+  task: TodayTaskRecord;
+  existing?: TaskAlertStateRecord;
+  channelState: AlertChannelState;
+  referenceTime: string;
+  isWithinShift?: boolean;
+  isOverdue?: boolean;
+}): TaskAlertStateRecord {
+  const alertableTask = {
+    id: input.task.id,
+    activeKey: input.task.activeKey,
+    productDisplayName: input.task.productDisplayName,
+    lotIdentity: input.task.lotIdentity.value,
+    currentLocation: input.task.currentLocation,
+    severity: input.task.severity,
+    dueBucket: input.task.dueBucket,
+    requiredResolution: input.task.requiredResolution,
+    status: input.task.status,
+    ownerLabel: input.task.ownerLabel,
+    ...(input.task.responsibleActorLabel === undefined
+      ? {}
+      : { responsibleActorLabel: input.task.responsibleActorLabel }),
+  };
+  const action = getNextAlertAction(alertableTask, {
+    createdAt: input.existing?.createdAt ?? input.task.createdAt,
+    referenceTime: input.referenceTime,
+    ...(input.existing?.lastReminderAt === undefined
+      ? {}
+      : { lastReminderAt: input.existing.lastReminderAt }),
+    ...(input.existing?.escalatedAt === undefined
+      ? {}
+      : { escalatedAt: input.existing.escalatedAt }),
+    escalationState: input.existing?.escalationState ?? "not_escalated",
+    ...(input.isWithinShift === undefined ? {} : { isWithinShift: input.isWithinShift }),
+    ...(input.isOverdue === undefined ? {} : { isOverdue: input.isOverdue }),
+  });
+  const escalatedAt = action.kind === "escalate" ? action.escalatedAt : input.existing?.escalatedAt;
+  const nextReminderAt =
+    "nextReminderAt" in action ? action.nextReminderAt : input.existing?.nextReminderAt;
+
+  return parseTaskAlertStateRecord({
+    taskId: input.task.id,
+    taskActiveKey: input.task.activeKey,
+    channelState: input.channelState,
+    attemptState: action.attemptState,
+    audience: action.kind === "none" ? (input.existing?.audience ?? "shift_team") : action.audience,
+    escalationState: action.escalationState,
+    createdAt: input.existing?.createdAt ?? input.referenceTime,
+    updatedAt: input.referenceTime,
+    ...(input.existing?.lastReminderAt === undefined
+      ? {}
+      : { lastReminderAt: input.existing.lastReminderAt }),
+    ...(nextReminderAt === undefined ? {} : { nextReminderAt }),
+    ...(escalatedAt === undefined ? {} : { escalatedAt }),
+    ...(input.existing?.leadershipAcknowledgedAt === undefined
+      ? {}
+      : { leadershipAcknowledgedAt: input.existing.leadershipAcknowledgedAt }),
+    ...(input.existing?.retryCount === undefined ? {} : { retryCount: input.existing.retryCount }),
+    ...(input.existing?.failureReason === undefined
+      ? {}
+      : { failureReason: input.existing.failureReason }),
+    ...(input.existing?.lastAttemptId === undefined
+      ? {}
+      : { lastAttemptId: input.existing.lastAttemptId }),
+  });
+}
+
+export function alertChannelStateForRegistration(
+  registration: DevicePushRegistrationCommand | null,
+): AlertChannelState {
+  if (registration === null) {
+    return "not_requested";
+  }
+
+  if (registration.permissionStatus === "granted") {
+    return "active";
+  }
+
+  if (registration.permissionStatus === "denied") {
+    return "denied";
+  }
+
+  return registration.permissionStatus;
+}
+
+export function applyAlertDeliveryResult(input: {
+  existing: TaskAlertStateRecord;
+  attemptId: string;
+  attemptedAt: string;
+  result: AlertDeliveryResult;
+}): TaskAlertStateRecord {
+  const retryCount = input.existing.retryCount ?? 0;
+
+  if (input.result.status === "ok") {
+    return parseTaskAlertStateRecord({
+      ...input.existing,
+      attemptState: "sent",
+      updatedAt: input.attemptedAt,
+      lastReminderAt: input.attemptedAt,
+      retryCount,
+      lastAttemptId: input.attemptId,
+    });
+  }
+
+  if (input.result.status === "retryable_error") {
+    const nextRetryCount = retryCount + 1;
+
+    return parseTaskAlertStateRecord({
+      ...input.existing,
+      attemptState: nextRetryCount >= 3 ? "exhausted" : "retry_pending",
+      updatedAt: input.attemptedAt,
+      retryCount: nextRetryCount,
+      failureReason: input.result.failureReason,
+      lastAttemptId: input.attemptId,
+    });
+  }
+
+  return parseTaskAlertStateRecord({
+    ...input.existing,
+    attemptState: "failed",
+    updatedAt: input.attemptedAt,
+    retryCount,
+    failureReason:
+      input.result.status === "device_not_registered"
+        ? "DeviceNotRegistered"
+        : input.result.failureReason,
+    lastAttemptId: input.attemptId,
   });
 }
 

@@ -260,6 +260,6 @@ describe("today task repository", () => {
     expect(source).toContain("CREATE TABLE IF NOT EXISTS today_future_attention");
     expect(source).not.toContain("R2");
     expect(source).not.toContain("object_key");
-    expect(source).not.toContain("push");
+    expect(source).not.toContain("ExponentPushToken[");
   });
 });

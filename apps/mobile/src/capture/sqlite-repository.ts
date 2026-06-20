@@ -1,19 +1,27 @@
 import {
+  AlertDeliveryResultSchema,
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  DevicePushRegistrationCommandSchema,
   FutureAttentionRecordSchema,
   OperationalLocationSchema,
   PhysicalObservationInputSchema,
+  PushOpenIntentSchema,
+  TaskAlertStateRecordSchema,
   type CaptureLotInput,
   type CaptureProductInput,
+  type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type PushOpenIntent,
+  type TaskAlertStateRecord,
   type TaskResolutionCommand,
   type TodayTaskRecord,
 } from "@validade-zero/contracts";
 import * as SQLite from "expo-sqlite";
 import type {
+  AcknowledgeEscalationInput,
   CaptureLotDetail,
   CaptureLotSnapshot,
   CaptureObservationRecord,
@@ -21,17 +29,23 @@ import type {
   CaptureProductRecord,
   CaptureRepository,
   CaptureRepositoryDependencies,
+  RecordAlertAttemptInput,
   RecentLotsQuery,
+  RefreshTaskAlertStatesInput,
+  ResolvePushOpenIntentInput,
   RefreshTodayTasksInput,
   SaveLotInput,
   TodayTaskRefreshResult,
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  alertChannelStateForRegistration,
+  applyAlertDeliveryResult,
   createFutureAttentionRecord,
   createInitialObservation,
   createSalesAreaRecheckTask,
   createTodayTaskRecord,
+  deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
   nextGeneratedId,
   normalizeProductLookup,
@@ -42,6 +56,7 @@ import {
   parseProductInput,
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
+  parsePushOpenIntent,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
@@ -140,6 +155,34 @@ interface FutureAttentionRow {
   current_location_custom_name: string | null;
   source_risk_reasons_json: string;
   observed_at: string;
+}
+
+interface AlertDeviceRow {
+  device_id: string;
+  device_label: string;
+  audience_role: string;
+  permission_status: string;
+  expo_push_token: string | null;
+  registered_at: string;
+  updated_at: string;
+}
+
+interface TaskAlertStateRow {
+  task_id: string;
+  task_active_key: string;
+  channel_state: string;
+  attempt_state: string;
+  audience: string;
+  escalation_state: string;
+  created_at: string;
+  updated_at: string;
+  last_reminder_at: string | null;
+  next_reminder_at: string | null;
+  escalated_at: string | null;
+  leadership_acknowledged_at: string | null;
+  retry_count: number | null;
+  failure_reason: string | null;
+  last_attempt_id: string | null;
 }
 
 const LOT_SELECT = `
@@ -659,6 +702,214 @@ export function createSQLiteCaptureRepository(
     return row === null ? null : mapTodayTask(row);
   }
 
+  async function registerAlertDevice(
+    input: DevicePushRegistrationCommand,
+  ): Promise<DevicePushRegistrationCommand> {
+    await initialize();
+    const registration = DevicePushRegistrationCommandSchema.parse(input);
+    const db = await getDatabase();
+
+    await db.runAsync(
+      `INSERT INTO device_alert_channels (
+        device_id, device_label, audience_role, permission_status, expo_push_token,
+        registered_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(device_id) DO UPDATE SET
+        device_label = excluded.device_label,
+        audience_role = excluded.audience_role,
+        permission_status = excluded.permission_status,
+        expo_push_token = excluded.expo_push_token,
+        registered_at = excluded.registered_at,
+        updated_at = excluded.updated_at`,
+      registration.deviceId,
+      registration.deviceLabel,
+      registration.audienceRole,
+      registration.permissionStatus,
+      registration.expoPushToken ?? null,
+      registration.registeredAt,
+      dependencies.clock(),
+    );
+
+    return registration;
+  }
+
+  async function loadAlertChannelState(): Promise<DevicePushRegistrationCommand | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<AlertDeviceRow>(
+      "SELECT * FROM device_alert_channels ORDER BY registered_at DESC LIMIT 1",
+    );
+
+    return row === null ? null : mapAlertDevice(row);
+  }
+
+  async function refreshTaskAlertStates(
+    input: RefreshTaskAlertStatesInput,
+  ): Promise<readonly TaskAlertStateRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const registration = await loadAlertChannelState();
+    const channelState = alertChannelStateForRegistration(registration);
+    const activeTasks = await listActiveTodayTasks();
+
+    for (const task of activeTasks) {
+      const existingRow = await db.getFirstAsync<TaskAlertStateRow>(
+        "SELECT * FROM task_alert_states WHERE task_id = ?",
+        task.id,
+      );
+      const existing = existingRow === null ? undefined : mapTaskAlertState(existingRow);
+      const refreshed = deriveRefreshedTaskAlertState({
+        task,
+        ...(existing === undefined ? {} : { existing }),
+        channelState,
+        referenceTime: input.referenceTime,
+        ...(input.isWithinShift === undefined ? {} : { isWithinShift: input.isWithinShift }),
+        isOverdue: input.overdueTaskIds?.includes(task.id) === true,
+      });
+
+      await upsertTaskAlertState(db, refreshed);
+    }
+
+    return listTaskAlertStates();
+  }
+
+  async function listTaskAlertStates(): Promise<readonly TaskAlertStateRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<TaskAlertStateRow>(
+      "SELECT * FROM task_alert_states ORDER BY updated_at ASC, task_id ASC",
+    );
+
+    return rows.map(mapTaskAlertState);
+  }
+
+  async function recordAlertAttempt(input: RecordAlertAttemptInput): Promise<TaskAlertStateRecord> {
+    await initialize();
+    const result = AlertDeliveryResultSchema.parse(input.result);
+    const db = await getDatabase();
+    const task = await loadTodayTask(input.taskId);
+
+    if (task === null) {
+      throw new Error(`Cannot record an alert attempt for an unknown task: ${input.taskId}`);
+    }
+
+    const existingRow = await db.getFirstAsync<TaskAlertStateRow>(
+      "SELECT * FROM task_alert_states WHERE task_id = ?",
+      input.taskId,
+    );
+    const existing =
+      existingRow === null
+        ? deriveRefreshedTaskAlertState({
+            task,
+            channelState: alertChannelStateForRegistration(await loadAlertChannelState()),
+            referenceTime: input.attemptedAt,
+          })
+        : mapTaskAlertState(existingRow);
+    const updated = applyAlertDeliveryResult({
+      existing,
+      attemptId: input.attemptId,
+      attemptedAt: input.attemptedAt,
+      result,
+    });
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `INSERT INTO alert_attempts (
+          attempt_id, task_id, task_active_key, delivery_status, failure_reason,
+          provider_ticket_id, provider_receipt_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        input.attemptId,
+        input.taskId,
+        input.taskActiveKey,
+        result.status,
+        result.status === "ok" || result.status === "device_not_registered"
+          ? null
+          : result.failureReason,
+        "providerTicketId" in result ? (result.providerTicketId ?? null) : null,
+        "providerReceiptId" in result ? (result.providerReceiptId ?? null) : null,
+        input.attemptedAt,
+      );
+      await upsertTaskAlertState(db, updated);
+    });
+
+    return updated;
+  }
+
+  async function acknowledgeEscalation(
+    input: AcknowledgeEscalationInput,
+  ): Promise<TaskAlertStateRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const task = await loadTodayTask(input.taskId);
+
+    if (task === null) {
+      throw new Error(`Cannot acknowledge escalation for an unknown task: ${input.taskId}`);
+    }
+
+    const existingRow = await db.getFirstAsync<TaskAlertStateRow>(
+      "SELECT * FROM task_alert_states WHERE task_id = ?",
+      input.taskId,
+    );
+    const existing =
+      existingRow === null
+        ? deriveRefreshedTaskAlertState({
+            task,
+            channelState: alertChannelStateForRegistration(await loadAlertChannelState()),
+            referenceTime: input.acknowledgedAt,
+          })
+        : mapTaskAlertState(existingRow);
+    const acknowledged = TaskAlertStateRecordSchema.parse({
+      ...existing,
+      escalationState: "leadership_acknowledged",
+      leadershipAcknowledgedAt: input.acknowledgedAt,
+      updatedAt: input.acknowledgedAt,
+    });
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `INSERT INTO escalation_receipts (
+          id, task_id, task_active_key, actor_label, acknowledged_at
+        ) VALUES (?, ?, ?, ?, ?)`,
+        nextGeneratedId(dependencies),
+        input.taskId,
+        input.taskActiveKey,
+        input.actorLabel,
+        input.acknowledgedAt,
+      );
+      await upsertTaskAlertState(db, acknowledged);
+    });
+
+    return acknowledged;
+  }
+
+  async function resolvePushOpenIntent(input: ResolvePushOpenIntentInput): Promise<PushOpenIntent> {
+    await initialize();
+    const db = await getDatabase();
+    const task = await loadTodayTask(input.taskId);
+    const recheckRow = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE recheck_parent_id = ? AND status = 'active'",
+      input.taskId,
+    );
+
+    if (recheckRow !== null) {
+      return PushOpenIntentSchema.parse({ ...input, result: "task_updated" });
+    }
+
+    if (task === null) {
+      return parsePushOpenIntent({ ...input, result: "task_missing" });
+    }
+
+    if (task.status === "resolved") {
+      return parsePushOpenIntent({ ...input, result: "task_resolved" });
+    }
+
+    if (task.activeKey !== input.taskActiveKey) {
+      return parsePushOpenIntent({ ...input, result: "task_updated" });
+    }
+
+    return parsePushOpenIntent({ ...input, result: "current_task" });
+  }
+
   return {
     initialize,
     createProduct,
@@ -675,6 +926,13 @@ export function createSQLiteCaptureRepository(
     listFutureAttention,
     resolveTodayTask,
     loadTodayTask,
+    registerAlertDevice,
+    loadAlertChannelState,
+    refreshTaskAlertStates,
+    listTaskAlertStates,
+    recordAlertAttempt,
+    acknowledgeEscalation,
+    resolvePushOpenIntent,
   };
 }
 
@@ -773,6 +1031,52 @@ async function initializeDatabase(
       observed_at TEXT NOT NULL,
       FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
     );
+    CREATE TABLE IF NOT EXISTS device_alert_channels (
+      device_id TEXT PRIMARY KEY NOT NULL,
+      device_label TEXT NOT NULL,
+      audience_role TEXT NOT NULL,
+      permission_status TEXT NOT NULL,
+      expo_push_token TEXT,
+      registered_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS task_alert_states (
+      task_id TEXT PRIMARY KEY NOT NULL,
+      task_active_key TEXT NOT NULL,
+      channel_state TEXT NOT NULL,
+      attempt_state TEXT NOT NULL,
+      audience TEXT NOT NULL,
+      escalation_state TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_reminder_at TEXT,
+      next_reminder_at TEXT,
+      escalated_at TEXT,
+      leadership_acknowledged_at TEXT,
+      retry_count INTEGER,
+      failure_reason TEXT,
+      last_attempt_id TEXT,
+      FOREIGN KEY (task_id) REFERENCES today_tasks(id)
+    );
+    CREATE TABLE IF NOT EXISTS alert_attempts (
+      attempt_id TEXT PRIMARY KEY NOT NULL,
+      task_id TEXT NOT NULL,
+      task_active_key TEXT NOT NULL,
+      delivery_status TEXT NOT NULL,
+      failure_reason TEXT,
+      provider_ticket_id TEXT,
+      provider_receipt_id TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES today_tasks(id)
+    );
+    CREATE TABLE IF NOT EXISTS escalation_receipts (
+      id TEXT PRIMARY KEY NOT NULL,
+      task_id TEXT NOT NULL,
+      task_active_key TEXT NOT NULL,
+      actor_label TEXT NOT NULL,
+      acknowledged_at TEXT NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES today_tasks(id)
+    );
     CREATE INDEX IF NOT EXISTS capture_products_normalized_name_idx
       ON capture_products(normalized_name);
     CREATE INDEX IF NOT EXISTS capture_products_gtin_idx ON capture_products(gtin);
@@ -784,6 +1088,12 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
     CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
     CREATE INDEX IF NOT EXISTS today_future_attention_lot_idx ON today_future_attention(lot_id);
+    CREATE INDEX IF NOT EXISTS task_alert_states_task_id_active_key_idx
+      ON task_alert_states(task_id, task_active_key);
+    CREATE INDEX IF NOT EXISTS task_alert_states_attempt_state_next_reminder_idx
+      ON task_alert_states(attempt_state, next_reminder_at);
+    CREATE INDEX IF NOT EXISTS alert_attempts_task_created_at_idx
+      ON alert_attempts(task_id, created_at DESC);
   `);
 }
 
@@ -913,6 +1223,48 @@ async function upsertFutureAttention(
     record.currentLocation.kind === "other" ? record.currentLocation.customName : null,
     JSON.stringify(record.sourceRiskReasons),
     record.observedAt,
+  );
+}
+
+async function upsertTaskAlertState(
+  db: SQLite.SQLiteDatabase,
+  state: TaskAlertStateRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO task_alert_states (
+      task_id, task_active_key, channel_state, attempt_state, audience, escalation_state,
+      created_at, updated_at, last_reminder_at, next_reminder_at, escalated_at,
+      leadership_acknowledged_at, retry_count, failure_reason, last_attempt_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(task_id) DO UPDATE SET
+      task_active_key = excluded.task_active_key,
+      channel_state = excluded.channel_state,
+      attempt_state = excluded.attempt_state,
+      audience = excluded.audience,
+      escalation_state = excluded.escalation_state,
+      updated_at = excluded.updated_at,
+      last_reminder_at = excluded.last_reminder_at,
+      next_reminder_at = excluded.next_reminder_at,
+      escalated_at = excluded.escalated_at,
+      leadership_acknowledged_at = excluded.leadership_acknowledged_at,
+      retry_count = excluded.retry_count,
+      failure_reason = excluded.failure_reason,
+      last_attempt_id = excluded.last_attempt_id`,
+    state.taskId,
+    state.taskActiveKey,
+    state.channelState,
+    state.attemptState,
+    state.audience,
+    state.escalationState,
+    state.createdAt,
+    state.updatedAt,
+    state.lastReminderAt ?? null,
+    state.nextReminderAt ?? null,
+    state.escalatedAt ?? null,
+    state.leadershipAcknowledgedAt ?? null,
+    state.retryCount ?? null,
+    state.failureReason ?? null,
+    state.lastAttemptId ?? null,
   );
 }
 
@@ -1064,6 +1416,39 @@ function mapFutureAttention(row: FutureAttentionRow): FutureAttentionRecord {
     section: "future_attention",
     sourceRiskReasons: parseJson(row.source_risk_reasons_json),
     observedAt: row.observed_at,
+  });
+}
+
+function mapAlertDevice(row: AlertDeviceRow): DevicePushRegistrationCommand {
+  return DevicePushRegistrationCommandSchema.parse({
+    deviceId: row.device_id,
+    deviceLabel: row.device_label,
+    audienceRole: row.audience_role,
+    permissionStatus: row.permission_status,
+    ...(row.expo_push_token === null ? {} : { expoPushToken: row.expo_push_token }),
+    registeredAt: row.registered_at,
+  });
+}
+
+function mapTaskAlertState(row: TaskAlertStateRow): TaskAlertStateRecord {
+  return TaskAlertStateRecordSchema.parse({
+    taskId: row.task_id,
+    taskActiveKey: row.task_active_key,
+    channelState: row.channel_state,
+    attemptState: row.attempt_state,
+    audience: row.audience,
+    escalationState: row.escalation_state,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.last_reminder_at === null ? {} : { lastReminderAt: row.last_reminder_at }),
+    ...(row.next_reminder_at === null ? {} : { nextReminderAt: row.next_reminder_at }),
+    ...(row.escalated_at === null ? {} : { escalatedAt: row.escalated_at }),
+    ...(row.leadership_acknowledged_at === null
+      ? {}
+      : { leadershipAcknowledgedAt: row.leadership_acknowledged_at }),
+    ...(row.retry_count === null ? {} : { retryCount: row.retry_count }),
+    ...(row.failure_reason === null ? {} : { failureReason: row.failure_reason }),
+    ...(row.last_attempt_id === null ? {} : { lastAttemptId: row.last_attempt_id }),
   });
 }
 

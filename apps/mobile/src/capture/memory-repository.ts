@@ -1,11 +1,16 @@
 import type {
+  AlertDeliveryResult,
   CaptureProductInput,
+  DevicePushRegistrationCommand,
   FutureAttentionRecord,
   PhysicalObservationInput,
+  PushOpenIntent,
+  TaskAlertStateRecord,
   TaskResolutionCommand,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import type {
+  AcknowledgeEscalationInput,
   CaptureLotDetail,
   CaptureLotSnapshot,
   CaptureObservationRecord,
@@ -13,20 +18,28 @@ import type {
   CaptureProductRecord,
   CaptureRepository,
   CaptureRepositoryDependencies,
+  RecordAlertAttemptInput,
   RecentLotsQuery,
+  RefreshTaskAlertStatesInput,
+  ResolvePushOpenIntentInput,
   RefreshTodayTasksInput,
   TodayTaskRefreshResult,
   SaveLotInput,
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  alertChannelStateForRegistration,
+  applyAlertDeliveryResult,
   createFutureAttentionRecord,
   createInitialObservation,
   createSalesAreaRecheckTask,
   createTodayTaskRecord,
+  deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
   nextGeneratedId,
   normalizeProductLookup,
+  parseAlertDeliveryResult,
+  parseAlertDeviceRegistration,
   parseLotId,
   parseLotInput,
   parseObservationInput,
@@ -34,6 +47,7 @@ import {
   parseProductInput,
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
+  parsePushOpenIntent,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
@@ -47,6 +61,10 @@ export function createMemoryCaptureRepository(
   const observations = new Map<string, CaptureObservationRecord[]>();
   const todayTasks = new Map<string, TodayTaskRecord>();
   const futureAttention = new Map<string, FutureAttentionRecord>();
+  const alertDevices = new Map<string, DevicePushRegistrationCommand>();
+  const taskAlertStates = new Map<string, TaskAlertStateRecord>();
+  const alertAttempts: RecordAlertAttemptInput[] = [];
+  const escalationReceipts: AcknowledgeEscalationInput[] = [];
 
   async function initialize(): Promise<void> {
     return Promise.resolve();
@@ -383,6 +401,144 @@ export function createMemoryCaptureRepository(
     return Promise.resolve(todayTasks.get(validatedTaskId) ?? null);
   }
 
+  function registerAlertDevice(
+    input: DevicePushRegistrationCommand,
+  ): Promise<DevicePushRegistrationCommand> {
+    const registration = parseAlertDeviceRegistration(input);
+
+    alertDevices.set(registration.deviceId, registration);
+
+    return Promise.resolve(registration);
+  }
+
+  function loadAlertChannelState(): Promise<DevicePushRegistrationCommand | null> {
+    const latest = [...alertDevices.values()].sort((left, right) =>
+      right.registeredAt.localeCompare(left.registeredAt),
+    )[0];
+
+    return Promise.resolve(latest ?? null);
+  }
+
+  async function refreshTaskAlertStates(
+    input: RefreshTaskAlertStatesInput,
+  ): Promise<readonly TaskAlertStateRecord[]> {
+    const registration = await loadAlertChannelState();
+    const channelState = alertChannelStateForRegistration(registration);
+    const activeTasks = await listActiveTodayTasks();
+
+    for (const task of activeTasks) {
+      const existing = taskAlertStates.get(task.id);
+      const refreshed = deriveRefreshedTaskAlertState({
+        task,
+        ...(existing === undefined ? {} : { existing }),
+        channelState,
+        referenceTime: input.referenceTime,
+        ...(input.isWithinShift === undefined ? {} : { isWithinShift: input.isWithinShift }),
+        isOverdue: input.overdueTaskIds?.includes(task.id) === true,
+      });
+
+      taskAlertStates.set(refreshed.taskId, refreshed);
+    }
+
+    return listTaskAlertStates();
+  }
+
+  function listTaskAlertStates(): Promise<readonly TaskAlertStateRecord[]> {
+    return Promise.resolve(
+      [...taskAlertStates.values()].sort((left, right) =>
+        left.updatedAt.localeCompare(right.updatedAt),
+      ),
+    );
+  }
+
+  async function recordAlertAttempt(input: RecordAlertAttemptInput): Promise<TaskAlertStateRecord> {
+    const result: AlertDeliveryResult = parseAlertDeliveryResult(input.result);
+    const task = todayTasks.get(parseLotId(input.taskId));
+
+    if (task === undefined) {
+      throw new Error(`Cannot record an alert attempt for an unknown task: ${input.taskId}`);
+    }
+
+    const existing =
+      taskAlertStates.get(input.taskId) ??
+      deriveRefreshedTaskAlertState({
+        task,
+        channelState: alertChannelStateForRegistration(await loadAlertChannelState()),
+        referenceTime: input.attemptedAt,
+      });
+    const updated = applyAlertDeliveryResult({
+      existing,
+      attemptId: input.attemptId,
+      attemptedAt: input.attemptedAt,
+      result,
+    });
+
+    alertAttempts.push({ ...input, result });
+    taskAlertStates.set(updated.taskId, updated);
+
+    return updated;
+  }
+
+  function acknowledgeEscalation(input: AcknowledgeEscalationInput): Promise<TaskAlertStateRecord> {
+    return Promise.resolve().then(() => {
+      const task = todayTasks.get(parseLotId(input.taskId));
+
+      if (task === undefined) {
+        throw new Error(`Cannot acknowledge escalation for an unknown task: ${input.taskId}`);
+      }
+
+      const existing =
+        taskAlertStates.get(task.id) ??
+        deriveRefreshedTaskAlertState({
+          task,
+          channelState: alertChannelStateForRegistration(
+            [...alertDevices.values()].sort((left, right) =>
+              right.registeredAt.localeCompare(left.registeredAt),
+            )[0] ?? null,
+          ),
+          referenceTime: input.acknowledgedAt,
+        });
+      const acknowledged = {
+        ...existing,
+        escalationState: "leadership_acknowledged",
+        leadershipAcknowledgedAt: input.acknowledgedAt,
+        updatedAt: input.acknowledgedAt,
+      } satisfies TaskAlertStateRecord;
+
+      escalationReceipts.push(input);
+      taskAlertStates.set(acknowledged.taskId, acknowledged);
+
+      return acknowledged;
+    });
+  }
+
+  function resolvePushOpenIntent(input: ResolvePushOpenIntentInput): Promise<PushOpenIntent> {
+    return Promise.resolve().then(() => {
+      const task = todayTasks.get(parseLotId(input.taskId));
+      const recheckReplacement = [...todayTasks.values()].find(
+        (candidate) => candidate.status === "active" && candidate.recheckParentId === input.taskId,
+      );
+
+      if (recheckReplacement !== undefined) {
+        return parsePushOpenIntent({ ...input, result: "task_updated" });
+      }
+
+      if (task === undefined) {
+        return parsePushOpenIntent({ ...input, result: "task_missing" });
+      }
+
+      if (task.status === "resolved") {
+        return parsePushOpenIntent({ ...input, result: "task_resolved" });
+      }
+
+      if (task.activeKey !== input.taskActiveKey) {
+        return parsePushOpenIntent({ ...input, result: "task_updated" });
+      }
+
+      return parsePushOpenIntent({ ...input, result: "current_task" });
+    });
+  }
+
   return {
     initialize,
     createProduct,
@@ -399,6 +555,13 @@ export function createMemoryCaptureRepository(
     listFutureAttention,
     resolveTodayTask,
     loadTodayTask,
+    registerAlertDevice,
+    loadAlertChannelState,
+    refreshTaskAlertStates,
+    listTaskAlertStates,
+    recordAlertAttempt,
+    acknowledgeEscalation,
+    resolvePushOpenIntent,
   };
 }
 
