@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 4 - Today Task Workflow
-status: ready_to_plan
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-06-20T01:51:24.492Z"
+status: ready_to_execute
+stopped_at: Phase 4 planned; ready to execute
+last_updated: "2026-06-20T02:06:30.780Z"
 last_activity: 2026-06-20
-last_activity_desc: Phase 4 UI-SPEC approved; Today Task Workflow is ready for executable planning.
+last_activity_desc: Phase 4 planning complete with 4 sequential plans; Today Task Workflow is ready for execution.
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 13
+  total_plans: 17
   completed_plans: 13
   percent: 33
 ---
@@ -23,7 +23,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Phase 4 UI-SPEC approved; Today Task Workflow is ready for executable planning.
+**Last activity:** 2026-06-20 - Phase 4 planning complete with 4 sequential plans; Today Task Workflow is ready for execution.
 
 ## Project Reference
 
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
 | 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
-| 4 | Pending | Today Task Workflow |
+| 4 | Planned | Today Task Workflow - 4 sequential plans ready to execute |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
 | 7 | Pending | Offline Sync |
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Use `$gsd-plan-phase 4` to create the executable plan for the Today Task Workflow.
+Use `$gsd-execute-phase 4` to execute the Today Task Workflow plans sequentially.
 
 ### Quick Tasks Completed
 
@@ -86,8 +86,8 @@ Use `$gsd-plan-phase 4` to create the executable plan for the Today Task Workflo
 ## Session
 
 **Last session:** 2026-06-20T01:51:24.488Z
-**Stopped at:** Phase 4 UI-SPEC approved
-**Resume file:** .planning/phases/04-today-task-workflow/04-UI-SPEC.md
+**Stopped at:** Phase 4 planned; ready to execute
+**Resume file:** .planning/phases/04-today-task-workflow/04-01-PLAN.md
 
 ## Decisions
 

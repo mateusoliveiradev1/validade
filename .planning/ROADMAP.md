@@ -116,6 +116,24 @@ Plans:
 3. Copy is direct and operational for store conditions.
 4. Interface supports high contrast, one-hand use, and clear critical states.
 
+**Plans:** 4/4 plans ready
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md - Task derivation, contracts, and local task repository
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md - Hoje safety header, task sections, and mobile entry surface
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-03-PLAN.md - Compatible task resolution, recheck, and evidence prompt contract
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-04-PLAN.md - Overdue/a11y/smoke hardening and full regression evidence
+
 ### Phase 5: Push and Escalation
 
 **Goal:** Add strong reminder and escalation behavior so unresolved risk keeps demanding attention.
