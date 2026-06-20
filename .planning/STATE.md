@@ -7,7 +7,7 @@ status: ready_to_plan
 stopped_at: Phase 4 context gathered
 last_updated: "2026-06-20T01:43:11.585Z"
 last_activity: 2026-06-20
-last_activity_desc: Phase 3 passed native verification, security review, and 8/8 conversational UAT checks.
+last_activity_desc: Phase 4 context captured; Today Task Workflow is ready for planning.
 progress:
   total_phases: 9
   completed_phases: 3
@@ -23,7 +23,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Phase 3 passed native verification, security review, and 8/8 conversational UAT checks.
+**Last activity:** 2026-06-20 - Phase 4 context captured; Today Task Workflow is ready for planning.
 
 ## Project Reference
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Use `$gsd-discuss-phase 4` to define the Today task workflow before detailed planning.
+Use `$gsd-plan-phase 4` to create the executable plan for the Today Task Workflow.
 
 ### Quick Tasks Completed
 
@@ -91,6 +91,10 @@ Use `$gsd-discuss-phase 4` to define the Today task workflow before detailed pla
 
 ## Decisions
 
+- [Phase 04]: Today tasks are created only for actionable risks: expired, critical, markdown_due, and uncertain; radar remains future attention, not a task. — Keeps the shift workflow focused on execution instead of noise.
+- [Phase 04]: Sales-area expired/critical risks require compatible action plus reconference before the area can be marked safe. — Prevents a weak click from hiding expired product in the sales area.
+- [Phase 04]: Withdrawal of expired product from the sales area requires reinforced confirmation, destination Retirada/perda, reconference, and photo when possible or explicit no-photo reason. — Provides strong validation without pulling full evidence storage/audit into Phase 4.
+- [Phase 04]: The Hoje screen leads with sales-area safety, dominant critical states, operational sections, and direct non-blaming copy. — Aligns the UI with the core value of zero expired product in the sales area.
 - [Phase 03]: Capture contracts preserve product-mode and quantity-state discriminants at the persistence boundary. — Required lot dates and explicit quantity uncertainty cannot be lost in optional fields.
 - [Phase 03]: Local corrections append observations and refresh only the latest lot snapshot. — This preserves the original physical fact without claiming Phase 8 audit scope.
 - [Phase 03]: Manual product lookup remains the initial mobile path and a candidate must be explicitly confirmed before lot entry. — Barcode assistance comes later and cannot create an implicit registration.
