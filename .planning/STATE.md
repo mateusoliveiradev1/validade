@@ -2,34 +2,34 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5 - Push and Escalation
-status: in_progress
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-06-20T16:26:09.580Z"
-last_activity: 2026-06-20 - Executed Phase 5 Plan 03 Hoje alert UX
+current_phase: 6 - Markdown/Rebaixa Workflow
+status: ready_to_plan
+stopped_at: Phase 05 complete (4/4) - ready to discuss Phase 6
+last_updated: 2026-06-20T16:50:00.789Z
+last_activity: 2026-06-20 - Completed Phase 5 Push and Escalation
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 21
-  completed_plans: 20
-  percent: 44
+  completed_plans: 21
+  percent: 56
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 5 - Push and Escalation
+**Current phase:** 6
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Executed Phase 5 Plan 03 Hoje alert UX
+**Last activity:** 2026-06-20 - Completed Phase 5 Push and Escalation
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 5 - Push and Escalation, continuing with Plan 04 API/provider cron seam and regression evidence
+**Current focus:** Phase 6 - Markdown/Rebaixa Workflow
 
 ## Roadmap Progress
 
@@ -39,8 +39,8 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
 | 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
 | 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
-| 5 | In Progress | Push and Escalation - 3/4 plans executed |
-| 6 | Pending | Markdown/Rebaixa Workflow |
+| 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
+| 6 | Pending | Markdown/Rebaixa Workflow - ready to discuss |
 | 7 | Pending | Offline Sync |
 | 8 | Pending | Audit, Roles, and Shift Close |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 5 - Push and Escalation with 05-04 API/provider cron seam, smoke, docs, and regression evidence.
+Discuss and plan Phase 6 - Markdown/Rebaixa Workflow.
 
 ### Quick Tasks Completed
 
@@ -89,12 +89,13 @@ Continue Phase 5 - Push and Escalation with 05-04 API/provider cron seam, smoke,
 | Phase 05 P01 | 8 min | 2 tasks | 6 files |
 | Phase 05 P02 | 12 min | 2 tasks | 11 files |
 | Phase 05 P03 | 20 min | 3 tasks | 6 files |
+| Phase 05 P04 | 40 min | 2 tasks | 25 files |
 
 ## Session
 
-**Last session:** 2026-06-20T16:26:09.575Z
-**Stopped at:** Completed 05-03-PLAN.md
-**Resume file:** .planning/phases/05-push-and-escalation/05-04-PLAN.md
+**Last session:** 2026-06-20T16:49:43.957Z
+**Stopped at:** Completed Phase 5 Push and Escalation
+**Resume file:** .planning/phases/06-markdown-rebaixa-workflow/06-01-PLAN.md
 
 ## Decisions
 

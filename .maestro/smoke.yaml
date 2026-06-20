@@ -2,8 +2,12 @@ appId: com.validadezero.app
 ---
 - launchApp:
     clearState: true
+- extendedWaitUntil:
+    visible: "Hoje"
+    timeout: 60000
 - assertVisible: "Hoje"
 - assertVisible: "Area de venda segura"
+- assertVisible: "Ativar alertas do turno"
 - assertVisible: "Atualizar tarefas"
 - assertVisible: "Registrar lote"
 - tapOn: "Registrar lote"

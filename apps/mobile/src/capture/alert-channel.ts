@@ -1,8 +1,7 @@
 import type { AlertAttemptState, AlertChannelState } from "@validade-zero/domain";
-import {
-  AlertDispatchCommandSchema,
-  type AlertDispatchCommand,
-} from "@validade-zero/contracts";
+import { AlertDispatchCommandSchema, type AlertDispatchCommand } from "@validade-zero/contracts";
+
+declare const require: (moduleName: string) => unknown;
 
 interface ExpoNotificationsPort {
   getPermissionsAsync(): Promise<{ status: string }>;
@@ -98,26 +97,61 @@ export interface ExpoPushAlertChannelDependencies {
 export function createExpoPushAlertChannel(
   dependencies: ExpoPushAlertChannelDependencies = {},
 ): PushAlertChannel {
-  const loadNotifications =
-    dependencies.loadNotifications ?? (() => importRuntimeModule("expo-notifications"));
-  const loadConstants = dependencies.loadConstants ?? (() => importRuntimeModule("expo-constants"));
+  const loadNotifications = dependencies.loadNotifications ?? loadExpoNotificationsModule;
+  const loadConstants = dependencies.loadConstants ?? loadExpoConstantsModule;
   const clock = dependencies.clock ?? (() => new Date().toISOString());
+  const responseHandlers = new Set<(payload: PushNotificationResponsePayload) => void>();
+  let responseSubscription: { remove(): void } | undefined;
 
   return {
     async getPermissionState() {
-      const notifications = await loadNotifications();
+      let notifications: ExpoNotificationsPort;
+
+      try {
+        notifications = await loadNotifications();
+      } catch (error) {
+        return {
+          state: "unavailable",
+          reason: runtimeModuleFailureReason(error),
+        };
+      }
+
+      attachNotificationResponseListener(notifications);
       const permissions = await notifications.getPermissionsAsync();
 
       return mapPermissionStatus(permissions.status);
     },
     async requestPermission() {
-      const notifications = await loadNotifications();
+      let notifications: ExpoNotificationsPort;
+
+      try {
+        notifications = await loadNotifications();
+      } catch (error) {
+        return {
+          state: "unavailable",
+          reason: runtimeModuleFailureReason(error),
+        };
+      }
+
+      attachNotificationResponseListener(notifications);
       const permissions = await notifications.requestPermissionsAsync();
 
       return mapPermissionStatus(permissions.status);
     },
     async getExpoPushToken() {
-      const [notifications, constants] = await Promise.all([loadNotifications(), loadConstants()]);
+      let notifications: ExpoNotificationsPort;
+      let constants: ExpoConstantsPort;
+
+      try {
+        [notifications, constants] = await Promise.all([loadNotifications(), loadConstants()]);
+      } catch (error) {
+        return {
+          state: "unavailable",
+          reason: runtimeModuleFailureReason(error),
+        };
+      }
+
+      attachNotificationResponseListener(notifications);
       const projectId = resolveExpoProjectId(constants);
 
       if (projectId === undefined) {
@@ -142,10 +176,9 @@ export function createExpoPushAlertChannel(
       }
     },
     async scheduleTaskNotification(input) {
-      const notifications = await loadNotifications();
-      const command = AlertDispatchCommandSchema.parse(input.command);
-
       try {
+        const notifications = await loadNotifications();
+        const command = AlertDispatchCommandSchema.parse(input.command);
         const notificationId = await notifications.scheduleNotificationAsync({
           content: {
             title: command.title,
@@ -173,32 +206,44 @@ export function createExpoPushAlertChannel(
       }
     },
     async cancelTaskNotification(notificationId) {
-      const notifications = await loadNotifications();
-      await notifications.cancelScheduledNotificationAsync(notificationId);
+      try {
+        const notifications = await loadNotifications();
+        await notifications.cancelScheduledNotificationAsync(notificationId);
+      } catch {
+        return;
+      }
     },
     subscribeToNotificationResponses(handler) {
-      let subscription: { remove(): void } | undefined;
-
-      void loadNotifications().then((notifications) => {
-        subscription = notifications.addNotificationResponseReceivedListener((response) => {
-          const payload = parsePushNotificationResponseData(
-            response.notification.request.content.data,
-            clock(),
-          );
-
-          if (payload !== null) {
-            handler(payload);
-          }
-        });
-      });
+      responseHandlers.add(handler);
 
       return {
         remove() {
-          subscription?.remove();
+          responseHandlers.delete(handler);
         },
       };
     },
   };
+
+  function attachNotificationResponseListener(notifications: ExpoNotificationsPort): void {
+    if (responseSubscription !== undefined) {
+      return;
+    }
+
+    responseSubscription = notifications.addNotificationResponseReceivedListener((response) => {
+      const payload = parsePushNotificationResponseData(
+        response.notification.request.content.data,
+        clock(),
+      );
+
+      if (payload === null) {
+        return;
+      }
+
+      for (const handler of responseHandlers) {
+        handler(payload);
+      }
+    });
+  }
 }
 
 export interface FakePushAlertChannel extends PushAlertChannel {
@@ -210,11 +255,13 @@ export interface FakePushAlertChannel extends PushAlertChannel {
   failNextSchedule(reason: string): void;
 }
 
-export function createFakePushAlertChannel(input: {
-  permissionState?: AlertChannelState;
-  tokenResult?: PushTokenResult;
-  clock?: () => string;
-} = {}): FakePushAlertChannel {
+export function createFakePushAlertChannel(
+  input: {
+    permissionState?: AlertChannelState;
+    tokenResult?: PushTokenResult;
+    clock?: () => string;
+  } = {},
+): FakePushAlertChannel {
   let permissionState = input.permissionState ?? "not_requested";
   let tokenResult: PushTokenResult =
     input.tokenResult ??
@@ -240,10 +287,10 @@ export function createFakePushAlertChannel(input: {
     get scheduledNotifications() {
       return scheduledNotifications;
     },
-    async getPermissionState() {
-      return { state: permissionState };
+    getPermissionState() {
+      return Promise.resolve({ state: permissionState });
     },
-    async requestPermission() {
+    requestPermission() {
       requestedPermissionCount += 1;
 
       if (permissionState === "not_requested") {
@@ -254,32 +301,32 @@ export function createFakePushAlertChannel(input: {
         };
       }
 
-      return { state: permissionState };
+      return Promise.resolve({ state: permissionState });
     },
-    async getExpoPushToken() {
-      return tokenResult;
+    getExpoPushToken() {
+      return Promise.resolve(tokenResult);
     },
-    async scheduleTaskNotification(input) {
+    scheduleTaskNotification(input) {
       AlertDispatchCommandSchema.parse(input.command);
 
       if (scheduleFailureReason !== undefined) {
         const failureReason = scheduleFailureReason;
         scheduleFailureReason = undefined;
 
-        return {
+        return Promise.resolve({
           attemptState: "retry_pending",
           failureReason,
-        };
+        } satisfies ScheduleTaskNotificationResult);
       }
 
       scheduledNotifications.push(input);
 
-      return {
+      return Promise.resolve({
         attemptState: "pending",
         notificationId: `notificacao-ficticia-${scheduledNotifications.length}`,
-      };
+      });
     },
-    async cancelTaskNotification() {
+    cancelTaskNotification() {
       return Promise.resolve();
     },
     subscribeToNotificationResponses(handler) {
@@ -360,8 +407,20 @@ function mapPermissionStatus(status: string): PushAlertChannelStatus {
   };
 }
 
-async function importRuntimeModule<TModule>(moduleName: string): Promise<TModule> {
-  return (await import(moduleName)) as TModule;
+function runtimeModuleFailureReason(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Expo notifications module unavailable in this native runtime.";
+}
+
+function loadExpoNotificationsModule(): Promise<ExpoNotificationsPort> {
+  return Promise.resolve(require("expo-notifications") as ExpoNotificationsPort);
+}
+
+function loadExpoConstantsModule(): Promise<ExpoConstantsPort> {
+  return Promise.resolve(require("expo-constants") as ExpoConstantsPort);
 }
 
 function resolveExpoProjectId(constants: ExpoConstantsPort): string | undefined {

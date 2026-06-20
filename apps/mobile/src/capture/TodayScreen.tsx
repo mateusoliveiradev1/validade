@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { FutureAttentionRecord, TaskAlertStateRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  FutureAttentionRecord,
+  TaskAlertStateRecord,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import type { AlertChannelState } from "@validade-zero/domain";
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -407,7 +411,8 @@ function AlertChannelSurface({
   }
 
   const notice = channelNoticeFor(channelState, feedback);
-  const isError = channelState === "denied" || channelState === "unavailable" || channelState === "failed";
+  const isError =
+    channelState === "denied" || channelState === "unavailable" || channelState === "failed";
 
   return (
     <View style={[styles.alertNotice, isError ? styles.alertNoticeWarning : undefined]}>
@@ -449,10 +454,7 @@ function TaskAlertStatus({
       ]}
     >
       <Text
-        style={[
-          styles.alertStatusText,
-          isEscalated ? styles.alertStatusCriticalText : undefined,
-        ]}
+        style={[styles.alertStatusText, isEscalated ? styles.alertStatusCriticalText : undefined]}
       >
         {status}
       </Text>
@@ -528,7 +530,9 @@ function alertStatusLabel(alertState: TaskAlertStateRecord, referenceTime: Date)
   }
 
   if (alertState.nextReminderAt !== undefined) {
-    return todayCopy.push.nextReminder(relativeReminderLabel(alertState.nextReminderAt, referenceTime));
+    return todayCopy.push.nextReminder(
+      relativeReminderLabel(alertState.nextReminderAt, referenceTime),
+    );
   }
 
   return todayCopy.push.alertActive;

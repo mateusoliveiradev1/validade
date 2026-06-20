@@ -66,14 +66,13 @@ export function createFakeExpoAlertDeliveryProvider(
         });
       }
 
-      const outcome =
-        (await options.send?.({
-          command: parsed.data,
-          tokenFingerprint: fingerprintToken(input.expoPushToken),
-        })) ?? {
-          kind: "ok",
-          providerTicketId: `ticket-${parsed.data.attemptId}`,
-        };
+      const outcome = (await options.send?.({
+        command: parsed.data,
+        tokenFingerprint: fingerprintToken(input.expoPushToken),
+      })) ?? {
+        kind: "ok",
+        providerTicketId: `ticket-${parsed.data.attemptId}`,
+      };
 
       return mapExpoPushOutcomeToDeliveryResult(outcome);
     },

@@ -60,10 +60,11 @@ vi.mock("@react-native-community/datetimepicker", () => ({
 describe("Validade Zero mobile smoke", () => {
   it("renders the Hoje first entry point with registration reachable", async () => {
     const { default: App } = await import("../App");
+    const { createFakePushAlertChannel } = await import("./capture/alert-channel");
     let tree: ReactTestRenderer | undefined;
 
     await act(async () => {
-      tree = create(<App />);
+      tree = create(<App alertChannel={createFakePushAlertChannel()} />);
       await Promise.resolve();
     });
 

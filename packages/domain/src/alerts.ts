@@ -36,11 +36,7 @@ export const ALERT_CHANNEL_STATES = [
 
 export type AlertChannelState = (typeof ALERT_CHANNEL_STATES)[number];
 
-export const ESCALATION_STATES = [
-  "not_escalated",
-  "escalated",
-  "leadership_acknowledged",
-] as const;
+export const ESCALATION_STATES = ["not_escalated", "escalated", "leadership_acknowledged"] as const;
 
 export type EscalationState = (typeof ESCALATION_STATES)[number];
 
@@ -226,10 +222,7 @@ export function getNextAlertAction(
   const lastReminderAt =
     state.lastReminderAt === undefined ? undefined : new Date(state.lastReminderAt);
 
-  if (
-    escalationState === "not_escalated" &&
-    minutesSinceCreated >= cadence.escalateAfterMinutes
-  ) {
+  if (escalationState === "not_escalated" && minutesSinceCreated >= cadence.escalateAfterMinutes) {
     return {
       kind: "escalate",
       audience: "responsible_and_leadership",

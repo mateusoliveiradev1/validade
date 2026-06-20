@@ -173,6 +173,9 @@ export function createScheduledAlertHandler(
     _env?: unknown,
     _context?: ExecutionContext,
   ): Promise<void> {
+    void _env;
+    void _context;
+
     const referenceTime =
       event.scheduledTime === undefined
         ? new Date().toISOString()

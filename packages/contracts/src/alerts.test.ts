@@ -190,7 +190,12 @@ describe("alert runtime contracts", () => {
   });
 
   it("parses push-open intents for current, updated, resolved, and missing tasks", () => {
-    for (const result of ["current_task", "task_updated", "task_resolved", "task_missing"] as const) {
+    for (const result of [
+      "current_task",
+      "task_updated",
+      "task_resolved",
+      "task_missing",
+    ] as const) {
       expect(
         PushOpenIntentSchema.parse({
           taskId,

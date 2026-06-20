@@ -101,25 +101,25 @@ describe("push alert channel", () => {
   it("maps Expo permission and missing project id without prompting at channel creation", async () => {
     let requested = 0;
     const channel = createExpoPushAlertChannel({
-      loadNotifications: async () =>
-        ({
-          getPermissionsAsync: async () => ({ status: "undetermined" }),
-          requestPermissionsAsync: async () => {
+      loadNotifications: () =>
+        Promise.resolve({
+          getPermissionsAsync: () => Promise.resolve({ status: "undetermined" }),
+          requestPermissionsAsync: () => {
             requested += 1;
-            return { status: "denied" };
+            return Promise.resolve({ status: "denied" });
           },
-          getExpoPushTokenAsync: async () => ({ data: "ExpoPushToken-FICTICIO-002" }),
-          scheduleNotificationAsync: async () => "notificacao-ficticia-2",
-          cancelScheduledNotificationAsync: async () => undefined,
+          getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-002" }),
+          scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-2"),
+          cancelScheduledNotificationAsync: () => Promise.resolve(undefined),
           addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
-        }) as never,
-      loadConstants: async () =>
-        ({
+        }),
+      loadConstants: () =>
+        Promise.resolve({
           default: {
             easConfig: null,
             expoConfig: { extra: {} },
           },
-        }) as never,
+        }),
     });
 
     expect(await channel.getPermissionState()).toEqual({ state: "not_requested" });
@@ -132,12 +132,40 @@ describe("push alert channel", () => {
     });
   });
 
+  it("degrades instead of crashing when the native notification module is unavailable", async () => {
+    const channel = createExpoPushAlertChannel({
+      loadNotifications: () => Promise.reject(new Error("native notifications unavailable")),
+      loadConstants: () =>
+        Promise.resolve({
+          default: {
+            easConfig: { projectId: "projeto-ficticio-001" },
+            expoConfig: null,
+          },
+        }),
+    });
+
+    await expect(channel.getPermissionState()).resolves.toEqual({
+      state: "unavailable",
+      reason: "native notifications unavailable",
+    });
+    await expect(channel.requestPermission()).resolves.toEqual({
+      state: "unavailable",
+      reason: "native notifications unavailable",
+    });
+    await expect(channel.getExpoPushToken()).resolves.toEqual({
+      state: "unavailable",
+      reason: "native notifications unavailable",
+    });
+    await expect(channel.scheduleTaskNotification(scheduleInput())).resolves.toEqual({
+      attemptState: "retry_pending",
+      failureReason: "native notifications unavailable",
+    });
+    expect(() => channel.subscribeToNotificationResponses(() => undefined).remove()).not.toThrow();
+  });
+
   it("rejects notification response payloads with extra lock-screen details", () => {
     expect(
-      parsePushNotificationResponseData(
-        { taskId, taskActiveKey },
-        "2030-01-10T09:05:00.000Z",
-      ),
+      parsePushNotificationResponseData({ taskId, taskActiveKey }, "2030-01-10T09:05:00.000Z"),
     ).toEqual({
       taskId,
       taskActiveKey,

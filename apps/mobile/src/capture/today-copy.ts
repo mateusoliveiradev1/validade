@@ -42,10 +42,8 @@ export const todayCopy = {
     acknowledged: (label: string) =>
       `Recebimento confirmado pela lideranca as ${label}. A tarefa continua aberta ate a resolucao fisica.`,
     staleUpdated: "Esta pendencia foi atualizada. Abra a tarefa atual em Hoje.",
-    staleResolved:
-      "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes.",
-    staleMissing:
-      "Nao foi possivel abrir esta notificacao. Confira as tarefas ativas em Hoje.",
+    staleResolved: "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes.",
+    staleMissing: "Nao foi possivel abrir esta notificacao. Confira as tarefas ativas em Hoje.",
   },
   sections: {
     overdue: "Atrasadas",

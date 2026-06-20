@@ -64,7 +64,11 @@ export function CaptureApp({
         if (intent.result === "current_task") {
           const task = await repository.loadTodayTask(intent.taskId);
 
-          if (task !== null && task.status === "active" && task.activeKey === intent.taskActiveKey) {
+          if (
+            task !== null &&
+            task.status === "active" &&
+            task.activeKey === intent.taskActiveKey
+          ) {
             setSelectedTask(task);
             setHighlightedTaskId(task.id);
             setScreen("task-resolution");

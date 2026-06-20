@@ -94,7 +94,12 @@ export const AlertDispatchCommandSchema = z
     }
 
     const visibleContent = `${value.title} ${value.body}`.toLowerCase();
-    const forbiddenTerms = ["lot", "lote", value.taskId.toLowerCase(), value.taskActiveKey.toLowerCase()];
+    const forbiddenTerms = [
+      "lot",
+      "lote",
+      value.taskId.toLowerCase(),
+      value.taskActiveKey.toLowerCase(),
+    ];
 
     for (const term of forbiddenTerms) {
       if (visibleContent.includes(term)) {

@@ -147,7 +147,7 @@ Plans:
 3. Every push maps to a persistent in-app task.
 4. Critical risk remains visible until physically resolved.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 
@@ -163,7 +163,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 05-04-PLAN.md - API/provider cron seam, smoke, docs, and regression evidence
+- [x] 05-04-PLAN.md - API/provider cron seam, smoke, docs, and regression evidence
 
 ### Phase 6: Markdown/Rebaixa Workflow
 

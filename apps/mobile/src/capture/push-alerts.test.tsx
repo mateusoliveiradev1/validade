@@ -129,18 +129,25 @@ function registration(
   };
 }
 
-function createRepository(input: {
-  tasks?: readonly TodayTaskRecord[];
-  alertStates?: readonly TaskAlertStateRecord[];
-  channel?: DevicePushRegistrationCommand | null;
-  resolveIntent?: (payload: { taskId: string; taskActiveKey: string; openedAt: string }) => PushOpenIntent;
-} = {}) {
+function createRepository(
+  input: {
+    tasks?: readonly TodayTaskRecord[];
+    alertStates?: readonly TaskAlertStateRecord[];
+    channel?: DevicePushRegistrationCommand | null;
+    resolveIntent?: (payload: {
+      taskId: string;
+      taskActiveKey: string;
+      openedAt: string;
+    }) => PushOpenIntent;
+  } = {},
+) {
   const tasks = [...(input.tasks ?? [expiredTask()])];
   let channel = input.channel ?? null;
   let states = [...(input.alertStates ?? [])];
   const resolveTodayTask = vi.fn();
-  const acknowledgeEscalation = vi.fn(async (command) => {
-    const existing = states.find((state) => state.taskId === command.taskId) ?? alertState(tasks[0]);
+  const acknowledgeEscalation = vi.fn((command) => {
+    const existing =
+      states.find((state) => state.taskId === command.taskId) ?? alertState(tasks[0]);
     const acknowledged = {
       ...existing,
       escalationState: "leadership_acknowledged",
@@ -149,7 +156,7 @@ function createRepository(input: {
     } satisfies TaskAlertStateRecord;
     states = states.map((state) => (state.taskId === acknowledged.taskId ? acknowledged : state));
 
-    return acknowledged;
+    return Promise.resolve(acknowledged);
   });
   const repository: CaptureRepository = {
     initialize: () => Promise.resolve(),
@@ -237,7 +244,10 @@ describe("Hoje push alert UI", () => {
   it.each([
     ["granted", "Alertas do turno ativos neste aparelho."],
     ["denied", "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje."],
-    ["unavailable", "Nao foi possivel preparar alertas agora. Confira a conexao e tente novamente."],
+    [
+      "unavailable",
+      "Nao foi possivel preparar alertas agora. Confira a conexao e tente novamente.",
+    ],
   ] as const)("renders %s channel state without hiding tasks", async (permissionStatus, copy) => {
     const { repository } = createRepository({ channel: registration(permissionStatus) });
     const tree = await renderToday({ repository });
@@ -346,10 +356,7 @@ describe("push notification routing", () => {
 
   it.each([
     ["task_updated", "Esta pendencia foi atualizada. Abra a tarefa atual em Hoje."],
-    [
-      "task_resolved",
-      "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes.",
-    ],
+    ["task_resolved", "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes."],
     ["task_missing", "Nao foi possivel abrir esta notificacao. Confira as tarefas ativas em Hoje."],
   ] as const)("shows %s fallback in Hoje", async (result, copy) => {
     const task = expiredTask();
