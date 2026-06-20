@@ -1,6 +1,7 @@
 appId: com.validadezero.app
 ---
-- launchApp
+- launchApp:
+    clearState: true
 - assertVisible: "Hoje"
 - assertVisible: "Area de venda segura"
 - assertVisible: "Atualizar tarefas"

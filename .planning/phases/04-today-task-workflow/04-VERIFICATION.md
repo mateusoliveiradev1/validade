@@ -1,9 +1,9 @@
 ---
 phase: 04-today-task-workflow
 verified: "2026-06-19T23:55:38-03:00"
-status: passed_with_native_e2e_blocker
-score: 18/18 implementation truths verified
-behavior_unverified: 1 native device smoke
+status: passed_pending_human_uat
+score: 19/19 implementation truths verified
+behavior_unverified: 0 automated/native checks blocked
 human_verification: pending
 ---
 
@@ -11,7 +11,8 @@ human_verification: pending
 
 **Phase Goal:** Turn calculated risks into the mobile "Hoje" task experience that directs shelf work.
 **Verified:** 2026-06-19T23:55:38-03:00
-**Status:** passed with native E2E runtime blocker
+**Native smoke completed:** 2026-06-20T00:13:34-03:00
+**Status:** passed, pending conversational UAT
 
 ## Goal Achievement
 
@@ -37,8 +38,9 @@ human_verification: pending
 | 16 | Refresh keeps the screen stable. | VERIFIED | Tests and source checks ensure refresh failure preserves previous tasks and no standalone spinner replaces the screen. |
 | 17 | Phase 4 has all plan summaries. | VERIFIED | `gsd-sdk.cmd query verify.phase-completeness 04` returned 4 plans, 4 summaries, no warnings or errors. |
 | 18 | Schema drift is absent. | VERIFIED | `gsd-sdk.cmd query verify.schema-drift 04` returned `drift_detected: false`. |
+| 19 | Hoje-first native smoke runs from a clean app state. | VERIFIED | `pnpm.cmd test:e2e:mobile` passed on `ValidadeZeroApi36` after launching with `clearState: true`. |
 
-**Score:** 18/18 implementation truths verified.
+**Score:** 19/19 implementation truths verified.
 
 ## Requirements Coverage
 
@@ -63,7 +65,7 @@ human_verification: pending
 | `pnpm.cmd --filter @validade-zero/mobile typecheck` | PASSED | Strict mobile TypeScript compile succeeded. |
 | `pnpm.cmd lint` | PASSED | ESLint and dependency boundary check passed for 65 source files. |
 | `pnpm.cmd test` | PASSED | 27 files / 107 tests. |
-| `pnpm.cmd test:e2e:mobile` | BLOCKED | `maestro` command is unavailable in this shell. |
+| `pnpm.cmd test:e2e:mobile` | PASSED | Maestro 2.6.1 on `ValidadeZeroApi36`; APK built from short temp worktree because Windows/CMake path length breaks the generated native project under the full repo path. |
 | `pnpm.cmd check` | PASSED | Typecheck, lint, format, tests, smoke Vitest, build, and security all passed after Prettier normalization. |
 | `gsd-sdk.cmd query verify.schema-drift 04` | PASSED | No schema drift detected. |
 | `gsd-sdk.cmd query verify.codebase-drift` | SKIPPED | Non-blocking skip: `no-structure-md`. |
@@ -72,13 +74,20 @@ human_verification: pending
 ## Human Verification Required
 
 - Run `$gsd-verify-work 4` for conversational UAT.
-- Install/expose Maestro and run `pnpm.cmd test:e2e:mobile` on an Android emulator/device to complete native smoke.
 - Check store-floor ergonomics manually on a phone-sized runtime: Hoje first, safety verdict visible, first critical task readable, action targets reachable, and no horizontal clipping.
 
 ## Gaps Summary
 
-No blocking implementation gaps found. The only unverified behavior is native-device smoke because the Maestro CLI is unavailable in the current shell.
+No blocking implementation gaps found. Native-device smoke is now verified; conversational UAT and manual ergonomics remain pending human checks.
+
+## Blocker Closure Log
+
+- Installed/exposed Maestro CLI 2.6.1 and pointed `JAVA_HOME`/PATH at the existing Temurin JDK 21 installation.
+- Added `clearState: true` to `.maestro/smoke.yaml` so the smoke starts from a clean app state instead of an old registration screen.
+- Built and installed the debug APK from `C:\w` with a short pnpm virtual store to avoid Windows CMake/Ninja path-length failures.
+- Stopped the stale Metro process from `C:\v` and started Metro from the current workspace before rerunning the smoke.
+- Verified `pnpm.cmd test:e2e:mobile` passes on `ValidadeZeroApi36`.
 
 ## Result
 
-Phase 4 implementation passed automated verification and is ready for human/UAT verification. The Today workflow now turns local risk calculations into a safety-first mobile task surface with compatible resolution, sales-area recheck, metadata-only evidence prompts, overdue pinning, and regression coverage.
+Phase 4 implementation passed automated verification and native smoke, and is ready for human/UAT verification. The Today workflow now turns local risk calculations into a safety-first mobile task surface with compatible resolution, sales-area recheck, metadata-only evidence prompts, overdue pinning, and regression coverage.
