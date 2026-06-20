@@ -178,7 +178,7 @@ Plans:
 3. Evidence photo can be attached to applied labels or shelf confirmation.
 4. Delayed markdown tasks remain visible and escalate.
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 Plans:
 **Wave 1**
 
@@ -190,7 +190,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-03-PLAN.md - Mobile Hoje, lot-detail, and task-panel markdown flows
+- [x] 06-03-PLAN.md - Mobile Hoje, lot-detail, and task-panel markdown flows
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
