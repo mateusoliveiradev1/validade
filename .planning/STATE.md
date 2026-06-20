@@ -23,7 +23,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-19 - Native Maestro smoke passed on Android 16 after completing the local Windows runtime setup.
+**Last activity:** 2026-06-20 - Completed quick task 260619-tw4: Exibir horários de observação sem segundos no app mobile.
 
 ## Project Reference
 
@@ -63,6 +63,7 @@ Use `$gsd-verify-work 3` to complete the remaining conversational UAT for the na
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 260619-a1b | Fix medium Dependabot alerts for qs and uuid with validated pnpm overrides | 2026-06-19 | 4f2b992 | Verified | [260619-a1b-fix-medium-dependabot-alerts-for-qs-and-](./quick/260619-a1b-fix-medium-dependabot-alerts-for-qs-and-/) |
+| 260619-tw4 | Exibir horários de observação sem segundos no app mobile | 2026-06-20 | 37fd67d | Verified | [260619-tw4-exibir-hor-rios-de-observa-o-sem-segundo](./quick/260619-tw4-exibir-hor-rios-de-observa-o-sem-segundo/) |
 
 ## Performance Metrics
 
