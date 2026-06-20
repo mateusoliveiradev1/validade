@@ -17,6 +17,36 @@ export const todayCopy = {
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
+  push: {
+    activate: "Ativar alertas do turno",
+    notNow: "Agora nao",
+    retry: "Tentar novamente",
+    openSettings: "Abrir configuracoes do aparelho",
+    openTask: "Abrir tarefa",
+    educationTitle: "Alertas ajudam a cobrar, mas Hoje continua sendo a fonte da verdade",
+    educationBody:
+      "Ative alertas para receber lembretes de tarefas criticas. Nenhuma tarefa sera resolvida pela notificacao; a confirmacao fisica continua no app.",
+    active: "Alertas do turno ativos neste aparelho.",
+    denied: "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje.",
+    unavailable: "Nao foi possivel preparar alertas agora. Confira a conexao e tente novamente.",
+    failed:
+      "Alerta falhou. A tarefa continua ativa em Hoje e precisa ser cobrada manualmente se necessario.",
+    retryPending: "Alerta pendente. Vamos tentar novamente sem esconder a tarefa.",
+    alertActive: "Alerta ativo",
+    nextReminder: (label: string) => `Novo lembrete em ${label}`,
+    pending: "Push pendente",
+    failedStatus: "Push falhou",
+    escalatedAt: (label: string) => `Lideranca avisada as ${label}`,
+    escalatedAudience: "Cobrando responsavel e lideranca",
+    acknowledge: "Confirmar recebimento da cobranca",
+    acknowledged: (label: string) =>
+      `Recebimento confirmado pela lideranca as ${label}. A tarefa continua aberta ate a resolucao fisica.`,
+    staleUpdated: "Esta pendencia foi atualizada. Abra a tarefa atual em Hoje.",
+    staleResolved:
+      "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes.",
+    staleMissing:
+      "Nao foi possivel abrir esta notificacao. Confira as tarefas ativas em Hoje.",
+  },
   sections: {
     overdue: "Atrasadas",
     withdraw_now: "Retirar agora",
@@ -148,6 +178,35 @@ export function isOverdueTask(task: TodayTaskRecord, referenceTime = new Date())
   }
 
   return task.status === "active" && createdAt < startOfLocalDay(referenceTime).getTime();
+}
+
+export function formatAlertTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function relativeReminderLabel(value: string, referenceTime = new Date()): string {
+  const reminderAt = Date.parse(value);
+
+  if (Number.isNaN(reminderAt)) {
+    return "alguns minutos";
+  }
+
+  const diffMinutes = Math.max(0, Math.ceil((reminderAt - referenceTime.getTime()) / 60_000));
+
+  if (diffMinutes <= 1) {
+    return "1 min";
+  }
+
+  return `${diffMinutes} min`;
 }
 
 function startOfLocalDay(referenceTime: Date): Date {

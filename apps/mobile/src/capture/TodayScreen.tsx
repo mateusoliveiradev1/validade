@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type { FutureAttentionRecord, TaskAlertStateRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type { AlertChannelState } from "@validade-zero/domain";
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
-import type { CaptureRepository, TodayTaskRefreshSource } from "./repository";
+import type { PushAlertChannel } from "./alert-channel";
+import {
+  alertChannelStateForRegistration,
+  type CaptureRepository,
+  type TodayTaskRefreshSource,
+} from "./repository";
 import {
   dueLabel,
+  formatAlertTime,
   isOverdueTask,
+  relativeReminderLabel,
   riskReasonLabel,
   severityLabel,
   todayActionLabel,
@@ -26,19 +34,35 @@ export function TodayScreen({
   onRegisterLot,
   onOpenRecentLots,
   onOpenTask,
+  alertChannel,
+  pushFallbackNotice,
+  highlightedTaskId,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
   onRegisterLot: () => void;
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
+  alertChannel?: PushAlertChannel;
+  pushFallbackNotice?: string | undefined;
+  highlightedTaskId?: string | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
   const [futureAttention, setFutureAttention] = useState<readonly FutureAttentionRecord[]>([]);
+  const [alertStates, setAlertStates] = useState<readonly TaskAlertStateRecord[]>([]);
+  const [alertChannelState, setAlertChannelState] = useState<AlertChannelState>("not_requested");
+  const [alertChannelFeedback, setAlertChannelFeedback] = useState<string | undefined>();
+  const [acknowledgementFeedback, setAcknowledgementFeedback] = useState<string | undefined>();
   const [refreshError, setRefreshError] = useState<string | undefined>();
   const [refreshFeedback, setRefreshFeedback] = useState<string | undefined>();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRequestingAlerts, setIsRequestingAlerts] = useState(false);
+
+  async function refreshAlertChannelState(): Promise<void> {
+    const registration = await repository.loadAlertChannelState();
+    setAlertChannelState(alertChannelStateForRegistration(registration));
+  }
 
   async function refreshTasks(source: TodayTaskRefreshSource): Promise<void> {
     if (isRefreshing) {
@@ -62,6 +86,16 @@ export function TodayScreen({
 
       setTasks(result.tasks);
       setFutureAttention(result.futureAttention);
+      await refreshAlertChannelState();
+      setAlertStates(
+        await repository.refreshTaskAlertStates({
+          referenceTime: current.toISOString(),
+          isWithinShift: true,
+          overdueTaskIds: result.tasks
+            .filter((task) => isOverdueTask(task, current))
+            .map((task) => task.id),
+        }),
+      );
 
       if (source === "manual_refresh") {
         setRefreshFeedback(todayCopy.refreshSuccess(result.metadata.activeTaskCount));
@@ -77,6 +111,83 @@ export function TodayScreen({
   useEffect(() => {
     void refreshTasks("today_open");
   }, []);
+
+  async function activateAlerts(): Promise<void> {
+    if (alertChannel === undefined || isRequestingAlerts) {
+      return;
+    }
+
+    setIsRequestingAlerts(true);
+    setAlertChannelFeedback(undefined);
+
+    try {
+      const permission = await alertChannel.requestPermission();
+
+      if (permission.state !== "active") {
+        setAlertChannelState(permission.state);
+        await repository.registerAlertDevice({
+          deviceId: "local-alert-device",
+          deviceLabel: "Celular do turno",
+          audienceRole: "shift_team",
+          permissionStatus: permission.state === "denied" ? "denied" : "unavailable",
+          registeredAt: now().toISOString(),
+        });
+        return;
+      }
+
+      const token = await alertChannel.getExpoPushToken();
+
+      if (token.state !== "active" || token.expoPushToken === undefined) {
+        setAlertChannelState(token.state);
+        setAlertChannelFeedback(token.reason ?? todayCopy.push.unavailable);
+        await repository.registerAlertDevice({
+          deviceId: "local-alert-device",
+          deviceLabel: "Celular do turno",
+          audienceRole: "shift_team",
+          permissionStatus: "unavailable",
+          registeredAt: now().toISOString(),
+        });
+        return;
+      }
+
+      await repository.registerAlertDevice({
+        deviceId: "local-alert-device",
+        deviceLabel: "Celular do turno",
+        audienceRole: "shift_team",
+        permissionStatus: "granted",
+        expoPushToken: token.expoPushToken,
+        registeredAt: now().toISOString(),
+      });
+      setAlertChannelState("active");
+      setAlertChannelFeedback(todayCopy.push.active);
+    } catch {
+      setAlertChannelState("failed");
+      setAlertChannelFeedback(todayCopy.push.failed);
+    } finally {
+      setIsRequestingAlerts(false);
+    }
+  }
+
+  async function acknowledgeEscalation(task: TodayTaskRecord): Promise<void> {
+    const alertState = alertStates.find((state) => state.taskId === task.id);
+
+    if (alertState === undefined) {
+      return;
+    }
+
+    const acknowledgedAt = now().toISOString();
+    const acknowledged = await repository.acknowledgeEscalation({
+      taskId: task.id,
+      taskActiveKey: task.activeKey,
+      actorLabel: "Lideranca local",
+      acknowledgedAt,
+    });
+
+    setAlertStates((current) =>
+      current.map((state) => (state.taskId === acknowledged.taskId ? acknowledged : state)),
+    );
+    setAcknowledgementFeedback(todayCopy.push.acknowledged(formatAlertTime(acknowledgedAt)));
+  }
 
   const salesAreaRiskCount = tasks.filter(isSalesAreaBlockingTask).length;
   const renderedAt = now();
@@ -115,6 +226,18 @@ export function TodayScreen({
       {refreshFeedback === undefined ? null : (
         <StatusNotice tone="success">{refreshFeedback}</StatusNotice>
       )}
+      {pushFallbackNotice === undefined ? null : (
+        <StatusNotice tone="info">{pushFallbackNotice}</StatusNotice>
+      )}
+      {acknowledgementFeedback === undefined ? null : (
+        <StatusNotice tone="success">{acknowledgementFeedback}</StatusNotice>
+      )}
+      <AlertChannelSurface
+        channelState={alertChannelState}
+        feedback={alertChannelFeedback}
+        isRequesting={isRequestingAlerts}
+        onActivate={() => void activateAlerts()}
+      />
 
       {tasks.length === 0 ? (
         <View style={styles.emptyState}>
@@ -132,7 +255,10 @@ export function TodayScreen({
                 <TodayTaskRow
                   key={task.id}
                   referenceTime={renderedAt}
+                  alertState={alertStates.find((state) => state.taskId === task.id)}
+                  highlighted={highlightedTaskId === task.id}
                   task={task}
+                  onAcknowledgeEscalation={() => void acknowledgeEscalation(task)}
                   onPress={() => {
                     if (onOpenTask === undefined) {
                       return;
@@ -158,7 +284,10 @@ export function TodayScreen({
                   <TodayTaskRow
                     key={task.id}
                     referenceTime={renderedAt}
+                    alertState={alertStates.find((state) => state.taskId === task.id)}
+                    highlighted={highlightedTaskId === task.id}
                     task={task}
+                    onAcknowledgeEscalation={() => void acknowledgeEscalation(task)}
                     onPress={() => {
                       if (onOpenTask === undefined) {
                         return;
@@ -195,10 +324,16 @@ export function TodayScreen({
 export function TodayTaskRow({
   task,
   onPress,
+  onAcknowledgeEscalation,
+  alertState,
+  highlighted = false,
   referenceTime = new Date(),
 }: {
   task: TodayTaskRecord;
   onPress: () => void;
+  onAcknowledgeEscalation?: (() => void) | undefined;
+  alertState?: TaskAlertStateRecord | undefined;
+  highlighted?: boolean;
   referenceTime?: Date;
 }) {
   const action = todayActionLabel(task);
@@ -216,6 +351,7 @@ export function TodayTaskRow({
       style={({ pressed }) => [
         styles.taskRow,
         isCritical ? styles.taskRowCritical : undefined,
+        highlighted ? styles.taskRowHighlighted : undefined,
         pressed ? (isCritical ? styles.taskRowCriticalPressed : styles.taskRowPressed) : undefined,
       ]}
     >
@@ -232,8 +368,170 @@ export function TodayTaskRow({
         <Text style={styles.taskMeta}>{location}</Text>
         <Text style={styles.taskMeta}>{due}</Text>
       </View>
+      {alertState === undefined ? null : (
+        <TaskAlertStatus
+          alertState={alertState}
+          onAcknowledgeEscalation={onAcknowledgeEscalation}
+          referenceTime={referenceTime}
+          task={task}
+        />
+      )}
     </Pressable>
   );
+}
+
+function AlertChannelSurface({
+  channelState,
+  feedback,
+  isRequesting,
+  onActivate,
+}: {
+  channelState: AlertChannelState;
+  feedback?: string | undefined;
+  isRequesting: boolean;
+  onActivate: () => void;
+}) {
+  if (channelState === "not_requested" || channelState === "requesting") {
+    return (
+      <View style={styles.pushPermissionCard}>
+        <Text style={styles.pushPermissionTitle}>{todayCopy.push.educationTitle}</Text>
+        <Text style={styles.pushPermissionBody}>{todayCopy.push.educationBody}</Text>
+        <PrimaryAction
+          disabled={isRequesting}
+          label={isRequesting ? "Preparando alertas" : todayCopy.push.activate}
+          onPress={onActivate}
+        />
+        <Text style={styles.pushPermissionBody}>{todayCopy.push.notNow}</Text>
+      </View>
+    );
+  }
+
+  const notice = channelNoticeFor(channelState, feedback);
+  const isError = channelState === "denied" || channelState === "unavailable" || channelState === "failed";
+
+  return (
+    <View style={[styles.alertNotice, isError ? styles.alertNoticeWarning : undefined]}>
+      <Text style={[styles.alertNoticeText, isError ? styles.alertNoticeWarningText : undefined]}>
+        {notice}
+      </Text>
+      {channelState === "active" ? null : (
+        <SecondaryAction
+          label={channelState === "denied" ? todayCopy.push.openSettings : todayCopy.push.retry}
+          onPress={onActivate}
+        />
+      )}
+    </View>
+  );
+}
+
+function TaskAlertStatus({
+  task,
+  alertState,
+  referenceTime,
+  onAcknowledgeEscalation,
+}: {
+  task: TodayTaskRecord;
+  alertState: TaskAlertStateRecord;
+  referenceTime: Date;
+  onAcknowledgeEscalation?: (() => void) | undefined;
+}) {
+  const isEscalated =
+    alertState.escalationState === "escalated" ||
+    alertState.escalationState === "leadership_acknowledged";
+  const status = alertStatusLabel(alertState, referenceTime);
+
+  return (
+    <View
+      style={[
+        styles.alertStatus,
+        isEscalated ? styles.alertStatusCritical : undefined,
+        alertState.attemptState === "retry_pending" ? styles.alertStatusWarning : undefined,
+      ]}
+    >
+      <Text
+        style={[
+          styles.alertStatusText,
+          isEscalated ? styles.alertStatusCriticalText : undefined,
+        ]}
+      >
+        {status}
+      </Text>
+      {isEscalated ? (
+        <Text style={styles.alertStatusText}>{todayCopy.push.escalatedAudience}</Text>
+      ) : null}
+      {alertState.escalationState === "escalated" ? (
+        <View style={styles.acknowledgementPanel}>
+          <Text style={styles.acknowledgementText}>
+            {task.productDisplayName} - lote {task.lotIdentity.value}
+          </Text>
+          <Text style={styles.acknowledgementText}>Responsavel: {task.ownerLabel}</Text>
+          {alertState.escalatedAt === undefined ? null : (
+            <Text style={styles.acknowledgementText}>
+              Escalada as {formatAlertTime(alertState.escalatedAt)}
+            </Text>
+          )}
+          <SecondaryAction
+            label={todayCopy.push.acknowledge}
+            onPress={() => {
+              onAcknowledgeEscalation?.();
+            }}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function channelNoticeFor(channelState: AlertChannelState, feedback: string | undefined): string {
+  if (feedback !== undefined) {
+    return feedback;
+  }
+
+  if (channelState === "active") {
+    return todayCopy.push.active;
+  }
+
+  if (channelState === "denied") {
+    return todayCopy.push.denied;
+  }
+
+  if (channelState === "failed") {
+    return todayCopy.push.failed;
+  }
+
+  return todayCopy.push.unavailable;
+}
+
+function alertStatusLabel(alertState: TaskAlertStateRecord, referenceTime: Date): string {
+  if (alertState.escalationState === "leadership_acknowledged") {
+    const acknowledgedAt = alertState.leadershipAcknowledgedAt ?? alertState.updatedAt;
+
+    return todayCopy.push.acknowledged(formatAlertTime(acknowledgedAt));
+  }
+
+  if (alertState.escalationState === "escalated") {
+    const escalatedAt = alertState.escalatedAt ?? alertState.updatedAt;
+
+    return todayCopy.push.escalatedAt(formatAlertTime(escalatedAt));
+  }
+
+  if (alertState.attemptState === "retry_pending") {
+    return todayCopy.push.retryPending;
+  }
+
+  if (alertState.attemptState === "failed" || alertState.attemptState === "exhausted") {
+    return todayCopy.push.failedStatus;
+  }
+
+  if (alertState.attemptState === "pending") {
+    return todayCopy.push.pending;
+  }
+
+  if (alertState.nextReminderAt !== undefined) {
+    return todayCopy.push.nextReminder(relativeReminderLabel(alertState.nextReminderAt, referenceTime));
+  }
+
+  return todayCopy.push.alertActive;
 }
 
 function SectionHeading({ title, count }: { title: string; count: number }) {
@@ -330,6 +628,10 @@ const styles = StyleSheet.create({
     backgroundColor: captureColors.criticalSurface,
     borderColor: captureColors.criticalBorder,
   },
+  taskRowHighlighted: {
+    borderColor: captureColors.accent,
+    borderWidth: 2,
+  },
   taskRowPressed: {
     backgroundColor: captureColors.surfacePressed,
   },
@@ -389,6 +691,76 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: captureSpacing.small,
     padding: captureSpacing.large,
+  },
+  pushPermissionCard: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  pushPermissionTitle: {
+    color: captureColors.ink,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 23,
+  },
+  pushPermissionBody: {
+    color: captureColors.warningInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  alertNotice: {
+    backgroundColor: captureColors.accentSoft,
+    borderColor: captureColors.accent,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  alertNoticeWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
+  alertNoticeText: {
+    color: captureColors.accent,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  alertNoticeWarningText: {
+    color: captureColors.warningInk,
+  },
+  alertStatus: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderRadius: captureRadii.small,
+    gap: captureSpacing.xsmall,
+    padding: captureSpacing.small,
+  },
+  alertStatusWarning: {
+    backgroundColor: captureColors.warningSurface,
+  },
+  alertStatusCritical: {
+    backgroundColor: captureColors.criticalTag,
+  },
+  alertStatusText: {
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  alertStatusCriticalText: {
+    color: captureColors.critical,
+    fontWeight: "700",
+  },
+  acknowledgementPanel: {
+    gap: captureSpacing.xsmall,
+    paddingTop: captureSpacing.xsmall,
+  },
+  acknowledgementText: {
+    color: captureColors.ink,
+    fontSize: 14,
+    lineHeight: 20,
   },
   sectionTitle: {
     color: captureColors.ink,

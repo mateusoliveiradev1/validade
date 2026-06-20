@@ -41,6 +41,13 @@ function createRepository(
     listFutureAttention: () => Promise.resolve([]),
     resolveTodayTask: () => Promise.reject(new Error("not used")),
     loadTodayTask: () => Promise.resolve(null),
+    registerAlertDevice: (input) => Promise.resolve(input),
+    loadAlertChannelState: () => Promise.resolve(null),
+    refreshTaskAlertStates: () => Promise.resolve([]),
+    listTaskAlertStates: () => Promise.resolve([]),
+    recordAlertAttempt: () => Promise.reject(new Error("not used")),
+    acknowledgeEscalation: () => Promise.reject(new Error("not used")),
+    resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
   };
 }
 

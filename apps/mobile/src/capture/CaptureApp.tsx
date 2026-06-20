@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { CaptureProductRecord, CaptureRepository } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
@@ -14,6 +14,7 @@ import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import type { TodayTaskRecord } from "@validade-zero/contracts";
+import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 
 type CaptureScreen =
   | "today"
@@ -27,7 +28,13 @@ type CaptureScreen =
   | "observation"
   | "barcode";
 
-export function CaptureApp({ repository }: { repository: CaptureRepository }) {
+export function CaptureApp({
+  repository,
+  alertChannel,
+}: {
+  repository: CaptureRepository;
+  alertChannel?: PushAlertChannel;
+}) {
   const [screen, setScreen] = useState<CaptureScreen>("today");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
   const [initialGtin, setInitialGtin] = useState<string | undefined>();
@@ -35,12 +42,57 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
   const [scannedLookup, setScannedLookup] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<TodayTaskRecord | undefined>();
+  const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>();
+  const resolvedAlertChannel = useMemo(
+    () => alertChannel ?? createExpoPushAlertChannel(),
+    [alertChannel],
+  );
 
   useEffect(() => {
     void repository.initialize().catch(() => {
       setInitializationError("Não foi possível preparar o registro local neste aparelho.");
     });
   }, [repository]);
+
+  useEffect(() => {
+    const subscription = resolvedAlertChannel.subscribeToNotificationResponses((payload) => {
+      void repository.resolvePushOpenIntent(payload).then(async (intent) => {
+        setPushFallbackNotice(undefined);
+        setHighlightedTaskId(undefined);
+
+        if (intent.result === "current_task") {
+          const task = await repository.loadTodayTask(intent.taskId);
+
+          if (task !== null && task.status === "active" && task.activeKey === intent.taskActiveKey) {
+            setSelectedTask(task);
+            setHighlightedTaskId(task.id);
+            setScreen("task-resolution");
+          }
+
+          return;
+        }
+
+        if (intent.result === "task_updated") {
+          setPushFallbackNotice("Esta pendencia foi atualizada. Abra a tarefa atual em Hoje.");
+        } else if (intent.result === "task_resolved") {
+          setPushFallbackNotice(
+            "Esta pendencia ja foi resolvida fisicamente. Confira as tarefas restantes.",
+          );
+        } else {
+          setPushFallbackNotice(
+            "Nao foi possivel abrir esta notificacao. Confira as tarefas ativas em Hoje.",
+          );
+        }
+
+        setScreen("today");
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [repository, resolvedAlertChannel]);
 
   if (screen === "today") {
     return (
@@ -49,10 +101,14 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
           <StatusNotice tone="error">{initializationError}</StatusNotice>
         )}
         <TodayScreen
+          alertChannel={resolvedAlertChannel}
+          highlightedTaskId={highlightedTaskId}
+          pushFallbackNotice={pushFallbackNotice}
           repository={repository}
           onRegisterLot={() => setScreen("discovery")}
           onOpenRecentLots={() => setScreen("recent")}
           onOpenTask={(task) => {
+            setPushFallbackNotice(undefined);
             setSelectedTask(task);
             setScreen("task-resolution");
           }}

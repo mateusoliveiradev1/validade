@@ -38,6 +38,20 @@ vi.mock("expo-camera", () => ({
   CameraView: () => null,
   useCameraPermissions: () => [{ granted: false }, () => Promise.resolve(false)],
 }));
+vi.mock("expo-notifications", () => ({
+  addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
+  cancelScheduledNotificationAsync: () => Promise.resolve(undefined),
+  getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-SMOKE" }),
+  getPermissionsAsync: () => Promise.resolve({ status: "undetermined" }),
+  requestPermissionsAsync: () => Promise.resolve({ status: "granted" }),
+  scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-smoke"),
+}));
+vi.mock("expo-constants", () => ({
+  default: {
+    easConfig: { projectId: "projeto-ficticio-smoke" },
+    expoConfig: { extra: { eas: { projectId: "projeto-ficticio-smoke" } } },
+  },
+}));
 vi.mock("@react-native-community/datetimepicker", () => ({
   default: () => null,
   DateTimePickerAndroid: { open: () => undefined },
@@ -58,6 +72,7 @@ describe("Validade Zero mobile smoke", () => {
 
     expect(rendered).toContain("Hoje");
     expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Ativar alertas do turno");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
   });
