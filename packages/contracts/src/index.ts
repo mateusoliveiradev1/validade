@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export * from "./capture";
 export * from "./tasks";
+export * from "./alerts";
 
 export const HEALTH_SERVICE_NAME = "validade-zero-api" as const;
 
