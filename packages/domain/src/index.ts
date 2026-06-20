@@ -18,4 +18,5 @@ export function describeDomainBoundary(): string {
 export * from "./presence";
 export * from "./profiles";
 export * from "./risk";
+export * from "./tasks";
 export * from "./types";
