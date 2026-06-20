@@ -119,5 +119,14 @@ describe("Today task derivation", () => {
     expect(isResolutionCompatible("withdraw_or_loss", "record_loss")).toBe(true);
     expect(isResolutionCompatible("request_markdown", "request_markdown")).toBe(true);
     expect(isResolutionCompatible("check_presence", "confirm_presence")).toBe(true);
+    expect(isResolutionCompatible("approve_markdown", "approve_markdown")).toBe(true);
+    expect(isResolutionCompatible("approve_markdown", "reject_markdown")).toBe(true);
+    expect(isResolutionCompatible("approve_markdown", "apply_markdown")).toBe(false);
+    expect(isResolutionCompatible("apply_markdown", "apply_markdown")).toBe(true);
+    expect(isResolutionCompatible("apply_markdown", "reject_markdown")).toBe(false);
+    expect(isResolutionCompatible("confirm_markdown_on_shelf", "confirm_markdown_on_shelf")).toBe(
+      true,
+    );
+    expect(isResolutionCompatible("confirm_markdown_on_shelf", "complete_recheck")).toBe(false);
   });
 });

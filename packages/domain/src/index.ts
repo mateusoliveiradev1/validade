@@ -19,5 +19,6 @@ export * from "./presence";
 export * from "./profiles";
 export * from "./risk";
 export * from "./alerts";
+export * from "./markdown";
 export * from "./tasks";
 export * from "./types";

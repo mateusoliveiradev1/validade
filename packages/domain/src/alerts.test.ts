@@ -187,4 +187,22 @@ describe("privacy-safe notification content", () => {
     expect(serialized).not.toContain("lote-ficticio-001");
     expect(serialized).not.toContain("lotidentity");
   });
+
+  it.each([
+    ["approve_markdown", "Aprovar rebaixa"],
+    ["apply_markdown", "Aplicar rebaixa"],
+    ["confirm_markdown_on_shelf", "Conferir etiqueta"],
+  ] as const)("uses privacy-safe markdown label for %s", (requiredResolution, action) => {
+    const content = createPrivacySafeNotificationContent(
+      task({
+        requiredResolution,
+        lotIdentity: "LOTE-SIGILOSO-FICTICIO",
+      }),
+    );
+    const serialized = JSON.stringify(content).toLowerCase();
+
+    expect(content.action).toBe(action);
+    expect(content.title).toBe(`${action}: Ovos Brancos FICTICIOS`);
+    expect(serialized).not.toContain("lote-sigiloso-ficticio");
+  });
 });

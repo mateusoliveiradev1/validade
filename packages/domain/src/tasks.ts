@@ -31,6 +31,9 @@ export const REQUIRED_RESOLUTIONS = [
   "withdraw_or_loss",
   "check_presence",
   "request_markdown",
+  "approve_markdown",
+  "apply_markdown",
+  "confirm_markdown_on_shelf",
   "sales_area_recheck",
 ] as const;
 
@@ -41,6 +44,10 @@ export const TASK_RESOLUTION_ACTIONS = [
   "record_loss",
   "confirm_presence",
   "request_markdown",
+  "approve_markdown",
+  "reject_markdown",
+  "apply_markdown",
+  "confirm_markdown_on_shelf",
   "mark_not_found",
   "mark_probably_sold_out",
   "move_lot",
@@ -219,6 +226,18 @@ export function compatibleActionsFor(
 
   if (requiredResolution === "request_markdown") {
     return ["request_markdown"];
+  }
+
+  if (requiredResolution === "approve_markdown") {
+    return ["approve_markdown", "reject_markdown"];
+  }
+
+  if (requiredResolution === "apply_markdown") {
+    return ["apply_markdown"];
+  }
+
+  if (requiredResolution === "confirm_markdown_on_shelf") {
+    return ["confirm_markdown_on_shelf"];
   }
 
   return ["complete_recheck", "confirm_presence"];

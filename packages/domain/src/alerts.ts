@@ -316,6 +316,18 @@ function actionLabelForResolution(requiredResolution: RequiredResolution): strin
     return "Solicitar rebaixa";
   }
 
+  if (requiredResolution === "approve_markdown") {
+    return "Aprovar rebaixa";
+  }
+
+  if (requiredResolution === "apply_markdown") {
+    return "Aplicar rebaixa";
+  }
+
+  if (requiredResolution === "confirm_markdown_on_shelf") {
+    return "Conferir etiqueta";
+  }
+
   if (requiredResolution === "sales_area_recheck") {
     return "Conferir area de venda";
   }
