@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4 - Today Task Workflow
 status: ready_to_plan
-stopped_at: Phase 4 context gathered
-last_updated: "2026-06-20T01:43:11.585Z"
+stopped_at: Phase 4 UI-SPEC approved
+last_updated: "2026-06-20T01:51:24.492Z"
 last_activity: 2026-06-20
-last_activity_desc: Phase 4 context captured; Today Task Workflow is ready for planning.
+last_activity_desc: Phase 4 UI-SPEC approved; Today Task Workflow is ready for executable planning.
 progress:
   total_phases: 9
   completed_phases: 3
@@ -23,7 +23,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Phase 4 context captured; Today Task Workflow is ready for planning.
+**Last activity:** 2026-06-20 - Phase 4 UI-SPEC approved; Today Task Workflow is ready for executable planning.
 
 ## Project Reference
 
@@ -85,9 +85,9 @@ Use `$gsd-plan-phase 4` to create the executable plan for the Today Task Workflo
 
 ## Session
 
-**Last session:** 2026-06-20T01:43:11.581Z
-**Stopped at:** Phase 4 context gathered
-**Resume file:** .planning/phases/04-today-task-workflow/04-CONTEXT.md
+**Last session:** 2026-06-20T01:51:24.488Z
+**Stopped at:** Phase 4 UI-SPEC approved
+**Resume file:** .planning/phases/04-today-task-workflow/04-UI-SPEC.md
 
 ## Decisions
 
