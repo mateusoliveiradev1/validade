@@ -8,7 +8,7 @@ import type {
   TodayTaskSection,
   TodayTaskSeverity,
 } from "./tasks";
-import type { RiskState } from "./types";
+import type { RiskReason, RiskState } from "./types";
 
 export const MARKDOWN_WORKFLOW_STATUSES = [
   "requested",
@@ -87,7 +87,7 @@ export interface MarkdownStageTaskCandidateInput {
   };
   sourceRisk: {
     state: "markdown_due";
-    reasons: readonly { code: "expires_in_15_days"; field?: string }[];
+    reasons: readonly RiskReason[];
   };
   observedAt: string;
   currentStage: Extract<MarkdownWorkflowStatus, "requested" | "approved" | "applied">;

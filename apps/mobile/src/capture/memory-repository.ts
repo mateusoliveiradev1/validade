@@ -3,12 +3,14 @@ import type {
   CaptureProductInput,
   DevicePushRegistrationCommand,
   FutureAttentionRecord,
+  MarkdownWorkflowRecord,
   PhysicalObservationInput,
   PushOpenIntent,
   TaskAlertStateRecord,
   TaskResolutionCommand,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
+import { canStartMarkdownWorkflow } from "@validade-zero/domain";
 import type {
   AcknowledgeEscalationInput,
   CaptureLotDetail,
@@ -24,20 +26,31 @@ import type {
   ResolvePushOpenIntentInput,
   RefreshTodayTasksInput,
   TodayTaskRefreshResult,
+  LoadMarkdownEntryStateInput,
+  MarkdownEntryState,
   SaveLotInput,
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
+  calculateAssessmentForLot,
   createFutureAttentionRecord,
   createInitialObservation,
+  createMarkdownStageTodayTaskRecord,
   createSalesAreaRecheckTask,
   createTodayTaskRecord,
+  deriveMarkdownEntryState,
   deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
+  maxPhysicalConfirmationAgeHoursForLot,
   nextGeneratedId,
   normalizeProductLookup,
+  parseMarkdownApplicationCommand,
+  parseMarkdownApprovalCommand,
+  parseMarkdownRequestCommand,
+  parseMarkdownShelfConfirmationCommand,
+  parseMarkdownWorkflowRecord,
   parseAlertDeliveryResult,
   parseAlertDeviceRegistration,
   parseLotId,
@@ -61,6 +74,7 @@ export function createMemoryCaptureRepository(
   const observations = new Map<string, CaptureObservationRecord[]>();
   const todayTasks = new Map<string, TodayTaskRecord>();
   const futureAttention = new Map<string, FutureAttentionRecord>();
+  const markdownWorkflows = new Map<string, MarkdownWorkflowRecord>();
   const alertDevices = new Map<string, DevicePushRegistrationCommand>();
   const taskAlertStates = new Map<string, TaskAlertStateRecord>();
   const alertAttempts: RecordAlertAttemptInput[] = [];
@@ -288,6 +302,13 @@ export function createMemoryCaptureRepository(
         continue;
       }
 
+      if (
+        candidate.requiredResolution === "request_markdown" &&
+        findActiveMarkdownWorkflow(detail.id) !== undefined
+      ) {
+        continue;
+      }
+
       const existing = [...todayTasks.values()].find(
         (task) => task.activeKey === candidate.activeKey,
       );
@@ -399,6 +420,354 @@ export function createMemoryCaptureRepository(
     const validatedTaskId = parseLotId(taskId);
 
     return Promise.resolve(todayTasks.get(validatedTaskId) ?? null);
+  }
+
+  async function requestMarkdown(input: Parameters<CaptureRepository["requestMarkdown"]>[0]) {
+    const command = parseMarkdownRequestCommand(input);
+    const detail = await requireLotDetail(command.lotId);
+    const existing = findActiveMarkdownWorkflow(command.lotId);
+
+    if (existing !== undefined) {
+      throw new Error(`An active markdown workflow already exists for lot ${command.lotId}.`);
+    }
+
+    const assessment = calculateAssessmentForLot({
+      lot: detail,
+      currentDate: command.occurredAt.slice(0, 10),
+      currentTimestamp: command.occurredAt,
+    });
+    const eligibility = canStartMarkdownWorkflow({
+      riskState: assessment.state,
+      physicalConfirmation: {
+        status: detail.currentObservation.status,
+        confirmedAt: detail.currentObservation.occurredAt,
+        ...(detail.currentObservation.quantityState === "estimated"
+          ? { approximateQuantity: detail.currentObservation.approximateQuantity }
+          : {}),
+      },
+      currentTimestamp: command.occurredAt,
+      maxPhysicalConfirmationAgeHours: maxPhysicalConfirmationAgeHoursForLot(detail),
+      requestReason: command.reason,
+      ...(command.earlyJustification === undefined
+        ? {}
+        : { earlyJustification: command.earlyJustification }),
+    });
+
+    if (eligibility.status === "blocked") {
+      throw new Error(eligibility.blocker.label);
+    }
+
+    if (command.sourceTaskId !== undefined) {
+      await resolveTodayTask({
+        taskId: command.sourceTaskId,
+        action: "request_markdown",
+        actorLabel: command.actorLabel,
+        occurredAt: command.occurredAt,
+      });
+    }
+
+    const workflow = parseMarkdownWorkflowRecord({
+      id: nextGeneratedId(dependencies),
+      lotId: command.lotId,
+      status: "requested",
+      currentStage: "requested",
+      requestedAt: command.occurredAt,
+      requestedBy: command.actorLabel,
+      requestReason: command.reason,
+      ...(command.earlyJustification === undefined
+        ? {}
+        : { earlyJustification: command.earlyJustification }),
+      stageHistory: [
+        {
+          stage: "requested",
+          action: "request_markdown",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          reason:
+            command.reason === "rule_window"
+              ? "Janela de rebaixa"
+              : command.earlyJustification,
+        },
+      ],
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+    const task = createMarkdownStageTodayTaskRecord({
+      workflow,
+      lot: detail,
+      assessment,
+      id: nextGeneratedId(dependencies),
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+
+    markdownWorkflows.set(workflow.id, workflow);
+    todayTasks.set(task.id, task);
+
+    return workflow;
+  }
+
+  async function decideMarkdown(input: Parameters<CaptureRepository["decideMarkdown"]>[0]) {
+    const command = parseMarkdownApprovalCommand(input);
+    const workflow = requireWorkflow(command.workflowId, "requested");
+    const detail = await requireLotDetail(workflow.lotId);
+
+    await requireMarkdownTask(command.taskId, workflow.id, "approve_markdown");
+    await resolveTodayTask({
+      taskId: command.taskId,
+      action: command.decision === "approved" ? "approve_markdown" : "reject_markdown",
+      actorLabel: command.actorLabel,
+      occurredAt: command.occurredAt,
+    });
+
+    const updated =
+      command.decision === "approved"
+        ? parseMarkdownWorkflowRecord({
+            ...workflow,
+            status: "approved",
+            currentStage: "approved",
+            approvedAt: command.occurredAt,
+            approvedBy: command.actorLabel,
+            updatedAt: command.occurredAt,
+            stageHistory: [
+              ...workflow.stageHistory,
+              {
+                stage: "approved",
+                action: "approve_markdown",
+                actorLabel: command.actorLabel,
+                occurredAt: command.occurredAt,
+              },
+            ],
+          })
+        : parseMarkdownWorkflowRecord({
+            ...workflow,
+            status: "rejected",
+            currentStage: "rejected",
+            rejectedAt: command.occurredAt,
+            rejectedBy: command.actorLabel,
+            rejectionReason: command.rejectionReason,
+            updatedAt: command.occurredAt,
+            stageHistory: [
+              ...workflow.stageHistory,
+              {
+                stage: "rejected",
+                action: "reject_markdown",
+                actorLabel: command.actorLabel,
+                occurredAt: command.occurredAt,
+                reason: command.rejectionReason,
+              },
+            ],
+          });
+
+    markdownWorkflows.set(updated.id, updated);
+
+    if (updated.currentStage === "approved") {
+      const assessment = calculateAssessmentForLot({
+        lot: detail,
+        currentDate: command.occurredAt.slice(0, 10),
+        currentTimestamp: command.occurredAt,
+      });
+      const task = createMarkdownStageTodayTaskRecord({
+        workflow: updated,
+        lot: detail,
+        assessment,
+        id: nextGeneratedId(dependencies),
+        createdAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+      });
+
+      todayTasks.set(task.id, task);
+    }
+
+    return updated;
+  }
+
+  async function recordMarkdownApplication(
+    input: Parameters<CaptureRepository["recordMarkdownApplication"]>[0],
+  ) {
+    const command = parseMarkdownApplicationCommand(input);
+    const workflow = requireWorkflow(command.workflowId, "approved");
+    const detail = await requireLotDetail(workflow.lotId);
+
+    await requireMarkdownTask(command.taskId, workflow.id, "apply_markdown");
+    await resolveTodayTask({
+      taskId: command.taskId,
+      action: "apply_markdown",
+      actorLabel: command.actorLabel,
+      occurredAt: command.occurredAt,
+      evidence: command.evidence,
+    });
+
+    const updated = parseMarkdownWorkflowRecord({
+      ...workflow,
+      status: "applied",
+      currentStage: "applied",
+      appliedAt: command.occurredAt,
+      appliedBy: command.actorLabel,
+      applicationEvidence: command.evidence,
+      updatedAt: command.occurredAt,
+      stageHistory: [
+        ...workflow.stageHistory,
+        {
+          stage: "applied",
+          action: "apply_markdown",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          evidence: command.evidence,
+        },
+      ],
+    });
+    const assessment = calculateAssessmentForLot({
+      lot: detail,
+      currentDate: command.occurredAt.slice(0, 10),
+      currentTimestamp: command.occurredAt,
+    });
+    const task = createMarkdownStageTodayTaskRecord({
+      workflow: updated,
+      lot: detail,
+      assessment,
+      id: nextGeneratedId(dependencies),
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+
+    markdownWorkflows.set(updated.id, updated);
+    todayTasks.set(task.id, task);
+
+    return updated;
+  }
+
+  async function confirmMarkdownOnShelf(
+    input: Parameters<CaptureRepository["confirmMarkdownOnShelf"]>[0],
+  ) {
+    const command = parseMarkdownShelfConfirmationCommand(input);
+    const workflow = requireWorkflow(command.workflowId, "applied");
+
+    await requireMarkdownTask(command.taskId, workflow.id, "confirm_markdown_on_shelf");
+    await resolveTodayTask({
+      taskId: command.taskId,
+      action: "confirm_markdown_on_shelf",
+      actorLabel: command.actorLabel,
+      occurredAt: command.occurredAt,
+      evidence: command.evidence,
+    });
+
+    const updated = parseMarkdownWorkflowRecord({
+      ...workflow,
+      status: "shelf_confirmed",
+      currentStage: "shelf_confirmed",
+      shelfConfirmedAt: command.occurredAt,
+      shelfConfirmedBy: command.actorLabel,
+      shelfConfirmationEvidence: command.evidence,
+      updatedAt: command.occurredAt,
+      stageHistory: [
+        ...workflow.stageHistory,
+        {
+          stage: "shelf_confirmed",
+          action: "confirm_markdown_on_shelf",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          evidence: command.evidence,
+        },
+      ],
+    });
+
+    markdownWorkflows.set(updated.id, updated);
+
+    return updated;
+  }
+
+  function loadMarkdownWorkflowForLot(lotId: string): Promise<MarkdownWorkflowRecord | null> {
+    const validatedLotId = parseLotId(lotId);
+    const workflows = [...markdownWorkflows.values()]
+      .filter((workflow) => workflow.lotId === validatedLotId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+    return Promise.resolve(workflows.find(isActiveMarkdownWorkflow) ?? workflows[0] ?? null);
+  }
+
+  function listActiveMarkdownWorkflows(): Promise<readonly MarkdownWorkflowRecord[]> {
+    return Promise.resolve(
+      [...markdownWorkflows.values()]
+        .filter(isActiveMarkdownWorkflow)
+        .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)),
+    );
+  }
+
+  async function loadMarkdownEntryState(
+    input: LoadMarkdownEntryStateInput,
+  ): Promise<MarkdownEntryState> {
+    const lot = await requireLotDetail(input.lotId);
+    const activeWorkflow = findActiveMarkdownWorkflow(lot.id);
+    const assessment = calculateAssessmentForLot({
+      lot,
+      currentDate: input.currentDate,
+      currentTimestamp: input.currentTimestamp,
+    });
+
+    return deriveMarkdownEntryState({
+      lot,
+      assessment,
+      ...(activeWorkflow === undefined ? {} : { activeWorkflow }),
+      currentTimestamp: input.currentTimestamp,
+    });
+  }
+
+  async function requireLotDetail(lotId: string): Promise<CaptureLotDetail> {
+    const detail = await loadLotDetail(lotId);
+
+    if (detail === null) {
+      throw new Error(`Cannot load markdown workflow for an unknown lot: ${lotId}`);
+    }
+
+    return detail;
+  }
+
+  function findActiveMarkdownWorkflow(lotId: string): MarkdownWorkflowRecord | undefined {
+    return [...markdownWorkflows.values()].find(
+      (workflow) => workflow.lotId === lotId && isActiveMarkdownWorkflow(workflow),
+    );
+  }
+
+  function requireWorkflow(
+    workflowId: string,
+    expectedStage: MarkdownWorkflowRecord["currentStage"],
+  ): MarkdownWorkflowRecord {
+    const workflow = markdownWorkflows.get(parseLotId(workflowId));
+
+    if (workflow === undefined) {
+      throw new Error(`Cannot advance an unknown markdown workflow: ${workflowId}`);
+    }
+
+    if (workflow.currentStage !== expectedStage || !isActiveMarkdownWorkflow(workflow)) {
+      throw new Error(
+        `Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`,
+      );
+    }
+
+    return workflow;
+  }
+
+  async function requireMarkdownTask(
+    taskId: string,
+    workflowId: string,
+    requiredResolution: TodayTaskRecord["requiredResolution"],
+  ): Promise<TodayTaskRecord> {
+    const task = await loadTodayTask(taskId);
+
+    if (task === null) {
+      throw new Error(`Cannot resolve an unknown markdown task: ${taskId}`);
+    }
+
+    if (
+      task.status !== "active" ||
+      task.markdownWorkflowId !== workflowId ||
+      task.requiredResolution !== requiredResolution
+    ) {
+      throw new Error(`Task ${taskId} is not the active ${requiredResolution} markdown task.`);
+    }
+
+    return task;
   }
 
   function registerAlertDevice(
@@ -555,6 +924,13 @@ export function createMemoryCaptureRepository(
     listFutureAttention,
     resolveTodayTask,
     loadTodayTask,
+    requestMarkdown,
+    decideMarkdown,
+    recordMarkdownApplication,
+    confirmMarkdownOnShelf,
+    loadMarkdownWorkflowForLot,
+    listActiveMarkdownWorkflows,
+    loadMarkdownEntryState,
     registerAlertDevice,
     loadAlertChannelState,
     refreshTaskAlertStates,
@@ -567,4 +943,8 @@ export function createMemoryCaptureRepository(
 
 function isActiveTask(task: TodayTaskRecord): boolean {
   return task.status === "active";
+}
+
+function isActiveMarkdownWorkflow(workflow: MarkdownWorkflowRecord): boolean {
+  return workflow.status !== "rejected" && workflow.status !== "shelf_confirmed";
 }

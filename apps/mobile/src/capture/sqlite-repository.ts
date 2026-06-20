@@ -4,6 +4,7 @@ import {
   CaptureProductInputSchema,
   DevicePushRegistrationCommandSchema,
   FutureAttentionRecordSchema,
+  MarkdownWorkflowRecordSchema,
   OperationalLocationSchema,
   PhysicalObservationInputSchema,
   PushOpenIntentSchema,
@@ -12,6 +13,7 @@ import {
   type CaptureProductInput,
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
+  type MarkdownWorkflowRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
   type PushOpenIntent,
@@ -41,14 +43,22 @@ import {
   assertRecheckResolutionHasEvidence,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
+  calculateAssessmentForLot,
   createFutureAttentionRecord,
   createInitialObservation,
+  createMarkdownStageTodayTaskRecord,
   createSalesAreaRecheckTask,
   createTodayTaskRecord,
+  deriveMarkdownEntryState,
   deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
+  maxPhysicalConfirmationAgeHoursForLot,
   nextGeneratedId,
   normalizeProductLookup,
+  parseMarkdownApplicationCommand,
+  parseMarkdownApprovalCommand,
+  parseMarkdownRequestCommand,
+  parseMarkdownShelfConfirmationCommand,
   parseLotId,
   parseLotInput,
   parseObservationInput,
@@ -61,6 +71,7 @@ import {
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
+import { canStartMarkdownWorkflow } from "@validade-zero/domain";
 
 interface ProductRow {
   id: string;
@@ -141,8 +152,35 @@ interface TodayTaskRow {
   updated_at: string;
   resolved_at: string | null;
   recheck_parent_id: string | null;
+  markdown_workflow_id: string | null;
+  markdown_stage: string | null;
   responsible_actor_label: string | null;
   resolution_history_json: string | null;
+}
+
+interface MarkdownWorkflowRow {
+  id: string;
+  lot_id: string;
+  status: string;
+  current_stage: string;
+  request_reason: string;
+  early_justification: string | null;
+  requested_at: string;
+  requested_by: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  rejected_at: string | null;
+  rejected_by: string | null;
+  rejection_reason: string | null;
+  applied_at: string | null;
+  applied_by: string | null;
+  application_evidence_json: string | null;
+  shelf_confirmed_at: string | null;
+  shelf_confirmed_by: string | null;
+  shelf_confirmation_evidence_json: string | null;
+  stage_history_json: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface FutureAttentionRow {
@@ -577,6 +615,13 @@ export function createSQLiteCaptureRepository(
         continue;
       }
 
+      if (
+        candidate.requiredResolution === "request_markdown" &&
+        (await findActiveMarkdownWorkflow(db, detail.id)) !== null
+      ) {
+        continue;
+      }
+
       const existing = await db.getFirstAsync<TodayTaskRow>(
         "SELECT * FROM today_tasks WHERE active_key = ?",
         candidate.activeKey,
@@ -642,6 +687,433 @@ export function createSQLiteCaptureRepository(
     await initialize();
     const command = parseTaskResolutionCommand(input);
     const db = await getDatabase();
+    let resolved: TodayTaskRecord | undefined;
+
+    await db.withTransactionAsync(async () => {
+      resolved = await resolveTaskInTransaction(db, command, { allowSalesAreaRecheck: true });
+    });
+
+    if (resolved === undefined) {
+      throw new Error("Today task resolution did not complete.");
+    }
+
+    return resolved;
+  }
+
+  async function loadTodayTask(taskId: string): Promise<TodayTaskRecord | null> {
+    await initialize();
+    const validatedTaskId = parseLotId(taskId);
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      validatedTaskId,
+    );
+
+    return row === null ? null : mapTodayTask(row);
+  }
+
+  async function requestMarkdown(input: Parameters<CaptureRepository["requestMarkdown"]>[0]) {
+    await initialize();
+    const command = parseMarkdownRequestCommand(input);
+    const detail = await requireLotDetail(command.lotId);
+    const assessment = calculateAssessmentForLot({
+      lot: detail,
+      currentDate: command.occurredAt.slice(0, 10),
+      currentTimestamp: command.occurredAt,
+    });
+    const eligibility = canStartMarkdownWorkflow({
+      riskState: assessment.state,
+      physicalConfirmation: {
+        status: detail.currentObservation.status,
+        confirmedAt: detail.currentObservation.occurredAt,
+        ...(detail.currentObservation.quantityState === "estimated"
+          ? { approximateQuantity: detail.currentObservation.approximateQuantity }
+          : {}),
+      },
+      currentTimestamp: command.occurredAt,
+      maxPhysicalConfirmationAgeHours: maxPhysicalConfirmationAgeHoursForLot(detail),
+      requestReason: command.reason,
+      ...(command.earlyJustification === undefined
+        ? {}
+        : { earlyJustification: command.earlyJustification }),
+    });
+
+    if (eligibility.status === "blocked") {
+      throw new Error(eligibility.blocker.label);
+    }
+
+    const db = await getDatabase();
+    const existing = await findActiveMarkdownWorkflow(db, command.lotId);
+
+    if (existing !== null) {
+      throw new Error(`An active markdown workflow already exists for lot ${command.lotId}.`);
+    }
+
+    const workflow = MarkdownWorkflowRecordSchema.parse({
+      id: nextGeneratedId(dependencies),
+      lotId: command.lotId,
+      status: "requested",
+      currentStage: "requested",
+      requestedAt: command.occurredAt,
+      requestedBy: command.actorLabel,
+      requestReason: command.reason,
+      ...(command.earlyJustification === undefined
+        ? {}
+        : { earlyJustification: command.earlyJustification }),
+      stageHistory: [
+        {
+          stage: "requested",
+          action: "request_markdown",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          reason:
+            command.reason === "rule_window"
+              ? "Janela de rebaixa"
+              : command.earlyJustification,
+        },
+      ],
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+    const task = createMarkdownStageTodayTaskRecord({
+      workflow,
+      lot: detail,
+      assessment,
+      id: nextGeneratedId(dependencies),
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+
+    await db.withTransactionAsync(async () => {
+      if (command.sourceTaskId !== undefined) {
+        await resolveTaskInTransaction(
+          db,
+          {
+            taskId: command.sourceTaskId,
+            action: "request_markdown",
+            actorLabel: command.actorLabel,
+            occurredAt: command.occurredAt,
+          },
+          { allowSalesAreaRecheck: false },
+        );
+      }
+
+      await upsertMarkdownWorkflow(db, workflow);
+      await upsertTodayTask(db, task);
+    });
+
+    return workflow;
+  }
+
+  async function decideMarkdown(input: Parameters<CaptureRepository["decideMarkdown"]>[0]) {
+    await initialize();
+    const command = parseMarkdownApprovalCommand(input);
+    const db = await getDatabase();
+    const workflow = await requireWorkflow(db, command.workflowId, "requested");
+    const detail = await requireLotDetail(workflow.lotId);
+    const updated =
+      command.decision === "approved"
+        ? MarkdownWorkflowRecordSchema.parse({
+            ...workflow,
+            status: "approved",
+            currentStage: "approved",
+            approvedAt: command.occurredAt,
+            approvedBy: command.actorLabel,
+            updatedAt: command.occurredAt,
+            stageHistory: [
+              ...workflow.stageHistory,
+              {
+                stage: "approved",
+                action: "approve_markdown",
+                actorLabel: command.actorLabel,
+                occurredAt: command.occurredAt,
+              },
+            ],
+          })
+        : MarkdownWorkflowRecordSchema.parse({
+            ...workflow,
+            status: "rejected",
+            currentStage: "rejected",
+            rejectedAt: command.occurredAt,
+            rejectedBy: command.actorLabel,
+            rejectionReason: command.rejectionReason,
+            updatedAt: command.occurredAt,
+            stageHistory: [
+              ...workflow.stageHistory,
+              {
+                stage: "rejected",
+                action: "reject_markdown",
+                actorLabel: command.actorLabel,
+                occurredAt: command.occurredAt,
+                reason: command.rejectionReason,
+              },
+            ],
+          });
+    const nextTask =
+      updated.currentStage === "approved"
+        ? createMarkdownStageTodayTaskRecord({
+            workflow: updated,
+            lot: detail,
+            assessment: calculateAssessmentForLot({
+              lot: detail,
+              currentDate: command.occurredAt.slice(0, 10),
+              currentTimestamp: command.occurredAt,
+            }),
+            id: nextGeneratedId(dependencies),
+            createdAt: command.occurredAt,
+            updatedAt: command.occurredAt,
+          })
+        : undefined;
+
+    await db.withTransactionAsync(async () => {
+      await resolveMarkdownTaskInTransaction(db, command.taskId, workflow.id, "approve_markdown", {
+        taskId: command.taskId,
+        action: command.decision === "approved" ? "approve_markdown" : "reject_markdown",
+        actorLabel: command.actorLabel,
+        occurredAt: command.occurredAt,
+      });
+      await upsertMarkdownWorkflow(db, updated);
+
+      if (nextTask !== undefined) {
+        await upsertTodayTask(db, nextTask);
+      }
+    });
+
+    return updated;
+  }
+
+  async function recordMarkdownApplication(
+    input: Parameters<CaptureRepository["recordMarkdownApplication"]>[0],
+  ) {
+    await initialize();
+    const command = parseMarkdownApplicationCommand(input);
+    const db = await getDatabase();
+    const workflow = await requireWorkflow(db, command.workflowId, "approved");
+    const detail = await requireLotDetail(workflow.lotId);
+    const updated = MarkdownWorkflowRecordSchema.parse({
+      ...workflow,
+      status: "applied",
+      currentStage: "applied",
+      appliedAt: command.occurredAt,
+      appliedBy: command.actorLabel,
+      applicationEvidence: command.evidence,
+      updatedAt: command.occurredAt,
+      stageHistory: [
+        ...workflow.stageHistory,
+        {
+          stage: "applied",
+          action: "apply_markdown",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          evidence: command.evidence,
+        },
+      ],
+    });
+    const nextTask = createMarkdownStageTodayTaskRecord({
+      workflow: updated,
+      lot: detail,
+      assessment: calculateAssessmentForLot({
+        lot: detail,
+        currentDate: command.occurredAt.slice(0, 10),
+        currentTimestamp: command.occurredAt,
+      }),
+      id: nextGeneratedId(dependencies),
+      createdAt: command.occurredAt,
+      updatedAt: command.occurredAt,
+    });
+
+    await db.withTransactionAsync(async () => {
+      await resolveMarkdownTaskInTransaction(db, command.taskId, workflow.id, "apply_markdown", {
+        taskId: command.taskId,
+        action: "apply_markdown",
+        actorLabel: command.actorLabel,
+        occurredAt: command.occurredAt,
+        evidence: command.evidence,
+      });
+      await upsertMarkdownWorkflow(db, updated);
+      await upsertTodayTask(db, nextTask);
+    });
+
+    return updated;
+  }
+
+  async function confirmMarkdownOnShelf(
+    input: Parameters<CaptureRepository["confirmMarkdownOnShelf"]>[0],
+  ) {
+    await initialize();
+    const command = parseMarkdownShelfConfirmationCommand(input);
+    const db = await getDatabase();
+    const workflow = await requireWorkflow(db, command.workflowId, "applied");
+    const updated = MarkdownWorkflowRecordSchema.parse({
+      ...workflow,
+      status: "shelf_confirmed",
+      currentStage: "shelf_confirmed",
+      shelfConfirmedAt: command.occurredAt,
+      shelfConfirmedBy: command.actorLabel,
+      shelfConfirmationEvidence: command.evidence,
+      updatedAt: command.occurredAt,
+      stageHistory: [
+        ...workflow.stageHistory,
+        {
+          stage: "shelf_confirmed",
+          action: "confirm_markdown_on_shelf",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          evidence: command.evidence,
+        },
+      ],
+    });
+
+    await db.withTransactionAsync(async () => {
+      await resolveMarkdownTaskInTransaction(
+        db,
+        command.taskId,
+        workflow.id,
+        "confirm_markdown_on_shelf",
+        {
+          taskId: command.taskId,
+          action: "confirm_markdown_on_shelf",
+          actorLabel: command.actorLabel,
+          occurredAt: command.occurredAt,
+          evidence: command.evidence,
+        },
+      );
+      await upsertMarkdownWorkflow(db, updated);
+    });
+
+    return updated;
+  }
+
+  async function loadMarkdownWorkflowForLot(lotId: string): Promise<MarkdownWorkflowRecord | null> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<MarkdownWorkflowRow>(
+      `SELECT * FROM markdown_workflows
+       WHERE lot_id = ?
+       ORDER BY updated_at DESC`,
+      parseLotId(lotId),
+    );
+    const workflows = rows.map(mapMarkdownWorkflow);
+
+    return workflows.find(isActiveMarkdownWorkflow) ?? workflows[0] ?? null;
+  }
+
+  async function listActiveMarkdownWorkflows(): Promise<readonly MarkdownWorkflowRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<MarkdownWorkflowRow>(
+      `SELECT * FROM markdown_workflows
+       WHERE status NOT IN ('rejected', 'shelf_confirmed')
+       ORDER BY updated_at ASC`,
+    );
+
+    return rows.map(mapMarkdownWorkflow);
+  }
+
+  async function loadMarkdownEntryState(
+    input: Parameters<CaptureRepository["loadMarkdownEntryState"]>[0],
+  ) {
+    await initialize();
+    const lot = await requireLotDetail(input.lotId);
+    const db = await getDatabase();
+    const activeWorkflow = await findActiveMarkdownWorkflow(db, lot.id);
+
+    return deriveMarkdownEntryState({
+      lot,
+      assessment: calculateAssessmentForLot({
+        lot,
+        currentDate: input.currentDate,
+        currentTimestamp: input.currentTimestamp,
+      }),
+      ...(activeWorkflow === null ? {} : { activeWorkflow }),
+      currentTimestamp: input.currentTimestamp,
+    });
+  }
+
+  async function requireLotDetail(lotId: string): Promise<CaptureLotDetail> {
+    const detail = await loadLotDetail(lotId);
+
+    if (detail === null) {
+      throw new Error(`Cannot load markdown workflow for an unknown lot: ${lotId}`);
+    }
+
+    return detail;
+  }
+
+  async function findActiveMarkdownWorkflow(
+    db: SQLite.SQLiteDatabase,
+    lotId: string,
+  ): Promise<MarkdownWorkflowRecord | null> {
+    const row = await db.getFirstAsync<MarkdownWorkflowRow>(
+      `SELECT * FROM markdown_workflows
+       WHERE lot_id = ? AND status NOT IN ('rejected', 'shelf_confirmed')
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      parseLotId(lotId),
+    );
+
+    return row === null ? null : mapMarkdownWorkflow(row);
+  }
+
+  async function requireWorkflow(
+    db: SQLite.SQLiteDatabase,
+    workflowId: string,
+    expectedStage: MarkdownWorkflowRecord["currentStage"],
+  ): Promise<MarkdownWorkflowRecord> {
+    const row = await db.getFirstAsync<MarkdownWorkflowRow>(
+      "SELECT * FROM markdown_workflows WHERE id = ?",
+      parseLotId(workflowId),
+    );
+
+    if (row === null) {
+      throw new Error(`Cannot advance an unknown markdown workflow: ${workflowId}`);
+    }
+
+    const workflow = mapMarkdownWorkflow(row);
+
+    if (workflow.currentStage !== expectedStage || !isActiveMarkdownWorkflow(workflow)) {
+      throw new Error(
+        `Markdown workflow ${workflowId} is not waiting at stage ${expectedStage}.`,
+      );
+    }
+
+    return workflow;
+  }
+
+  async function resolveMarkdownTaskInTransaction(
+    db: SQLite.SQLiteDatabase,
+    taskId: string,
+    workflowId: string,
+    requiredResolution: TodayTaskRecord["requiredResolution"],
+    command: TaskResolutionCommand,
+  ): Promise<TodayTaskRecord> {
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      parseLotId(taskId),
+    );
+
+    if (row === null) {
+      throw new Error(`Cannot resolve an unknown markdown task: ${taskId}`);
+    }
+
+    const task = mapTodayTask(row);
+
+    if (
+      task.status !== "active" ||
+      task.markdownWorkflowId !== workflowId ||
+      task.requiredResolution !== requiredResolution
+    ) {
+      throw new Error(`Task ${taskId} is not the active ${requiredResolution} markdown task.`);
+    }
+
+    return resolveTaskInTransaction(db, command, { allowSalesAreaRecheck: false });
+  }
+
+  async function resolveTaskInTransaction(
+    db: SQLite.SQLiteDatabase,
+    command: TaskResolutionCommand,
+    options: { allowSalesAreaRecheck: boolean },
+  ): Promise<TodayTaskRecord> {
     const existingRow = await db.getFirstAsync<TodayTaskRow>(
       "SELECT * FROM today_tasks WHERE id = ?",
       command.taskId,
@@ -672,34 +1144,20 @@ export function createSQLiteCaptureRepository(
       resolutionHistory,
     });
 
-    await db.withTransactionAsync(async () => {
-      await upsertTodayTask(db, resolved);
+    await upsertTodayTask(db, resolved);
 
-      if (shouldCreateSalesAreaRecheck(existing, command)) {
-        await upsertTodayTask(
-          db,
-          createSalesAreaRecheckTask({
-            parentTask: existing,
-            id: nextGeneratedId(dependencies),
-            occurredAt: command.occurredAt,
-          }),
-        );
-      }
-    });
+    if (options.allowSalesAreaRecheck && shouldCreateSalesAreaRecheck(existing, command)) {
+      await upsertTodayTask(
+        db,
+        createSalesAreaRecheckTask({
+          parentTask: existing,
+          id: nextGeneratedId(dependencies),
+          occurredAt: command.occurredAt,
+        }),
+      );
+    }
 
     return resolved;
-  }
-
-  async function loadTodayTask(taskId: string): Promise<TodayTaskRecord | null> {
-    await initialize();
-    const validatedTaskId = parseLotId(taskId);
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<TodayTaskRow>(
-      "SELECT * FROM today_tasks WHERE id = ?",
-      validatedTaskId,
-    );
-
-    return row === null ? null : mapTodayTask(row);
   }
 
   async function registerAlertDevice(
@@ -926,6 +1384,13 @@ export function createSQLiteCaptureRepository(
     listFutureAttention,
     resolveTodayTask,
     loadTodayTask,
+    requestMarkdown,
+    decideMarkdown,
+    recordMarkdownApplication,
+    confirmMarkdownOnShelf,
+    loadMarkdownWorkflowForLot,
+    listActiveMarkdownWorkflows,
+    loadMarkdownEntryState,
     registerAlertDevice,
     loadAlertChannelState,
     refreshTaskAlertStates,
@@ -1015,6 +1480,8 @@ async function initializeDatabase(
       updated_at TEXT NOT NULL,
       resolved_at TEXT,
       recheck_parent_id TEXT,
+      markdown_workflow_id TEXT,
+      markdown_stage TEXT,
       responsible_actor_label TEXT,
       resolution_history_json TEXT,
       FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
@@ -1029,6 +1496,31 @@ async function initializeDatabase(
       current_location_custom_name TEXT,
       source_risk_reasons_json TEXT NOT NULL,
       observed_at TEXT NOT NULL,
+      FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
+    );
+    CREATE TABLE IF NOT EXISTS markdown_workflows (
+      id TEXT PRIMARY KEY NOT NULL,
+      lot_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      current_stage TEXT NOT NULL,
+      request_reason TEXT NOT NULL,
+      early_justification TEXT,
+      requested_at TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      approved_at TEXT,
+      approved_by TEXT,
+      rejected_at TEXT,
+      rejected_by TEXT,
+      rejection_reason TEXT,
+      applied_at TEXT,
+      applied_by TEXT,
+      application_evidence_json TEXT,
+      shelf_confirmed_at TEXT,
+      shelf_confirmed_by TEXT,
+      shelf_confirmation_evidence_json TEXT,
+      stage_history_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
       FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
     );
     CREATE TABLE IF NOT EXISTS device_alert_channels (
@@ -1088,6 +1580,12 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
     CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
     CREATE INDEX IF NOT EXISTS today_future_attention_lot_idx ON today_future_attention(lot_id);
+    CREATE INDEX IF NOT EXISTS markdown_workflows_lot_status_idx
+      ON markdown_workflows(lot_id, status);
+    CREATE INDEX IF NOT EXISTS markdown_workflows_current_stage_idx
+      ON markdown_workflows(current_stage);
+    CREATE INDEX IF NOT EXISTS markdown_workflows_updated_at_idx
+      ON markdown_workflows(updated_at DESC);
     CREATE INDEX IF NOT EXISTS task_alert_states_task_id_active_key_idx
       ON task_alert_states(task_id, task_active_key);
     CREATE INDEX IF NOT EXISTS task_alert_states_attempt_state_next_reminder_idx
@@ -1145,9 +1643,9 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
       id, active_key, lot_id, product_display_name, lot_identity_source, lot_identity_value,
       current_location_kind, current_location_custom_name, risk_state, severity, due_bucket,
       required_resolution, section, owner_label, status, source_risk_json, priority,
-      created_at, updated_at, resolved_at, recheck_parent_id, responsible_actor_label,
-      resolution_history_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_at, updated_at, resolved_at, recheck_parent_id, markdown_workflow_id,
+      markdown_stage, responsible_actor_label, resolution_history_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       active_key = excluded.active_key,
       lot_id = excluded.lot_id,
@@ -1168,6 +1666,8 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
       updated_at = excluded.updated_at,
       resolved_at = excluded.resolved_at,
       recheck_parent_id = excluded.recheck_parent_id,
+      markdown_workflow_id = excluded.markdown_workflow_id,
+      markdown_stage = excluded.markdown_stage,
       responsible_actor_label = excluded.responsible_actor_label,
       resolution_history_json = excluded.resolution_history_json`,
     task.id,
@@ -1191,6 +1691,8 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
     task.updatedAt,
     task.resolvedAt ?? null,
     task.recheckParentId ?? null,
+    task.markdownWorkflowId ?? null,
+    task.markdownStage ?? null,
     task.responsibleActorLabel ?? null,
     task.resolutionHistory === undefined ? null : JSON.stringify(task.resolutionHistory),
   );
@@ -1223,6 +1725,66 @@ async function upsertFutureAttention(
     record.currentLocation.kind === "other" ? record.currentLocation.customName : null,
     JSON.stringify(record.sourceRiskReasons),
     record.observedAt,
+  );
+}
+
+async function upsertMarkdownWorkflow(
+  db: SQLite.SQLiteDatabase,
+  workflow: MarkdownWorkflowRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO markdown_workflows (
+      id, lot_id, status, current_stage, request_reason, early_justification,
+      requested_at, requested_by, approved_at, approved_by, rejected_at, rejected_by,
+      rejection_reason, applied_at, applied_by, application_evidence_json,
+      shelf_confirmed_at, shelf_confirmed_by, shelf_confirmation_evidence_json,
+      stage_history_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      lot_id = excluded.lot_id,
+      status = excluded.status,
+      current_stage = excluded.current_stage,
+      request_reason = excluded.request_reason,
+      early_justification = excluded.early_justification,
+      requested_at = excluded.requested_at,
+      requested_by = excluded.requested_by,
+      approved_at = excluded.approved_at,
+      approved_by = excluded.approved_by,
+      rejected_at = excluded.rejected_at,
+      rejected_by = excluded.rejected_by,
+      rejection_reason = excluded.rejection_reason,
+      applied_at = excluded.applied_at,
+      applied_by = excluded.applied_by,
+      application_evidence_json = excluded.application_evidence_json,
+      shelf_confirmed_at = excluded.shelf_confirmed_at,
+      shelf_confirmed_by = excluded.shelf_confirmed_by,
+      shelf_confirmation_evidence_json = excluded.shelf_confirmation_evidence_json,
+      stage_history_json = excluded.stage_history_json,
+      updated_at = excluded.updated_at`,
+    workflow.id,
+    workflow.lotId,
+    workflow.status,
+    workflow.currentStage,
+    workflow.requestReason,
+    workflow.earlyJustification ?? null,
+    workflow.requestedAt,
+    workflow.requestedBy,
+    workflow.approvedAt ?? null,
+    workflow.approvedBy ?? null,
+    workflow.rejectedAt ?? null,
+    workflow.rejectedBy ?? null,
+    workflow.rejectionReason ?? null,
+    workflow.appliedAt ?? null,
+    workflow.appliedBy ?? null,
+    workflow.applicationEvidence === undefined ? null : JSON.stringify(workflow.applicationEvidence),
+    workflow.shelfConfirmedAt ?? null,
+    workflow.shelfConfirmedBy ?? null,
+    workflow.shelfConfirmationEvidence === undefined
+      ? null
+      : JSON.stringify(workflow.shelfConfirmationEvidence),
+    JSON.stringify(workflow.stageHistory),
+    workflow.createdAt,
+    workflow.updatedAt,
   );
 }
 
@@ -1393,6 +1955,10 @@ function mapTodayTask(row: TodayTaskRow): TodayTaskRecord {
     updatedAt: row.updated_at,
     ...(row.resolved_at === null ? {} : { resolvedAt: row.resolved_at }),
     ...(row.recheck_parent_id === null ? {} : { recheckParentId: row.recheck_parent_id }),
+    ...(row.markdown_workflow_id === null
+      ? {}
+      : { markdownWorkflowId: row.markdown_workflow_id }),
+    ...(row.markdown_stage === null ? {} : { markdownStage: row.markdown_stage }),
     ...(row.responsible_actor_label === null
       ? {}
       : { responsibleActorLabel: row.responsible_actor_label }),
@@ -1400,6 +1966,41 @@ function mapTodayTask(row: TodayTaskRow): TodayTaskRecord {
       ? {}
       : { resolutionHistory: parseJson(row.resolution_history_json) }),
   });
+}
+
+function mapMarkdownWorkflow(row: MarkdownWorkflowRow): MarkdownWorkflowRecord {
+  return MarkdownWorkflowRecordSchema.parse({
+    id: row.id,
+    lotId: row.lot_id,
+    status: row.status,
+    currentStage: row.current_stage,
+    requestedAt: row.requested_at,
+    requestedBy: row.requested_by,
+    requestReason: row.request_reason,
+    ...(row.early_justification === null ? {} : { earlyJustification: row.early_justification }),
+    ...(row.approved_at === null ? {} : { approvedAt: row.approved_at }),
+    ...(row.approved_by === null ? {} : { approvedBy: row.approved_by }),
+    ...(row.rejected_at === null ? {} : { rejectedAt: row.rejected_at }),
+    ...(row.rejected_by === null ? {} : { rejectedBy: row.rejected_by }),
+    ...(row.rejection_reason === null ? {} : { rejectionReason: row.rejection_reason }),
+    ...(row.applied_at === null ? {} : { appliedAt: row.applied_at }),
+    ...(row.applied_by === null ? {} : { appliedBy: row.applied_by }),
+    ...(row.application_evidence_json === null
+      ? {}
+      : { applicationEvidence: parseJson(row.application_evidence_json) }),
+    ...(row.shelf_confirmed_at === null ? {} : { shelfConfirmedAt: row.shelf_confirmed_at }),
+    ...(row.shelf_confirmed_by === null ? {} : { shelfConfirmedBy: row.shelf_confirmed_by }),
+    ...(row.shelf_confirmation_evidence_json === null
+      ? {}
+      : { shelfConfirmationEvidence: parseJson(row.shelf_confirmation_evidence_json) }),
+    stageHistory: parseJson(row.stage_history_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function isActiveMarkdownWorkflow(workflow: MarkdownWorkflowRecord): boolean {
+  return workflow.status !== "rejected" && workflow.status !== "shelf_confirmed";
 }
 
 function mapFutureAttention(row: FutureAttentionRow): FutureAttentionRecord {

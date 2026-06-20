@@ -77,6 +77,10 @@ export const todayCopy = {
     record_loss: "Confirmar perda",
     confirm_presence: "Confirmar presenca",
     request_markdown: "Confirmar rebaixa",
+    approve_markdown: "Aprovar rebaixa",
+    reject_markdown: "Reprovar rebaixa",
+    apply_markdown: "Registrar etiqueta aplicada",
+    confirm_markdown_on_shelf: "Confirmar etiqueta na area de venda",
     mark_not_found: "Confirmar nao encontrado",
     mark_probably_sold_out: "Confirmar provavelmente esgotado",
     move_lot: "Confirmar movimentacao",
@@ -87,6 +91,10 @@ export const todayCopy = {
     record_loss: "Registrar perda",
     confirm_presence: "Conferir presenca",
     request_markdown: "Pedir rebaixa",
+    approve_markdown: "Aprovar rebaixa",
+    reject_markdown: "Reprovar rebaixa",
+    apply_markdown: "Aplicar rebaixa",
+    confirm_markdown_on_shelf: "Conferir etiqueta na area de venda",
     mark_not_found: "Marcar como nao encontrado",
     mark_probably_sold_out: "Registrar como provavelmente esgotado",
     move_lot: "Mover lote",
@@ -105,6 +113,18 @@ export function todayActionLabel(task: TodayTaskRecord): string {
 
   if (task.requiredResolution === "request_markdown") {
     return "Pedir rebaixa";
+  }
+
+  if (task.requiredResolution === "approve_markdown") {
+    return "Aprovar rebaixa";
+  }
+
+  if (task.requiredResolution === "apply_markdown") {
+    return "Aplicar rebaixa";
+  }
+
+  if (task.requiredResolution === "confirm_markdown_on_shelf") {
+    return "Conferir etiqueta na area de venda";
   }
 
   return "Reconferir area de venda";

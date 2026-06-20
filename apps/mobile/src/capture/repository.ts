@@ -3,6 +3,11 @@ import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
   DevicePushRegistrationCommandSchema,
+  MarkdownApplicationCommandSchema,
+  MarkdownApprovalCommandSchema,
+  MarkdownRequestCommandSchema,
+  MarkdownShelfConfirmationCommandSchema,
+  MarkdownWorkflowRecordSchema,
   PhysicalObservationInputSchema,
   PushOpenIntentSchema,
   TaskAlertStateRecordSchema,
@@ -11,6 +16,11 @@ import {
   type AlertDeliveryResult,
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
+  type MarkdownApplicationCommand,
+  type MarkdownApprovalCommand,
+  type MarkdownRequestCommand,
+  type MarkdownShelfConfirmationCommand,
+  type MarkdownWorkflowRecord,
   type OperationalLocation,
   type PhysicalObservationInput,
   type PushOpenIntent,
@@ -23,7 +33,9 @@ import {
 } from "@validade-zero/contracts";
 import {
   calculateLotRisk,
+  canStartMarkdownWorkflow,
   compareTodayTaskPriority,
+  deriveMarkdownStageTaskCandidate,
   deriveFutureAttentionCandidate,
   deriveTodayTaskCandidate,
   getNextAlertAction,
@@ -31,7 +43,9 @@ import {
   type CategoryRuleProfile,
   type ProductRuleOverride,
   type RiskCalculationLot,
+  type RiskAssessment,
   type RiskWindows,
+  type MarkdownRequestReason,
 } from "@validade-zero/domain";
 
 export interface CaptureRepositoryDependencies {
@@ -122,6 +136,37 @@ export interface ResolvePushOpenIntentInput {
   openedAt: string;
 }
 
+export type MarkdownEntryState =
+  | {
+      status: "presence_required";
+      label: "Conferir presenca antes da rebaixa";
+      lotId: string;
+    }
+  | {
+      status: "eligible_rule_window";
+      label: "Solicitar rebaixa";
+      lotId: string;
+    }
+  | {
+      status: "early_exception_available";
+      label: "Solicitar rebaixa antecipada";
+      lotId: string;
+      reasons: readonly Exclude<MarkdownRequestReason, "rule_window">[];
+    }
+  | {
+      status: "already_active";
+      label: string;
+      lotId: string;
+      workflowId: string;
+      currentStage: MarkdownWorkflowRecord["currentStage"];
+    };
+
+export interface LoadMarkdownEntryStateInput {
+  lotId: string;
+  currentDate: string;
+  currentTimestamp: string;
+}
+
 export interface CaptureRepository {
   initialize(): Promise<void>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
@@ -141,6 +186,13 @@ export interface CaptureRepository {
   listFutureAttention(): Promise<readonly FutureAttentionRecord[]>;
   resolveTodayTask(input: TaskResolutionCommand): Promise<TodayTaskRecord>;
   loadTodayTask(taskId: string): Promise<TodayTaskRecord | null>;
+  requestMarkdown(input: MarkdownRequestCommand): Promise<MarkdownWorkflowRecord>;
+  decideMarkdown(input: MarkdownApprovalCommand): Promise<MarkdownWorkflowRecord>;
+  recordMarkdownApplication(input: MarkdownApplicationCommand): Promise<MarkdownWorkflowRecord>;
+  confirmMarkdownOnShelf(input: MarkdownShelfConfirmationCommand): Promise<MarkdownWorkflowRecord>;
+  loadMarkdownWorkflowForLot(lotId: string): Promise<MarkdownWorkflowRecord | null>;
+  listActiveMarkdownWorkflows(): Promise<readonly MarkdownWorkflowRecord[]>;
+  loadMarkdownEntryState(input: LoadMarkdownEntryStateInput): Promise<MarkdownEntryState>;
   registerAlertDevice(input: DevicePushRegistrationCommand): Promise<DevicePushRegistrationCommand>;
   loadAlertChannelState(): Promise<DevicePushRegistrationCommand | null>;
   refreshTaskAlertStates(
@@ -178,6 +230,28 @@ export function parseTodayTaskRecord(input: unknown): TodayTaskRecord {
 
 export function parseTaskResolutionCommand(input: unknown): TaskResolutionCommand {
   return TaskResolutionCommandSchema.parse(input);
+}
+
+export function parseMarkdownRequestCommand(input: unknown): MarkdownRequestCommand {
+  return MarkdownRequestCommandSchema.parse(input);
+}
+
+export function parseMarkdownApprovalCommand(input: unknown): MarkdownApprovalCommand {
+  return MarkdownApprovalCommandSchema.parse(input);
+}
+
+export function parseMarkdownApplicationCommand(input: unknown): MarkdownApplicationCommand {
+  return MarkdownApplicationCommandSchema.parse(input);
+}
+
+export function parseMarkdownShelfConfirmationCommand(
+  input: unknown,
+): MarkdownShelfConfirmationCommand {
+  return MarkdownShelfConfirmationCommandSchema.parse(input);
+}
+
+export function parseMarkdownWorkflowRecord(input: unknown): MarkdownWorkflowRecord {
+  return MarkdownWorkflowRecordSchema.parse(input);
 }
 
 export function parseAlertDeviceRegistration(input: unknown): DevicePushRegistrationCommand {
@@ -283,6 +357,62 @@ export function createTodayTaskRecord(input: {
     ...(input.candidate.recheckParentId === undefined
       ? {}
       : { recheckParentId: input.candidate.recheckParentId }),
+  });
+}
+
+export function createMarkdownStageTodayTaskRecord(input: {
+  workflow: MarkdownWorkflowRecord;
+  lot: CaptureLotDetail;
+  assessment: RiskAssessment;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}): TodayTaskRecord {
+  if (
+    input.workflow.currentStage !== "requested" &&
+    input.workflow.currentStage !== "approved" &&
+    input.workflow.currentStage !== "applied"
+  ) {
+    throw new Error(`Workflow ${input.workflow.id} does not have an active markdown stage.`);
+  }
+
+  const candidate = deriveMarkdownStageTaskCandidate({
+    workflowId: input.workflow.id,
+    lotId: input.lot.id,
+    productDisplayName: input.lot.productDisplayName,
+    lotIdentity: input.lot.identity.value,
+    currentLocation: input.lot.currentObservation.location,
+    sourceRisk: {
+      state: "markdown_due",
+      reasons:
+        input.assessment.reasons.length === 0
+          ? [{ code: "expires_in_15_days", field: "markdownWorkflow" }]
+          : input.assessment.reasons,
+    },
+    observedAt: input.updatedAt,
+    currentStage: input.workflow.currentStage,
+  });
+
+  return TodayTaskRecordSchema.parse({
+    id: input.id,
+    activeKey: candidate.activeKey,
+    lotId: candidate.lotId,
+    productDisplayName: candidate.productDisplayName,
+    lotIdentity: input.lot.identity,
+    currentLocation: candidate.currentLocation,
+    riskState: candidate.riskState,
+    severity: candidate.severity,
+    dueBucket: candidate.dueBucket,
+    requiredResolution: candidate.requiredResolution,
+    section: candidate.section,
+    ownerLabel: candidate.ownerLabel,
+    status: "active",
+    sourceRisk: candidate.sourceRisk,
+    priority: candidate.priority,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+    markdownWorkflowId: candidate.markdownWorkflowId,
+    markdownStage: candidate.markdownStage,
   });
 }
 
@@ -555,6 +685,91 @@ export function deriveTaskCandidateFromLot(input: {
   });
 }
 
+export function calculateAssessmentForLot(input: {
+  lot: CaptureLotDetail;
+  currentDate: string;
+  currentTimestamp: string;
+}): RiskAssessment {
+  const productOverride = toProductRuleOverride(input.lot.product);
+
+  return calculateLotRisk({
+    currentDate: input.currentDate,
+    currentTimestamp: input.currentTimestamp,
+    categoryProfile: toCategoryRuleProfile(input.lot.product.categoryRuleProfile),
+    ...(productOverride === undefined ? {} : { productOverride }),
+    lastPhysicalConfirmation: {
+      status: input.lot.currentObservation.status,
+      confirmedAt: input.lot.currentObservation.occurredAt,
+      ...(input.lot.currentObservation.quantityState === "estimated"
+        ? { approximateQuantity: input.lot.currentObservation.approximateQuantity }
+        : {}),
+    },
+    lot: toRiskCalculationLot(input.lot),
+  });
+}
+
+export function maxPhysicalConfirmationAgeHoursForLot(lot: CaptureLotDetail): number {
+  return (
+    lot.product.productRuleOverride?.maxPhysicalConfirmationAgeHours ??
+    lot.product.categoryRuleProfile.maxPhysicalConfirmationAgeHours ??
+    24
+  );
+}
+
+export function deriveMarkdownEntryState(input: {
+  lot: CaptureLotDetail;
+  assessment: RiskAssessment;
+  activeWorkflow?: MarkdownWorkflowRecord;
+  currentTimestamp: string;
+}): MarkdownEntryState {
+  if (input.activeWorkflow !== undefined) {
+    return {
+      status: "already_active",
+      label: markdownStageLabel(input.activeWorkflow.currentStage),
+      lotId: input.lot.id,
+      workflowId: input.activeWorkflow.id,
+      currentStage: input.activeWorkflow.currentStage,
+    };
+  }
+
+  const ruleWindow = canStartMarkdownWorkflow({
+    riskState: input.assessment.state,
+    physicalConfirmation: {
+      status: input.lot.currentObservation.status,
+      confirmedAt: input.lot.currentObservation.occurredAt,
+      ...(input.lot.currentObservation.quantityState === "estimated"
+        ? { approximateQuantity: input.lot.currentObservation.approximateQuantity }
+        : {}),
+    },
+    currentTimestamp: input.currentTimestamp,
+    maxPhysicalConfirmationAgeHours: maxPhysicalConfirmationAgeHoursForLot(input.lot),
+    requestReason: "rule_window",
+  });
+
+  if (ruleWindow.status === "allowed") {
+    return {
+      status: "eligible_rule_window",
+      label: "Solicitar rebaixa",
+      lotId: input.lot.id,
+    };
+  }
+
+  if (ruleWindow.blocker.code === "presence_required") {
+    return {
+      status: "presence_required",
+      label: "Conferir presenca antes da rebaixa",
+      lotId: input.lot.id,
+    };
+  }
+
+  return {
+    status: "early_exception_available",
+    label: "Solicitar rebaixa antecipada",
+    lotId: input.lot.id,
+    reasons: ["excess_stock", "quality_issue", "package_damage", "operational_guidance", "other"],
+  };
+}
+
 export function sortTodayTasks(tasks: readonly TodayTaskRecord[]): TodayTaskRecord[] {
   return [...tasks].sort((left, right) => {
     const priorityDifference = left.priority - right.priority;
@@ -663,4 +878,24 @@ function toRiskCalculationLot(lot: CaptureLotDetail): RiskCalculationLot {
     lotCode: lot.identity.value,
     receivedAt: lot.receivedAt,
   };
+}
+
+function markdownStageLabel(stage: MarkdownWorkflowRecord["currentStage"]): string {
+  if (stage === "requested") {
+    return "Aprovar rebaixa";
+  }
+
+  if (stage === "approved") {
+    return "Aplicar rebaixa";
+  }
+
+  if (stage === "applied") {
+    return "Conferir etiqueta na area de venda";
+  }
+
+  if (stage === "rejected") {
+    return "Rebaixa reprovada";
+  }
+
+  return "Rebaixa conferida na area de venda";
 }
