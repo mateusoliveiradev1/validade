@@ -147,7 +147,7 @@ Plans:
 3. Every push maps to a persistent in-app task.
 4. Critical risk remains visible until physically resolved.
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 Plans:
 **Wave 1**
 
@@ -155,7 +155,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-02-PLAN.md - Mobile alert state, Expo channel, and local scheduling
+- [x] 05-02-PLAN.md - Mobile alert state, Expo channel, and local scheduling
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
