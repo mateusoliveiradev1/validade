@@ -30,8 +30,8 @@
 
 - [x] **RSK-01**: System generates risk states from product/category rules, current date, validity or quality window, and last physical confirmation.
 - [x] **RSK-02**: System supports configurable windows including 60-day radar, 15-day markdown request, near-expiry critical alerts, and expired withdrawal.
-- [ ] **RSK-03**: System creates tasks with owner, due time, status, severity, and required resolution for each actionable risk.
-- [ ] **RSK-04**: Collaborator can resolve a task only by selecting a concrete action such as confirmed present, markdown requested, markdown applied, moved, withdrawn, loss, sold out/probably gone, or not found.
+- [x] **RSK-03**: System creates tasks with owner, due time, status, severity, and required resolution for each actionable risk.
+- [x] **RSK-04**: Collaborator can resolve a task only by selecting a concrete action such as confirmed present, markdown requested, markdown applied, moved, withdrawn, loss, sold out/probably gone, or not found.
 - [ ] **RSK-05**: System reopens or escalates tasks when critical risk remains unresolved.
 
 ### Push and Shift Workflow
@@ -119,8 +119,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LOC-04 | Phase 2 | Complete |
 | RSK-01 | Phase 2 | Complete |
 | RSK-02 | Phase 2 | Complete |
-| RSK-03 | Phase 4 | Pending |
-| RSK-04 | Phase 4 | Pending |
+| RSK-03 | Phase 4 | Complete |
+| RSK-04 | Phase 4 | Complete |
 | RSK-05 | Phase 5 | Pending |
 | PSH-01 | Phase 5 | Pending |
 | PSH-02 | Phase 5 | Pending |
