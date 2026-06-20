@@ -43,19 +43,20 @@ vi.mock("@react-native-community/datetimepicker", () => ({
 }));
 
 describe("Validade Zero mobile smoke", () => {
-  it("renders the manual product-discovery entry point", async () => {
+  it("renders the Hoje first entry point with registration reachable", async () => {
     const { default: App } = await import("../App");
     let tree: ReactTestRenderer | undefined;
 
-    act(() => {
+    await act(async () => {
       tree = create(<App />);
     });
 
     expect(tree).toBeDefined();
     const rendered = JSON.stringify(tree?.toJSON());
 
-    expect(rendered).toContain("Localizar produto");
-    expect(rendered).toContain("Buscar produto por nome ou código");
-    expect(rendered).toContain("Buscar manualmente");
+    expect(rendered).toContain("Hoje");
+    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Atualizar tarefas");
+    expect(rendered).toContain("Registrar lote");
   });
 });

@@ -11,8 +11,10 @@ import { LotDetailScreen } from "./LotDetailScreen";
 import { ObservationComposer } from "./ObservationComposer";
 import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
+import { TodayScreen } from "./TodayScreen";
 
 type CaptureScreen =
+  | "today"
   | "discovery"
   | "product-form"
   | "confirmed"
@@ -23,7 +25,7 @@ type CaptureScreen =
   | "barcode";
 
 export function CaptureApp({ repository }: { repository: CaptureRepository }) {
-  const [screen, setScreen] = useState<CaptureScreen>("discovery");
+  const [screen, setScreen] = useState<CaptureScreen>("today");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
   const [initialGtin, setInitialGtin] = useState<string | undefined>();
   const [initializationError, setInitializationError] = useState<string | undefined>();
@@ -35,6 +37,29 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
       setInitializationError("Não foi possível preparar o registro local neste aparelho.");
     });
   }, [repository]);
+
+  if (screen === "today") {
+    return (
+      <>
+        {initializationError === undefined ? null : (
+          <StatusNotice tone="error">{initializationError}</StatusNotice>
+        )}
+        <TodayScreen
+          repository={repository}
+          onRegisterLot={() => setScreen("discovery")}
+          onOpenRecentLots={() => setScreen("recent")}
+          onOpenTask={(task) => {
+            void repository.loadLotDetail(task.lotId).then((loaded) => {
+              if (loaded !== null) {
+                setDetail(loaded);
+                setScreen("detail");
+              }
+            });
+          }}
+        />
+      </>
+    );
+  }
 
   if (screen === "product-form") {
     return (
@@ -74,8 +99,8 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
       <LotRegistrationScreen
         repository={repository}
         product={selectedProduct}
-        onBack={() => setScreen("discovery")}
-        onSaved={() => setScreen("recent")}
+        onBack={() => setScreen("today")}
+        onSaved={() => setScreen("today")}
       />
     );
   }
