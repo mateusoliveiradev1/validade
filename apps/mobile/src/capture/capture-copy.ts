@@ -60,6 +60,18 @@ export function lotRegisteredCopy(location: string, time: string): string {
   return `Lote registrado em ${location} às ${time}.`;
 }
 
+export function formatObservationTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
 export function formatLocation(location: OperationalLocation): string {
   if (location.kind === "other") {
     return location.customName;

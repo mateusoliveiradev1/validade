@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { OperationalLocation } from "@validade-zero/contracts";
 import type { CaptureLotSnapshot, CaptureRepository } from "./repository";
-import { captureCopy, formatLocation, operationalLocations } from "./capture-copy";
+import {
+  captureCopy,
+  formatLocation,
+  formatObservationTimestamp,
+  operationalLocations,
+} from "./capture-copy";
 import { Field, PrimaryAction, ScreenHeader, SelectionRow, StatusNotice } from "./capture-ui";
 
 export function RecentLotList({
@@ -63,7 +68,7 @@ export function RecentLotList({
           <SelectionRow
             key={lot.id}
             label={`${lot.productDisplayName} — ${lot.identity.value}`}
-            detail={`${actionLabel(lot.currentObservation.status)} · ${formatLocation(lot.currentObservation.location)} · ${formatQuantity(lot)} · ${formatTime(lot.currentObservation.occurredAt)}${attention(lot) === undefined ? "" : ` · ${attention(lot)}`}`}
+            detail={`${actionLabel(lot.currentObservation.status)} · ${formatLocation(lot.currentObservation.location)} · ${formatQuantity(lot)} · ${formatObservationTimestamp(lot.currentObservation.occurredAt)}${attention(lot) === undefined ? "" : ` · ${attention(lot)}`}`}
             onPress={() => onOpen(lot)}
           />
         ))
@@ -87,20 +92,20 @@ export function actionLabel(status: string): string {
     )[status] ?? status
   );
 }
+
 export function formatQuantity(lot: CaptureLotSnapshot): string {
   return lot.currentObservation.quantityState === "not_estimable"
     ? "Não foi possível estimar"
     : `${lot.currentObservation.approximateQuantity} unidades`;
 }
+
 export function attention(lot: CaptureLotSnapshot): string | undefined {
   return lot.currentObservation.status === "not_found" ||
     lot.currentObservation.status === "probably_sold_out"
     ? "Presença incerta"
     : undefined;
 }
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString("pt-BR", { timeZone: "UTC" });
-}
+
 const styles = StyleSheet.create({
   screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
   filters: { gap: 8 },

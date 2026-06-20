@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { CaptureLotDetail } from "./repository";
 import { actionLabel, formatQuantity } from "./RecentLotList";
-import { formatLocation } from "./capture-copy";
+import { formatLocation, formatObservationTimestamp } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 
 export function LotDetailScreen({
@@ -21,7 +21,7 @@ export function LotDetailScreen({
       <Text style={styles.metadata}>Última ação: {actionLabel(observation.status)}</Text>
       <Text style={styles.metadata}>
         Registrado por {observation.actorLabel} em{" "}
-        {new Date(observation.occurredAt).toLocaleString("pt-BR", { timeZone: "UTC" })}
+        {formatObservationTimestamp(observation.occurredAt)}
       </Text>
       <Text style={styles.metadata}>{formatQuantity(detail)}</Text>
       {observation.status === "not_found" || observation.status === "probably_sold_out" ? (
@@ -36,6 +36,7 @@ export function LotDetailScreen({
     </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
   screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
   metadata: { color: "#3F5546", fontSize: 16, lineHeight: 24 },
