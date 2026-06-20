@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 4 - Today Task Workflow
-status: ready_for_verification
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-06-20T02:55:38.731Z"
-last_activity: 2026-06-20 - Phase 4 implementation complete; final regression passed with native Maestro blocker recorded.
+status: ready_for_next_phase
+stopped_at: Phase 4 UAT gaps closed and verified
+last_updated: "2026-06-20T07:58:46.129Z"
+last_activity: 2026-06-20 - Closed Phase 4 UAT gaps: refresh feedback and Today polish verified on mobile.
 progress:
   total_phases: 9
   completed_phases: 4
@@ -22,14 +22,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Phase 4 implementation complete; final regression passed with native Maestro blocker recorded.
+**Last activity:** 2026-06-20 - Closed Phase 4 UAT gaps: refresh feedback and Today polish verified on mobile.
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 4 - today task workflow, ready for verification/UAT
+**Current focus:** Phase 5 - Push and Escalation, ready for planning
 
 ## Roadmap Progress
 
@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
 | 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
-| 4 | Complete | Today Task Workflow - 4/4 plans complete; ready for verification/UAT |
+| 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
 | 7 | Pending | Offline Sync |
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run `$gsd-verify-work 4` for Phase 4 UAT/verification.
+Plan Phase 5 - Push and Escalation.
 
 ### Quick Tasks Completed
 
@@ -63,6 +63,7 @@ Run `$gsd-verify-work 4` for Phase 4 UAT/verification.
 |---|-------------|------|--------|--------|-----------|
 | 260619-a1b | Fix medium Dependabot alerts for qs and uuid with validated pnpm overrides | 2026-06-19 | 4f2b992 | Verified | [260619-a1b-fix-medium-dependabot-alerts-for-qs-and-](./quick/260619-a1b-fix-medium-dependabot-alerts-for-qs-and-/) |
 | 260619-tw4 | Exibir horários de observação sem segundos no app mobile | 2026-06-20 | 37fd67d | Verified | [260619-tw4-exibir-hor-rios-de-observa-o-sem-segundo](./quick/260619-tw4-exibir-hor-rios-de-observa-o-sem-segundo/) |
+| 260620-ag5 | Fechar gaps UAT da fase 4: feedback de atualizacao e polish da tela Hoje | 2026-06-20 | f6a52be | Verified | [260620-ag5-fechar-gaps-uat-da-fase-4-feedback-de-at](./quick/260620-ag5-fechar-gaps-uat-da-fase-4-feedback-de-at/) |
 
 ## Performance Metrics
 

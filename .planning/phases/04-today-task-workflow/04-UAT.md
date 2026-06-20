@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 04-today-task-workflow
 source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md]
 started: 2026-06-20T00:32:22.7624879-03:00
-updated: 2026-06-20T01:18:59.8214585-03:00
+updated: 2026-06-20T07:58:46.1291632-03:00
 ---
 
 ## Current Test
@@ -22,9 +22,8 @@ result: pass
 
 ### 3. Atualizar tarefas preserva a tela
 expected: Tocar em "Atualizar tarefas" mantem a tela Hoje estavel. Se nao houver risco ativo, a mensagem de area segura permanece visivel; se houver falha de conexao, o app preserva a lista anterior e mostra aviso de recuperacao.
-result: issue
-reported: "atualizar tarefas nada acontece"
-severity: major
+result: pass
+resolution: "Manual refresh now keeps a visible completion message and prevents duplicate taps while pending."
 
 ### 4. Tarefas acionaveis aparecem por prioridade
 expected: Quando existem lotes vencidos, criticos, para rebaixa ou com presenca incerta, eles aparecem como tarefas ativas por secao operacional. Itens de radar aparecem apenas como "Atencao futura", nao como tarefa ativa.
@@ -52,15 +51,15 @@ result: pass
 
 ### 10. Tela segue usavel no celular
 expected: Labels visiveis e nomes acessiveis continuam claros; botoes principais tem area de toque confortavel; texto longo quebra linha em vez de cortar; significado de risco nao depende apenas de cor.
-result: issue
-reported: "pra mim parece bom mais ainda nao esta 100% refinado e polido nao"
-severity: cosmetic
+result: pass
+resolution: "Today received a focused polish pass and was reviewed in the Android emulator."
 
 ## Summary
 
 total: 10
-passed: 8
-issues: 2
+passed: 10
+issues: 0
+resolved: 2
 pending: 0
 skipped: 0
 blocked: 0
@@ -68,7 +67,7 @@ blocked: 0
 ## Gaps
 
 - truth: "Tocar em \"Atualizar tarefas\" mantem a tela Hoje estavel. Se nao houver risco ativo, a mensagem de area segura permanece visivel; se houver falha de conexao, o app preserva a lista anterior e mostra aviso de recuperacao."
-  status: failed
+  status: resolved
   reason: "User reported: atualizar tarefas nada acontece"
   severity: major
   test: 3
@@ -83,8 +82,10 @@ blocked: 0
     - "Prevent duplicate refresh taps or expose a clearer pending state."
     - "Cover successful manual refresh feedback with a focused test."
   debug_session: ".planning/debug/uat-refresh-feedback.md"
+  resolved_by: "f6a52be"
+  verification: "Mobile unit tests, typecheck, lint, Maestro smoke, and emulator validation passed."
 - truth: "Labels visiveis e nomes acessiveis continuam claros; botoes principais tem area de toque confortavel; texto longo quebra linha em vez de cortar; significado de risco nao depende apenas de cor."
-  status: failed
+  status: resolved
   reason: "User reported: pra mim parece bom mais ainda nao esta 100% refinado e polido nao"
   severity: cosmetic
   test: 10
@@ -99,3 +100,10 @@ blocked: 0
     - "Introduce small local tokens for shape, spacing, borders, and risk surfaces."
     - "Add screenshot-driven mobile verification for the refined state."
   debug_session: ".planning/debug/uat-today-polish.md"
+  resolved_by: "f6a52be"
+  verification: "Impeccable detector, contrast checks, mobile test suite, Maestro smoke, and emulator review passed."
+
+## Gap Closure
+
+- Test 3 is resolved in `f6a52be`: manual refresh now disables duplicate taps, communicates progress, and retains a completion/no-change message.
+- Test 10 is resolved in `f6a52be`: Today now uses consistent local tokens, status-bar spacing, section counts, risk tags, and refined interaction states; it was reviewed in the emulator.
