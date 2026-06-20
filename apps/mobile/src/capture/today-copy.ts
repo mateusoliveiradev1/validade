@@ -36,9 +36,9 @@ export const todayCopy = {
   photoEvidence: "Registrar foto da area",
   noPhotoReasonsTitle: "Sem foto",
   noPhotoReasons: {
-    device_unavailable: "Aparelho sem camera disponivel",
-    connectivity_issue: "Internet instavel no corredor",
-    safety_priority: "Prioridade foi retirar o risco primeiro",
+    camera_unavailable: "Camera indisponivel",
+    no_photo_authorization: "Sem autorizacao de foto",
+    environment_not_allowed: "Ambiente sem permissao",
     other: "Outro motivo",
   },
   customNoPhotoReason: "Descreva o motivo sem foto",

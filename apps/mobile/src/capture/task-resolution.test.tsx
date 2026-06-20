@@ -267,9 +267,7 @@ describe("TaskResolutionPanel", () => {
     );
     expect(resolveTodayTask).not.toHaveBeenCalled();
 
-    const noPhotoReason = tree.root.findByProps({
-      accessibilityLabel: "Prioridade foi retirar o risco primeiro",
-    });
+    const noPhotoReason = tree.root.findByProps({ accessibilityLabel: "Camera indisponivel" });
 
     await act(async () => {
       noPhotoReason.props.onPress();
@@ -296,7 +294,7 @@ describe("TaskResolutionPanel", () => {
         action: "complete_recheck",
         evidence: {
           kind: "no_photo_reason",
-          reason: "Prioridade foi retirar o risco primeiro",
+          reason: "Camera indisponivel",
         },
         recheckParentId: "tarefa-vencida-ficticia",
       }),
