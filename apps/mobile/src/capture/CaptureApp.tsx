@@ -144,6 +144,7 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
           setScreen("product-form");
         }}
         onScanCode={() => setScreen("barcode")}
+        onOpenRecent={() => setScreen("recent")}
         {...(scannedLookup === undefined ? {} : { initialLookup: scannedLookup })}
       />
     </>

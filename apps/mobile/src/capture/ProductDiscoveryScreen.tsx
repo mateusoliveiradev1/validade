@@ -16,12 +16,14 @@ export function ProductDiscoveryScreen({
   onConfirmProduct,
   onCreateProduct,
   onScanCode,
+  onOpenRecent,
   initialLookup,
 }: {
   repository: CaptureRepository;
   onConfirmProduct: (product: CaptureProductRecord) => void;
   onCreateProduct: (initialGtin?: string) => void;
   onScanCode?: (() => void) | undefined;
+  onOpenRecent?: (() => void) | undefined;
   initialLookup?: string | undefined;
 }) {
   const [query, setQuery] = useState(initialLookup ?? "");
@@ -71,7 +73,7 @@ export function ProductDiscoveryScreen({
       <View style={styles.shortcuts}>
         <SecondaryAction
           label={captureCopy.recent}
-          onPress={() => showShortcut(captureCopy.recent)}
+          onPress={onOpenRecent ?? (() => showShortcut(captureCopy.recent))}
         />
         <SecondaryAction
           label={captureCopy.frequent}

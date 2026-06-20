@@ -158,4 +158,30 @@ describe("manual product discovery", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Data de validade");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Local inicial");
   });
+
+  it("opens existing lots from the Recents shortcut instead of only showing a hint", () => {
+    const repository = createRepository();
+    let recentOpened = false;
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <ProductDiscoveryScreen
+          repository={repository}
+          onConfirmProduct={() => undefined}
+          onCreateProduct={() => undefined}
+          onOpenRecent={() => {
+            recentOpened = true;
+          }}
+        />,
+      );
+    });
+
+    act(() => {
+      press(tree!, "Recentes");
+    });
+
+    expect(recentOpened).toBe(true);
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("atalho de apoio");
+  });
 });
