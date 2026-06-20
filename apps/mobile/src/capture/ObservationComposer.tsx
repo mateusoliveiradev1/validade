@@ -39,6 +39,7 @@ export function ObservationComposer({
       : "",
   );
   const [quantityConfirmed, setQuantityConfirmed] = useState(false);
+  const [quantityReviewAttempted, setQuantityReviewAttempted] = useState(false);
   const [notEstimable, setNotEstimable] = useState(false);
   const [destination, setDestination] = useState<OperationalLocation | undefined>();
   const [correction, setCorrection] = useState(false);
@@ -53,6 +54,33 @@ export function ObservationComposer({
     (action !== "moved" || destination !== undefined) &&
     (!correction || reason.trim().length > 0);
   const currentLocation = detail.currentObservation.location;
+
+  function selectAction(nextAction: Action): void {
+    setAction(nextAction);
+    setQuantityConfirmed(false);
+    setNotEstimable(false);
+    setQuantityReviewAttempted(false);
+  }
+
+  function updateQuantity(value: string): void {
+    setQuantity(value);
+    setQuantityConfirmed(false);
+    setQuantityReviewAttempted(false);
+  }
+
+  function confirmQuantity(): void {
+    if (!validQuantity(quantity)) {
+      setQuantityReviewAttempted(true);
+      return;
+    }
+    setQuantityConfirmed((confirmed) => !confirmed);
+  }
+
+  function toggleNotEstimable(): void {
+    setNotEstimable((value) => !value);
+    setQuantityConfirmed(false);
+    setQuantityReviewAttempted(false);
+  }
 
   function submit(): void {
     if (!canAppend || action === undefined) {
@@ -107,7 +135,7 @@ export function ObservationComposer({
           key={value}
           label={label}
           selected={action === value}
-          onPress={() => setAction(value)}
+          onPress={() => selectAction(value)}
         />
       ))}
       {needsQuantity ? (
@@ -115,23 +143,28 @@ export function ObservationComposer({
           <Field
             label="Quantidade confirmada"
             value={quantity}
-            onChangeText={setQuantity}
+            onChangeText={updateQuantity}
             keyboardType="numeric"
             error={
-              !notEstimable && (!quantityConfirmed || !validQuantity(quantity))
+              quantityReviewAttempted && !notEstimable && !validQuantity(quantity)
                 ? requiredFieldError("a quantidade confirmada")
                 : undefined
             }
           />
+          {!notEstimable && !quantityConfirmed && validQuantity(quantity) ? (
+            <Text style={styles.hint}>
+              Confira a quantidade e toque em "Confirmar quantidade informada" para continuar.
+            </Text>
+          ) : null}
           <SelectionRow
             label="Confirmar quantidade informada"
             selected={quantityConfirmed}
-            onPress={() => setQuantityConfirmed(!quantityConfirmed)}
+            onPress={confirmQuantity}
           />
           <SelectionRow
             label="Não foi possível estimar"
             selected={notEstimable}
-            onPress={() => setNotEstimable(!notEstimable)}
+            onPress={toggleNotEstimable}
           />
         </>
       ) : null}
@@ -176,6 +209,7 @@ function validQuantity(value: string): boolean {
 const styles = StyleSheet.create({
   screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
   metadata: { color: "#3F5546", fontSize: 14, lineHeight: 20 },
+  hint: { color: "#3F5546", fontSize: 14, lineHeight: 20 },
   group: { gap: 8 },
   label: { color: "#112016", fontSize: 14, fontWeight: "600", lineHeight: 20 },
   error: { color: "#B42318", fontSize: 14, lineHeight: 20 },

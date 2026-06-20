@@ -46,6 +46,7 @@ export default tseslint.config(
             "apps/mobile/src/capture/capture-repository.test.ts",
             "apps/mobile/src/capture/product-lookup.test.tsx",
             "apps/mobile/src/capture/lot-registration.test.tsx",
+            "apps/mobile/src/capture/observation-composer.test.tsx",
             "apps/mobile/src/capture/presence-observation.test.ts",
             "apps/mobile/src/capture/reinforced-confirmation.test.ts",
             "apps/mobile/src/capture/camera-fallback.test.ts",
