@@ -14,6 +14,7 @@ export const todayCopy = {
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
   sections: {
+    overdue: "Atrasadas",
     withdraw_now: "Retirar agora",
     check_sales_area: "Conferir na area de venda",
     request_markdown: "Pedir rebaixa",
@@ -80,7 +81,11 @@ export function todayActionLabel(task: TodayTaskRecord): string {
   return "Reconferir area de venda";
 }
 
-export function dueLabel(task: TodayTaskRecord): string {
+export function dueLabel(task: TodayTaskRecord, referenceTime = new Date()): string {
+  if (isOverdueTask(task, referenceTime)) {
+    return "Atrasada";
+  }
+
   if (task.dueBucket === "now") {
     return "Agora";
   }
@@ -132,4 +137,22 @@ export function severityLabel(task: TodayTaskRecord): string {
   }
 
   return "Acompanhamento";
+}
+
+export function isOverdueTask(task: TodayTaskRecord, referenceTime = new Date()): boolean {
+  const createdAt = Date.parse(task.createdAt);
+
+  if (Number.isNaN(createdAt)) {
+    return false;
+  }
+
+  return task.status === "active" && createdAt < startOfLocalDay(referenceTime).getTime();
+}
+
+function startOfLocalDay(referenceTime: Date): Date {
+  return new Date(
+    referenceTime.getFullYear(),
+    referenceTime.getMonth(),
+    referenceTime.getDate(),
+  );
 }

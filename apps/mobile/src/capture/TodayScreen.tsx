@@ -6,6 +6,7 @@ import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./ca
 import type { CaptureRepository, TodayTaskRefreshSource } from "./repository";
 import {
   dueLabel,
+  isOverdueTask,
   riskReasonLabel,
   severityLabel,
   todayActionLabel,
@@ -63,6 +64,9 @@ export function TodayScreen({
   }, []);
 
   const salesAreaRiskCount = tasks.filter(isSalesAreaBlockingTask).length;
+  const renderedAt = now();
+  const overdueTasks = tasks.filter((task) => isOverdueTask(task, renderedAt));
+  const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
   const verdict =
     salesAreaRiskCount > 0
       ? todayCopy.criticalHeader(salesAreaRiskCount)
@@ -104,8 +108,27 @@ export function TodayScreen({
         </View>
       ) : (
         <View style={styles.taskList}>
+          {overdueTasks.length === 0 ? null : (
+            <View style={styles.taskSection}>
+              <Text style={styles.sectionTitle}>{todayCopy.sections.overdue}</Text>
+              {overdueTasks.map((task) => (
+                <TodayTaskRow
+                  key={task.id}
+                  referenceTime={renderedAt}
+                  task={task}
+                  onPress={() => {
+                    if (onOpenTask === undefined) {
+                      return;
+                    }
+
+                    onOpenTask(task);
+                  }}
+                />
+              ))}
+            </View>
+          )}
           {ACTIVE_SECTION_ORDER.map((section) => {
-            const sectionTasks = tasks.filter((task) => task.section === section);
+            const sectionTasks = currentTasks.filter((task) => task.section === section);
 
             if (sectionTasks.length === 0) {
               return null;
@@ -117,6 +140,7 @@ export function TodayScreen({
                 {sectionTasks.map((task) => (
                   <TodayTaskRow
                     key={task.id}
+                    referenceTime={renderedAt}
                     task={task}
                     onPress={() => {
                       if (onOpenTask === undefined) {
@@ -154,14 +178,16 @@ export function TodayScreen({
 export function TodayTaskRow({
   task,
   onPress,
+  referenceTime = new Date(),
 }: {
   task: TodayTaskRecord;
   onPress: () => void;
+  referenceTime?: Date;
 }) {
   const action = todayActionLabel(task);
   const title = `${task.productDisplayName} - lote ${task.lotIdentity.value}`;
   const location = `Local: ${formatLocation(task.currentLocation)}`;
-  const due = `${dueLabel(task)} - Severidade ${severityLabel(task)} - ${task.ownerLabel}`;
+  const due = `${dueLabel(task, referenceTime)} - Severidade ${severityLabel(task)} - ${task.ownerLabel}`;
 
   return (
     <Pressable

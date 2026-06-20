@@ -266,6 +266,41 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Validade vencida");
   });
 
+  it("pins overdue tasks above non-overdue active work with visible Atrasada copy", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(
+        refreshWith({
+          tasks: [
+            expiredTask(),
+            taskFixture({
+              id: "tarefa-atrasada-ficticia",
+              activeKey: "lote-folhas:uncertain:check_presence:root",
+              lotId: "lote-folhas",
+              productDisplayName: "Folhas FICTICIAS",
+              lotIdentity: { identitySource: "printed", value: "FOLHAS-001" },
+              currentLocation: { kind: "estoque" },
+              riskState: "uncertain",
+              dueBucket: "follow_up",
+              requiredResolution: "check_presence",
+              section: "follow_up",
+              sourceRisk: {
+                state: "uncertain",
+                reasons: [{ code: "presence_stale", field: "lastPhysicalConfirmation" }],
+              },
+              priority: 6,
+              createdAt: "2030-01-09T18:00:00.000Z",
+            }),
+          ],
+        }),
+      ),
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered.indexOf("Atrasadas")).toBeLessThan(rendered.indexOf("Retirar agora"));
+    expect(rendered).toContain("Atrasada - Severidade Alta - Equipe do turno");
+  });
+
   it("keeps per-lot duplicate product tasks visible as separate rows", async () => {
     const repository = createRepository(() =>
       Promise.resolve(
