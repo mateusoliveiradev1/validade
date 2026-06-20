@@ -147,11 +147,11 @@ Plans:
 3. Every push maps to a persistent in-app task.
 4. Critical risk remains visible until physically resolved.
 
-**Plans:** 4/4 plans ready
+**Plans:** 1/4 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md - Alert cadence policy and runtime contracts
+- [x] 05-01-PLAN.md - Alert cadence policy and runtime contracts
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

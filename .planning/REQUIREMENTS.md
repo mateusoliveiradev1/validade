@@ -32,15 +32,15 @@
 - [x] **RSK-02**: System supports configurable windows including 60-day radar, 15-day markdown request, near-expiry critical alerts, and expired withdrawal.
 - [x] **RSK-03**: System creates tasks with owner, due time, status, severity, and required resolution for each actionable risk.
 - [x] **RSK-04**: Collaborator can resolve a task only by selecting a concrete action such as confirmed present, markdown requested, markdown applied, moved, withdrawn, loss, sold out/probably gone, or not found.
-- [ ] **RSK-05**: System reopens or escalates tasks when critical risk remains unresolved.
+- [x] **RSK-05**: System reopens or escalates tasks when critical risk remains unresolved.
 
 ### Push and Shift Workflow
 
-- [ ] **PSH-01**: Collaborator receives push reminders for assigned and critical tasks.
-- [ ] **PSH-02**: System repeats or escalates reminders while tasks remain unresolved.
+- [x] **PSH-01**: Collaborator receives push reminders for assigned and critical tasks.
+- [x] **PSH-02**: System repeats or escalates reminders while tasks remain unresolved.
 - [x] **PSH-03**: Collaborator can open a mobile "Hoje" view that lists what must be checked, rebaixado, moved, or withdrawn in the current shift.
 - [ ] **PSH-04**: Lead can see whether the sales area is safe or has pending critical risks before shift close.
-- [ ] **PSH-05**: System does not rely on push alone; every push corresponds to a persistent in-app task.
+- [x] **PSH-05**: System does not rely on push alone; every push corresponds to a persistent in-app task.
 
 ### Markdown / Rebaixa
 
@@ -121,12 +121,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSK-02 | Phase 2 | Complete |
 | RSK-03 | Phase 4 | Complete |
 | RSK-04 | Phase 4 | Complete |
-| RSK-05 | Phase 5 | Pending |
-| PSH-01 | Phase 5 | Pending |
-| PSH-02 | Phase 5 | Pending |
+| RSK-05 | Phase 5 | Complete |
+| PSH-01 | Phase 5 | Complete |
+| PSH-02 | Phase 5 | Complete |
 | PSH-03 | Phase 4 | Complete |
 | PSH-04 | Phase 8 | Pending |
-| PSH-05 | Phase 5 | Pending |
+| PSH-05 | Phase 5 | Complete |
 | MRK-01 | Phase 6 | Pending |
 | MRK-02 | Phase 6 | Pending |
 | MRK-03 | Phase 6 | Pending |
