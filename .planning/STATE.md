@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06
+current_phase: 07
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-06-20T23:23:04.795Z"
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-06-20T23:33:31.645Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 24
-  percent: 56
+  completed_plans: 25
+  percent: 67
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 06
+**Current phase:** 07
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 06 — markdown-rebaixa-workflow
+**Current focus:** Phase 07 — offline-sync
 
 ## Roadmap Progress
 
@@ -40,7 +40,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
 | 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
-| 6 | In Progress | Markdown/Rebaixa Workflow - 3/4 plans complete |
+| 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Pending | Offline Sync |
 | 8 | Pending | Audit, Roles, and Shift Close |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 6 - Markdown/Rebaixa Workflow with Plan 06-04.
+Start Phase 7 - Offline Sync.
 
 ### Quick Tasks Completed
 
@@ -93,11 +93,12 @@ Continue Phase 6 - Markdown/Rebaixa Workflow with Plan 06-04.
 | Phase 06 P01 | 7 min | 2 tasks | 12 files |
 | Phase 06 P02 | 11 min | 2 tasks | 6 files |
 | Phase 06 P03 | 24 min | 2 tasks | 7 files |
+| Phase 06 P04 | 15 min | 2 tasks | 15 files |
 
 ## Session
 
-**Last session:** 2026-06-20T23:23:04.788Z
-**Stopped at:** Completed 06-03-PLAN.md
+**Last session:** 2026-06-20T23:33:31.633Z
+**Stopped at:** Completed 06-04-PLAN.md
 **Resume file:** None
 
 ## Decisions

@@ -178,7 +178,7 @@ Plans:
 3. Evidence photo can be attached to applied labels or shelf confirmation.
 4. Delayed markdown tasks remain visible and escalate.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 
@@ -194,7 +194,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 06-04-PLAN.md - Delayed-stage escalation, accessibility, smoke, and docs
+- [x] 06-04-PLAN.md - Delayed-stage escalation, accessibility, smoke, and docs
 
 ### Phase 7: Offline Sync
 
