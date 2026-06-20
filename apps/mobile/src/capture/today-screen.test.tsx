@@ -1,6 +1,10 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  FutureAttentionRecord,
+  TaskAlertStateRecord,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 
@@ -27,6 +31,7 @@ vi.mock("react-native", async () => {
 
 function createRepository(
   refreshTodayTasks: CaptureRepository["refreshTodayTasks"],
+  overrides: Partial<CaptureRepository> = {},
 ): CaptureRepository {
   return {
     initialize: () => Promise.resolve(),
@@ -41,6 +46,18 @@ function createRepository(
     listFutureAttention: () => Promise.resolve([]),
     resolveTodayTask: () => Promise.reject(new Error("not used")),
     loadTodayTask: () => Promise.resolve(null),
+    requestMarkdown: () => Promise.reject(new Error("not used")),
+    decideMarkdown: () => Promise.reject(new Error("not used")),
+    recordMarkdownApplication: () => Promise.reject(new Error("not used")),
+    confirmMarkdownOnShelf: () => Promise.reject(new Error("not used")),
+    loadMarkdownWorkflowForLot: () => Promise.resolve(null),
+    listActiveMarkdownWorkflows: () => Promise.resolve([]),
+    loadMarkdownEntryState: () =>
+      Promise.resolve({
+        status: "presence_required",
+        label: "Conferir presenca antes da rebaixa",
+        lotId: "lote-ficticio",
+      }),
     registerAlertDevice: (input) => Promise.resolve(input),
     loadAlertChannelState: () => Promise.resolve(null),
     refreshTaskAlertStates: () => Promise.resolve([]),
@@ -48,6 +65,7 @@ function createRepository(
     recordAlertAttempt: () => Promise.reject(new Error("not used")),
     acknowledgeEscalation: () => Promise.reject(new Error("not used")),
     resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
+    ...overrides,
   };
 }
 
@@ -84,6 +102,58 @@ function expiredTask(): TodayTaskRecord {
       reasons: [{ code: "expired", field: "expiresAt" }],
     },
   });
+}
+
+function markdownStageTask(
+  requiredResolution: Extract<
+    TodayTaskRecord["requiredResolution"],
+    "approve_markdown" | "apply_markdown" | "confirm_markdown_on_shelf"
+  >,
+  createdAt = "2030-01-10T09:00:00.000Z",
+): TodayTaskRecord {
+  const stage =
+    requiredResolution === "approve_markdown"
+      ? "requested"
+      : requiredResolution === "apply_markdown"
+        ? "approved"
+        : "applied";
+
+  return taskFixture({
+    id: `tarefa-${requiredResolution}`,
+    activeKey: `markdown:workflow-${requiredResolution}:${stage}`,
+    lotId: `lote-${requiredResolution}`,
+    productDisplayName: "Queijo FICTICIO",
+    lotIdentity: { identitySource: "printed", value: `QUEIJO-${stage}` },
+    currentLocation: { kind: "area_de_venda" },
+    riskState: "markdown_due",
+    severity: requiredResolution === "approve_markdown" ? "medium" : "high",
+    dueBucket: requiredResolution === "approve_markdown" ? "today" : "shift",
+    requiredResolution,
+    section: "request_markdown",
+    ownerLabel: requiredResolution === "approve_markdown" ? "Lideranca local" : "Equipe do turno",
+    sourceRisk: {
+      state: "markdown_due",
+      reasons: [{ code: "expires_in_15_days", field: "markdownWorkflow" }],
+    },
+    priority: requiredResolution === "confirm_markdown_on_shelf" ? 1 : 2,
+    createdAt,
+    markdownWorkflowId: `workflow-${requiredResolution}`,
+    markdownStage: stage,
+  });
+}
+
+function escalatedAlertState(task: TodayTaskRecord): TaskAlertStateRecord {
+  return {
+    taskId: task.id,
+    taskActiveKey: task.activeKey,
+    channelState: "active",
+    attemptState: "sent",
+    audience: "leadership",
+    escalationState: "escalated",
+    createdAt: "2030-01-10T09:00:00.000Z",
+    updatedAt: "2030-01-10T12:00:00.000Z",
+    escalatedAt: "2030-01-10T12:00:00.000Z",
+  };
 }
 
 function taskFixture(overrides: Partial<TodayTaskRecord>): TodayTaskRecord {
@@ -339,6 +409,37 @@ describe("TodayScreen", () => {
 
     expect(rendered.indexOf("Atrasadas")).toBeLessThan(rendered.indexOf("Retirar agora"));
     expect(rendered).toContain("Atrasada - Severidade Alta - Equipe do turno");
+  });
+
+  it("renders markdown stage labels and keeps escalation status visible", async () => {
+    const finalTask = markdownStageTask(
+      "confirm_markdown_on_shelf",
+      "2030-01-09T18:00:00.000Z",
+    );
+    const repository = createRepository(
+      () =>
+        Promise.resolve(
+          refreshWith({
+            tasks: [
+              markdownStageTask("approve_markdown"),
+              markdownStageTask("apply_markdown"),
+              finalTask,
+            ],
+          }),
+        ),
+      {
+        refreshTaskAlertStates: () => Promise.resolve([escalatedAlertState(finalTask)]),
+      },
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Aprovar rebaixa");
+    expect(rendered).toContain("Aplicar rebaixa");
+    expect(rendered).toContain("Conferir etiqueta na area de venda");
+    expect(rendered).toContain("Conferencia da etiqueta atrasada");
+    expect(rendered).toContain("Lideranca avisada as");
+    expect(rendered).toContain("Cobrando responsavel e lideranca");
   });
 
   it("keeps per-lot duplicate product tasks visible as separate rows", async () => {

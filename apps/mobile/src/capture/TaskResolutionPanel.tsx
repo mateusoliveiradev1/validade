@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import type { EvidencePromptMetadata, TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  CompletedEvidenceMetadata,
+  EvidencePromptMetadata,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import { isResolutionCompatible, type TaskResolutionAction } from "@validade-zero/domain";
 import { ConfirmationSheet } from "./ConfirmationSheet";
 import { formatLocation } from "./capture-copy";
@@ -26,8 +30,14 @@ const STANDARD_RESOLUTION_ACTIONS = [
 ] as const satisfies readonly TaskResolutionAction[];
 
 const RECHECK_ACTIONS = ["complete_recheck"] as const satisfies readonly TaskResolutionAction[];
+const MARKDOWN_STAGE_RESOLUTIONS = [
+  "approve_markdown",
+  "apply_markdown",
+  "confirm_markdown_on_shelf",
+] as const satisfies readonly TodayTaskRecord["requiredResolution"][];
 
 type NoPhotoReason = keyof typeof todayCopy.noPhotoReasons;
+type MarkdownDecision = "approved" | "rejected";
 
 const noPhotoReasonKeys = Object.keys(todayCopy.noPhotoReasons) as NoPhotoReason[];
 
@@ -52,6 +62,8 @@ export function TaskResolutionPanel({
   const [photoRecorded, setPhotoRecorded] = useState(false);
   const [noPhotoReason, setNoPhotoReason] = useState<NoPhotoReason | undefined>();
   const [customNoPhotoReason, setCustomNoPhotoReason] = useState("");
+  const [markdownDecision, setMarkdownDecision] = useState<MarkdownDecision | undefined>();
+  const [rejectionReason, setRejectionReason] = useState("");
   const compatible = selectedAction
     ? isResolutionCompatible(task.requiredResolution, selectedAction)
     : false;
@@ -71,6 +83,11 @@ export function TaskResolutionPanel({
       return;
     }
 
+    setBlockingNotice(undefined);
+  }
+
+  function selectMarkdownDecision(decision: MarkdownDecision): void {
+    setMarkdownDecision(decision);
     setBlockingNotice(undefined);
   }
 
@@ -111,6 +128,79 @@ export function TaskResolutionPanel({
     }
 
     void submit();
+  }
+
+  async function submitMarkdownStage(): Promise<void> {
+    if (!isMarkdownStageTask(task)) {
+      return;
+    }
+
+    const workflowId = task.markdownWorkflowId;
+
+    if (workflowId === undefined) {
+      setBlockingNotice(todayCopy.markdown.missingWorkflow);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      if (task.requiredResolution === "approve_markdown") {
+        if (markdownDecision === undefined) {
+          setBlockingNotice(todayCopy.incompatibleAction);
+          return;
+        }
+
+        const trimmedReason = rejectionReason.trim();
+
+        if (markdownDecision === "rejected" && trimmedReason.length === 0) {
+          setBlockingNotice(todayCopy.markdown.rejectionReason);
+          return;
+        }
+
+        await repository.decideMarkdown({
+          workflowId,
+          taskId: task.id,
+          actorLabel: todayCopy.localActor,
+          occurredAt: now().toISOString(),
+          decision: markdownDecision,
+          ...(markdownDecision === "rejected" ? { rejectionReason: trimmedReason } : {}),
+        });
+        onDone();
+        return;
+      }
+
+      const evidence = evidenceForCompletedStage();
+
+      if (evidence === undefined) {
+        setBlockingNotice(markdownEvidenceRequiredCopy(task));
+        return;
+      }
+
+      if (task.requiredResolution === "apply_markdown") {
+        await repository.recordMarkdownApplication({
+          workflowId,
+          taskId: task.id,
+          actorLabel: todayCopy.localActor,
+          occurredAt: now().toISOString(),
+          evidence,
+        });
+      } else {
+        await repository.confirmMarkdownOnShelf({
+          workflowId,
+          taskId: task.id,
+          actorLabel: todayCopy.localActor,
+          occurredAt: now().toISOString(),
+          evidence,
+        });
+      }
+
+      onDone();
+    } catch {
+      setBlockingNotice(todayCopy.markdown.missingWorkflow);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function submit(): Promise<void> {
@@ -169,6 +259,16 @@ export function TaskResolutionPanel({
     return { kind: "no_photo_reason", reason };
   }
 
+  function evidenceForCompletedStage(): CompletedEvidenceMetadata | undefined {
+    const evidence = evidenceForRecheck();
+
+    if (evidence === undefined || evidence.kind === "photo_pending") {
+      return undefined;
+    }
+
+    return evidence;
+  }
+
   if (confirming && selectedAction !== undefined) {
     return (
       <ScrollView contentContainerStyle={styles.screen}>
@@ -179,6 +279,84 @@ export function TaskResolutionPanel({
           onConfirm={() => void submit()}
           onBack={() => setConfirming(false)}
         />
+      </ScrollView>
+    );
+  }
+
+  if (isMarkdownStageTask(task)) {
+    const markdownCanSubmit = canSubmitMarkdownStage({
+      task,
+      decision: markdownDecision,
+      rejectionReason,
+      evidence: evidenceForCompletedStage(),
+      submitting,
+    });
+
+    return (
+      <ScrollView contentContainerStyle={styles.screen}>
+        <ScreenHeader
+          title={todayActionLabel(task)}
+          body={`${task.productDisplayName} - lote ${task.lotIdentity.value}`}
+        />
+        <View style={styles.summary}>
+          <Text style={styles.summaryLine}>Local atual: {formatLocation(task.currentLocation)}</Text>
+          <Text style={styles.summaryLine}>Responsavel: {task.ownerLabel}</Text>
+          <Text style={styles.summaryLine}>Etapa: {todayActionLabel(task)}</Text>
+        </View>
+
+        {task.requiredResolution === "approve_markdown" ? (
+          <View style={styles.group}>
+            <SelectionRow
+              label={todayCopy.markdown.approve}
+              detail="Cria a tarefa para aplicar a etiqueta."
+              selected={markdownDecision === "approved"}
+              onPress={() => selectMarkdownDecision("approved")}
+            />
+            <SelectionRow
+              label={todayCopy.markdown.reject}
+              detail="Encerra esta rebaixa e volta o lote ao monitoramento."
+              selected={markdownDecision === "rejected"}
+              onPress={() => selectMarkdownDecision("rejected")}
+            />
+            {markdownDecision === "rejected" ? (
+              <>
+                <Field
+                  label={todayCopy.markdown.rejectionReason}
+                  value={rejectionReason}
+                  onChangeText={(value) => {
+                    setRejectionReason(value);
+                    setBlockingNotice(undefined);
+                  }}
+                />
+                <StatusNotice>{todayCopy.markdown.rejectionWarning}</StatusNotice>
+              </>
+            ) : null}
+          </View>
+        ) : (
+          <EvidenceSection
+            task={task}
+            photoRecorded={photoRecorded}
+            noPhotoReason={noPhotoReason}
+            customNoPhotoReason={customNoPhotoReason}
+            onSelectPhoto={selectPhotoEvidence}
+            onSelectNoPhotoReason={selectNoPhotoReason}
+            onUpdateCustomReason={(value) => {
+              setCustomNoPhotoReason(value);
+              setBlockingNotice(undefined);
+            }}
+          />
+        )}
+
+        {blockingNotice === undefined ? null : (
+          <StatusNotice tone="error">{blockingNotice}</StatusNotice>
+        )}
+
+        <PrimaryAction
+          label={markdownPrimaryLabel(task, markdownDecision)}
+          disabled={!markdownCanSubmit}
+          onPress={() => void submitMarkdownStage()}
+        />
+        <SecondaryAction label="Voltar e revisar" onPress={onBack} />
       </ScrollView>
     );
   }
@@ -260,12 +438,124 @@ export function TaskResolutionPanel({
   );
 }
 
+function EvidenceSection({
+  task,
+  photoRecorded,
+  noPhotoReason,
+  customNoPhotoReason,
+  onSelectPhoto,
+  onSelectNoPhotoReason,
+  onUpdateCustomReason,
+}: {
+  task: TodayTaskRecord;
+  photoRecorded: boolean;
+  noPhotoReason: NoPhotoReason | undefined;
+  customNoPhotoReason: string;
+  onSelectPhoto: () => void;
+  onSelectNoPhotoReason: (reason: NoPhotoReason) => void;
+  onUpdateCustomReason: (value: string) => void;
+}) {
+  const isApplication = task.requiredResolution === "apply_markdown";
+
+  return (
+    <View style={styles.group}>
+      <Text style={styles.groupTitle}>
+        {isApplication
+          ? todayCopy.markdown.applicationEvidenceTitle
+          : todayCopy.markdown.finalEvidenceTitle}
+      </Text>
+      <SelectionRow
+        label={isApplication ? todayCopy.markdown.applicationPhoto : todayCopy.markdown.finalPhoto}
+        selected={photoRecorded}
+        onPress={onSelectPhoto}
+      />
+      <Text style={styles.groupTitle}>{todayCopy.markdown.noPhotoGroup}</Text>
+      {noPhotoReasonKeys.map((reason) => (
+        <SelectionRow
+          key={reason}
+          label={todayCopy.noPhotoReasons[reason]}
+          selected={noPhotoReason === reason}
+          onPress={() => onSelectNoPhotoReason(reason)}
+        />
+      ))}
+      {noPhotoReason === "other" ? (
+        <Field
+          label={todayCopy.markdown.noPhotoCustomField}
+          value={customNoPhotoReason}
+          onChangeText={onUpdateCustomReason}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 function actionsForTask(task: TodayTaskRecord): readonly TaskResolutionAction[] {
   if (task.requiredResolution === "sales_area_recheck") {
     return RECHECK_ACTIONS;
   }
 
   return STANDARD_RESOLUTION_ACTIONS;
+}
+
+function isMarkdownStageTask(
+  task: TodayTaskRecord,
+): task is TodayTaskRecord & {
+  requiredResolution: (typeof MARKDOWN_STAGE_RESOLUTIONS)[number];
+} {
+  return MARKDOWN_STAGE_RESOLUTIONS.some(
+    (requiredResolution) => task.requiredResolution === requiredResolution,
+  );
+}
+
+function canSubmitMarkdownStage(input: {
+  task: TodayTaskRecord;
+  decision: MarkdownDecision | undefined;
+  rejectionReason: string;
+  evidence: CompletedEvidenceMetadata | undefined;
+  submitting: boolean;
+}): boolean {
+  if (input.submitting) {
+    return false;
+  }
+
+  if (input.task.requiredResolution === "approve_markdown") {
+    return (
+      input.decision === "approved" ||
+      (input.decision === "rejected" && input.rejectionReason.trim().length > 0)
+    );
+  }
+
+  if (
+    input.task.requiredResolution === "apply_markdown" ||
+    input.task.requiredResolution === "confirm_markdown_on_shelf"
+  ) {
+    return input.evidence !== undefined;
+  }
+
+  return false;
+}
+
+function markdownPrimaryLabel(
+  task: TodayTaskRecord,
+  decision: MarkdownDecision | undefined,
+): string {
+  if (task.requiredResolution === "approve_markdown") {
+    return decision === "rejected" ? todayCopy.markdown.reject : todayCopy.markdown.approve;
+  }
+
+  if (task.requiredResolution === "apply_markdown") {
+    return todayCopy.markdown.application;
+  }
+
+  return todayCopy.markdown.finalConfirmation;
+}
+
+function markdownEvidenceRequiredCopy(task: TodayTaskRecord): string {
+  if (task.requiredResolution === "apply_markdown") {
+    return todayCopy.markdown.applicationEvidenceTitle;
+  }
+
+  return todayCopy.markdown.finalEvidenceTitle;
 }
 
 function actionNeedsConfirmation(action: TaskResolutionAction): boolean {

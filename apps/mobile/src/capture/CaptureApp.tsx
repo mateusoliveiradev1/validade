@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
-import type { CaptureProductRecord, CaptureRepository } from "./repository";
+import type { CaptureProductRecord, CaptureRepository, MarkdownEntryState } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
 import { ProductFormScreen } from "./ProductFormScreen";
 import { LotRegistrationScreen } from "./LotRegistrationScreen";
 import { RecentLotList } from "./RecentLotList";
-import { LotDetailScreen } from "./LotDetailScreen";
+import { LotDetailScreen, type LotDetailMarkdownRequest } from "./LotDetailScreen";
 import { ObservationComposer } from "./ObservationComposer";
 import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
@@ -40,6 +40,7 @@ export function CaptureApp({
   const [initialGtin, setInitialGtin] = useState<string | undefined>();
   const [initializationError, setInitializationError] = useState<string | undefined>();
   const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
+  const [markdownEntryState, setMarkdownEntryState] = useState<MarkdownEntryState | undefined>();
   const [scannedLookup, setScannedLookup] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<TodayTaskRecord | undefined>();
   const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
@@ -97,6 +98,84 @@ export function CaptureApp({
       subscription.remove();
     };
   }, [repository, resolvedAlertChannel]);
+
+  async function loadMarkdownEntryStateFor(lotId: string): Promise<MarkdownEntryState | undefined> {
+    const current = new Date();
+    const currentTimestamp = current.toISOString();
+
+    try {
+      return await repository.loadMarkdownEntryState({
+        lotId,
+        currentDate: currentTimestamp.slice(0, 10),
+        currentTimestamp,
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function openLotDetail(lotId: string): Promise<void> {
+    setMarkdownEntryState(undefined);
+    const loaded = await repository.loadLotDetail(lotId);
+
+    if (loaded !== null) {
+      setDetail(loaded);
+      setMarkdownEntryState(await loadMarkdownEntryStateFor(loaded.id));
+      setScreen("detail");
+    }
+  }
+
+  async function refreshCurrentDetail(lotId: string): Promise<void> {
+    const refreshed = await repository.loadLotDetail(lotId);
+
+    if (refreshed !== null) {
+      setDetail(refreshed);
+      setMarkdownEntryState(await loadMarkdownEntryStateFor(refreshed.id));
+    }
+  }
+
+  async function requestMarkdownFromDetail(request: LotDetailMarkdownRequest): Promise<void> {
+    if (detail === undefined) {
+      return;
+    }
+
+    const occurredAt = new Date().toISOString();
+
+    await repository.requestMarkdown({
+      lotId: detail.id,
+      actorLabel: "Colaborador local",
+      occurredAt,
+      reason: request.reason,
+      ...(request.earlyJustification === undefined
+        ? {}
+        : { earlyJustification: request.earlyJustification }),
+    });
+    setMarkdownEntryState(undefined);
+    setScreen("today");
+  }
+
+  async function openActiveMarkdownTask(): Promise<void> {
+    if (markdownEntryState?.status !== "already_active") {
+      setScreen("today");
+      return;
+    }
+
+    const activeTasks = await repository.listActiveTodayTasks();
+    const task = activeTasks.find(
+      (candidate) =>
+        candidate.status === "active" &&
+        candidate.markdownWorkflowId === markdownEntryState.workflowId,
+    );
+
+    if (task === undefined) {
+      setScreen("today");
+      return;
+    }
+
+    setSelectedTask(task);
+    setHighlightedTaskId(task.id);
+    setScreen("task-resolution");
+  }
 
   if (screen === "today") {
     return (
@@ -180,7 +259,10 @@ export function CaptureApp({
     return (
       <LotDetailScreen
         detail={detail}
+        markdownEntryState={markdownEntryState}
         onObserve={() => setScreen("observation")}
+        onOpenActiveMarkdown={() => void openActiveMarkdownTask()}
+        onRequestMarkdown={(request) => requestMarkdownFromDetail(request)}
         onBack={() => setScreen("recent")}
       />
     );
@@ -191,9 +273,8 @@ export function CaptureApp({
         detail={detail}
         onBack={() => setScreen("detail")}
         onDone={() => {
-          void repository.loadLotDetail(detail.id).then((refreshed) => {
-            if (refreshed !== null) setDetail(refreshed);
-            setScreen("recent");
+          void refreshCurrentDetail(detail.id).then(() => {
+            setScreen("detail");
           });
         }}
       />
@@ -204,12 +285,7 @@ export function CaptureApp({
         repository={repository}
         onRegister={() => setScreen("discovery")}
         onOpen={(lot) => {
-          void repository.loadLotDetail(lot.id).then((loaded) => {
-            if (loaded !== null) {
-              setDetail(loaded);
-              setScreen("detail");
-            }
-          });
+          void openLotDetail(lot.id);
         }}
       />
     );

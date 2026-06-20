@@ -61,6 +61,37 @@ export const todayCopy = {
   confirmationTitle: "Confirme antes de registrar",
   recheckConsequence: "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
   recheckFeedback: "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+  markdown: {
+    primaryRequest: "Solicitar rebaixa",
+    earlyRequest: "Solicitar rebaixa antecipada",
+    presenceGate: "Conferir presenca antes da rebaixa",
+    approve: "Aprovar rebaixa",
+    reject: "Reprovar rebaixa",
+    application: "Registrar etiqueta aplicada",
+    finalConfirmation: "Confirmar etiqueta na area de venda",
+    delayedApproval: "Aprovacao de rebaixa atrasada",
+    delayedApplication: "Aplicacao de rebaixa atrasada",
+    delayedFinalConfirmation: "Conferencia da etiqueta atrasada",
+    rejectionReason: "Motivo da reprovacao",
+    rejectionWarning:
+      "Reprovar rebaixa encerra este fluxo e o lote volta ao monitoramento.",
+    applicationEvidenceTitle: "Comprove a etiqueta aplicada",
+    applicationPhoto: "Registrar foto da etiqueta/preco",
+    finalEvidenceTitle: "Comprove na area de venda",
+    finalPhoto: "Registrar foto da etiqueta na area de venda",
+    noPhotoGroup: "Sem foto",
+    noPhotoCustomField: "Descreva o motivo sem foto",
+    earlyReasonLabel: "Por que esta rebaixa esta sendo pedida antes da janela?",
+    missingWorkflow:
+      "Nao foi possivel avancar a rebaixa. Confira a presenca fisica do lote e tente novamente.",
+    requestCreated: "Rebaixa solicitada. Acompanhe a proxima etapa em Hoje.",
+    alreadyActivePrefix: "Rebaixa em andamento",
+    stageReasons: {
+      approve_markdown: "Aguardando lideranca",
+      apply_markdown: "Etiqueta ainda nao aplicada",
+      confirm_markdown_on_shelf: "Etiqueta precisa ser conferida",
+    },
+  },
   evidenceRequired:
     "Registre foto da area ou informe por que a foto nao foi feita antes de concluir.",
   photoEvidence: "Registrar foto da area",
@@ -76,7 +107,7 @@ export const todayCopy = {
     withdraw: "Confirmar retirada",
     record_loss: "Confirmar perda",
     confirm_presence: "Confirmar presenca",
-    request_markdown: "Confirmar rebaixa",
+    request_markdown: "Solicitar rebaixa",
     approve_markdown: "Aprovar rebaixa",
     reject_markdown: "Reprovar rebaixa",
     apply_markdown: "Registrar etiqueta aplicada",
@@ -90,7 +121,7 @@ export const todayCopy = {
     withdraw: "Retirar agora",
     record_loss: "Registrar perda",
     confirm_presence: "Conferir presenca",
-    request_markdown: "Pedir rebaixa",
+    request_markdown: "Solicitar rebaixa",
     approve_markdown: "Aprovar rebaixa",
     reject_markdown: "Reprovar rebaixa",
     apply_markdown: "Aplicar rebaixa",
@@ -112,7 +143,7 @@ export function todayActionLabel(task: TodayTaskRecord): string {
   }
 
   if (task.requiredResolution === "request_markdown") {
-    return "Pedir rebaixa";
+    return "Solicitar rebaixa";
   }
 
   if (task.requiredResolution === "approve_markdown") {
@@ -132,6 +163,18 @@ export function todayActionLabel(task: TodayTaskRecord): string {
 
 export function dueLabel(task: TodayTaskRecord, referenceTime = new Date()): string {
   if (isOverdueTask(task, referenceTime)) {
+    if (task.requiredResolution === "approve_markdown") {
+      return todayCopy.markdown.delayedApproval;
+    }
+
+    if (task.requiredResolution === "apply_markdown") {
+      return todayCopy.markdown.delayedApplication;
+    }
+
+    if (task.requiredResolution === "confirm_markdown_on_shelf") {
+      return todayCopy.markdown.delayedFinalConfirmation;
+    }
+
     return "Atrasada";
   }
 
@@ -151,6 +194,18 @@ export function dueLabel(task: TodayTaskRecord, referenceTime = new Date()): str
 }
 
 export function riskReasonLabel(task: TodayTaskRecord): string {
+  if (task.requiredResolution === "approve_markdown") {
+    return todayCopy.markdown.stageReasons.approve_markdown;
+  }
+
+  if (task.requiredResolution === "apply_markdown") {
+    return todayCopy.markdown.stageReasons.apply_markdown;
+  }
+
+  if (task.requiredResolution === "confirm_markdown_on_shelf") {
+    return todayCopy.markdown.stageReasons.confirm_markdown_on_shelf;
+  }
+
   const firstReason = task.sourceRisk.reasons[0]?.code;
 
   if (firstReason === "expired") {
