@@ -44,10 +44,10 @@
 
 ### Markdown / Rebaixa
 
-- [ ] **MRK-01**: Collaborator can request markdown/rebaixa for a lot when rule windows require it.
-- [ ] **MRK-02**: Lead can track markdown status as requested, approved, applied, and shelf-confirmed.
-- [ ] **MRK-03**: Collaborator can attach optional photo evidence for applied price label or shelf confirmation.
-- [ ] **MRK-04**: System keeps unresolved markdown tasks visible and escalates delayed approvals or applications.
+- [x] **MRK-01**: Collaborator can request markdown/rebaixa for a lot when rule windows require it.
+- [x] **MRK-02**: Lead can track markdown status as requested, approved, applied, and shelf-confirmed.
+- [x] **MRK-03**: Collaborator can attach optional photo evidence for applied price label or shelf confirmation.
+- [x] **MRK-04**: System keeps unresolved markdown tasks visible and escalates delayed approvals or applications.
 
 ### Offline and Sync
 
@@ -127,10 +127,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PSH-03 | Phase 4 | Complete |
 | PSH-04 | Phase 8 | Pending |
 | PSH-05 | Phase 5 | Complete |
-| MRK-01 | Phase 6 | Pending |
-| MRK-02 | Phase 6 | Pending |
-| MRK-03 | Phase 6 | Pending |
-| MRK-04 | Phase 6 | Pending |
+| MRK-01 | Phase 6 | Complete |
+| MRK-02 | Phase 6 | Complete |
+| MRK-03 | Phase 6 | Complete |
+| MRK-04 | Phase 6 | Complete |
 | SYN-01 | Phase 7 | Pending |
 | SYN-02 | Phase 7 | Pending |
 | SYN-03 | Phase 7 | Pending |

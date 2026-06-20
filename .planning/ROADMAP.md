@@ -178,11 +178,11 @@ Plans:
 3. Evidence photo can be attached to applied labels or shelf confirmation.
 4. Delayed markdown tasks remain visible and escalate.
 
-**Plans:** 0/4 plans executed
+**Plans:** 1/4 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 06-01-PLAN.md - Domain markdown lifecycle and runtime contracts
+- [x] 06-01-PLAN.md - Domain markdown lifecycle and runtime contracts
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
