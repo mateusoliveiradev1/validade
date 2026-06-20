@@ -4,7 +4,20 @@ import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/cont
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import type { CaptureRepository, TodayTaskRefreshSource } from "./repository";
-import { dueLabel, riskReasonLabel, todayActionLabel, todayCopy } from "./today-copy";
+import {
+  dueLabel,
+  riskReasonLabel,
+  severityLabel,
+  todayActionLabel,
+  todayCopy,
+} from "./today-copy";
+
+const ACTIVE_SECTION_ORDER = [
+  "withdraw_now",
+  "check_sales_area",
+  "request_markdown",
+  "follow_up",
+] as const satisfies readonly TodayTaskRecord["section"][];
 
 export function TodayScreen({
   repository,
@@ -91,30 +104,47 @@ export function TodayScreen({
         </View>
       ) : (
         <View style={styles.taskList}>
-          {tasks.map((task) => (
-            <TodayTaskRow
-              key={task.id}
-              task={task}
-              onPress={() => {
-                if (onOpenTask === undefined) {
-                  return;
-                }
+          {ACTIVE_SECTION_ORDER.map((section) => {
+            const sectionTasks = tasks.filter((task) => task.section === section);
 
-                onOpenTask(task);
-              }}
-            />
-          ))}
+            if (sectionTasks.length === 0) {
+              return null;
+            }
+
+            return (
+              <View key={section} style={styles.taskSection}>
+                <Text style={styles.sectionTitle}>{todayCopy.sections[section]}</Text>
+                {sectionTasks.map((task) => (
+                  <TodayTaskRow
+                    key={task.id}
+                    task={task}
+                    onPress={() => {
+                      if (onOpenTask === undefined) {
+                        return;
+                      }
+
+                      onOpenTask(task);
+                    }}
+                  />
+                ))}
+              </View>
+            );
+          })}
         </View>
       )}
 
       {futureAttention.length === 0 ? null : (
         <View style={styles.futureSection}>
-          <Text style={styles.sectionTitle}>Atencao futura</Text>
-          {futureAttention.map((item) => (
-            <Text key={item.id} style={styles.futureItem}>
-              {item.productDisplayName} - lote {item.lotIdentity.value}
-            </Text>
-          ))}
+          <Text style={styles.sectionTitle}>{todayCopy.sections.future_attention}</Text>
+          {futureAttention.map((item) => {
+            const label = `${item.productDisplayName} - lote ${item.lotIdentity.value}`;
+
+            return (
+              <Text key={item.id} style={styles.futureItem}>
+                {label}
+              </Text>
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -129,6 +159,9 @@ export function TodayTaskRow({
   onPress: () => void;
 }) {
   const action = todayActionLabel(task);
+  const title = `${task.productDisplayName} - lote ${task.lotIdentity.value}`;
+  const location = `Local: ${formatLocation(task.currentLocation)}`;
+  const due = `${dueLabel(task)} - Severidade ${severityLabel(task)} - ${task.ownerLabel}`;
 
   return (
     <Pressable
@@ -143,13 +176,9 @@ export function TodayTaskRow({
       ]}
     >
       <Text style={styles.taskAction}>{action}</Text>
-      <Text style={styles.taskTitle}>
-        {task.productDisplayName} - lote {task.lotIdentity.value}
-      </Text>
-      <Text style={styles.taskMeta}>Local: {formatLocation(task.currentLocation)}</Text>
-      <Text style={styles.taskMeta}>
-        {dueLabel(task)} - {task.ownerLabel}
-      </Text>
+      <Text style={styles.taskTitle}>{title}</Text>
+      <Text style={styles.taskMeta}>{location}</Text>
+      <Text style={styles.taskMeta}>{due}</Text>
       <Text style={styles.taskReason}>{riskReasonLabel(task)}</Text>
     </Pressable>
   );
@@ -205,6 +234,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   taskList: {
+    gap: 24,
+  },
+  taskSection: {
     gap: 8,
   },
   taskRow: {

@@ -13,6 +13,13 @@ export const todayCopy = {
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
+  sections: {
+    withdraw_now: "Retirar agora",
+    check_sales_area: "Conferir na area de venda",
+    request_markdown: "Pedir rebaixa",
+    follow_up: "Acompanhar",
+    future_attention: "Atencao futura",
+  },
 } as const;
 
 export function todayActionLabel(task: TodayTaskRecord): string {
@@ -67,4 +74,20 @@ export function riskReasonLabel(task: TodayTaskRecord): string {
   }
 
   return "Conferir informacao do lote";
+}
+
+export function severityLabel(task: TodayTaskRecord): string {
+  if (task.severity === "critical") {
+    return "Critica";
+  }
+
+  if (task.severity === "high") {
+    return "Alta";
+  }
+
+  if (task.severity === "medium") {
+    return "Media";
+  }
+
+  return "Acompanhamento";
 }

@@ -1,6 +1,6 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { TodayTaskRecord } from "@validade-zero/contracts";
+import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/contracts";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 
@@ -58,7 +58,7 @@ function emptyRefresh(): TodayTaskRefreshResult {
 }
 
 function expiredTask(): TodayTaskRecord {
-  return {
+  return taskFixture({
     id: "tarefa-ficticia-001",
     activeKey: "lote-ficticio-001:expired:withdraw_or_loss:root",
     lotId: "lote-ficticio-001",
@@ -67,21 +67,77 @@ function expiredTask(): TodayTaskRecord {
       identitySource: "printed",
       value: "OVOS-FICTICIOS-001",
     },
-    currentLocation: { kind: "area_de_venda" },
     riskState: "expired",
     severity: "critical",
     dueBucket: "now",
     requiredResolution: "withdraw_or_loss",
     section: "withdraw_now",
-    ownerLabel: "Equipe do turno",
-    status: "active",
     sourceRisk: {
       state: "expired",
       reasons: [{ code: "expired", field: "expiresAt" }],
     },
-    priority: 0,
+  });
+}
+
+function taskFixture(overrides: Partial<TodayTaskRecord>): TodayTaskRecord {
+  return {
+    id: "tarefa-ficticia-generica",
+    activeKey: "lote-ficticio-generico:critical:check_presence:root",
+    lotId: "lote-ficticio-generico",
+    productDisplayName: "Produto FICTICIO",
+    lotIdentity: {
+      identitySource: "printed",
+      value: "LOTE-FICTICIO",
+    },
+    currentLocation: { kind: "area_de_venda" },
+    riskState: "critical",
+    severity: "high",
+    dueBucket: "shift",
+    requiredResolution: "check_presence",
+    section: "check_sales_area",
+    ownerLabel: "Equipe do turno",
+    status: "active",
+    sourceRisk: {
+      state: "critical",
+      reasons: [{ code: "expires_in_3_days", field: "expiresAt" }],
+    },
+    priority: 1,
     createdAt: "2030-01-10T09:00:00.000Z",
     updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function radarAttention(): FutureAttentionRecord {
+  return {
+    id: "future:lote-banana-ficticio:radar",
+    lotId: "lote-banana-ficticio",
+    productDisplayName: "Banana FICTICIA",
+    lotIdentity: {
+      identitySource: "printed",
+      value: "BANANA-RADAR-FICTICIO",
+    },
+    currentLocation: { kind: "estoque" },
+    riskState: "radar",
+    section: "future_attention",
+    sourceRiskReasons: [{ code: "expires_in_60_days", field: "expiresAt" }],
+    observedAt: "2030-01-10T12:00:00.000Z",
+  };
+}
+
+function refreshWith(input: {
+  tasks: readonly TodayTaskRecord[];
+  futureAttention?: readonly FutureAttentionRecord[];
+}): TodayTaskRefreshResult {
+  return {
+    ...emptyRefresh(),
+    metadata: {
+      ...emptyRefresh().metadata,
+      activeTaskCount: input.tasks.length,
+      futureAttentionCount: input.futureAttention?.length ?? 0,
+    },
+    tasks: input.tasks,
+    futureAttention: input.futureAttention ?? [],
   };
 }
 
@@ -97,6 +153,7 @@ async function renderTodayScreen(repository: CaptureRepository): Promise<ReactTe
         now={() => new Date("2030-01-10T12:00:00.000Z")}
       />,
     );
+    await Promise.resolve();
   });
 
   if (tree === undefined) {
@@ -142,12 +199,139 @@ describe("TodayScreen", () => {
 
     await act(async () => {
       refreshButton.props.onPress();
+      await Promise.resolve();
     });
 
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Retirar agora");
     expect(rendered).toContain("Ovos FICTICIOS");
-    expect(rendered).toContain("Nao foi possivel atualizar agora. Confira a conexao e tente novamente.");
+    expect(rendered).toContain(
+      "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
+    );
+  });
+
+  it("renders active sections in operational order with complete row anatomy", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(
+        refreshWith({
+          tasks: [
+            taskFixture({
+              id: "tarefa-rebaixa",
+              activeKey: "lote-queijo:markdown_due:request_markdown:root",
+              lotId: "lote-queijo",
+              productDisplayName: "Queijo FICTICIO",
+              lotIdentity: { identitySource: "printed", value: "QUEIJO-001" },
+              currentLocation: { kind: "estoque" },
+              riskState: "markdown_due",
+              severity: "medium",
+              dueBucket: "today",
+              requiredResolution: "request_markdown",
+              section: "request_markdown",
+              sourceRisk: {
+                state: "markdown_due",
+                reasons: [{ code: "expires_in_15_days", field: "expiresAt" }],
+              },
+              priority: 3,
+            }),
+            taskFixture({
+              id: "tarefa-conferir",
+              activeKey: "lote-iogurte:critical:check_presence:root",
+              lotId: "lote-iogurte",
+              productDisplayName: "Iogurte FICTICIO",
+              lotIdentity: { identitySource: "printed", value: "IOGURTE-001" },
+              riskState: "critical",
+              requiredResolution: "check_presence",
+              section: "check_sales_area",
+              priority: 1,
+            }),
+            expiredTask(),
+          ],
+        }),
+      ),
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered.indexOf("Retirar agora")).toBeLessThan(
+      rendered.indexOf("Conferir na area de venda"),
+    );
+    expect(rendered.indexOf("Conferir na area de venda")).toBeLessThan(
+      rendered.indexOf("Pedir rebaixa"),
+    );
+    expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+    expect(rendered).toContain("Local:");
+    expect(rendered).toContain("venda");
+    expect(rendered).toContain("Agora - Severidade Critica - Equipe do turno");
+    expect(rendered).toContain("Validade vencida");
+  });
+
+  it("keeps per-lot duplicate product tasks visible as separate rows", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(
+        refreshWith({
+          tasks: [
+            taskFixture({
+              id: "tarefa-alface-001",
+              activeKey: "lote-alface-001:critical:check_presence:root",
+              lotId: "lote-alface-001",
+              productDisplayName: "Alface FICTICIA",
+              lotIdentity: { identitySource: "printed", value: "ALFACE-001" },
+            }),
+            taskFixture({
+              id: "tarefa-alface-002",
+              activeKey: "lote-alface-002:critical:check_presence:root",
+              lotId: "lote-alface-002",
+              productDisplayName: "Alface FICTICIA",
+              lotIdentity: { identitySource: "printed", value: "ALFACE-002" },
+            }),
+          ],
+        }),
+      ),
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Alface FICTICIA - lote ALFACE-001");
+    expect(rendered).toContain("Alface FICTICIA - lote ALFACE-002");
+  });
+
+  it("renders radar only under future attention and opens active tasks through callback", async () => {
+    const openTask = vi.fn();
+    const repository = createRepository(() =>
+      Promise.resolve(refreshWith({ tasks: [expiredTask()], futureAttention: [radarAttention()] })),
+    );
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TodayScreen
+          repository={repository}
+          onRegisterLot={() => undefined}
+          onOpenRecentLots={() => undefined}
+          onOpenTask={openTask}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TodayScreen did not render.");
+    }
+
+    const rendered = JSON.stringify(tree.toJSON());
+    const taskButton = tree.root.findByProps({
+      accessibilityLabel: "Retirar agora: Ovos FICTICIOS, lote OVOS-FICTICIOS-001",
+    });
+
+    expect(rendered.indexOf("Atencao futura")).toBeGreaterThan(rendered.indexOf("Retirar agora"));
+    expect(rendered).toContain("Banana FICTICIA - lote BANANA-RADAR-FICTICIO");
+
+    act(() => {
+      taskButton.props.onPress();
+    });
+
+    expect(openTask).toHaveBeenCalledWith(expect.objectContaining({ id: "tarefa-ficticia-001" }));
   });
 });

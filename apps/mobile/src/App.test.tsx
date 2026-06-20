@@ -49,6 +49,7 @@ describe("Validade Zero mobile smoke", () => {
 
     await act(async () => {
       tree = create(<App />);
+      await Promise.resolve();
     });
 
     expect(tree).toBeDefined();
