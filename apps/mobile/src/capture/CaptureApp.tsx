@@ -12,6 +12,8 @@ import { ObservationComposer } from "./ObservationComposer";
 import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
+import { TaskResolutionPanel } from "./TaskResolutionPanel";
+import type { TodayTaskRecord } from "@validade-zero/contracts";
 
 type CaptureScreen =
   | "today"
@@ -21,6 +23,7 @@ type CaptureScreen =
   | "lot-registration"
   | "recent"
   | "detail"
+  | "task-resolution"
   | "observation"
   | "barcode";
 
@@ -31,6 +34,7 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
   const [initializationError, setInitializationError] = useState<string | undefined>();
   const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
   const [scannedLookup, setScannedLookup] = useState<string | undefined>();
+  const [selectedTask, setSelectedTask] = useState<TodayTaskRecord | undefined>();
 
   useEffect(() => {
     void repository.initialize().catch(() => {
@@ -49,15 +53,22 @@ export function CaptureApp({ repository }: { repository: CaptureRepository }) {
           onRegisterLot={() => setScreen("discovery")}
           onOpenRecentLots={() => setScreen("recent")}
           onOpenTask={(task) => {
-            void repository.loadLotDetail(task.lotId).then((loaded) => {
-              if (loaded !== null) {
-                setDetail(loaded);
-                setScreen("detail");
-              }
-            });
+            setSelectedTask(task);
+            setScreen("task-resolution");
           }}
         />
       </>
+    );
+  }
+
+  if (screen === "task-resolution" && selectedTask !== undefined) {
+    return (
+      <TaskResolutionPanel
+        repository={repository}
+        task={selectedTask}
+        onBack={() => setScreen("today")}
+        onDone={() => setScreen("today")}
+      />
     );
   }
 

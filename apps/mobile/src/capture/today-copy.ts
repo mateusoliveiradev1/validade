@@ -20,6 +20,21 @@ export const todayCopy = {
     follow_up: "Acompanhar",
     future_attention: "Atencao futura",
   },
+  incompatibleAction:
+    "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",
+  expiredAction:
+    "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
+  localActor: "Colaborador local",
+  resolutionOptions: {
+    withdraw: "Retirar agora",
+    record_loss: "Registrar perda",
+    confirm_presence: "Conferir presenca",
+    request_markdown: "Pedir rebaixa",
+    mark_not_found: "Marcar como nao encontrado",
+    mark_probably_sold_out: "Registrar como provavelmente esgotado",
+    move_lot: "Mover lote",
+    complete_recheck: "Confirmar reconferencia",
+  },
 } as const;
 
 export function todayActionLabel(task: TodayTaskRecord): string {
