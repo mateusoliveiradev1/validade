@@ -36,6 +36,34 @@ describe("Today task contracts", () => {
     expect(TodayTaskRecordSchema.parse(baseTask)).toEqual(baseTask);
   });
 
+  it("keeps markdown workflow metadata optional and strict on Today tasks", () => {
+    expect(TodayTaskRecordSchema.parse(baseTask)).toEqual(baseTask);
+    expect(
+      TodayTaskRecordSchema.parse({
+        ...baseTask,
+        id: "tarefa-ficticia-markdown",
+        activeKey: "markdown:markdown-ficticio-001:requested",
+        requiredResolution: "approve_markdown",
+        section: "request_markdown",
+        severity: "medium",
+        dueBucket: "today",
+        markdownWorkflowId: "markdown-ficticio-001",
+        markdownStage: "requested",
+      }),
+    ).toMatchObject({
+      requiredResolution: "approve_markdown",
+      markdownWorkflowId: "markdown-ficticio-001",
+      markdownStage: "requested",
+    });
+    expect(() =>
+      TodayTaskRecordSchema.parse({
+        ...baseTask,
+        markdownWorkflowId: "markdown-ficticio-001",
+        markdownStage: "shelf_confirmed",
+      }),
+    ).toThrow();
+  });
+
   it("rejects unknown generic task fields and generic resolved actions", () => {
     expect(() =>
       TodayTaskRecordSchema.parse({

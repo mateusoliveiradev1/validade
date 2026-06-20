@@ -6,6 +6,7 @@ import {
   TODAY_TASK_SECTIONS,
   TODAY_TASK_SEVERITIES,
   RISK_REASON_CODES,
+  MARKDOWN_WORKFLOW_STATUSES,
   type RequiredResolution,
 } from "@validade-zero/domain";
 import { z } from "zod";
@@ -26,6 +27,11 @@ export const TodayDueBucketSchema = z.enum(TODAY_DUE_BUCKETS);
 export const RequiredResolutionSchema = z.enum(REQUIRED_RESOLUTIONS);
 
 export const TaskResolutionActionSchema = z.enum(TASK_RESOLUTION_ACTIONS);
+
+export const MarkdownTaskStageSchema = z.enum(MARKDOWN_WORKFLOW_STATUSES).exclude([
+  "rejected",
+  "shelf_confirmed",
+]);
 
 export const SourceRiskReasonSchema = z
   .object({
@@ -92,6 +98,8 @@ export const TodayTaskRecordSchema = z
     updatedAt: IsoDateTimeSchema,
     resolvedAt: IsoDateTimeSchema.optional(),
     recheckParentId: IdentifierSchema.optional(),
+    markdownWorkflowId: IdentifierSchema.optional(),
+    markdownStage: MarkdownTaskStageSchema.optional(),
     responsibleActorLabel: RequiredTextSchema.optional(),
     resolutionHistory: z
       .array(
