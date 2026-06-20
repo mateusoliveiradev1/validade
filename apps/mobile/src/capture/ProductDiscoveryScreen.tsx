@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import type { CaptureProductRecord, CaptureRepository } from "./repository";
+import type { CaptureProductCategory, CaptureProductRecord, CaptureRepository } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import {
   Field,
@@ -28,12 +28,14 @@ export function ProductDiscoveryScreen({
 }) {
   const [query, setQuery] = useState(initialLookup ?? "");
   const [matches, setMatches] = useState<readonly CaptureProductRecord[]>([]);
+  const [categories, setCategories] = useState<readonly CaptureProductCategory[]>([]);
   const [candidate, setCandidate] = useState<CaptureProductRecord | undefined>();
   const [message, setMessage] = useState<string | undefined>();
 
   async function searchManually(): Promise<void> {
     const results = await repository.findProducts(query);
     setMatches(results);
+    setCategories([]);
     setCandidate(undefined);
     setMessage(
       results.length === 0
@@ -48,8 +50,45 @@ export function ProductDiscoveryScreen({
     onCreateProduct(code);
   }
 
-  function showShortcut(label: string): void {
-    setMessage(`${label} é um atalho de apoio. Use a busca manual para confirmar o produto.`);
+  async function showFrequentProducts(): Promise<void> {
+    if (repository.listFrequentProducts === undefined) {
+      setMessage(captureCopy.shortcutUnavailable);
+      return;
+    }
+
+    const results = await repository.listFrequentProducts();
+    setMatches(results);
+    setCategories([]);
+    setCandidate(undefined);
+    setMessage(results.length === 0 ? captureCopy.frequentEmpty : captureCopy.frequentResults);
+  }
+
+  async function chooseCategory(): Promise<void> {
+    if (repository.listProductCategories === undefined) {
+      setMessage(captureCopy.shortcutUnavailable);
+      return;
+    }
+
+    const nextCategories = await repository.listProductCategories();
+    setCategories(nextCategories);
+    setMatches([]);
+    setCandidate(undefined);
+    setMessage(
+      nextCategories.length === 0 ? captureCopy.categoryEmpty : captureCopy.categoryPrompt,
+    );
+  }
+
+  async function showProductsByCategory(categoryId: string): Promise<void> {
+    if (repository.findProductsByCategory === undefined) {
+      setMessage(captureCopy.shortcutUnavailable);
+      return;
+    }
+
+    const results = await repository.findProductsByCategory(categoryId);
+    setCategories([]);
+    setMatches(results);
+    setCandidate(undefined);
+    setMessage(results.length === 0 ? captureCopy.noMatch : captureCopy.categoryResults);
   }
 
   const resolvedMode =
@@ -71,20 +110,19 @@ export function ProductDiscoveryScreen({
         <SecondaryAction label="Ler código" onPress={onScanCode} />
       )}
       <View style={styles.shortcuts}>
-        <SecondaryAction
-          label={captureCopy.recent}
-          onPress={onOpenRecent ?? (() => showShortcut(captureCopy.recent))}
-        />
-        <SecondaryAction
-          label={captureCopy.frequent}
-          onPress={() => showShortcut(captureCopy.frequent)}
-        />
-        <SecondaryAction
-          label={captureCopy.byCategory}
-          onPress={() => showShortcut(captureCopy.byCategory)}
-        />
+        <SecondaryAction label={captureCopy.recent} onPress={onOpenRecent ?? (() => undefined)} />
+        <SecondaryAction label={captureCopy.frequent} onPress={() => void showFrequentProducts()} />
+        <SecondaryAction label={captureCopy.byCategory} onPress={() => void chooseCategory()} />
       </View>
       {message === undefined ? null : <StatusNotice>{message}</StatusNotice>}
+      {categories.map((category) => (
+        <SelectionRow
+          key={category.categoryId}
+          label={category.categoryId}
+          detail={`${category.productCount} ${category.productCount === 1 ? "produto" : "produtos"}`}
+          onPress={() => void showProductsByCategory(category.categoryId)}
+        />
+      ))}
       {matches.map((product) => (
         <SelectionRow
           key={product.id}

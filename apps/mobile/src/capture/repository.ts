@@ -35,6 +35,11 @@ export type CaptureProductRecord = CaptureProductInput & {
   createdAt: string;
 };
 
+export interface CaptureProductCategory {
+  categoryId: string;
+  productCount: number;
+}
+
 export type CaptureObservationRecord = PhysicalObservationInput & {
   id: string;
   lotId: string;
@@ -84,6 +89,9 @@ export interface CaptureRepository {
   initialize(): Promise<void>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
   findProducts(query: string): Promise<readonly CaptureProductRecord[]>;
+  listFrequentProducts?: () => Promise<readonly CaptureProductRecord[]>;
+  listProductCategories?: () => Promise<readonly CaptureProductCategory[]>;
+  findProductsByCategory?: (categoryId: string) => Promise<readonly CaptureProductRecord[]>;
   saveLot(input: SaveLotInput): Promise<CaptureLotSnapshot>;
   appendObservation(
     lotId: string,
@@ -131,6 +139,16 @@ export function parseLotId(value: string): string {
 
   if (parsed.length === 0 || parsed.length > 120) {
     throw new Error("A capture identifier must contain between 1 and 120 characters.");
+  }
+
+  return parsed;
+}
+
+export function parseProductCategoryId(value: string): string {
+  const parsed = value.trim();
+
+  if (parsed.length === 0 || parsed.length > 160) {
+    throw new Error("A product category identifier must contain between 1 and 160 characters.");
   }
 
   return parsed;

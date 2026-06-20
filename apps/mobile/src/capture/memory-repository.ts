@@ -9,6 +9,7 @@ import type {
   CaptureLotDetail,
   CaptureLotSnapshot,
   CaptureObservationRecord,
+  CaptureProductCategory,
   CaptureProductRecord,
   CaptureRepository,
   CaptureRepositoryDependencies,
@@ -29,6 +30,7 @@ import {
   parseLotId,
   parseLotInput,
   parseObservationInput,
+  parseProductCategoryId,
   parseProductInput,
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
@@ -88,6 +90,49 @@ export function createMemoryCaptureRepository(
             product.normalizedName.includes(normalizedQuery) ||
             product.gtin?.includes(normalizedQuery) === true,
         )
+        .sort((left, right) => left.displayName.localeCompare(right.displayName, "pt-BR")),
+    );
+  }
+
+  function listFrequentProducts(): Promise<readonly CaptureProductRecord[]> {
+    const lotCounts = new Map<string, number>();
+
+    for (const lot of lots.values()) {
+      lotCounts.set(lot.productId, (lotCounts.get(lot.productId) ?? 0) + 1);
+    }
+
+    return Promise.resolve(
+      [...products.values()]
+        .filter((product) => (lotCounts.get(product.id) ?? 0) > 0)
+        .sort((left, right) => {
+          const frequencyDifference =
+            (lotCounts.get(right.id) ?? 0) - (lotCounts.get(left.id) ?? 0);
+
+          return frequencyDifference || left.displayName.localeCompare(right.displayName, "pt-BR");
+        }),
+    );
+  }
+
+  function listProductCategories(): Promise<readonly CaptureProductCategory[]> {
+    const counts = new Map<string, number>();
+
+    for (const product of products.values()) {
+      counts.set(product.categoryId, (counts.get(product.categoryId) ?? 0) + 1);
+    }
+
+    return Promise.resolve(
+      [...counts.entries()]
+        .map(([categoryId, productCount]) => ({ categoryId, productCount }))
+        .sort((left, right) => left.categoryId.localeCompare(right.categoryId, "pt-BR")),
+    );
+  }
+
+  function findProductsByCategory(categoryId: string): Promise<readonly CaptureProductRecord[]> {
+    const parsedCategoryId = parseProductCategoryId(categoryId);
+
+    return Promise.resolve(
+      [...products.values()]
+        .filter((product) => product.categoryId === parsedCategoryId)
         .sort((left, right) => left.displayName.localeCompare(right.displayName, "pt-BR")),
     );
   }
@@ -342,6 +387,9 @@ export function createMemoryCaptureRepository(
     initialize,
     createProduct,
     findProducts,
+    listFrequentProducts,
+    listProductCategories,
+    findProductsByCategory,
     saveLot,
     appendObservation,
     listRecentLots,

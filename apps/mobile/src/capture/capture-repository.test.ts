@@ -29,6 +29,50 @@ function createDeterministicRepository() {
 }
 
 describe("memory capture repository", () => {
+  it("ranks frequent products by registered lots with a stable name tie-breaker", async () => {
+    let nextIdentifier = 1;
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => `identificador-ficticio-${nextIdentifier++}`,
+    });
+    const profile = {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+    };
+    const banana = await repository.createProduct({
+      displayName: "Banana Exemplo FICTICIA",
+      categoryId: profile.categoryId,
+      categoryRuleProfile: profile,
+    });
+    const abacate = await repository.createProduct({
+      displayName: "Abacate Exemplo FICTICIA",
+      categoryId: profile.categoryId,
+      categoryRuleProfile: profile,
+    });
+
+    async function registerLot(productId: string, identity: string): Promise<void> {
+      await repository.saveLot({
+        lot: {
+          productId,
+          identity: { identitySource: "generated_internal", value: identity },
+          mode: "formal_validity",
+          expiresAt: "2030-02-10",
+          receivedAt: "2030-01-10",
+          approximateQuantity: 4,
+          initialLocation: { kind: "area_de_venda" },
+        },
+        actorLabel: "Colaboradora Exemplo FICTICIA",
+      });
+    }
+
+    await registerLot(banana.id, "LOTE-FICTICIO-BANANA-001");
+    await registerLot(banana.id, "LOTE-FICTICIO-BANANA-002");
+    await registerLot(abacate.id, "LOTE-FICTICIO-ABACATE-001");
+
+    await expect(repository.listFrequentProducts?.()).resolves.toEqual([banana, abacate]);
+  });
+
   it("searches products and retains append-only observations with the latest snapshot", async () => {
     const repository = createDeterministicRepository();
     await repository.initialize();
@@ -42,6 +86,16 @@ describe("memory capture repository", () => {
 
     await expect(repository.findProducts("ALFACE")).resolves.toEqual([product]);
     await expect(repository.findProducts("7890000000001")).resolves.toEqual([product]);
+
+    const otherProduct = await repository.createProduct({
+      displayName: "Ovos Brancos Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-ovos",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-ovos",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
 
     const lot = await repository.saveLot({
       lot: {
@@ -118,5 +172,19 @@ describe("memory capture repository", () => {
         currentObservation: expect.objectContaining({ quantityState: "not_estimable" }),
       }),
     ]);
+
+    const frequentProducts = await repository.listFrequentProducts?.();
+    const categories = await repository.listProductCategories?.();
+    const productsByCategory = await repository.findProductsByCategory?.(
+      "categoria-ficticia-folhas",
+    );
+
+    expect(frequentProducts).toEqual([product]);
+    expect(categories).toEqual([
+      { categoryId: "categoria-ficticia-folhas", productCount: 1 },
+      { categoryId: "categoria-ficticia-ovos", productCount: 1 },
+    ]);
+    expect(productsByCategory).toEqual([product]);
+    expect(productsByCategory).not.toContain(otherProduct);
   });
 });

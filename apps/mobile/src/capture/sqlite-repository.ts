@@ -17,6 +17,7 @@ import type {
   CaptureLotDetail,
   CaptureLotSnapshot,
   CaptureObservationRecord,
+  CaptureProductCategory,
   CaptureProductRecord,
   CaptureRepository,
   CaptureRepositoryDependencies,
@@ -37,6 +38,7 @@ import {
   parseLotId,
   parseLotInput,
   parseObservationInput,
+  parseProductCategoryId,
   parseProductInput,
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
@@ -55,6 +57,11 @@ interface ProductRow {
   gtin: string | null;
   product_override_json: string | null;
   created_at: string;
+}
+
+interface ProductCategoryRow {
+  category_id: string;
+  product_count: number;
 }
 
 interface LotRow {
@@ -235,6 +242,50 @@ export function createSQLiteCaptureRepository(
        ORDER BY display_name COLLATE NOCASE ASC`,
       `%${normalizedQuery}%`,
       `%${normalizedQuery}%`,
+    );
+
+    return rows.map(mapProduct);
+  }
+
+  async function listFrequentProducts(): Promise<readonly CaptureProductRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<ProductRow>(
+      `SELECT products.* FROM capture_products AS products
+       INNER JOIN capture_lots AS lots ON lots.product_id = products.id
+       GROUP BY products.id
+       ORDER BY COUNT(lots.id) DESC, products.display_name COLLATE NOCASE ASC`,
+    );
+
+    return rows.map(mapProduct);
+  }
+
+  async function listProductCategories(): Promise<readonly CaptureProductCategory[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<ProductCategoryRow>(
+      `SELECT category_id, COUNT(*) AS product_count FROM capture_products
+       GROUP BY category_id
+       ORDER BY category_id COLLATE NOCASE ASC`,
+    );
+
+    return rows.map((row) => ({
+      categoryId: row.category_id,
+      productCount: row.product_count,
+    }));
+  }
+
+  async function findProductsByCategory(
+    categoryId: string,
+  ): Promise<readonly CaptureProductRecord[]> {
+    await initialize();
+    const parsedCategoryId = parseProductCategoryId(categoryId);
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<ProductRow>(
+      `SELECT * FROM capture_products
+       WHERE category_id = ?
+       ORDER BY display_name COLLATE NOCASE ASC`,
+      parsedCategoryId,
     );
 
     return rows.map(mapProduct);
@@ -612,6 +663,9 @@ export function createSQLiteCaptureRepository(
     initialize,
     createProduct,
     findProducts,
+    listFrequentProducts,
+    listProductCategories,
+    findProductsByCategory,
     saveLot,
     appendObservation,
     listRecentLots,

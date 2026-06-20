@@ -184,4 +184,83 @@ describe("manual product discovery", () => {
     expect(recentOpened).toBe(true);
     expect(JSON.stringify(tree!.toJSON())).not.toContain("atalho de apoio");
   });
+
+  it("uses frequent products and category selection as real lookup paths", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    const frequentProduct = await repository.createProduct({
+      displayName: "Banana Prata Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    await repository.createProduct({
+      displayName: "Alface Crespa Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-folhas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-folhas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    await repository.saveLot({
+      lot: {
+        productId: frequentProduct.id,
+        identity: { identitySource: "generated_internal", value: "LOTE-FICTICIO-BANANA-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-02-10",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 8,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora Exemplo FICTICIA",
+    });
+
+    const confirmed: string[] = [];
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <ProductDiscoveryScreen
+          repository={repository}
+          onConfirmProduct={(product) => confirmed.push(product.id)}
+          onCreateProduct={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      press(tree!, "Frequentes");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree!.toJSON())).toContain("Produtos mais registrados");
+    act(() => {
+      press(tree!, "Banana Prata Exemplo FICTICIA");
+    });
+    act(() => {
+      press(tree!, "Confirmar produto");
+    });
+    expect(confirmed).toEqual([frequentProduct.id]);
+
+    await act(async () => {
+      press(tree!, "Por categoria");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain("Escolha uma categoria");
+
+    await act(async () => {
+      press(tree!, "categoria-ficticia-frutas");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree!.toJSON())).toContain("Banana Prata Exemplo FICTICIA");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Alface Crespa Exemplo FICTICIA");
+  });
 });
