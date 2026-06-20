@@ -178,6 +178,24 @@ Plans:
 3. Evidence photo can be attached to applied labels or shelf confirmation.
 4. Delayed markdown tasks remain visible and escalate.
 
+**Plans:** 0/4 plans executed
+Plans:
+**Wave 1**
+
+- [ ] 06-01-PLAN.md - Domain markdown lifecycle and runtime contracts
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02-PLAN.md - Local markdown workflow repository and alertable stage tasks
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06-03-PLAN.md - Mobile Hoje, lot-detail, and task-panel markdown flows
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 06-04-PLAN.md - Delayed-stage escalation, accessibility, smoke, and docs
+
 ### Phase 7: Offline Sync
 
 **Goal:** Make core mobile task execution reliable under poor store connectivity.
