@@ -116,7 +116,7 @@ Plans:
 3. Copy is direct and operational for store conditions.
 4. Interface supports high contrast, one-hand use, and clear critical states.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 
@@ -132,7 +132,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 04-04-PLAN.md - Overdue/a11y/smoke hardening and full regression evidence
+- [x] 04-04-PLAN.md - Overdue/a11y/smoke hardening and full regression evidence
 
 ### Phase 5: Push and Escalation
 
