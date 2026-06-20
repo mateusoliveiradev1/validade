@@ -23,15 +23,12 @@ export const todayCopy = {
   },
   incompatibleAction:
     "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",
-  expiredAction:
-    "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
+  expiredAction: "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
   localActor: "Colaborador local",
   destinationLoss: "Destino: Retirada/perda",
   confirmationTitle: "Confirme antes de registrar",
-  recheckConsequence:
-    "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
-  recheckFeedback:
-    "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+  recheckConsequence: "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
+  recheckFeedback: "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
   evidenceRequired:
     "Registre foto da area ou informe por que a foto nao foi feita antes de concluir.",
   photoEvidence: "Registrar foto da area",
@@ -150,9 +147,5 @@ export function isOverdueTask(task: TodayTaskRecord, referenceTime = new Date())
 }
 
 function startOfLocalDay(referenceTime: Date): Date {
-  return new Date(
-    referenceTime.getFullYear(),
-    referenceTime.getMonth(),
-    referenceTime.getDate(),
-  );
+  return new Date(referenceTime.getFullYear(), referenceTime.getMonth(), referenceTime.getDate());
 }

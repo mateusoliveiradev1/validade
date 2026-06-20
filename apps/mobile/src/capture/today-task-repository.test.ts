@@ -23,9 +23,7 @@ function formalProduct(displayName: string, maxPhysicalConfirmationAgeHours?: nu
     categoryRuleProfile: {
       categoryId: `categoria-ficticia-${displayName.toLocaleLowerCase("pt-BR").replaceAll(" ", "-")}`,
       mode: "formal_validity",
-      ...(maxPhysicalConfirmationAgeHours === undefined
-        ? {}
-        : { maxPhysicalConfirmationAgeHours }),
+      ...(maxPhysicalConfirmationAgeHours === undefined ? {} : { maxPhysicalConfirmationAgeHours }),
     },
   } satisfies CaptureProductInput;
 }

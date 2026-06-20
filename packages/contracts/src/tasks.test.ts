@@ -88,8 +88,9 @@ describe("Today task contracts", () => {
       kind: "no_photo_reason",
       reason: "Camera indisponivel",
     });
-    expect(() => EvidencePromptMetadataSchema.parse({ kind: "no_photo_reason", reason: "" }))
-      .toThrow();
+    expect(() =>
+      EvidencePromptMetadataSchema.parse({ kind: "no_photo_reason", reason: "" }),
+    ).toThrow();
     expect(() =>
       EvidencePromptMetadataSchema.parse({
         kind: "photo_recorded_placeholder",

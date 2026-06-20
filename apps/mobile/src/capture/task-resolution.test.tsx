@@ -1,9 +1,4 @@
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from "react-test-renderer";
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { TaskResolutionCommand, TodayTaskRecord } from "@validade-zero/contracts";
 import type { CaptureRepository } from "./repository";

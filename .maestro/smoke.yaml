@@ -1,5 +1,10 @@
 appId: com.validadezero.app
 ---
 - launchApp
+- assertVisible: "Hoje"
+- assertVisible: "Area de venda segura"
+- assertVisible: "Atualizar tarefas"
+- assertVisible: "Registrar lote"
+- tapOn: "Registrar lote"
 - assertVisible: "Localizar produto"
 - assertVisible: "Buscar manualmente"

@@ -95,9 +95,7 @@ export function TodayScreen({
         />
       </View>
 
-      {refreshError === undefined ? null : (
-        <StatusNotice tone="error">{refreshError}</StatusNotice>
-      )}
+      {refreshError === undefined ? null : <StatusNotice tone="error">{refreshError}</StatusNotice>}
 
       {tasks.length === 0 ? (
         <View style={styles.emptyState}>
@@ -213,7 +211,9 @@ export function TodayTaskRow({
 function isSalesAreaBlockingTask(task: TodayTaskRecord): boolean {
   return (
     task.currentLocation.kind === "area_de_venda" &&
-    (task.riskState === "expired" || task.riskState === "critical" || task.riskState === "uncertain")
+    (task.riskState === "expired" ||
+      task.riskState === "critical" ||
+      task.riskState === "uncertain")
   );
 }
 

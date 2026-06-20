@@ -25,7 +25,8 @@ function risk(state: RiskAssessment["state"]): RiskAssessment {
           : state === "uncertain"
             ? "check_presence"
             : "monitor",
-    reasons: state === "safe" ? [] : [{ code: state === "expired" ? "expired" : "expires_in_3_days" }],
+    reasons:
+      state === "safe" ? [] : [{ code: state === "expired" ? "expired" : "expires_in_3_days" }],
   };
 }
 

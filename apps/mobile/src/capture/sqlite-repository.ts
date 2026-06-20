@@ -775,10 +775,7 @@ async function insertObservation(
   );
 }
 
-async function upsertTodayTask(
-  db: SQLite.SQLiteDatabase,
-  task: TodayTaskRecord,
-): Promise<void> {
+async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord): Promise<void> {
   await db.runAsync(
     `INSERT INTO today_tasks (
       id, active_key, lot_id, product_display_name, lot_identity_source, lot_identity_value,

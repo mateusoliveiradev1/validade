@@ -118,8 +118,7 @@ export function TaskResolutionPanel({
       return;
     }
 
-    const evidence =
-      selectedAction === "complete_recheck" ? evidenceForRecheck() : undefined;
+    const evidence = selectedAction === "complete_recheck" ? evidenceForRecheck() : undefined;
 
     if (selectedAction === "complete_recheck" && evidence === undefined) {
       setBlockingNotice(todayCopy.evidenceRequired);
