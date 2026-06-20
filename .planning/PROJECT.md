@@ -14,6 +14,8 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 
 ### Validated
 
+- [x] Validated in Phase 3: Colaboradores podem criar produtos, registrar lotes com identificação, quantidade, localização e data orientada pelo perfil operacional.
+- [x] Validated in Phase 3: Colaboradores podem consultar lotes recentes e registrar presença, movimentação, retirada, perda, não encontrado e provável esgotamento com confirmação física.
 - [x] Validated in Phase 1: Base de engenharia com pnpm/Turborepo, TypeScript strict, quality gates, CI/security baseline e segurança para repositório público.
 - [x] Validated in Phase 2: O domínio diferencia produtos com validade formal, FLV por qualidade/inspeção e recebimento monitorado.
 - [x] Validated in Phase 2: Regras de risco por categoria/produto suportam janelas configuráveis, incluindo radar de 60 dias, rebaixa de 15 dias, crítico nos últimos 3 dias e retirada após vencimento.
@@ -97,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-19 after Phase 2 completion*
+*Last updated: 2026-06-20 after Phase 3 completion*

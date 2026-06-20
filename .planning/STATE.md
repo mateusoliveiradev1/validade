@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 3 - Mobile Lot Capture
-status: verification_pending
-stopped_at: Native Maestro smoke passed on the Android 16 emulator; conversational UAT remains before treating the phase as human-verified.
-last_updated: "2026-06-19T23:30:00.000Z"
-last_activity: 2026-06-19 - Native Maestro smoke passed on Android 16 after completing the local Windows runtime setup.
-last_activity_desc: Native Maestro smoke passed on Android 16 after completing the local Windows runtime setup.
+status: ready_to_plan
+stopped_at: Phase 3 complete (4/4) — ready to discuss Phase 4
+last_updated: 2026-06-20T01:04:18.272Z
+last_activity: 2026-06-20 - Phase 3 passed native verification, security review, and 8/8 conversational UAT checks.
+last_activity_desc: Phase 3 is complete; Phase 4 Today Task Workflow is ready for discussion.
 progress:
   total_phases: 9
   completed_phases: 3
@@ -19,18 +19,18 @@ progress:
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 3 - Mobile Lot Capture
+**Current phase:** 4 - Today Task Workflow
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-20 - Completed quick task 260619-tw4: Exibir horários de observação sem segundos no app mobile.
+**Last activity:** 2026-06-20 - Phase 3 passed native verification, security review, and 8/8 conversational UAT checks.
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-18)
+See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 3 Mobile Lot Capture implementation is complete and its native Maestro smoke passed on Android 16. Conversational UAT remains before treating the phase as human-verified.
+**Current focus:** Phase 4 — today task workflow
 
 ## Roadmap Progress
 
@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 |-------|--------|-------|
 | 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
 | 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
-| 3 | Complete | Mobile Lot Capture - 4/4 plans executed; native Maestro verification pending |
+| 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
 | 4 | Pending | Today Task Workflow |
 | 5 | Pending | Push and Escalation |
 | 6 | Pending | Markdown/Rebaixa Workflow |
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-18)
 
 ## Next Step
 
-Use `$gsd-verify-work 3` to complete the remaining conversational UAT for the native-verified Phase 3 flow.
+Use `$gsd-discuss-phase 4` to define the Today task workflow before detailed planning.
 
 ### Quick Tasks Completed
 
@@ -85,9 +85,9 @@ Use `$gsd-verify-work 3` to complete the remaining conversational UAT for the na
 
 ## Session
 
-**Last session:** 2026-06-19T23:30:00.000Z
-**Stopped at:** Native Maestro smoke passed on the Android 16 emulator; conversational UAT remains before treating the phase as human-verified.
-**Resume file:** .planning/phases/03-mobile-lot-capture/03-04-SUMMARY.md
+**Last session:** 2026-06-20T01:04:18.272Z
+**Stopped at:** Phase 3 complete, ready to discuss Phase 4.
+**Resume file:** None
 
 ## Decisions
 
