@@ -217,6 +217,27 @@ export function TaskResolutionPanel({
     }
 
     setSubmitting(true);
+
+    if (selectedAction === "request_markdown" && task.requiredResolution === "request_markdown") {
+      try {
+        await repository.requestMarkdown({
+          lotId: task.lotId,
+          sourceTaskId: task.id,
+          actorLabel: todayCopy.localActor,
+          occurredAt: now().toISOString(),
+          reason: "rule_window",
+        });
+        setConfirming(false);
+        onDone();
+      } catch {
+        setBlockingNotice(todayCopy.markdown.missingWorkflow);
+      } finally {
+        setSubmitting(false);
+      }
+
+      return;
+    }
+
     await repository.resolveTodayTask({
       taskId: task.id,
       action: selectedAction,

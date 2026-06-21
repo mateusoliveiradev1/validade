@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   MarkdownApplicationCommand,
   MarkdownApprovalCommand,
+  MarkdownRequestCommand,
   MarkdownShelfConfirmationCommand,
   TaskResolutionCommand,
   TodayTaskRecord,
@@ -109,6 +110,25 @@ function markdownTask(
     priority: requiredResolution === "approve_markdown" ? 3 : 2,
     markdownWorkflowId: "workflow-rebaixa-ficticio",
     markdownStage: stage,
+  };
+}
+
+function markdownRequestTask(): TodayTaskRecord {
+  return {
+    ...expiredTask(),
+    id: "tarefa-request-markdown-ficticia",
+    activeKey: "lote-ovos:markdown_due:request_markdown:root",
+    riskState: "markdown_due",
+    severity: "medium",
+    dueBucket: "today",
+    requiredResolution: "request_markdown",
+    section: "request_markdown",
+    ownerLabel: "Equipe do turno",
+    sourceRisk: {
+      state: "markdown_due",
+      reasons: [{ code: "expires_in_15_days", field: "expiresAt" }],
+    },
+    priority: 2,
   };
 }
 
@@ -437,6 +457,57 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(command)).not.toContain("uri");
     expect(JSON.stringify(command)).not.toContain("base64");
     expect(JSON.stringify(command)).not.toContain("objectKey");
+  });
+
+  it("requests markdown workflow from a request task instead of resolving it directly", async () => {
+    const requestMarkdown = vi.fn((command: MarkdownRequestCommand) =>
+      Promise.resolve({
+        id: "workflow-request-markdown-ficticio",
+        lotId: command.lotId,
+        status: "requested" as const,
+        currentStage: "requested" as const,
+        requestedAt: command.occurredAt,
+        requestedBy: command.actorLabel,
+        requestReason: command.reason,
+        stageHistory: [
+          {
+            stage: "requested" as const,
+            action: "request_markdown" as const,
+            actorLabel: command.actorLabel,
+            occurredAt: command.occurredAt,
+            reason: "Janela de rebaixa",
+          },
+        ],
+        createdAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+      }),
+    );
+    const resolveTodayTask = vi.fn();
+    const tree = await renderPanel(
+      createRepository({ requestMarkdown, resolveTodayTask }),
+      markdownRequestTask(),
+    );
+
+    await act(async () => {
+      tree.root.findAllByProps({ accessibilityLabel: "Solicitar rebaixa" })[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Solicitar rebaixa");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(requestMarkdown).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lotId: "lote-ovos",
+        sourceTaskId: "tarefa-request-markdown-ficticia",
+        reason: "rule_window",
+      }),
+    );
+    expect(resolveTodayTask).not.toHaveBeenCalled();
   });
 
   it("approves markdown through the workflow command without resolving the task directly", async () => {

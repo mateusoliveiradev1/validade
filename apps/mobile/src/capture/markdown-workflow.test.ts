@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CaptureProductInput } from "@validade-zero/contracts";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import { ensureTodayTaskMarkdownColumns } from "./sqlite-migrations";
 
 const currentDate = "2030-01-10";
 const currentTimestamp = "2030-01-10T12:00:00.000Z";
@@ -408,5 +409,35 @@ describe("markdown workflow repository", () => {
     expect(source).not.toContain("base64");
     expect(source).not.toContain("photo_uri");
     expect(source).not.toContain("image_bytes");
+  });
+
+  it("migrates legacy Today task tables with markdown columns idempotently", async () => {
+    const columns = ["id", "active_key", "resolution_history_json"];
+    const statements: string[] = [];
+    const database = {
+      getAllAsync: <T>() => Promise.resolve(columns.map((name) => ({ name })) as T[]),
+      execAsync: (source: string) => {
+        statements.push(source);
+
+        for (const column of ["markdown_workflow_id", "markdown_stage"]) {
+          if (source.includes(column)) {
+            columns.push(column);
+          }
+        }
+
+        return Promise.resolve();
+      },
+    };
+
+    await ensureTodayTaskMarkdownColumns(database);
+
+    expect(statements).toEqual([
+      "ALTER TABLE today_tasks ADD COLUMN markdown_workflow_id TEXT;",
+      "ALTER TABLE today_tasks ADD COLUMN markdown_stage TEXT;",
+    ]);
+
+    await ensureTodayTaskMarkdownColumns(database);
+
+    expect(statements).toHaveLength(2);
   });
 });

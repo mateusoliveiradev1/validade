@@ -72,6 +72,7 @@ import {
   sortTodayTasks,
 } from "./repository";
 import { canStartMarkdownWorkflow } from "@validade-zero/domain";
+import { ensureTodayTaskMarkdownColumns } from "./sqlite-migrations";
 
 interface ProductRow {
   id: string;
@@ -1589,6 +1590,8 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS alert_attempts_task_created_at_idx
       ON alert_attempts(task_id, created_at DESC);
   `);
+
+  await ensureTodayTaskMarkdownColumns(db);
 }
 
 async function findExistingProduct(
