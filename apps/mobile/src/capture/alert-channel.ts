@@ -420,16 +420,14 @@ function runtimeModuleFailureReason(error: unknown): string {
 }
 
 function loadExpoNotificationsModule(): Promise<ExpoNotificationsPort> {
-  return loadRuntimeModule("expo-notifications");
+  return new Promise((resolve) => {
+    resolve(require("expo-notifications") as ExpoNotificationsPort);
+  });
 }
 
 function loadExpoConstantsModule(): Promise<ExpoConstantsPort> {
-  return loadRuntimeModule("expo-constants");
-}
-
-function loadRuntimeModule<TModule>(moduleName: string): Promise<TModule> {
   return new Promise((resolve) => {
-    resolve(require(moduleName) as TModule);
+    resolve(require("expo-constants") as ExpoConstantsPort);
   });
 }
 

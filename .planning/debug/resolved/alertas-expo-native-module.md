@@ -26,6 +26,7 @@ updated: "2026-06-21"
 
 - 2026-06-21: Screenshot do emulador mostra RedBox em `apps/mobile/src/capture/alert-channel.ts:419`.
 - 2026-06-21: `apps/mobile/package.json` declara `expo-notifications`; `apps/mobile/app.json` inclui plugin, sugerindo mismatch de runtime nativo ou build desatualizado.
+- 2026-06-21: Metro rejeitou o helper generico com `Invalid call at line 432: require(moduleName)`, porque React Native exige require com string literal.
 
 ## Eliminated
 
@@ -35,6 +36,6 @@ updated: "2026-06-21"
 ## Resolution
 
 - root_cause: `expo-notifications` pode falhar durante o carregamento quando o binario nativo instalado nao contem `ExpoPushTokenManager`; o loader anterior deixava essa falha escapar como RedBox.
-- fix: envolver o carregamento de modulos Expo em uma Promise explicita e preservar a causa raiz do erro ao mapear para estado `unavailable`.
+- fix: envolver cada carregamento Expo em uma Promise explicita com `require` literal e preservar a causa raiz do erro ao mapear para estado `unavailable`.
 - verification: `pnpm.cmd --filter @validade-zero/mobile test -- src/capture/push-channel.test.ts`; `pnpm.cmd --filter @validade-zero/mobile typecheck`; `pnpm.cmd check`.
 - files_changed: `apps/mobile/src/capture/alert-channel.ts`, `apps/mobile/src/capture/push-channel.test.ts`.
