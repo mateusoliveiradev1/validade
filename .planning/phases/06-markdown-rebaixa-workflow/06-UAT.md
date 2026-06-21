@@ -3,15 +3,15 @@ status: testing
 phase: 06-markdown-rebaixa-workflow
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md]
 started: 2026-06-20T20:49:00-03:00
-updated: 2026-06-21T16:11:22-03:00
+updated: 2026-06-21T16:15:51-03:00
 ---
 
 ## Current Test
 
-number: 3
-name: Aprovar rebaixa cria a etapa de aplicacao
+number: 6
+name: Reprovar rebaixa exige motivo e encerra o fluxo
 expected: |
-  Abrir "Aprovar rebaixa", selecionar a aprovacao e confirmar encerra somente essa etapa. Em Hoje aparece uma nova tarefa "Aplicar rebaixa" para a equipe do turno.
+  Em uma nova solicitacao, selecionar "Reprovar rebaixa" exibe "Motivo da reprovacao". A acao fica desabilitada sem texto; com motivo preenchido, a rebaixa e encerrada e nenhuma tarefa de aplicacao e criada.
 awaiting: user response
 
 ## Tests
@@ -29,15 +29,18 @@ verified: "Emulador mostrou Solicitar rebaixa para Queijo UAT, o detalhe solicit
 
 ### 3. Aprovar rebaixa cria a etapa de aplicacao
 expected: Abrir "Aprovar rebaixa", selecionar a aprovacao e confirmar encerra somente essa etapa. Em Hoje aparece uma nova tarefa "Aplicar rebaixa" para a equipe do turno.
-result: [pending]
+result: pass
+verified: "Emulador abriu Aprovar rebaixa, a aprovacao criou Aplicar rebaixa em Hoje para Equipe do turno."
 
 ### 4. Aplicar rebaixa exige evidencia estruturada
 expected: A etapa "Aplicar rebaixa" mostra "Comprove a etiqueta aplicada". O botao "Registrar etiqueta aplicada" permanece desabilitado ate escolher a foto simulada ou um motivo sem foto. Ao concluir, surge "Conferir etiqueta na area de venda".
-result: [pending]
+result: pass
+verified: "Emulador manteve Registrar etiqueta aplicada desabilitado ate selecionar foto simulada; depois criou Conferir etiqueta na area de venda."
 
 ### 5. Confirmar etiqueta na area de venda
 expected: A etapa final mostra "Comprove na area de venda", exige foto simulada ou motivo sem foto e, ao confirmar, encerra o fluxo de rebaixa sem manter outra tarefa ativa para esse workflow.
-result: [pending]
+result: pass
+verified: "Emulador exigiu evidencia final, confirmou com foto simulada e voltou para Hoje sem tarefa ativa."
 
 ### 6. Reprovar rebaixa exige motivo e encerra o fluxo
 expected: Em uma nova solicitacao, selecionar "Reprovar rebaixa" exibe "Motivo da reprovacao". A acao fica desabilitada sem texto; com motivo preenchido, a rebaixa e encerrada e nenhuma tarefa de aplicacao e criada.
@@ -54,9 +57,9 @@ result: [pending]
 ## Summary
 
 total: 8
-passed: 2
+passed: 5
 issues: 0
-pending: 6
+pending: 3
 skipped: 0
 blocked: 0
 
