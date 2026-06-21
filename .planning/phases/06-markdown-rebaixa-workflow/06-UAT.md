@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 06-markdown-rebaixa-workflow
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md]
 started: 2026-06-20T20:49:00-03:00
-updated: 2026-06-21T16:15:51-03:00
+updated: 2026-06-21T16:23:29-03:00
 ---
 
 ## Current Test
 
-number: 6
-name: Reprovar rebaixa exige motivo e encerra o fluxo
-expected: |
-  Em uma nova solicitacao, selecionar "Reprovar rebaixa" exibe "Motivo da reprovacao". A acao fica desabilitada sem texto; com motivo preenchido, a rebaixa e encerrada e nenhuma tarefa de aplicacao e criada.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -44,22 +40,25 @@ verified: "Emulador exigiu evidencia final, confirmou com foto simulada e voltou
 
 ### 6. Reprovar rebaixa exige motivo e encerra o fluxo
 expected: Em uma nova solicitacao, selecionar "Reprovar rebaixa" exibe "Motivo da reprovacao". A acao fica desabilitada sem texto; com motivo preenchido, a rebaixa e encerrada e nenhuma tarefa de aplicacao e criada.
-result: [pending]
+result: pass
+verified: "Emulador criou nova solicitacao, exibiu Motivo da reprovacao, manteve Reprovar rebaixa desabilitado sem texto e encerrou sem criar Aplicar rebaixa apos motivo preenchido."
 
 ### 7. Presenca incerta bloqueia a solicitacao
 expected: Um lote marcado como nao encontrado ou provavelmente esgotado mostra "Conferir presenca antes da rebaixa". Tocar nessa acao abre o registro de observacao e nao cria uma solicitacao de rebaixa.
-result: [pending]
+result: pass
+verified: "Emulador marcou o lote como Nao encontrado, exibiu Conferir presenca antes da rebaixa e abriu Registrar observacao ao tocar, sem criar tarefa de aprovacao."
 
 ### 8. Workflow ativo nao pode ser duplicado
 expected: Ao abrir o detalhe de um lote que ja possui rebaixa ativa, o app mostra "Rebaixa em andamento" com a etapa atual. Tocar nela abre a tarefa corrente em Hoje, sem criar outra solicitacao.
-result: [pending]
+result: pass
+verified: "Emulador abriu a tarefa ativa Aprovar rebaixa como etapa corrente; a validacao SQLite confirmou um unico workflow active requested e uma unica tarefa active approve_markdown."
 
 ## Summary
 
 total: 8
-passed: 5
+passed: 8
 issues: 0
-pending: 3
+pending: 0
 skipped: 0
 blocked: 0
 
