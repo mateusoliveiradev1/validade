@@ -408,6 +408,10 @@ function mapPermissionStatus(status: string): PushAlertChannelStatus {
 }
 
 function runtimeModuleFailureReason(error: unknown): string {
+  if (error instanceof Error && error.cause !== undefined) {
+    return runtimeModuleFailureReason(error.cause);
+  }
+
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -416,11 +420,17 @@ function runtimeModuleFailureReason(error: unknown): string {
 }
 
 function loadExpoNotificationsModule(): Promise<ExpoNotificationsPort> {
-  return Promise.resolve(require("expo-notifications") as ExpoNotificationsPort);
+  return loadRuntimeModule("expo-notifications");
 }
 
 function loadExpoConstantsModule(): Promise<ExpoConstantsPort> {
-  return Promise.resolve(require("expo-constants") as ExpoConstantsPort);
+  return loadRuntimeModule("expo-constants");
+}
+
+function loadRuntimeModule<TModule>(moduleName: string): Promise<TModule> {
+  return new Promise((resolve) => {
+    resolve(require(moduleName) as TModule);
+  });
 }
 
 function resolveExpoProjectId(constants: ExpoConstantsPort): string | undefined {

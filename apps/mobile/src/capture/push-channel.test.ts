@@ -163,6 +163,20 @@ describe("push alert channel", () => {
     expect(() => channel.subscribeToNotificationResponses(() => undefined).remove()).not.toThrow();
   });
 
+  it("degrades instead of crashing when the native module loader throws synchronously", async () => {
+    const channel = createExpoPushAlertChannel({
+      loadNotifications: () =>
+        new Promise(() => {
+          throw new Error("Cannot find native module 'ExpoPushTokenManager'");
+        }),
+    });
+
+    await expect(channel.requestPermission()).resolves.toEqual({
+      state: "unavailable",
+      reason: "Cannot find native module 'ExpoPushTokenManager'",
+    });
+  });
+
   it("rejects notification response payloads with extra lock-screen details", () => {
     expect(
       parsePushNotificationResponseData({ taskId, taskActiveKey }, "2030-01-10T09:05:00.000Z"),
