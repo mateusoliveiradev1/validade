@@ -45,6 +45,10 @@ interface ExpoConstantsPort {
   };
 }
 
+interface ExpoModulesCorePort {
+  requireOptionalNativeModule(moduleName: string): Record<string, unknown> | null;
+}
+
 export interface PushAlertChannelStatus {
   state: AlertChannelState;
   reason?: string;
@@ -420,9 +424,21 @@ function runtimeModuleFailureReason(error: unknown): string {
 }
 
 function loadExpoNotificationsModule(): Promise<ExpoNotificationsPort> {
-  return new Promise((resolve) => {
-    resolve(require("expo-notifications") as ExpoNotificationsPort);
-  });
+  try {
+    const expoModulesCore = require("expo-modules-core") as ExpoModulesCorePort;
+
+    if (expoModulesCore.requireOptionalNativeModule("ExpoPushTokenManager") === null) {
+      return Promise.reject(
+        new Error("Expo notifications native push token module unavailable in this build."),
+      );
+    }
+
+    return Promise.resolve(require("expo-notifications") as ExpoNotificationsPort);
+  } catch (error) {
+    return Promise.reject(
+      error instanceof Error ? error : new Error("Unable to load Expo notifications module."),
+    );
+  }
 }
 
 function loadExpoConstantsModule(): Promise<ExpoConstantsPort> {
