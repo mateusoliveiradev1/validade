@@ -90,6 +90,43 @@ describe("AuditWorkbench", () => {
     expect(document.body.textContent).not.toMatch(/total de eventos|ranking|grafico/i);
   });
 
+  it("applies period, person, type, and target filters", async () => {
+    const listEvents = vi.fn().mockResolvedValue({ items: [] });
+
+    render(<AuditWorkbench client={{ listEvents }} />);
+
+    await screen.findByText("Refine a busca de eventos");
+
+    fireEvent.change(screen.getByLabelText("Periodo inicial"), {
+      target: { value: "2030-01-10T08:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Periodo final"), {
+      target: { value: "2030-01-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Pessoa"), { target: { value: "ana-ficticia" } });
+    fireEvent.change(screen.getByLabelText("Tipo de evento"), {
+      target: { value: "task.changed" },
+    });
+    fireEvent.change(screen.getByLabelText("Tipo de alvo"), { target: { value: "task" } });
+    fireEvent.change(screen.getByLabelText("Item afetado"), { target: { value: "task-001" } });
+
+    fireEvent.submit(screen.getByLabelText("Filtros de auditoria"));
+
+    await waitFor(() => {
+      expect(listEvents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          storeId: "loja-piloto",
+          from: new Date("2030-01-10T08:00").toISOString(),
+          to: new Date("2030-01-10T10:00").toISOString(),
+          actorId: "ana-ficticia",
+          type: "task.changed",
+          targetType: "task",
+          targetId: "task-001",
+        }),
+      );
+    });
+  });
+
   it("keeps filters visible when loading fails", async () => {
     const client: AuditClient = {
       listEvents: vi.fn().mockRejectedValue(new Error("Falha simulada")),
@@ -100,6 +137,6 @@ describe("AuditWorkbench", () => {
     expect((await screen.findByRole("alert")).textContent).toContain(
       "Nao foi possivel carregar a auditoria.",
     );
-    expect(screen.getByLabelText("Filtros de auditoria")).toBeTruthy();
+    expect(screen.getAllByLabelText("Filtros de auditoria").length).toBeGreaterThan(0);
   });
 });

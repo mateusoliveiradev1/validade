@@ -138,6 +138,63 @@ describe("offline sync repository behavior", () => {
     });
   });
 
+  it("creates a local audit timeline event and reconciles it without duplication", async () => {
+    const { repository, task } = await createExpiredTask();
+    const listAuditTimeline = repository.listAuditTimeline;
+
+    if (listAuditTimeline === undefined) {
+      throw new Error("Expected memory repository to expose audit timeline.");
+    }
+
+    const command = await repository.saveOfflineAction({
+      kind: "resolve_task",
+      payload: {
+        taskId: task.id,
+        action: "withdraw",
+        actorLabel: "Ana FICTICIA",
+        occurredAt: "2030-01-10T12:10:00.000Z",
+        destination: { kind: "retirada_perda" },
+      },
+    });
+
+    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toMatchObject([
+      {
+        status: "pending_ack",
+        summary: "Retirada salva neste aparelho.",
+        target: { id: task.id },
+      },
+    ]);
+
+    await repository.saveOfflineAction({
+      kind: "resolve_task",
+      payload: {
+        taskId: task.id,
+        action: "withdraw",
+        actorLabel: "Ana FICTICIA",
+        occurredAt: "2030-01-10T12:10:00.000Z",
+        destination: { kind: "retirada_perda" },
+      },
+    });
+
+    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toHaveLength(
+      1,
+    );
+
+    await repository.applySyncTransportResult({
+      status: "ack",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      syncedAt: "2030-01-10T12:12:00.000Z",
+    });
+
+    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toMatchObject([
+      {
+        status: "received",
+        receivedAt: "2030-01-10T12:12:00.000Z",
+      },
+    ]);
+  });
+
   it("supports all offline action kinds without duplicating commands on retry", async () => {
     const { repository, task } = await createExpiredTask();
     const resolveCommand = await repository.saveOfflineAction({
@@ -350,9 +407,12 @@ describe("offline sync repository behavior", () => {
     expect(source).toContain("CREATE TABLE IF NOT EXISTS offline_cache_status");
     expect(source).toContain("CREATE TABLE IF NOT EXISTS sync_commands");
     expect(source).toContain("CREATE TABLE IF NOT EXISTS sync_conflicts");
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS local_audit_events");
     expect(source).toContain("CREATE INDEX IF NOT EXISTS sync_commands_state_urgency_created_idx");
     expect(source).toContain("CREATE UNIQUE INDEX IF NOT EXISTS sync_commands_idempotency_key_idx");
     expect(source).toContain("CREATE INDEX IF NOT EXISTS sync_conflicts_command_idx");
+    expect(source).toContain("CREATE INDEX IF NOT EXISTS local_audit_events_target_occurred_idx");
+    expect(source).toContain("upsertLocalAuditEvent");
     expect(source).toContain("sync_json");
     expect(source).toContain("withTransactionAsync");
     expect(source).not.toContain("R2");

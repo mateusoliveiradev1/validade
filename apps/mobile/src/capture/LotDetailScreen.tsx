@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import type { AuditTimelineItem } from "@validade-zero/contracts";
 import type { MarkdownRequestReason } from "@validade-zero/domain";
+import { AuditTimeline } from "./AuditTimeline";
 import type { CaptureLotDetail, MarkdownEntryState } from "./repository";
 import { actionLabel, formatQuantity } from "./RecentLotList";
 import { formatLocation, formatObservationTimestamp } from "./capture-copy";
@@ -36,6 +38,7 @@ export function LotDetailScreen({
   onRequestMarkdown,
   onOpenActiveMarkdown,
   onBack,
+  auditEvents = [],
 }: {
   detail: CaptureLotDetail;
   markdownEntryState?: MarkdownEntryState | undefined;
@@ -43,6 +46,7 @@ export function LotDetailScreen({
   onRequestMarkdown?: (request: LotDetailMarkdownRequest) => Promise<void> | void;
   onOpenActiveMarkdown?: (() => void) | undefined;
   onBack: () => void;
+  auditEvents?: readonly AuditTimelineItem[] | undefined;
 }) {
   const [selectedReason, setSelectedReason] = useState<EarlyMarkdownReason | undefined>();
   const [earlyJustification, setEarlyJustification] = useState("");
@@ -134,6 +138,7 @@ export function LotDetailScreen({
         <SecondaryAction label="Registrar observacao" onPress={onObserve} />
       )}
       <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+      {auditEvents.length === 0 ? null : <AuditTimeline events={auditEvents} />}
     </ScrollView>
   );
 }

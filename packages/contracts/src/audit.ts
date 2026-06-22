@@ -56,6 +56,32 @@ export const AuditTargetTypeSchema = z.enum([
   "access_request",
 ]);
 
+export const AuditProducerKindSchema = z.enum([
+  "task.create",
+  "task.assign",
+  "task.action",
+  "task.resolve",
+  "task.reopen",
+  "markdown.request",
+  "markdown.decide",
+  "markdown.apply",
+  "markdown.confirm_on_shelf",
+  "alert.dispatch",
+  "alert.escalate",
+  "sync.ack",
+  "sync.retry",
+  "sync.conflict",
+  "sync.discard",
+  "evidence.attach",
+  "evidence.upload",
+  "evidence.fail",
+  "evidence.invalidate",
+  "shift.close",
+  "shift.handoff_ack",
+  "shift.reopen",
+  "access.denied",
+]);
+
 export const AuditStoreScopeSchema = z
   .object({
     storeId: RequiredIdentifierSchema,
@@ -119,7 +145,20 @@ export const AuditEventRecordSchema = z
 
 export const AuditTimelineItemSchema = AuditEventRecordSchema.omit({
   idempotencyKey: true,
-}).strict();
+  receivedAt: true,
+})
+  .extend({
+    receivedAt: IsoDateTimeSchema.optional(),
+  })
+  .strict();
+
+export const AuditProducerCommandSchema = z
+  .object({
+    producerKind: AuditProducerKindSchema,
+    idempotencyKey: RequiredIdentifierSchema,
+    event: AuditTimelineItemSchema,
+  })
+  .strict();
 
 export const AuditQuerySchema = z
   .object({
@@ -166,6 +205,7 @@ export const AuditCursorPageSchema = z
 export const AuditContract = {
   event: AuditEventRecordSchema,
   timelineItem: AuditTimelineItemSchema,
+  producerCommand: AuditProducerCommandSchema,
   target: AuditTargetSchema,
   query: AuditQuerySchema,
   cursorPage: AuditCursorPageSchema,
@@ -174,11 +214,13 @@ export const AuditContract = {
 export type AuditEventType = z.infer<typeof AuditEventTypeSchema>;
 export type AuditEventStatus = z.infer<typeof AuditEventStatusSchema>;
 export type AuditTargetType = z.infer<typeof AuditTargetTypeSchema>;
+export type AuditProducerKind = z.infer<typeof AuditProducerKindSchema>;
 export type AuditStoreScope = z.infer<typeof AuditStoreScopeSchema>;
 export type AuditActorSnapshot = z.infer<typeof AuditActorSnapshotSchema>;
 export type AuditTarget = z.infer<typeof AuditTargetSchema>;
 export type AuditMetadata = z.infer<typeof AuditMetadataSchema>;
 export type AuditEventRecord = z.infer<typeof AuditEventRecordSchema>;
 export type AuditTimelineItem = z.infer<typeof AuditTimelineItemSchema>;
+export type AuditProducerCommand = z.infer<typeof AuditProducerCommandSchema>;
 export type AuditQuery = z.infer<typeof AuditQuerySchema>;
 export type AuditCursorPage = z.infer<typeof AuditCursorPageSchema>;

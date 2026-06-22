@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AuditCursorPageSchema,
   AuditEventRecordSchema,
+  AuditProducerCommandSchema,
   AuditQuerySchema,
   AuditTimelineItemSchema,
 } from "./audit";
@@ -76,6 +77,37 @@ describe("audit contracts", () => {
 
     expect("idempotencyKey" in timelineItem).toBe(false);
     expect(timelineItem.summary).toBe("Retirada registrada na area de venda.");
+  });
+
+  it("allows pending local timeline items without central receipt", () => {
+    const { idempotencyKey: _idempotencyKey, receivedAt: _receivedAt, ...projection } = baseEvent;
+    const timelineItem = AuditTimelineItemSchema.parse({
+      ...projection,
+      eventId: "local-audit-event-001",
+      status: "pending_ack",
+    });
+
+    expect(timelineItem.receivedAt).toBeUndefined();
+    expect(timelineItem.status).toBe("pending_ack");
+  });
+
+  it("types every producer seam before it can reach the audit ledger", () => {
+    const { idempotencyKey: _idempotencyKey, ...projection } = baseEvent;
+
+    expect(
+      AuditProducerCommandSchema.parse({
+        producerKind: "sync.ack",
+        idempotencyKey: "sync-ack:command-001",
+        event: projection,
+      }),
+    ).toMatchObject({ producerKind: "sync.ack" });
+    expect(
+      AuditProducerCommandSchema.safeParse({
+        producerKind: "navigation.click",
+        idempotencyKey: "click-001",
+        event: projection,
+      }).success,
+    ).toBe(false);
   });
 
   it("requires store-scoped cursor queries and caps page size", () => {

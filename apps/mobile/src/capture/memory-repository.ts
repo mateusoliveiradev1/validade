@@ -1,5 +1,6 @@
 import type {
   AlertDeliveryResult,
+  AuditTimelineItem,
   CaptureProductInput,
   DevicePushRegistrationCommand,
   FutureAttentionRecord,
@@ -79,6 +80,7 @@ import {
   parseSyncConflictRecord,
   parseSyncQueueSummary,
   parseSyncTransportResult,
+  parseAuditTimelineItem,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
@@ -99,6 +101,7 @@ export function createMemoryCaptureRepository(
   const taskAlertStates = new Map<string, TaskAlertStateRecord>();
   const syncCommands = new Map<string, SyncCommandRecord>();
   const syncConflicts = new Map<string, SyncConflictRecord>();
+  const localAuditEvents = new Map<string, AuditTimelineItem & { idempotencyKey: string }>();
   const alertAttempts: RecordAlertAttemptInput[] = [];
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
   let offlineCacheStatus: OfflineCacheStatus | undefined;
@@ -1071,6 +1074,7 @@ export function createMemoryCaptureRepository(
       });
 
       syncCommands.set(command.id, command);
+      appendLocalAuditEventForCommand(command, "pending_ack");
       attachSyncMetadata(command);
 
       return command;
@@ -1141,6 +1145,7 @@ export function createMemoryCaptureRepository(
       }
 
       syncCommands.set(updated.id, updated);
+      reconcileLocalAuditEventForSyncResult(parsed, updated);
       attachSyncMetadata(updated);
 
       return updated;
@@ -1177,6 +1182,7 @@ export function createMemoryCaptureRepository(
 
       syncConflicts.set(resolved.id, resolved);
       syncCommands.set(updatedCommand.id, updatedCommand);
+      appendConflictResolutionAuditEvent(resolved, updatedCommand);
       attachSyncMetadata(updatedCommand);
 
       return resolved;
@@ -1185,6 +1191,24 @@ export function createMemoryCaptureRepository(
 
   function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
     return Promise.resolve(syncConflicts.get(parseLotId(conflictId)) ?? null);
+  }
+
+  function listAuditTimeline(input: {
+    targetType: AuditTimelineItem["target"]["type"];
+    targetId: string;
+    limit?: number;
+  }): Promise<readonly AuditTimelineItem[]> {
+    const limit = input.limit ?? 25;
+
+    return Promise.resolve(
+      [...localAuditEvents.values()]
+        .filter(
+          (event) => event.target.type === input.targetType && event.target.id === input.targetId,
+        )
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+        .slice(0, limit)
+        .map(({ idempotencyKey: _idempotencyKey, ...event }) => event),
+    );
   }
 
   return {
@@ -1224,6 +1248,7 @@ export function createMemoryCaptureRepository(
     applySyncTransportResult,
     resolveSyncConflict,
     loadSyncConflict,
+    listAuditTimeline,
   };
 
   function snapshotForOfflineAction(action: OfflineActionCommand): {
@@ -1328,6 +1353,124 @@ export function createMemoryCaptureRepository(
     return command;
   }
 
+  function appendLocalAuditEventForCommand(
+    command: SyncCommandRecord,
+    status: AuditTimelineItem["status"],
+  ): void {
+    if (localAuditEvents.has(command.idempotencyKey)) {
+      return;
+    }
+
+    const occurredAt = command.payload.payload.occurredAt;
+    const actorLabel = command.payload.payload.actorLabel;
+    const event = parseAuditTimelineItem({
+      eventId: `local-audit:${command.id}`,
+      type: auditEventTypeForCommand(command),
+      store: {
+        storeId: "local-device",
+        storeName: "Loja deste aparelho",
+      },
+      actor: {
+        actorId: actorLabel,
+        displayName: actorLabel,
+        roleSnapshot: "collaborator",
+      },
+      target: {
+        type: auditTargetTypeForCommand(command),
+        id: auditTargetIdForCommand(command),
+        label: `${command.productDisplayName} - lote ${command.lotIdentity.value}`,
+      },
+      occurredAt,
+      summary: auditSummaryForCommand(command),
+      status,
+      metadata: {
+        producerKind: auditProducerKindForCommand(command),
+        commandKind: command.kind,
+        productDisplayName: command.productDisplayName,
+        lotCode: command.lotIdentity.value,
+      },
+    });
+
+    localAuditEvents.set(command.idempotencyKey, {
+      ...event,
+      idempotencyKey: command.idempotencyKey,
+    });
+  }
+
+  function reconcileLocalAuditEventForSyncResult(
+    result: SyncTransportResult,
+    command: SyncCommandRecord,
+  ): void {
+    const existing = localAuditEvents.get(result.idempotencyKey);
+
+    if (existing === undefined) {
+      appendLocalAuditEventForCommand(
+        command,
+        result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+      );
+      return;
+    }
+
+    const { idempotencyKey, ...existingEvent } = existing;
+    const updated = parseAuditTimelineItem({
+      ...existingEvent,
+      status:
+        result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+      ...(result.status === "ack" ? { receivedAt: result.syncedAt } : {}),
+      ...(result.status === "retry" ? { reason: result.error } : {}),
+    });
+
+    localAuditEvents.set(result.idempotencyKey, {
+      ...updated,
+      idempotencyKey,
+    });
+  }
+
+  function appendConflictResolutionAuditEvent(
+    conflict: SyncConflictRecord,
+    command: SyncCommandRecord,
+  ): void {
+    const original = localAuditEvents.get(command.idempotencyKey);
+    const resolutionKey = `sync-discard:${conflict.id}:${conflict.resolvedAt ?? dependencies.clock()}`;
+
+    if (localAuditEvents.has(resolutionKey)) {
+      return;
+    }
+
+    const event = parseAuditTimelineItem({
+      eventId: `local-audit:${resolutionKey}`,
+      type: "sync.changed",
+      store: {
+        storeId: "local-device",
+        storeName: "Loja deste aparelho",
+      },
+      actor: {
+        actorId: conflict.localAction.actorLabel,
+        displayName: conflict.localAction.actorLabel,
+        roleSnapshot: "collaborator",
+      },
+      target: {
+        type: "sync_command",
+        id: command.id,
+        label: `${command.productDisplayName} - lote ${command.lotIdentity.value}`,
+      },
+      occurredAt: conflict.resolvedAt ?? dependencies.clock(),
+      summary:
+        conflict.resolutionAction === "discard_offline_action"
+          ? "Acao offline descartada com motivo."
+          : "Conflito de sincronizacao revisado.",
+      reason: conflict.resolutionReason ?? conflict.reason,
+      status: command.state === "discarded" ? "invalidated" : "pending_ack",
+      ...(original === undefined ? {} : { linkedEventId: original.eventId }),
+      metadata: {
+        producerKind: "sync.discard",
+        commandKind: command.kind,
+      },
+    });
+
+    localAuditEvents.set(resolutionKey, { ...event, idempotencyKey: resolutionKey });
+  }
+
   function attachSyncMetadata(command: SyncCommandRecord): void {
     const task = todayTasks.get(command.taskId);
 
@@ -1361,6 +1504,87 @@ export function createMemoryCaptureRepository(
       }),
     );
   }
+}
+
+function auditEventTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["type"] {
+  if (command.kind === "resolve_task") {
+    return "task.changed";
+  }
+
+  if (
+    command.kind === "request_markdown" ||
+    command.kind === "decide_markdown" ||
+    command.kind === "record_markdown_application" ||
+    command.kind === "confirm_markdown_on_shelf"
+  ) {
+    return "markdown.changed";
+  }
+
+  return "sync.changed";
+}
+
+function auditTargetTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["target"]["type"] {
+  return command.kind === "resolve_task" ? "task" : "markdown";
+}
+
+function auditTargetIdForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    return command.taskId;
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return command.payload.payload.lotId;
+  }
+
+  return command.payload.payload.workflowId;
+}
+
+function auditProducerKindForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    return command.payload.payload.action === "complete_recheck" ? "task.resolve" : "task.action";
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return "markdown.request";
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return "markdown.decide";
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return "markdown.apply";
+  }
+
+  return "markdown.confirm_on_shelf";
+}
+
+function auditSummaryForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    if (command.payload.payload.action === "withdraw") {
+      return "Retirada salva neste aparelho.";
+    }
+
+    if (command.payload.payload.action === "complete_recheck") {
+      return "Reconferencia salva neste aparelho.";
+    }
+
+    return "Acao de tarefa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return "Solicitacao de rebaixa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return "Decisao de rebaixa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return "Aplicacao de rebaixa salva neste aparelho.";
+  }
+
+  return "Conferencia de rebaixa salva neste aparelho.";
 }
 
 function isActiveTask(task: TodayTaskRecord): boolean {

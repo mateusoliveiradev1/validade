@@ -1,5 +1,6 @@
 import {
   AlertDeliveryResultSchema,
+  AuditTimelineItemSchema,
   CaptureLotInputSchema,
   CaptureProductInputSchema,
   DevicePushRegistrationCommandSchema,
@@ -9,6 +10,7 @@ import {
   PhysicalObservationInputSchema,
   PushOpenIntentSchema,
   TaskAlertStateRecordSchema,
+  type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
   type DevicePushRegistrationCommand,
@@ -80,6 +82,7 @@ import {
   parseSyncConflictRecord,
   parseSyncQueueSummary,
   parseSyncTransportResult,
+  parseAuditTimelineItem,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
@@ -299,6 +302,27 @@ interface SyncConflictRow {
   resolved_at: string | null;
   resolution_action: string | null;
   resolution_reason: string | null;
+}
+
+interface LocalAuditEventRow {
+  event_id: string;
+  idempotency_key: string;
+  type: string;
+  store_id: string;
+  store_name: string;
+  actor_id: string;
+  actor_display_name: string;
+  actor_role_snapshot: string;
+  target_type: string;
+  target_id: string;
+  target_label: string | null;
+  occurred_at: string;
+  received_at: string | null;
+  summary: string;
+  reason: string | null;
+  status: string;
+  linked_event_id: string | null;
+  metadata_json: string;
 }
 
 const LOT_SELECT = `
@@ -1600,6 +1624,7 @@ export function createSQLiteCaptureRepository(
       });
 
       await upsertSyncCommand(db, command);
+      await upsertLocalAuditEvent(db, createLocalAuditEventForCommand(command, "pending_ack"));
       await attachSyncMetadata(db, command);
       savedCommand = command;
     });
@@ -1690,6 +1715,7 @@ export function createSQLiteCaptureRepository(
       }
 
       await upsertSyncCommand(db, updated);
+      await reconcileLocalAuditEvent(db, parsed, updated);
       await attachSyncMetadata(db, updated);
       savedCommand = updated;
     });
@@ -1739,6 +1765,7 @@ export function createSQLiteCaptureRepository(
 
       await upsertSyncConflict(db, resolved);
       await upsertSyncCommand(db, updatedCommand);
+      await upsertLocalAuditEvent(db, createConflictResolutionAuditEvent(resolved, updatedCommand));
       await attachSyncMetadata(db, updatedCommand);
       resolvedConflict = resolved;
     });
@@ -1759,6 +1786,30 @@ export function createSQLiteCaptureRepository(
     );
 
     return row === null ? null : mapSyncConflict(row);
+  }
+
+  async function listAuditTimeline(input: {
+    targetType: AuditTimelineItem["target"]["type"];
+    targetId: string;
+    limit?: number;
+  }): Promise<readonly AuditTimelineItem[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<LocalAuditEventRow>(
+      `SELECT * FROM local_audit_events
+       WHERE target_type = ? AND target_id = ?
+       ORDER BY occurred_at DESC
+       LIMIT ?`,
+      input.targetType,
+      parseLotId(input.targetId),
+      input.limit ?? 25,
+    );
+
+    return rows.map((row) => {
+      const { idempotencyKey: _idempotencyKey, ...event } = mapLocalAuditEvent(row);
+
+      return event;
+    });
   }
 
   async function snapshotForOfflineAction(
@@ -1972,6 +2023,7 @@ export function createSQLiteCaptureRepository(
     applySyncTransportResult,
     resolveSyncConflict,
     loadSyncConflict,
+    listAuditTimeline,
   };
 }
 
@@ -2116,6 +2168,26 @@ async function initializeDatabase(
       resolution_reason TEXT,
       FOREIGN KEY (command_id) REFERENCES sync_commands(id)
     );
+    CREATE TABLE IF NOT EXISTS local_audit_events (
+      event_id TEXT PRIMARY KEY NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      type TEXT NOT NULL,
+      store_id TEXT NOT NULL,
+      store_name TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      actor_display_name TEXT NOT NULL,
+      actor_role_snapshot TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      target_label TEXT,
+      occurred_at TEXT NOT NULL,
+      received_at TEXT,
+      summary TEXT NOT NULL,
+      reason TEXT,
+      status TEXT NOT NULL,
+      linked_event_id TEXT,
+      metadata_json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS today_future_attention (
       id TEXT PRIMARY KEY NOT NULL,
       lot_id TEXT NOT NULL,
@@ -2216,6 +2288,10 @@ async function initializeDatabase(
     CREATE UNIQUE INDEX IF NOT EXISTS sync_commands_idempotency_key_idx
       ON sync_commands(idempotency_key);
     CREATE INDEX IF NOT EXISTS sync_conflicts_command_idx ON sync_conflicts(command_id);
+    CREATE INDEX IF NOT EXISTS local_audit_events_target_occurred_idx
+      ON local_audit_events(target_type, target_id, occurred_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS local_audit_events_idempotency_key_idx
+      ON local_audit_events(idempotency_key);
     CREATE INDEX IF NOT EXISTS today_future_attention_lot_idx ON today_future_attention(lot_id);
     CREATE INDEX IF NOT EXISTS markdown_workflows_lot_status_idx
       ON markdown_workflows(lot_id, status);
@@ -2498,6 +2574,141 @@ async function upsertSyncConflict(
     conflict.resolutionAction ?? null,
     conflict.resolutionReason ?? null,
   );
+}
+
+type LocalAuditEventRecord = AuditTimelineItem & { idempotencyKey: string };
+
+async function upsertLocalAuditEvent(
+  db: SQLite.SQLiteDatabase,
+  event: LocalAuditEventRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO local_audit_events (
+      event_id, idempotency_key, type, store_id, store_name, actor_id, actor_display_name,
+      actor_role_snapshot, target_type, target_id, target_label, occurred_at, received_at,
+      summary, reason, status, linked_event_id, metadata_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(idempotency_key) DO UPDATE SET
+      received_at = excluded.received_at,
+      reason = excluded.reason,
+      status = excluded.status,
+      linked_event_id = excluded.linked_event_id,
+      metadata_json = excluded.metadata_json`,
+    event.eventId,
+    event.idempotencyKey,
+    event.type,
+    event.store.storeId,
+    event.store.storeName,
+    event.actor.actorId,
+    event.actor.displayName,
+    event.actor.roleSnapshot,
+    event.target.type,
+    event.target.id,
+    event.target.label ?? null,
+    event.occurredAt,
+    event.receivedAt ?? null,
+    event.summary,
+    event.reason ?? null,
+    event.status,
+    event.linkedEventId ?? null,
+    JSON.stringify(event.metadata ?? {}),
+  );
+}
+
+async function reconcileLocalAuditEvent(
+  db: SQLite.SQLiteDatabase,
+  result: SyncTransportResult,
+  command: SyncCommandRecord,
+): Promise<void> {
+  const row = await db.getFirstAsync<LocalAuditEventRow>(
+    "SELECT * FROM local_audit_events WHERE idempotency_key = ?",
+    result.idempotencyKey,
+  );
+  const existing =
+    row === null ? createLocalAuditEventForCommand(command, "pending_ack") : mapLocalAuditEvent(row);
+  const { idempotencyKey, ...event } = existing;
+  const updated = parseAuditTimelineItem({
+    ...event,
+    status:
+      result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+    ...(result.status === "ack" ? { receivedAt: result.syncedAt } : {}),
+    ...(result.status === "retry" ? { reason: result.error } : {}),
+  });
+
+  await upsertLocalAuditEvent(db, { ...updated, idempotencyKey });
+}
+
+function createLocalAuditEventForCommand(
+  command: SyncCommandRecord,
+  status: AuditTimelineItem["status"],
+): LocalAuditEventRecord {
+  const event = parseAuditTimelineItem({
+    eventId: `local-audit:${command.id}`,
+    type: auditEventTypeForCommand(command),
+    store: {
+      storeId: "local-device",
+      storeName: "Loja deste aparelho",
+    },
+    actor: {
+      actorId: command.payload.payload.actorLabel,
+      displayName: command.payload.payload.actorLabel,
+      roleSnapshot: "collaborator",
+    },
+    target: {
+      type: auditTargetTypeForCommand(command),
+      id: auditTargetIdForCommand(command),
+      label: `${command.productDisplayName} - lote ${command.lotIdentity.value}`,
+    },
+    occurredAt: command.payload.payload.occurredAt,
+    summary: auditSummaryForCommand(command),
+    status,
+    metadata: {
+      producerKind: auditProducerKindForCommand(command),
+      commandKind: command.kind,
+      productDisplayName: command.productDisplayName,
+      lotCode: command.lotIdentity.value,
+    },
+  });
+
+  return { ...event, idempotencyKey: command.idempotencyKey };
+}
+
+function createConflictResolutionAuditEvent(
+  conflict: SyncConflictRecord,
+  command: SyncCommandRecord,
+): LocalAuditEventRecord {
+  const idempotencyKey = `sync-discard:${conflict.id}:${conflict.resolvedAt ?? command.updatedAt}`;
+  const event = parseAuditTimelineItem({
+    eventId: `local-audit:${idempotencyKey}`,
+    type: "sync.changed",
+    store: {
+      storeId: "local-device",
+      storeName: "Loja deste aparelho",
+    },
+    actor: {
+      actorId: conflict.localAction.actorLabel,
+      displayName: conflict.localAction.actorLabel,
+      roleSnapshot: "collaborator",
+    },
+    target: {
+      type: "sync_command",
+      id: command.id,
+      label: `${command.productDisplayName} - lote ${command.lotIdentity.value}`,
+    },
+    occurredAt: conflict.resolvedAt ?? command.updatedAt,
+    summary:
+      conflict.resolutionAction === "discard_offline_action"
+        ? "Acao offline descartada com motivo."
+        : "Conflito de sincronizacao revisado.",
+    reason: conflict.resolutionReason ?? conflict.reason,
+    status: command.state === "discarded" ? "invalidated" : "pending_ack",
+    metadata: {
+      producerKind: "sync.discard",
+      commandKind: command.kind,
+    },
+  });
+
+  return { ...event, idempotencyKey };
 }
 
 async function upsertMarkdownWorkflow(
@@ -2886,6 +3097,104 @@ function mapSyncConflict(row: SyncConflictRow): SyncConflictRecord {
     ...(row.resolution_action === null ? {} : { resolutionAction: row.resolution_action }),
     ...(row.resolution_reason === null ? {} : { resolutionReason: row.resolution_reason }),
   });
+}
+
+function mapLocalAuditEvent(row: LocalAuditEventRow): LocalAuditEventRecord {
+  const event = AuditTimelineItemSchema.parse({
+    eventId: row.event_id,
+    type: row.type,
+    store: {
+      storeId: row.store_id,
+      storeName: row.store_name,
+    },
+    actor: {
+      actorId: row.actor_id,
+      displayName: row.actor_display_name,
+      roleSnapshot: row.actor_role_snapshot,
+    },
+    target: {
+      type: row.target_type,
+      id: row.target_id,
+      ...(row.target_label === null ? {} : { label: row.target_label }),
+    },
+    occurredAt: row.occurred_at,
+    ...(row.received_at === null ? {} : { receivedAt: row.received_at }),
+    summary: row.summary,
+    ...(row.reason === null ? {} : { reason: row.reason }),
+    status: row.status,
+    ...(row.linked_event_id === null ? {} : { linkedEventId: row.linked_event_id }),
+    metadata: parseJson(row.metadata_json),
+  });
+
+  return { ...event, idempotencyKey: row.idempotency_key };
+}
+
+function auditEventTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["type"] {
+  return command.kind === "resolve_task" ? "task.changed" : "markdown.changed";
+}
+
+function auditTargetTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["target"]["type"] {
+  return command.kind === "resolve_task" ? "task" : "markdown";
+}
+
+function auditTargetIdForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    return command.taskId;
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return command.payload.payload.lotId;
+  }
+
+  return command.payload.payload.workflowId;
+}
+
+function auditProducerKindForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    return command.payload.payload.action === "complete_recheck" ? "task.resolve" : "task.action";
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return "markdown.request";
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return "markdown.decide";
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return "markdown.apply";
+  }
+
+  return "markdown.confirm_on_shelf";
+}
+
+function auditSummaryForCommand(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    if (command.payload.payload.action === "withdraw") {
+      return "Retirada salva neste aparelho.";
+    }
+
+    if (command.payload.payload.action === "complete_recheck") {
+      return "Reconferencia salva neste aparelho.";
+    }
+
+    return "Acao de tarefa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return "Solicitacao de rebaixa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return "Decisao de rebaixa salva neste aparelho.";
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return "Aplicacao de rebaixa salva neste aparelho.";
+  }
+
+  return "Conferencia de rebaixa salva neste aparelho.";
 }
 
 function mapLocation(kind: string, customName: string | null): OperationalLocation {

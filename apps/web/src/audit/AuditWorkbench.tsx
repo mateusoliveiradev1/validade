@@ -83,6 +83,8 @@ export function AuditWorkbench({
     const nextQuery = AuditQuerySchema.parse({
       storeId: initialStoreId,
       limit: 25,
+      from: optionalDateTimeLocalValue(formData.get("from")),
+      to: optionalDateTimeLocalValue(formData.get("to")),
       actorId: optionalFormValue(formData.get("actorId")),
       type: optionalFormValue(formData.get("type")),
       targetType: optionalFormValue(formData.get("targetType")),
@@ -116,6 +118,14 @@ export function AuditWorkbench({
 
   const isInitialLoading = status === "loading" && events.length === 0;
   const isEmpty = status === "ready" && events.length === 0;
+  const filterFormKey = [
+    query.from ?? "",
+    query.to ?? "",
+    query.actorId ?? "",
+    query.type ?? "",
+    query.targetType ?? "",
+    query.targetId ?? "",
+  ].join("|");
 
   return (
     <section className="grid gap-4" aria-labelledby="audit-heading">
@@ -132,6 +142,7 @@ export function AuditWorkbench({
       </div>
 
       <form
+        key={filterFormKey}
         className="grid gap-3 rounded-lg border border-border bg-card p-4"
         aria-label="Filtros de auditoria"
         onSubmit={(event) => {
@@ -139,6 +150,20 @@ export function AuditWorkbench({
           applyFilters(new FormData(event.currentTarget));
         }}
       >
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-sm font-semibold text-foreground">
+            Periodo inicial
+            <Input
+              name="from"
+              type="datetime-local"
+              defaultValue={dateTimeLocalValue(query.from)}
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-foreground">
+            Periodo final
+            <Input name="to" type="datetime-local" defaultValue={dateTimeLocalValue(query.to)} />
+          </label>
+        </div>
         <div className="grid gap-3 md:grid-cols-4">
           <label className="grid gap-1 text-sm font-semibold text-foreground">
             Pessoa
@@ -309,7 +334,11 @@ function AuditTable({
           <TableRow key={event.eventId}>
             <TableCell className="w-[180px]">
               <span className="block font-semibold">{formatDateTime(event.occurredAt)}</span>
-              {event.receivedAt === event.occurredAt ? null : (
+              {event.receivedAt === undefined ? (
+                <span className="block text-xs text-warning-foreground">
+                  Ainda nao recebida pelo sistema
+                </span>
+              ) : event.receivedAt === event.occurredAt ? null : (
                 <span className="block text-xs text-muted-foreground">
                   Recebida {formatDateTime(event.receivedAt)}
                 </span>
@@ -396,6 +425,27 @@ function optionalFormValue(value: FormDataEntryValue | null): string | undefined
   const trimmed = value.trim();
 
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function optionalDateTimeLocalValue(value: FormDataEntryValue | null): string | undefined {
+  const trimmed = optionalFormValue(value);
+
+  if (trimmed === undefined) {
+    return undefined;
+  }
+
+  return new Date(trimmed).toISOString();
+}
+
+function dateTimeLocalValue(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+
+  return localDate.toISOString().slice(0, 16);
 }
 
 function formatDateTime(value: string): string {

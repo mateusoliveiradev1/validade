@@ -17,6 +17,8 @@ import {
   SyncQueueSummarySchema,
   SyncTransportResultSchema,
   TaskAlertStateRecordSchema,
+  AuditTimelineItemSchema,
+  type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
   type AlertDeliveryResult,
@@ -156,6 +158,12 @@ export interface ResolveSyncConflictInput {
   reason?: string;
 }
 
+export interface AuditTimelineQuery {
+  targetType: AuditTimelineItem["target"]["type"];
+  targetId: string;
+  limit?: number;
+}
+
 export type MarkdownEntryState =
   | {
       status: "presence_required";
@@ -232,6 +240,7 @@ export interface CaptureRepository {
   applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord>;
   resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord>;
   loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null>;
+  listAuditTimeline?: (input: AuditTimelineQuery) => Promise<readonly AuditTimelineItem[]>;
 }
 
 export function normalizeProductLookup(value: string): string {
@@ -322,6 +331,10 @@ export function parseSyncConflictRecord(input: unknown): SyncConflictRecord {
 
 export function parseSyncTransportResult(input: unknown): SyncTransportResult {
   return SyncTransportResultSchema.parse(input);
+}
+
+export function parseAuditTimelineItem(input: unknown): AuditTimelineItem {
+  return AuditTimelineItemSchema.parse(input);
 }
 
 export function parseLotId(value: string): string {

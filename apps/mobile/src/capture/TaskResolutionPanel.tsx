@@ -4,9 +4,11 @@ import type {
   CompletedEvidenceMetadata,
   EvidencePromptMetadata,
   OfflineActionCommand,
+  AuditTimelineItem,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import { isResolutionCompatible, type TaskResolutionAction } from "@validade-zero/domain";
+import { AuditTimeline } from "./AuditTimeline";
 import { ConfirmationSheet } from "./ConfirmationSheet";
 import { formatLocation } from "./capture-copy";
 import {
@@ -48,6 +50,7 @@ export function TaskResolutionPanel({
   onDone,
   onBack,
   onLocalSave,
+  auditEvents = [],
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -55,6 +58,7 @@ export function TaskResolutionPanel({
   onDone: () => void;
   onBack: () => void;
   onLocalSave?: (() => void) | undefined;
+  auditEvents?: readonly AuditTimelineItem[] | undefined;
   now?: () => Date;
 }) {
   const [selectedAction, setSelectedAction] = useState<TaskResolutionAction | undefined>();
@@ -444,6 +448,7 @@ export function TaskResolutionPanel({
           onPress={() => void submitMarkdownStage()}
         />
         <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+        {auditEvents.length === 0 ? null : <AuditTimeline events={auditEvents} />}
       </ScrollView>
     );
   }
@@ -521,6 +526,7 @@ export function TaskResolutionPanel({
         onPress={requestSubmit}
       />
       <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+      {auditEvents.length === 0 ? null : <AuditTimeline events={auditEvents} />}
     </ScrollView>
   );
 }

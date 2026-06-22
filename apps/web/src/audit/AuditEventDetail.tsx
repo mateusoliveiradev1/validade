@@ -34,7 +34,14 @@ export function AuditEventDetail({
         <DetailRow label="Pessoa" value={`${event.actor.displayName} (${roleLabel(event.actor.roleSnapshot)})`} />
         <DetailRow label="Loja" value={event.store.storeName} />
         <DetailRow label="Realizada no aparelho" value={formatDateTime(event.occurredAt)} />
-        <DetailRow label="Recebida pelo sistema" value={formatDateTime(event.receivedAt)} />
+        <DetailRow
+          label="Recebida pelo sistema"
+          value={
+            event.receivedAt === undefined
+              ? "Ainda nao recebida pelo sistema"
+              : formatDateTime(event.receivedAt)
+          }
+        />
         {event.reason === undefined ? null : <DetailRow label="Motivo" value={event.reason} />}
       </dl>
 
