@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CaptureProductInput, SyncConflictRecord } from "@validade-zero/contracts";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import { ensureTodayTaskSyncColumns } from "./sqlite-migrations";
 
 const currentDate = "2030-01-10";
 const currentTimestamp = "2030-01-10T12:00:00.000Z";
@@ -338,5 +341,46 @@ describe("offline sync repository behavior", () => {
       id: conflict.id,
       localAction: expect.objectContaining({ productDisplayName: command.productDisplayName }),
     });
+  });
+
+  it("keeps the SQLite offline outbox transactional and metadata-only", () => {
+    const sqlitePath = fileURLToPath(new URL("./sqlite-repository.ts", import.meta.url));
+    const source = readFileSync(sqlitePath, "utf8");
+
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS offline_cache_status");
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS sync_commands");
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS sync_conflicts");
+    expect(source).toContain("CREATE INDEX IF NOT EXISTS sync_commands_state_urgency_created_idx");
+    expect(source).toContain("CREATE UNIQUE INDEX IF NOT EXISTS sync_commands_idempotency_key_idx");
+    expect(source).toContain("CREATE INDEX IF NOT EXISTS sync_conflicts_command_idx");
+    expect(source).toContain("sync_json");
+    expect(source).toContain("withTransactionAsync");
+    expect(source).not.toContain("R2");
+    expect(source).not.toContain("object_key");
+    expect(source).not.toContain("base64");
+    expect(source).not.toContain("photoUri");
+    expect(source).not.toContain("imageBytes");
+  });
+
+  it("adds the Today task sync marker idempotently for existing SQLite stores", async () => {
+    const existingColumns = new Set(["id", "active_key"]);
+    const statements: string[] = [];
+    const db = {
+      getAllAsync: () => Promise.resolve([...existingColumns].map((name) => ({ name }))),
+      execAsync: (source: string) => {
+        statements.push(source);
+
+        if (source.includes("sync_json")) {
+          existingColumns.add("sync_json");
+        }
+
+        return Promise.resolve();
+      },
+    };
+
+    await ensureTodayTaskSyncColumns(db);
+    await ensureTodayTaskSyncColumns(db);
+
+    expect(statements).toEqual(["ALTER TABLE today_tasks ADD COLUMN sync_json TEXT;"]);
   });
 });

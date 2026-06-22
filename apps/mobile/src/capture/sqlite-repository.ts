@@ -14,9 +14,15 @@ import {
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
   type MarkdownWorkflowRecord,
+  type OfflineActionCommand,
+  type OfflineCacheStatus,
   type OperationalLocation,
   type PhysicalObservationInput,
   type PushOpenIntent,
+  type SyncCommandRecord,
+  type SyncConflictRecord,
+  type SyncQueueSummary,
+  type SyncTransportResult,
   type TaskAlertStateRecord,
   type TaskResolutionCommand,
   type TodayTaskRecord,
@@ -35,6 +41,7 @@ import type {
   RecentLotsQuery,
   RefreshTaskAlertStatesInput,
   ResolvePushOpenIntentInput,
+  ResolveSyncConflictInput,
   RefreshTodayTasksInput,
   SaveLotInput,
   TodayTaskRefreshResult,
@@ -59,6 +66,8 @@ import {
   parseMarkdownApprovalCommand,
   parseMarkdownRequestCommand,
   parseMarkdownShelfConfirmationCommand,
+  parseOfflineActionCommand,
+  parseOfflineCacheStatus,
   parseLotId,
   parseLotInput,
   parseObservationInput,
@@ -67,12 +76,23 @@ import {
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
   parsePushOpenIntent,
+  parseSyncCommandRecord,
+  parseSyncConflictRecord,
+  parseSyncQueueSummary,
+  parseSyncTransportResult,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
-import { canStartMarkdownWorkflow } from "@validade-zero/domain";
-import { ensureTodayTaskMarkdownColumns } from "./sqlite-migrations";
+import {
+  canStartMarkdownWorkflow,
+  classifySyncCommandUrgency,
+  deriveOfflineCacheState,
+  sortSyncQueueItems,
+} from "@validade-zero/domain";
+import { ensureTodayTaskMarkdownColumns, ensureTodayTaskSyncColumns } from "./sqlite-migrations";
+
+const OFFLINE_CACHE_STALE_AFTER_HOURS = 4;
 
 interface ProductRow {
   id: string;
@@ -157,6 +177,7 @@ interface TodayTaskRow {
   markdown_stage: string | null;
   responsible_actor_label: string | null;
   resolution_history_json: string | null;
+  sync_json: string | null;
 }
 
 interface MarkdownWorkflowRow {
@@ -222,6 +243,62 @@ interface TaskAlertStateRow {
   retry_count: number | null;
   failure_reason: string | null;
   last_attempt_id: string | null;
+}
+
+interface OfflineCacheStatusRow {
+  id: string;
+  state: string;
+  last_refreshed_at: string | null;
+  active_task_count: number;
+  required_lot_snippet_count: number;
+  stale_after_hours: number;
+  source: string;
+  updated_at: string;
+}
+
+interface SyncCommandRow {
+  id: string;
+  idempotency_key: string;
+  kind: string;
+  state: string;
+  urgency: string;
+  payload_json: string;
+  task_id: string;
+  task_active_key: string;
+  lot_id: string;
+  product_display_name: string;
+  lot_identity_source: string;
+  lot_identity_value: string;
+  current_location_kind: string;
+  current_location_custom_name: string | null;
+  risk_state: string;
+  required_resolution: string;
+  created_at: string;
+  updated_at: string;
+  saved_at: string;
+  first_attempted_at: string | null;
+  last_attempted_at: string | null;
+  attempt_count: number;
+  next_retry_at: string | null;
+  last_error: string | null;
+  acked_at: string | null;
+  conflict_id: string | null;
+  discarded_at: string | null;
+  discard_reason: string | null;
+}
+
+interface SyncConflictRow {
+  id: string;
+  command_id: string;
+  severity: string;
+  reason: string;
+  local_action_json: string;
+  remote_change_json: string;
+  allowed_actions_json: string;
+  created_at: string;
+  resolved_at: string | null;
+  resolution_action: string | null;
+  resolution_reason: string | null;
 }
 
 const LOT_SELECT = `
@@ -651,6 +728,25 @@ export function createSQLiteCaptureRepository(
 
     const tasks = await listActiveTodayTasks();
     const futureAttention = await listFutureAttention();
+    await upsertOfflineCacheStatus(
+      db,
+      parseOfflineCacheStatus({
+        state: deriveOfflineCacheState({
+          activeTaskCount: tasks.length,
+          requiredLotSnippetCount: tasks.length,
+          lastRefreshedAt: refreshedAt,
+          staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+          referenceTime: refreshedAt,
+          isConnected: true,
+        }),
+        lastRefreshedAt: refreshedAt,
+        activeTaskCount: tasks.length,
+        requiredLotSnippetCount: tasks.length,
+        staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+        source: input.source,
+        updatedAt: refreshedAt,
+      }),
+    );
 
     return {
       metadata: {
@@ -1365,6 +1461,473 @@ export function createSQLiteCaptureRepository(
     return parsePushOpenIntent({ ...input, result: "current_task" });
   }
 
+  async function loadOfflineCacheStatus(): Promise<OfflineCacheStatus> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<OfflineCacheStatusRow>(
+      "SELECT * FROM offline_cache_status WHERE id = 'today'",
+    );
+    const referenceTime = dependencies.clock();
+
+    if (row === null) {
+      return parseOfflineCacheStatus({
+        state: "offline_unavailable",
+        activeTaskCount: 0,
+        requiredLotSnippetCount: 0,
+        staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+        source: "startup",
+        updatedAt: referenceTime,
+      });
+    }
+
+    const status = mapOfflineCacheStatus(row);
+
+    return parseOfflineCacheStatus({
+      ...status,
+      state: deriveOfflineCacheState({
+        activeTaskCount: status.activeTaskCount,
+        requiredLotSnippetCount: status.requiredLotSnippetCount,
+        ...(status.lastRefreshedAt === undefined ? {} : { lastRefreshedAt: status.lastRefreshedAt }),
+        staleAfterHours: status.staleAfterHours,
+        referenceTime,
+        isConnected: true,
+      }),
+      updatedAt: referenceTime,
+    });
+  }
+
+  async function listSyncQueue(): Promise<SyncQueueSummary> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<SyncCommandRow>(
+      `SELECT * FROM sync_commands
+       WHERE state NOT IN ('synced', 'discarded')
+       ORDER BY created_at ASC`,
+    );
+    const queueCommands = sortSyncQueueItems(rows.map(mapSyncCommand));
+    const summaries = queueCommands.map((command) => ({
+      id: command.id,
+      kind: command.kind,
+      state: command.state,
+      urgency: command.urgency,
+      productDisplayName: command.productDisplayName,
+      lotIdentity: command.lotIdentity,
+      currentLocation: command.currentLocation,
+      savedAt: command.savedAt,
+      ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
+      ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
+    }));
+    const conflictCount = queueCommands.filter((command) => command.state === "sync_conflict").length;
+    const hasCriticalConflict = queueCommands.some(
+      (command) => command.state === "sync_conflict" && command.urgency === "critical",
+    );
+    const oldestPendingCritical = summaries.find((command) => command.urgency === "critical");
+    const hasFailed = queueCommands.some((command) => command.state === "sync_failed");
+    const hasSyncing = queueCommands.some((command) => command.state === "syncing");
+
+    return parseSyncQueueSummary({
+      state:
+        conflictCount > 0
+          ? "has_conflict"
+          : hasSyncing
+            ? "syncing"
+            : hasFailed
+              ? "has_failed"
+              : summaries.length > 0
+                ? "has_pending"
+                : "empty",
+      totalCount: summaries.length,
+      conflictCount,
+      hasCriticalConflict,
+      criticalCount: queueCommands.filter((command) => command.urgency === "critical").length,
+      highCount: queueCommands.filter((command) => command.urgency === "high").length,
+      mediumCount: queueCommands.filter((command) => command.urgency === "medium").length,
+      lowCount: queueCommands.filter((command) => command.urgency === "low").length,
+      ...(oldestPendingCritical === undefined ? {} : { oldestPendingCritical }),
+      commands: summaries,
+      updatedAt: dependencies.clock(),
+    });
+  }
+
+  async function saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord> {
+    await initialize();
+    const action = parseOfflineActionCommand(input);
+    const db = await getDatabase();
+    let savedCommand: SyncCommandRecord | undefined;
+
+    await db.withTransactionAsync(async () => {
+      const snapshot = await snapshotForOfflineAction(db, action);
+      const existing = await db.getFirstAsync<SyncCommandRow>(
+        "SELECT * FROM sync_commands WHERE idempotency_key = ?",
+        snapshot.idempotencyKey,
+      );
+
+      if (existing !== null) {
+        savedCommand = mapSyncCommand(existing);
+        return;
+      }
+
+      const savedAt = dependencies.clock();
+      const command = parseSyncCommandRecord({
+        id: nextGeneratedId(dependencies),
+        idempotencyKey: snapshot.idempotencyKey,
+        kind: action.kind,
+        state: "pending_sync",
+        urgency: classifySyncCommandUrgency({
+          kind: action.kind,
+          ...(snapshot.taskAction === undefined ? {} : { action: snapshot.taskAction }),
+          requiredResolution: snapshot.task.requiredResolution,
+          riskState: snapshot.task.riskState,
+          currentLocation: snapshot.task.currentLocation,
+        }),
+        payload: action,
+        taskId: snapshot.task.id,
+        taskActiveKey: snapshot.task.activeKey,
+        lotId: snapshot.task.lotId,
+        productDisplayName: snapshot.task.productDisplayName,
+        lotIdentity: snapshot.task.lotIdentity,
+        currentLocation: snapshot.task.currentLocation,
+        riskState: snapshot.task.riskState,
+        requiredResolution: snapshot.task.requiredResolution,
+        createdAt: savedAt,
+        updatedAt: savedAt,
+        savedAt,
+        attemptCount: 0,
+      });
+
+      await upsertSyncCommand(db, command);
+      await attachSyncMetadata(db, command);
+      savedCommand = command;
+    });
+
+    if (savedCommand === undefined) {
+      throw new Error("Offline action was not saved.");
+    }
+
+    return savedCommand;
+  }
+
+  async function markSyncCommandAttempt(
+    commandIds: readonly string[],
+    attemptedAt: string,
+  ): Promise<readonly SyncCommandRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const updatedCommands: SyncCommandRecord[] = [];
+
+    await db.withTransactionAsync(async () => {
+      for (const commandId of commandIds) {
+        const existing = await requireSyncCommand(db, commandId);
+        const updated = parseSyncCommandRecord({
+          ...existing,
+          state: "syncing",
+          updatedAt: attemptedAt,
+          firstAttemptedAt: existing.firstAttemptedAt ?? attemptedAt,
+          lastAttemptedAt: attemptedAt,
+          attemptCount: existing.attemptCount + 1,
+        });
+
+        await upsertSyncCommand(db, updated);
+        await attachSyncMetadata(db, updated);
+        updatedCommands.push(updated);
+      }
+    });
+
+    return updatedCommands;
+  }
+
+  async function applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord> {
+    await initialize();
+    const parsed = parseSyncTransportResult(result);
+    const db = await getDatabase();
+    let savedCommand: SyncCommandRecord | undefined;
+
+    await db.withTransactionAsync(async () => {
+      const existing = await requireSyncCommand(db, parsed.commandId);
+      const updatedAt = "syncedAt" in parsed ? parsed.syncedAt : dependencies.clock();
+      const updated =
+        parsed.status === "ack"
+          ? parseSyncCommandRecord({
+              ...existing,
+              state: "synced",
+              updatedAt,
+              ackedAt: parsed.syncedAt,
+              lastError: undefined,
+              nextRetryAt: undefined,
+              conflictId: undefined,
+            })
+          : parsed.status === "retry"
+            ? parseSyncCommandRecord({
+                ...existing,
+                state: "sync_failed",
+                updatedAt,
+                lastError: parsed.error,
+                ackedAt: undefined,
+                conflictId: undefined,
+                ...(parsed.retryAfterSeconds === undefined
+                  ? {}
+                  : {
+                      nextRetryAt: new Date(
+                        Date.parse(updatedAt) + parsed.retryAfterSeconds * 1000,
+                      ).toISOString(),
+                    }),
+              })
+            : parseSyncCommandRecord({
+                ...existing,
+                state: "sync_conflict",
+                updatedAt,
+                conflictId: parsed.conflict.id,
+                ackedAt: undefined,
+                nextRetryAt: undefined,
+              });
+
+      if (parsed.status === "conflict") {
+        await upsertSyncConflict(db, parseSyncConflictRecord(parsed.conflict));
+      }
+
+      await upsertSyncCommand(db, updated);
+      await attachSyncMetadata(db, updated);
+      savedCommand = updated;
+    });
+
+    if (savedCommand === undefined) {
+      throw new Error("Sync result was not applied.");
+    }
+
+    return savedCommand;
+  }
+
+  async function resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord> {
+    await initialize();
+    const db = await getDatabase();
+    let resolvedConflict: SyncConflictRecord | undefined;
+
+    await db.withTransactionAsync(async () => {
+      const existingRow = await db.getFirstAsync<SyncConflictRow>(
+        "SELECT * FROM sync_conflicts WHERE id = ?",
+        parseLotId(input.conflictId),
+      );
+
+      if (existingRow === null) {
+        throw new Error(`Cannot resolve an unknown sync conflict: ${input.conflictId}`);
+      }
+
+      const existing = mapSyncConflict(existingRow);
+      const resolved = parseSyncConflictRecord({
+        ...existing,
+        resolvedAt: input.resolvedAt,
+        resolutionAction: input.action,
+        ...(input.reason === undefined ? {} : { resolutionReason: input.reason }),
+      });
+      const command = await requireSyncCommand(db, existing.commandId);
+      const commandState = input.action === "keep_local_and_retry" ? "pending_sync" : "discarded";
+      const updatedCommand = parseSyncCommandRecord({
+        ...command,
+        state: commandState,
+        updatedAt: input.resolvedAt,
+        ...(commandState === "discarded"
+          ? {
+              discardedAt: input.resolvedAt,
+              discardReason: input.reason ?? "Atualizado pela tarefa atual",
+            }
+          : { conflictId: undefined }),
+      });
+
+      await upsertSyncConflict(db, resolved);
+      await upsertSyncCommand(db, updatedCommand);
+      await attachSyncMetadata(db, updatedCommand);
+      resolvedConflict = resolved;
+    });
+
+    if (resolvedConflict === undefined) {
+      throw new Error("Sync conflict was not resolved.");
+    }
+
+    return resolvedConflict;
+  }
+
+  async function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<SyncConflictRow>(
+      "SELECT * FROM sync_conflicts WHERE id = ?",
+      parseLotId(conflictId),
+    );
+
+    return row === null ? null : mapSyncConflict(row);
+  }
+
+  async function snapshotForOfflineAction(
+    db: SQLite.SQLiteDatabase,
+    action: OfflineActionCommand,
+  ): Promise<{
+    idempotencyKey: string;
+    task: TodayTaskRecord;
+    taskAction?: TaskResolutionCommand["action"];
+  }> {
+    if (action.kind === "resolve_task") {
+      const task = await requireTodayTask(db, action.payload.taskId);
+
+      return {
+        idempotencyKey: `${action.kind}:${action.payload.taskId}:${action.payload.action}:${action.payload.occurredAt}`,
+        task,
+        taskAction: action.payload.action,
+      };
+    }
+
+    if (action.kind === "request_markdown") {
+      const task =
+        action.payload.sourceTaskId === undefined
+          ? await findTaskForLot(db, action.payload.lotId, action.payload.occurredAt)
+          : await requireTodayTask(db, action.payload.sourceTaskId);
+
+      return {
+        idempotencyKey: `${action.kind}:${action.payload.lotId}:${action.payload.sourceTaskId ?? "lot"}:${action.payload.occurredAt}`,
+        task,
+      };
+    }
+
+    const task = await requireTodayTask(db, action.payload.taskId);
+
+    return {
+      idempotencyKey: `${action.kind}:${action.payload.workflowId}:${action.payload.taskId}:${action.payload.occurredAt}`,
+      task,
+      taskAction:
+        action.kind === "decide_markdown"
+          ? action.payload.decision === "approved"
+            ? "approve_markdown"
+            : "reject_markdown"
+          : action.kind === "record_markdown_application"
+            ? "apply_markdown"
+            : "confirm_markdown_on_shelf",
+    };
+  }
+
+  async function findTaskForLot(
+    db: SQLite.SQLiteDatabase,
+    lotId: string,
+    occurredAt: string,
+  ): Promise<TodayTaskRecord> {
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE lot_id = ? AND status = 'active' ORDER BY priority ASC LIMIT 1",
+      parseLotId(lotId),
+    );
+
+    if (row !== null) {
+      return mapTodayTask(row);
+    }
+
+    const lotRow = await db.getFirstAsync<LotRow>(`${LOT_SELECT} WHERE l.id = ?`, parseLotId(lotId));
+
+    if (lotRow === null) {
+      throw new Error(`Cannot save an offline action for an unknown lot: ${lotId}`);
+    }
+
+    const lot = mapLotSnapshot(lotRow);
+
+    return parseTodayTaskRecord({
+      id: `offline:${lot.id}:request_markdown`,
+      activeKey: `offline:${lot.id}:request_markdown`,
+      lotId: lot.id,
+      productDisplayName: lot.productDisplayName,
+      lotIdentity: lot.identity,
+      currentLocation: lot.currentObservation.location,
+      riskState: "markdown_due",
+      severity: "medium",
+      dueBucket: "today",
+      requiredResolution: "request_markdown",
+      section: "request_markdown",
+      ownerLabel: "Equipe do turno",
+      status: "active",
+      sourceRisk: {
+        state: "markdown_due",
+        reasons: [{ code: "expires_in_15_days", field: "offlineMarkdown" }],
+      },
+      priority: 3,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    });
+  }
+
+  async function requireTodayTask(
+    db: SQLite.SQLiteDatabase,
+    taskId: string,
+  ): Promise<TodayTaskRecord> {
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      parseLotId(taskId),
+    );
+
+    if (row === null) {
+      throw new Error(`Cannot save an offline action for an unknown Today task: ${taskId}`);
+    }
+
+    return mapTodayTask(row);
+  }
+
+  async function requireSyncCommand(
+    db: SQLite.SQLiteDatabase,
+    commandId: string,
+  ): Promise<SyncCommandRecord> {
+    const row = await db.getFirstAsync<SyncCommandRow>(
+      "SELECT * FROM sync_commands WHERE id = ?",
+      parseLotId(commandId),
+    );
+
+    if (row === null) {
+      throw new Error(`Cannot load an unknown sync command: ${commandId}`);
+    }
+
+    return mapSyncCommand(row);
+  }
+
+  async function attachSyncMetadata(
+    db: SQLite.SQLiteDatabase,
+    command: SyncCommandRecord,
+  ): Promise<void> {
+    const row = await db.getFirstAsync<TodayTaskRow>(
+      "SELECT * FROM today_tasks WHERE id = ?",
+      command.taskId,
+    );
+
+    if (row === null) {
+      return;
+    }
+
+    const task = mapTodayTask(row);
+    const sync =
+      command.state === "synced"
+        ? {
+            state: command.state,
+            savedAt: command.savedAt,
+            lastSyncedAt: command.ackedAt ?? command.updatedAt,
+            attemptCount: command.attemptCount,
+          }
+        : command.state === "discarded"
+          ? {
+              state: command.state,
+              savedAt: command.savedAt,
+              attemptCount: command.attemptCount,
+            }
+          : {
+              state: command.state,
+              savedAt: command.savedAt,
+              pendingCommandId: command.id,
+              ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
+              ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
+              attemptCount: command.attemptCount,
+            };
+
+    await upsertTodayTask(
+      db,
+      parseTodayTaskRecord({
+        ...task,
+        sync,
+        updatedAt: command.updatedAt,
+      }),
+    );
+  }
+
   return {
     initialize,
     createProduct,
@@ -1395,6 +1958,13 @@ export function createSQLiteCaptureRepository(
     recordAlertAttempt,
     acknowledgeEscalation,
     resolvePushOpenIntent,
+    loadOfflineCacheStatus,
+    listSyncQueue,
+    saveOfflineAction,
+    markSyncCommandAttempt,
+    applySyncTransportResult,
+    resolveSyncConflict,
+    loadSyncConflict,
   };
 }
 
@@ -1481,7 +2051,63 @@ async function initializeDatabase(
       markdown_stage TEXT,
       responsible_actor_label TEXT,
       resolution_history_json TEXT,
+      sync_json TEXT,
       FOREIGN KEY (lot_id) REFERENCES capture_lots(id)
+    );
+    CREATE TABLE IF NOT EXISTS offline_cache_status (
+      id TEXT PRIMARY KEY NOT NULL,
+      state TEXT NOT NULL,
+      last_refreshed_at TEXT,
+      active_task_count INTEGER NOT NULL,
+      required_lot_snippet_count INTEGER NOT NULL,
+      stale_after_hours REAL NOT NULL,
+      source TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sync_commands (
+      id TEXT PRIMARY KEY NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      state TEXT NOT NULL,
+      urgency TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      task_active_key TEXT NOT NULL,
+      lot_id TEXT NOT NULL,
+      product_display_name TEXT NOT NULL,
+      lot_identity_source TEXT NOT NULL,
+      lot_identity_value TEXT NOT NULL,
+      current_location_kind TEXT NOT NULL,
+      current_location_custom_name TEXT,
+      risk_state TEXT NOT NULL,
+      required_resolution TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      saved_at TEXT NOT NULL,
+      first_attempted_at TEXT,
+      last_attempted_at TEXT,
+      attempt_count INTEGER NOT NULL,
+      next_retry_at TEXT,
+      last_error TEXT,
+      acked_at TEXT,
+      conflict_id TEXT,
+      discarded_at TEXT,
+      discard_reason TEXT,
+      FOREIGN KEY (task_id) REFERENCES today_tasks(id)
+    );
+    CREATE TABLE IF NOT EXISTS sync_conflicts (
+      id TEXT PRIMARY KEY NOT NULL,
+      command_id TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      local_action_json TEXT NOT NULL,
+      remote_change_json TEXT NOT NULL,
+      allowed_actions_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      resolution_action TEXT,
+      resolution_reason TEXT,
+      FOREIGN KEY (command_id) REFERENCES sync_commands(id)
     );
     CREATE TABLE IF NOT EXISTS today_future_attention (
       id TEXT PRIMARY KEY NOT NULL,
@@ -1576,6 +2202,13 @@ async function initializeDatabase(
       ON today_tasks(status, priority, due_bucket, updated_at DESC);
     CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
     CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
+    CREATE INDEX IF NOT EXISTS offline_cache_status_state_idx ON offline_cache_status(state);
+    CREATE INDEX IF NOT EXISTS sync_commands_state_urgency_created_idx
+      ON sync_commands(state, urgency, created_at);
+    CREATE INDEX IF NOT EXISTS sync_commands_task_state_idx ON sync_commands(task_id, state);
+    CREATE UNIQUE INDEX IF NOT EXISTS sync_commands_idempotency_key_idx
+      ON sync_commands(idempotency_key);
+    CREATE INDEX IF NOT EXISTS sync_conflicts_command_idx ON sync_conflicts(command_id);
     CREATE INDEX IF NOT EXISTS today_future_attention_lot_idx ON today_future_attention(lot_id);
     CREATE INDEX IF NOT EXISTS markdown_workflows_lot_status_idx
       ON markdown_workflows(lot_id, status);
@@ -1592,6 +2225,7 @@ async function initializeDatabase(
   `);
 
   await ensureTodayTaskMarkdownColumns(db);
+  await ensureTodayTaskSyncColumns(db);
 }
 
 async function findExistingProduct(
@@ -1643,8 +2277,8 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
       current_location_kind, current_location_custom_name, risk_state, severity, due_bucket,
       required_resolution, section, owner_label, status, source_risk_json, priority,
       created_at, updated_at, resolved_at, recheck_parent_id, markdown_workflow_id,
-      markdown_stage, responsible_actor_label, resolution_history_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      markdown_stage, responsible_actor_label, resolution_history_json, sync_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       active_key = excluded.active_key,
       lot_id = excluded.lot_id,
@@ -1668,7 +2302,8 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
       markdown_workflow_id = excluded.markdown_workflow_id,
       markdown_stage = excluded.markdown_stage,
       responsible_actor_label = excluded.responsible_actor_label,
-      resolution_history_json = excluded.resolution_history_json`,
+      resolution_history_json = excluded.resolution_history_json,
+      sync_json = excluded.sync_json`,
     task.id,
     task.activeKey,
     task.lotId,
@@ -1694,6 +2329,7 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
     task.markdownStage ?? null,
     task.responsibleActorLabel ?? null,
     task.resolutionHistory === undefined ? null : JSON.stringify(task.resolutionHistory),
+    task.sync === undefined ? null : JSON.stringify(task.sync),
   );
 }
 
@@ -1724,6 +2360,136 @@ async function upsertFutureAttention(
     record.currentLocation.kind === "other" ? record.currentLocation.customName : null,
     JSON.stringify(record.sourceRiskReasons),
     record.observedAt,
+  );
+}
+
+async function upsertOfflineCacheStatus(
+  db: SQLite.SQLiteDatabase,
+  status: OfflineCacheStatus,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO offline_cache_status (
+      id, state, last_refreshed_at, active_task_count, required_lot_snippet_count,
+      stale_after_hours, source, updated_at
+    ) VALUES ('today', ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      state = excluded.state,
+      last_refreshed_at = excluded.last_refreshed_at,
+      active_task_count = excluded.active_task_count,
+      required_lot_snippet_count = excluded.required_lot_snippet_count,
+      stale_after_hours = excluded.stale_after_hours,
+      source = excluded.source,
+      updated_at = excluded.updated_at`,
+    status.state,
+    status.lastRefreshedAt ?? null,
+    status.activeTaskCount,
+    status.requiredLotSnippetCount,
+    status.staleAfterHours,
+    status.source,
+    status.updatedAt,
+  );
+}
+
+async function upsertSyncCommand(
+  db: SQLite.SQLiteDatabase,
+  command: SyncCommandRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO sync_commands (
+      id, idempotency_key, kind, state, urgency, payload_json, task_id, task_active_key,
+      lot_id, product_display_name, lot_identity_source, lot_identity_value,
+      current_location_kind, current_location_custom_name, risk_state, required_resolution,
+      created_at, updated_at, saved_at, first_attempted_at, last_attempted_at, attempt_count,
+      next_retry_at, last_error, acked_at, conflict_id, discarded_at, discard_reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      idempotency_key = excluded.idempotency_key,
+      kind = excluded.kind,
+      state = excluded.state,
+      urgency = excluded.urgency,
+      payload_json = excluded.payload_json,
+      task_id = excluded.task_id,
+      task_active_key = excluded.task_active_key,
+      lot_id = excluded.lot_id,
+      product_display_name = excluded.product_display_name,
+      lot_identity_source = excluded.lot_identity_source,
+      lot_identity_value = excluded.lot_identity_value,
+      current_location_kind = excluded.current_location_kind,
+      current_location_custom_name = excluded.current_location_custom_name,
+      risk_state = excluded.risk_state,
+      required_resolution = excluded.required_resolution,
+      updated_at = excluded.updated_at,
+      saved_at = excluded.saved_at,
+      first_attempted_at = excluded.first_attempted_at,
+      last_attempted_at = excluded.last_attempted_at,
+      attempt_count = excluded.attempt_count,
+      next_retry_at = excluded.next_retry_at,
+      last_error = excluded.last_error,
+      acked_at = excluded.acked_at,
+      conflict_id = excluded.conflict_id,
+      discarded_at = excluded.discarded_at,
+      discard_reason = excluded.discard_reason`,
+    command.id,
+    command.idempotencyKey,
+    command.kind,
+    command.state,
+    command.urgency,
+    JSON.stringify(command.payload),
+    command.taskId,
+    command.taskActiveKey,
+    command.lotId,
+    command.productDisplayName,
+    command.lotIdentity.identitySource,
+    command.lotIdentity.value,
+    command.currentLocation.kind,
+    command.currentLocation.kind === "other" ? command.currentLocation.customName : null,
+    command.riskState,
+    command.requiredResolution,
+    command.createdAt,
+    command.updatedAt,
+    command.savedAt,
+    command.firstAttemptedAt ?? null,
+    command.lastAttemptedAt ?? null,
+    command.attemptCount,
+    command.nextRetryAt ?? null,
+    command.lastError ?? null,
+    command.ackedAt ?? null,
+    command.conflictId ?? null,
+    command.discardedAt ?? null,
+    command.discardReason ?? null,
+  );
+}
+
+async function upsertSyncConflict(
+  db: SQLite.SQLiteDatabase,
+  conflict: SyncConflictRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO sync_conflicts (
+      id, command_id, severity, reason, local_action_json, remote_change_json,
+      allowed_actions_json, created_at, resolved_at, resolution_action, resolution_reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      command_id = excluded.command_id,
+      severity = excluded.severity,
+      reason = excluded.reason,
+      local_action_json = excluded.local_action_json,
+      remote_change_json = excluded.remote_change_json,
+      allowed_actions_json = excluded.allowed_actions_json,
+      resolved_at = excluded.resolved_at,
+      resolution_action = excluded.resolution_action,
+      resolution_reason = excluded.resolution_reason`,
+    conflict.id,
+    conflict.commandId,
+    conflict.severity,
+    conflict.reason,
+    JSON.stringify(conflict.localAction),
+    JSON.stringify(conflict.remoteChange),
+    JSON.stringify(conflict.allowedActions),
+    conflict.createdAt,
+    conflict.resolvedAt ?? null,
+    conflict.resolutionAction ?? null,
+    conflict.resolutionReason ?? null,
   );
 }
 
@@ -1964,6 +2730,7 @@ function mapTodayTask(row: TodayTaskRow): TodayTaskRecord {
     ...(row.resolution_history_json === null
       ? {}
       : { resolutionHistory: parseJson(row.resolution_history_json) }),
+    ...(row.sync_json === null ? {} : { sync: parseJson(row.sync_json) }),
   });
 }
 
@@ -2049,6 +2816,68 @@ function mapTaskAlertState(row: TaskAlertStateRow): TaskAlertStateRecord {
     ...(row.retry_count === null ? {} : { retryCount: row.retry_count }),
     ...(row.failure_reason === null ? {} : { failureReason: row.failure_reason }),
     ...(row.last_attempt_id === null ? {} : { lastAttemptId: row.last_attempt_id }),
+  });
+}
+
+function mapOfflineCacheStatus(row: OfflineCacheStatusRow): OfflineCacheStatus {
+  return parseOfflineCacheStatus({
+    state: row.state,
+    ...(row.last_refreshed_at === null ? {} : { lastRefreshedAt: row.last_refreshed_at }),
+    activeTaskCount: row.active_task_count,
+    requiredLotSnippetCount: row.required_lot_snippet_count,
+    staleAfterHours: row.stale_after_hours,
+    source: row.source,
+    updatedAt: row.updated_at,
+  });
+}
+
+function mapSyncCommand(row: SyncCommandRow): SyncCommandRecord {
+  return parseSyncCommandRecord({
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    kind: row.kind,
+    state: row.state,
+    urgency: row.urgency,
+    payload: parseJson(row.payload_json),
+    taskId: row.task_id,
+    taskActiveKey: row.task_active_key,
+    lotId: row.lot_id,
+    productDisplayName: row.product_display_name,
+    lotIdentity: {
+      identitySource: row.lot_identity_source,
+      value: row.lot_identity_value,
+    },
+    currentLocation: mapLocation(row.current_location_kind, row.current_location_custom_name),
+    riskState: row.risk_state,
+    requiredResolution: row.required_resolution,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    savedAt: row.saved_at,
+    ...(row.first_attempted_at === null ? {} : { firstAttemptedAt: row.first_attempted_at }),
+    ...(row.last_attempted_at === null ? {} : { lastAttemptedAt: row.last_attempted_at }),
+    attemptCount: row.attempt_count,
+    ...(row.next_retry_at === null ? {} : { nextRetryAt: row.next_retry_at }),
+    ...(row.last_error === null ? {} : { lastError: row.last_error }),
+    ...(row.acked_at === null ? {} : { ackedAt: row.acked_at }),
+    ...(row.conflict_id === null ? {} : { conflictId: row.conflict_id }),
+    ...(row.discarded_at === null ? {} : { discardedAt: row.discarded_at }),
+    ...(row.discard_reason === null ? {} : { discardReason: row.discard_reason }),
+  });
+}
+
+function mapSyncConflict(row: SyncConflictRow): SyncConflictRecord {
+  return parseSyncConflictRecord({
+    id: row.id,
+    commandId: row.command_id,
+    severity: row.severity,
+    reason: row.reason,
+    localAction: parseJson(row.local_action_json),
+    remoteChange: parseJson(row.remote_change_json),
+    allowedActions: parseJson(row.allowed_actions_json),
+    createdAt: row.created_at,
+    ...(row.resolved_at === null ? {} : { resolvedAt: row.resolved_at }),
+    ...(row.resolution_action === null ? {} : { resolutionAction: row.resolution_action }),
+    ...(row.resolution_reason === null ? {} : { resolutionReason: row.resolution_reason }),
   });
 }
 
