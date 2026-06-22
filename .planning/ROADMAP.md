@@ -240,6 +240,28 @@ Plans:
 3. Evidence assets are stored outside Postgres with controlled access.
 4. Lead can confirm whether the sales area is safe before shift close.
 
+**Plans:** 5 plans
+Plans:
+**Wave 1**
+
+- [ ] 08-01-PLAN.md - Role-aware protected path, durable memberships, and denial auditing
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-02-PLAN.md - Append-only audit producers, mobile timelines, and web workbench
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-03-PLAN.md - Offline evidence queue, private R2 lifecycle, and controlled access
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-04-PLAN.md - Truthful safe/unsafe shift close, handoff, and immutable reopen
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-05-PLAN.md - Membership administration, integrated security/E2E gates, and runbooks
+
 ### Phase 9: Impeccable Hardening and v1 Readiness
 
 **Goal:** Run UI/UX/copy, accessibility, security, performance, and E2E hardening before declaring v1 ready.

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 08
-status: Ready
-stopped_at: Phase 8 context gathered
-last_updated: "2026-06-22T03:15:51.953Z"
+status: Ready to execute
+stopped_at: Phase 8 planned - 5 plans in 5 waves
+last_updated: "2026-06-22T09:53:46.534Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 7
-  total_plans: 29
+  total_plans: 39
   completed_plans: 29
   percent: 78
 ---
@@ -42,7 +42,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | Pending | Audit, Roles, and Shift Close |
+| 8 | Planned | Audit, Roles, and Shift Close - 5 plans in 5 waves |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
 ## Active Constraints
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Start Phase 8 - Audit, Roles, and Shift Close.
+Execute Phase 8 - Audit, Roles, and Shift Close (`$gsd-execute-phase 8`).
 
 ### Quick Tasks Completed
 
@@ -101,9 +101,9 @@ Start Phase 8 - Audit, Roles, and Shift Close.
 
 ## Session
 
-**Last session:** 2026-06-22T03:15:51.949Z
-**Stopped at:** Phase 8 context gathered
-**Resume file:** .planning/phases/08-audit-roles-and-shift-close/08-CONTEXT.md
+**Last session:** 2026-06-22T03:59:28.341Z
+**Stopped at:** Phase 8 UI-SPEC approved
+**Resume file:** .planning/phases/08-audit-roles-and-shift-close/08-UI-SPEC.md
 
 ## Decisions
 
