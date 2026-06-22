@@ -209,7 +209,7 @@ Plans:
 3. Sync conflicts are explicit and never silently confirm critical actions.
 4. User can understand which actions are synced and which are pending.
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 Plans:
 **Wave 1**
 
@@ -217,7 +217,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md - Mobile offline cache, outbox, and repository projections
+- [x] 07-02-PLAN.md - Mobile offline cache, outbox, and repository projections
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
