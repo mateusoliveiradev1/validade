@@ -240,11 +240,11 @@ Plans:
 3. Evidence assets are stored outside Postgres with controlled access.
 4. Lead can confirm whether the sales area is safe before shift close.
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md - Role-aware protected path, durable memberships, and denial auditing
+- [x] 08-01-PLAN.md - Role-aware protected path, durable memberships, and denial auditing
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

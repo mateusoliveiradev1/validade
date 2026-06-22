@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 08
-status: Ready to execute
-stopped_at: Phase 8 planned - 5 plans in 5 waves
-last_updated: "2026-06-22T09:53:46.534Z"
+status: In Progress
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-06-22T11:14:50.965Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 7
-  total_plans: 39
-  completed_plans: 29
-  percent: 78
+  total_plans: 34
+  completed_plans: 30
+  percent: 88
 ---
 
 # Project State: Validade Zero
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 08 - audit-roles-shift-close
+**Current focus:** Phase 08 — audit-roles-and-shift-close
 
 ## Roadmap Progress
 
@@ -42,7 +42,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | Planned | Audit, Roles, and Shift Close - 5 plans in 5 waves |
+| 8 | In Progress | Audit, Roles, and Shift Close - 1/5 plans executed |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
 ## Active Constraints
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Execute Phase 8 - Audit, Roles, and Shift Close (`$gsd-execute-phase 8`).
+Continue Phase 8 - Audit, Roles, and Shift Close with Wave 2 (`$gsd-execute-phase 8`).
 
 ### Quick Tasks Completed
 
@@ -98,12 +98,13 @@ Execute Phase 8 - Audit, Roles, and Shift Close (`$gsd-execute-phase 8`).
 | Phase 07 P02 | 17min | 2 tasks | 8 files |
 | Phase 07 P03 | 8min | 2 tasks | 9 files |
 | Phase 07 P04 | 24min | 2 tasks | 21 files |
+| Phase 08 P01 | 70 min | 3 tasks | 30 files |
 
 ## Session
 
-**Last session:** 2026-06-22T03:59:28.341Z
-**Stopped at:** Phase 8 UI-SPEC approved
-**Resume file:** .planning/phases/08-audit-roles-and-shift-close/08-UI-SPEC.md
+**Last session:** 2026-06-22T11:14:50.961Z
+**Stopped at:** Completed 08-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
