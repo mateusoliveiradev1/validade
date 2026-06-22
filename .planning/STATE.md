@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 07
-status: In Progress
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-06-22T02:21:16.353Z"
+current_phase: 08
+status: Ready
+stopped_at: Completed Phase 7 - Offline Sync
+last_updated: "2026-06-22T02:42:00.000Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 29
-  completed_plans: 28
-  percent: 67
+  completed_plans: 29
+  percent: 78
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 07
+**Current phase:** 08
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 07 — offline-sync
+**Current focus:** Phase 08 - audit-roles-shift-close
 
 ## Roadmap Progress
 
@@ -41,7 +41,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
-| 7 | In Progress | Offline Sync - 3/4 plans executed |
+| 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Pending | Audit, Roles, and Shift Close |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 7 - Offline Sync with 07-04 Hoje sync UI, conflict review, smoke, docs, and regression.
+Start Phase 8 - Audit, Roles, and Shift Close.
 
 ### Quick Tasks Completed
 
@@ -97,15 +97,19 @@ Continue Phase 7 - Offline Sync with 07-04 Hoje sync UI, conflict review, smoke,
 | Phase 07 P01 | 5 min | 2 tasks | 8 files |
 | Phase 07 P02 | 17min | 2 tasks | 8 files |
 | Phase 07 P03 | 8min | 2 tasks | 9 files |
+| Phase 07 P04 | 24min | 2 tasks | 21 files |
 
 ## Session
 
-**Last session:** 2026-06-22T02:21:16.140Z
-**Stopped at:** Completed 07-03-PLAN.md
+**Last session:** 2026-06-22T02:42:00.000Z
+**Stopped at:** Completed Phase 7 - Offline Sync
 **Resume file:** None
 
 ## Decisions
 
+- [Phase 07]: Offline/sync support stays inside Hoje, directly below the sales-area verdict, instead of becoming a separate dashboard. - Keeps the operator focused on visible task execution while still exposing cache, queue, retry, and conflict state.
+- [Phase 07]: Local-save feedback says the action is saved on this device and pending sync; it never claims central confirmation before ack. - Prevents an offline action from being misread as proof that the sales area is safe.
+- [Phase 07]: Critical sync conflicts require explicit review and destructive discard requires a non-empty reason. - Prevents critical offline actions from being silently confirmed or erased.
 - [Phase 07]: Network state only gates sync attempts; a command becomes synced only after a strict transport ack. - Prevents connectivity from being mistaken for physical-resolution proof.
 - [Phase 07]: Offline command persistence writes a durable command before local Today task projection and keeps pending/conflict sync metadata visible until ack or explicit conflict resolution. - Prevents local saves from silently hiding critical sales-area risk.
 - [Phase 07]: Today task sync metadata lives beside TodayTaskRecordSchema to avoid a contracts import cycle. — Keeps the task record extension runtime-safe while sync contracts still reuse task and markdown command schemas.

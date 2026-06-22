@@ -209,7 +209,7 @@ Plans:
 3. Sync conflicts are explicit and never silently confirm critical actions.
 4. User can understand which actions are synced and which are pending.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 
@@ -225,7 +225,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 07-04-PLAN.md - Hoje sync UI, conflict review, smoke, docs, and regression
+- [x] 07-04-PLAN.md - Hoje sync UI, conflict review, smoke, docs, and regression
 
 ### Phase 8: Audit, Roles, and Shift Close
 
