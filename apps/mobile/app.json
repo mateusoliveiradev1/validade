@@ -6,6 +6,12 @@
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#166534"
+    },
     "extra": {
       "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url"
     },
@@ -21,7 +27,11 @@
       "@react-native-community/datetimepicker"
     ],
     "android": {
-      "package": "com.validadezero.app"
+      "package": "com.validadezero.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#166534"
+      }
     }
   }
 }
