@@ -83,9 +83,20 @@ export const SessionStatusResponseSchema = SessionContextResponseSchema;
 
 export const AccountAccessErrorResponseSchema = z
   .object({
-    error: z.enum(["account_blocked", "account_revoked", "session_expired"]),
-    accountStatus: AccountStatusSchema,
+    error: z.enum([
+      "account_blocked",
+      "account_revoked",
+      "recovery_required",
+      "session_expired",
+    ]),
+    accountStatus: AccountStatusSchema.optional(),
     canRequestRecovery: z.boolean(),
+  })
+  .strict();
+
+export const InvalidCredentialsResponseSchema = z
+  .object({
+    error: z.literal("invalid_credentials"),
   })
   .strict();
 
@@ -129,6 +140,7 @@ export const CreateInviteRequestSchema = z
 
 export const RevokeInviteRequestSchema = z
   .object({
+    storeId: RequiredIdentifierSchema,
     idempotencyKey: IdempotencyKeySchema,
   })
   .strict();
@@ -200,6 +212,7 @@ export const AuthenticationContract = {
   sessionRefresh: SessionRefreshRequestSchema,
   sessionStatus: SessionStatusResponseSchema,
   accountAccessError: AccountAccessErrorResponseSchema,
+  invalidCredentials: InvalidCredentialsResponseSchema,
   authenticatedSession: AuthenticatedSessionResponseSchema,
   logoutResponse: LogoutResponseSchema,
   recoveryRequestedResponse: RecoveryRequestedResponseSchema,

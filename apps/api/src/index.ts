@@ -36,6 +36,12 @@ import {
 } from "@validade-zero/contracts";
 import type { EvidenceRepository } from "@validade-zero/database/evidence-repository";
 import {
+  createInMemoryAuthRepository,
+  createNeonAuthRepository,
+  type AuthRepository,
+  type AuthRepositorySecrets,
+} from "@validade-zero/database/auth-repository";
+import {
   createInMemoryMembershipManagementRepository,
   createNeonMembershipRepository,
   type MembershipManagementRepository,
@@ -56,7 +62,7 @@ import {
   createAuthorizationService,
   createDefaultMemberships,
   createSessionContext,
-  FakeAuthProvider,
+  PilotAuthProvider,
   toClientSafeDenial,
   type ApiAuthorizationDecision,
   type AccessDeniedAuditRecorder,
@@ -64,6 +70,15 @@ import {
   type AuthorizationService,
   type MembershipRepository,
 } from "./auth";
+import {
+  createAccessDeniedAuthSecurityRecorder,
+  createInMemoryLoginAttemptLimiter,
+  createNoopRecoveryDeliveryProvider,
+  registerAuthenticationRoutes,
+  type AuthSecurityAuditRecorder,
+  type LoginAttemptLimiter,
+  type RecoveryDeliveryProvider,
+} from "./authentication";
 import {
   createDatabaseEvidenceRepository,
   createEvidenceService,
@@ -89,6 +104,8 @@ export interface InMemorySyncCommandService extends SyncCommandService {
 
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
+  authRepository?: AuthRepository;
+  authSecrets?: AuthRepositorySecrets;
   authProvider?: AuthProvider;
   auditRepository?: AuditEventRepository;
   databaseUrl?: string;
@@ -103,13 +120,17 @@ export function createApiApp(input?: {
   shiftCloseService?: ShiftCloseService;
   authorizationService?: AuthorizationService;
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
+  authSecurityAuditRecorder?: AuthSecurityAuditRecorder;
+  recoveryDeliveryProvider?: RecoveryDeliveryProvider;
+  loginAttemptLimiter?: LoginAttemptLimiter;
+  sessionTtlSeconds?: number;
+  recoveryTtlSeconds?: number;
   now?: () => Date;
 }): Hono {
   const api = new Hono();
   const providers = createLocalProviderRegistry();
   const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
-  const authProvider = input?.authProvider ?? new FakeAuthProvider("collaborator-local");
   const membershipManagementRepository =
     input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined
@@ -130,6 +151,16 @@ export function createApiApp(input?: {
         )
       : createNeonMembershipRepository({ connectionString: input.databaseUrl }));
   const membershipRepository = input?.membershipRepository ?? membershipManagementRepository;
+  const authRepository =
+    input?.authRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryAuthRepository({
+          memberships: membershipRepository,
+          secrets: createEphemeralAuthSecrets(),
+        })
+      : createConfiguredNeonAuthRepository(input.databaseUrl, input.authSecrets));
+  const sessionProvider = new PilotAuthProvider(authRepository, now);
+  const authProvider = input?.authProvider ?? sessionProvider;
   const authorizationService =
     input?.authorizationService ??
     createAuthorizationService({ memberships: membershipRepository });
@@ -142,6 +173,12 @@ export function createApiApp(input?: {
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
     createAuditAccessDeniedRecorder({ repository: auditRepository, now });
+  const authSecurityAuditRecorder =
+    input?.authSecurityAuditRecorder ??
+    createAccessDeniedAuthSecurityRecorder({
+      recorder: accessDeniedAuditRecorder,
+      memberships: membershipRepository,
+    });
   const membershipService =
     input?.membershipService ??
     createMembershipService({
@@ -178,6 +215,23 @@ export function createApiApp(input?: {
         : { revalidator: input.shiftCloseRevalidator }),
       now,
     });
+
+  registerAuthenticationRoutes(api, {
+    repository: authRepository,
+    authProvider,
+    sessionProvider,
+    authorizationService,
+    membershipRepository,
+    membershipService,
+    accessDeniedAuditRecorder,
+    authSecurityAuditRecorder,
+    recoveryDeliveryProvider:
+      input?.recoveryDeliveryProvider ?? createNoopRecoveryDeliveryProvider(),
+    loginAttemptLimiter: input?.loginAttemptLimiter ?? createInMemoryLoginAttemptLimiter(),
+    now,
+    sessionTtlSeconds: input?.sessionTtlSeconds ?? 28_800,
+    recoveryTtlSeconds: input?.recoveryTtlSeconds ?? 1_800,
+  });
 
   api.get("/health", (context) => {
     const payload = HealthContract.response.parse({
@@ -847,6 +901,23 @@ export function createApiApp(input?: {
 }
 
 export const app = createApiApp();
+
+function createEphemeralAuthSecrets(): AuthRepositorySecrets {
+  return {
+    tokenPepper: `${crypto.randomUUID()}:${crypto.randomUUID()}`,
+    passwordPepper: `${crypto.randomUUID()}:${crypto.randomUUID()}`,
+  };
+}
+
+function createConfiguredNeonAuthRepository(
+  databaseUrl: string,
+  secrets: AuthRepositorySecrets | undefined,
+): AuthRepository {
+  if (secrets === undefined) {
+    throw new Error("Persistent authentication requires token and password peppers.");
+  }
+  return createNeonAuthRepository({ connectionString: databaseUrl, secrets });
+}
 
 export function createInMemorySyncCommandService(input?: {
   now?: () => string;

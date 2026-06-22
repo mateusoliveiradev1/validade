@@ -1,6 +1,3 @@
-import { createHmac, pbkdf2 as pbkdf2Callback, randomBytes, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
-
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { AuthorizationRole, StoreMembership } from "@validade-zero/domain";
 
@@ -10,7 +7,7 @@ const PASSWORD_ITERATIONS = 310_000;
 const PASSWORD_KEY_LENGTH = 32;
 const PASSWORD_DIGEST = "sha256";
 const PASSWORD_ALGORITHM = `pbkdf2-${PASSWORD_DIGEST}:${PASSWORD_ITERATIONS}`;
-const pbkdf2 = promisify(pbkdf2Callback);
+const textEncoder = new TextEncoder();
 
 export type AuthAccountStatus =
   | "invited"
@@ -132,7 +129,11 @@ export interface AuthRepository {
     createdAt: Date;
   }): Promise<InviteMutationReceipt>;
   validateInvite(input: { token: string; now: Date }): Promise<InviteValidationResult>;
-  revokeInvite(input: { inviteId: string; revokedAt: Date }): Promise<AuthInviteRecord | undefined>;
+  revokeInvite(input: {
+    inviteId: string;
+    storeId: string;
+    revokedAt: Date;
+  }): Promise<AuthInviteRecord | undefined>;
   activateAccount(input: {
     token: string;
     password: string;
@@ -141,6 +142,12 @@ export interface AuthRepository {
   verifyPassword(input: {
     identifier: string;
     password: string;
+  }): Promise<AuthAccountRecord | undefined>;
+  changeAccountStatus(input: {
+    subjectId: string;
+    storeId: string;
+    status: "active" | "blocked" | "revoked";
+    occurredAt: Date;
   }): Promise<AuthAccountRecord | undefined>;
   rotateSession(input: {
     sessionId: string;
@@ -215,7 +222,7 @@ export function createInMemoryAuthRepository(input: {
   }
 
   async function findSession(token: string, now: Date): Promise<StoredAuthSessionRecord | undefined> {
-    const tokenHash = hashToken(token, input.secrets.tokenPepper);
+    const tokenHash = await hashToken(token, input.secrets.tokenPepper);
     const session = [...sessions.values()].find((candidate) => candidate.tokenHash === tokenHash);
     if (session === undefined || session.revokedAt !== undefined || session.expiresAt <= now) {
       return undefined;
@@ -237,7 +244,7 @@ export function createInMemoryAuthRepository(input: {
       if (replayId !== undefined) {
         return { invite: publicInvite(requiredMapValue(invites, replayId)), replayed: true };
       }
-      const tokenHash = hashToken(request.token, input.secrets.tokenPepper);
+      const tokenHash = await hashToken(request.token, input.secrets.tokenPepper);
       if ([...invites.values()].some((invite) => invite.tokenHash === tokenHash)) {
         throw new Error("Invite token has already been used.");
       }
@@ -261,19 +268,21 @@ export function createInMemoryAuthRepository(input: {
       return { invite: publicInvite(invite), replayed: false };
     },
     async validateInvite({ token, now }) {
-      const tokenHash = hashToken(token, input.secrets.tokenPepper);
+      const tokenHash = await hashToken(token, input.secrets.tokenPepper);
       const invite = [...invites.values()].find((candidate) => candidate.tokenHash === tokenHash);
       return validateStoredInvite(invite, now);
     },
-    async revokeInvite({ inviteId, revokedAt }) {
+    revokeInvite({ inviteId, storeId, revokedAt }) {
       const invite = invites.get(inviteId);
-      if (invite === undefined || invite.status !== "invited") return undefined;
+      if (invite === undefined || invite.storeId !== storeId || invite.status !== "invited") {
+        return Promise.resolve(undefined);
+      }
       invite.status = "revoked";
       invite.revokedAt = revokedAt;
-      return publicInvite(invite);
+      return Promise.resolve(publicInvite(invite));
     },
     async activateAccount({ token, password, activatedAt }) {
-      const tokenHash = hashToken(token, input.secrets.tokenPepper);
+      const tokenHash = await hashToken(token, input.secrets.tokenPepper);
       const invite = [...invites.values()].find((candidate) => candidate.tokenHash === tokenHash);
       const validation = validateStoredInvite(invite, activatedAt);
       if (validation.status !== "valid" || invite === undefined) {
@@ -305,6 +314,16 @@ export function createInMemoryAuthRepository(input: {
       const valid = await verifyPasswordValue(password, account, input.secrets.passwordPepper);
       return valid ? publicAccount(account) : undefined;
     },
+    async changeAccountStatus({ subjectId, storeId, status, occurredAt }) {
+      const account = credentials.get(accountKey(subjectId, storeId));
+      if (account === undefined) return undefined;
+      account.status = status;
+      account.updatedAt = occurredAt;
+      if (status !== "active") {
+        await this.revokeSessionsForSubjectStore({ subjectId, storeId, revokedAt: occurredAt });
+      }
+      return publicAccount(account);
+    },
     async rotateSession(request) {
       await requireActiveMembership(request.subjectId, request.storeId);
       const account = credentials.get(accountKey(request.subjectId, request.storeId));
@@ -326,7 +345,7 @@ export function createInMemoryAuthRepository(input: {
         sessionId: request.sessionId,
         subjectId: request.subjectId,
         storeId: request.storeId,
-        tokenHash: hashToken(request.nextToken, input.secrets.tokenPepper),
+        tokenHash: await hashToken(request.nextToken, input.secrets.tokenPepper),
         expiresAt: request.expiresAt,
         createdAt: request.occurredAt,
         lastSeenAt: request.occurredAt,
@@ -340,13 +359,13 @@ export function createInMemoryAuthRepository(input: {
       return session === undefined ? undefined : publicSession(session);
     },
     async revokeSession({ token, revokedAt }) {
-      const tokenHash = hashToken(token, input.secrets.tokenPepper);
+      const tokenHash = await hashToken(token, input.secrets.tokenPepper);
       const session = [...sessions.values()].find((candidate) => candidate.tokenHash === tokenHash);
       if (session === undefined || session.revokedAt !== undefined) return false;
       session.revokedAt = revokedAt;
       return true;
     },
-    async revokeSessionsForSubjectStore({ subjectId, storeId, revokedAt }) {
+    revokeSessionsForSubjectStore({ subjectId, storeId, revokedAt }) {
       let revoked = 0;
       for (const session of sessions.values()) {
         if (session.subjectId === subjectId && session.storeId === storeId && session.revokedAt === undefined) {
@@ -354,7 +373,7 @@ export function createInMemoryAuthRepository(input: {
           revoked += 1;
         }
       }
-      return revoked;
+      return Promise.resolve(revoked);
     },
     async createRecoveryRequest(request) {
       if (recoveryIdempotency.has(request.idempotencyKey)) return true;
@@ -365,7 +384,7 @@ export function createInMemoryAuthRepository(input: {
       const recovery: StoredRecoveryRecord = {
         recoveryId: request.recoveryId,
         idempotencyKey: request.idempotencyKey,
-        tokenHash: hashToken(request.token, input.secrets.tokenPepper),
+        tokenHash: await hashToken(request.token, input.secrets.tokenPepper),
         subjectId: account.subjectId,
         storeId: account.storeId,
         expiresAt: request.expiresAt,
@@ -378,7 +397,7 @@ export function createInMemoryAuthRepository(input: {
       return true;
     },
     async consumeRecoveryToken({ token, password, consumedAt }) {
-      const tokenHash = hashToken(token, input.secrets.tokenPepper);
+      const tokenHash = await hashToken(token, input.secrets.tokenPepper);
       const recovery = [...recoveries.values()].find((candidate) => candidate.tokenHash === tokenHash);
       if (recovery === undefined || recovery.consumedAt !== undefined || recovery.expiresAt <= consumedAt) {
         return undefined;
@@ -401,16 +420,19 @@ export function createInMemoryAuthRepository(input: {
       });
       return publicAccount(account);
     },
-    async createPrivacyRequest(request) {
+    createPrivacyRequest(request) {
       validatePrivacyRequest(request);
       const replayId = privacyIdempotency.get(request.idempotencyKey);
       if (replayId !== undefined) {
-        return { request: requiredMapValue(privacyRequests, replayId), replayed: true };
+        return Promise.resolve({
+          request: requiredMapValue(privacyRequests, replayId),
+          replayed: true,
+        });
       }
       const record: PrivacyRequestRecord = { ...request, status: "received" };
       privacyRequests.set(record.requestId, record);
       privacyIdempotency.set(record.idempotencyKey, record.requestId);
-      return { request: record, replayed: false };
+      return Promise.resolve({ request: record, replayed: false });
     },
     readStoredState() {
       return {
@@ -440,7 +462,7 @@ export function createAuthRepositoryFromQuery(
   }
 
   async function findSession(token: string, now: Date): Promise<AuthSessionRow | undefined> {
-    const tokenHash = hashToken(token, secrets.tokenPepper);
+    const tokenHash = await hashToken(token, secrets.tokenPepper);
     const rows = (await sql.query(
       `select s.session_id, s.subject_id, s.store_id, s.expires_at, s.created_at,
               s.last_seen_at, s.rotated_from_session_id
@@ -480,7 +502,7 @@ export function createAuthRepositoryFromQuery(
         [
           request.inviteId,
           request.idempotencyKey,
-          hashToken(request.token, secrets.tokenPepper),
+          await hashToken(request.token, secrets.tokenPepper),
           normalizeIdentifier(request.identifier),
           request.subjectId,
           request.displayName,
@@ -502,20 +524,20 @@ export function createAuthRepositoryFromQuery(
     async validateInvite({ token, now }) {
       const rows = (await sql.query(
         `select ${INVITE_COLUMNS} from auth_invites where token_hash = $1 limit 1`,
-        [hashToken(token, secrets.tokenPepper)],
+        [await hashToken(token, secrets.tokenPepper)],
       )) as AuthInviteRow[];
       return validateStoredInvite(rows[0] === undefined ? undefined : mapStoredInvite(rows[0]), now);
     },
-    async revokeInvite({ inviteId, revokedAt }) {
+    async revokeInvite({ inviteId, storeId, revokedAt }) {
       const rows = (await sql.query(
         `update auth_invites set status = 'revoked', revoked_at = $1
-         where invite_id = $2 and status = 'invited' returning ${INVITE_COLUMNS}`,
-        [revokedAt.toISOString(), inviteId],
+         where invite_id = $2 and store_id = $3 and status = 'invited' returning ${INVITE_COLUMNS}`,
+        [revokedAt.toISOString(), inviteId, storeId],
       )) as AuthInviteRow[];
       return rows[0] === undefined ? undefined : mapInvite(rows[0]);
     },
     async activateAccount({ token, password, activatedAt }) {
-      const tokenHash = hashToken(token, secrets.tokenPepper);
+      const tokenHash = await hashToken(token, secrets.tokenPepper);
       const inviteRows = (await sql.query(
         `select ${INVITE_COLUMNS} from auth_invites
          where token_hash = $1 and status = 'invited' and expires_at > $2 limit 1`,
@@ -555,6 +577,20 @@ export function createAuthRepositoryFromQuery(
       const valid = await verifyPasswordValue(password, mapStoredAccount(row), secrets.passwordPepper);
       return valid ? mapAccount(row) : undefined;
     },
+    async changeAccountStatus({ subjectId, storeId, status, occurredAt }) {
+      const rows = (await sql.query(
+        `with changed as (
+           update auth_credentials set status = $1, updated_at = $2
+           where subject_id = $3 and store_id = $4 returning ${ACCOUNT_COLUMNS}
+         ), revoked as (
+           update auth_sessions s set revoked_at = $2 from changed c
+           where $1 <> 'active' and s.subject_id = c.subject_id and s.store_id = c.store_id
+             and s.revoked_at is null
+         ) select * from changed`,
+        [status, occurredAt.toISOString(), subjectId, storeId],
+      )) as AuthAccountRow[];
+      return rows[0] === undefined ? undefined : mapAccount(rows[0]);
+    },
     async rotateSession(request) {
       if (!(await activeMembershipExists(request.subjectId, request.storeId))) {
         throw new Error("The account no longer has an active membership for this store.");
@@ -581,7 +617,7 @@ export function createAuthRepositoryFromQuery(
         returning ${SESSION_COLUMNS}`,
         [
           request.sessionId,
-          hashToken(request.nextToken, secrets.tokenPepper),
+          await hashToken(request.nextToken, secrets.tokenPepper),
           request.subjectId,
           request.storeId,
           request.expiresAt.toISOString(),
@@ -599,7 +635,7 @@ export function createAuthRepositoryFromQuery(
       const rows = (await sql.query(
         `update auth_sessions set revoked_at = $1
          where token_hash = $2 and revoked_at is null returning session_id`,
-        [revokedAt.toISOString(), hashToken(token, secrets.tokenPepper)],
+        [revokedAt.toISOString(), await hashToken(token, secrets.tokenPepper)],
       )) as { session_id: string }[];
       return rows[0] !== undefined;
     },
@@ -621,7 +657,7 @@ export function createAuthRepositoryFromQuery(
         [
           request.recoveryId,
           request.idempotencyKey,
-          hashToken(request.token, secrets.tokenPepper),
+          await hashToken(request.token, secrets.tokenPepper),
           normalizeIdentifier(request.identifier),
           request.expiresAt.toISOString(),
           request.createdAt.toISOString(),
@@ -654,7 +690,7 @@ export function createAuthRepositoryFromQuery(
            and a.status not in ('blocked', 'revoked') returning ${ACCOUNT_COLUMNS}`,
         [
           consumedAt.toISOString(),
-          hashToken(token, secrets.tokenPepper),
+          await hashToken(token, secrets.tokenPepper),
           verifier.passwordHash,
           verifier.passwordSalt,
           verifier.passwordAlgorithm,
@@ -899,7 +935,7 @@ function mapPrivacyRequest(row: PrivacyRequestRow): PrivacyRequestRecord {
 }
 
 async function createPasswordVerifier(password: string, pepper: string) {
-  const passwordSalt = randomBytes(16).toString("hex");
+  const passwordSalt = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
   const passwordHash = await derivePassword(password, passwordSalt, pepper);
   return { passwordHash, passwordSalt, passwordAlgorithm: PASSWORD_ALGORITHM };
 }
@@ -911,24 +947,62 @@ async function verifyPasswordValue(
 ): Promise<boolean> {
   if (account.passwordAlgorithm !== PASSWORD_ALGORITHM) return false;
   const candidate = await derivePassword(password, account.passwordSalt, pepper);
-  const expectedBytes = Buffer.from(account.passwordHash, "hex");
-  const candidateBytes = Buffer.from(candidate, "hex");
-  return expectedBytes.length === candidateBytes.length && timingSafeEqual(expectedBytes, candidateBytes);
+  return constantTimeHexEqual(account.passwordHash, candidate);
 }
 
 async function derivePassword(password: string, salt: string, pepper: string): Promise<string> {
-  const value = await pbkdf2(
-    `${password}\u0000${pepper}`,
-    Buffer.from(salt, "hex"),
-    PASSWORD_ITERATIONS,
-    PASSWORD_KEY_LENGTH,
-    PASSWORD_DIGEST,
+  const material = await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(`${password}\u0000${pepper}`),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
   );
-  return value.toString("hex");
+  const value = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: hexToBytes(salt).buffer as ArrayBuffer,
+      iterations: PASSWORD_ITERATIONS,
+    },
+    material,
+    PASSWORD_KEY_LENGTH * 8,
+  );
+  return bytesToHex(new Uint8Array(value));
 }
 
-function hashToken(token: string, pepper: string): string {
-  return createHmac("sha256", pepper).update(token, "utf8").digest("hex");
+async function hashToken(token: string, pepper: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(pepper),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, textEncoder.encode(token));
+  return bytesToHex(new Uint8Array(signature));
+}
+
+function bytesToHex(value: Uint8Array): string {
+  return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(value: string): Uint8Array {
+  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) {
+    throw new Error("Authentication hash encoding is invalid.");
+  }
+  return Uint8Array.from(value.match(/.{2}/g) ?? [], (byte) => Number.parseInt(byte, 16));
+}
+
+function constantTimeHexEqual(left: string, right: string): boolean {
+  const leftBytes = hexToBytes(left);
+  const rightBytes = hexToBytes(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  }
+  return difference === 0;
 }
 
 function assertSecrets(secrets: AuthRepositorySecrets): void {

@@ -8,6 +8,7 @@ import {
   type Capability,
   type StoreMembership,
 } from "@validade-zero/domain";
+import type { AuthRepository, AuthSessionRecord } from "@validade-zero/database/auth-repository";
 
 export interface AuthProvider {
   verify(request: Request): Promise<AuthenticatedIdentity | undefined>;
@@ -125,6 +126,48 @@ export class JwtAuthProvider implements AuthProvider {
   }
 }
 
+export class PilotAuthProvider implements AuthProvider {
+  constructor(
+    private readonly repository: AuthRepository,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+
+  async readSession(request: Request): Promise<AuthSessionRecord | undefined> {
+    const token = readSessionToken(request);
+    if (token === undefined) return undefined;
+    return this.repository.verifySession({ token, now: this.now() });
+  }
+
+  async verify(request: Request): Promise<AuthenticatedIdentity | undefined> {
+    const session = await this.readSession(request);
+    if (session === undefined) return undefined;
+    return {
+      subjectId: session.subjectId,
+      issuer: "pilot-auth-provider",
+      expiresAt: session.expiresAt.toISOString(),
+    };
+  }
+}
+
+export function readSessionToken(request: Request): string | undefined {
+  const authorizationHeader = request.headers.get("authorization");
+  if (authorizationHeader?.startsWith("Bearer ") === true) {
+    const token = authorizationHeader.slice("Bearer ".length).trim();
+    return token.length === 0 ? undefined : token;
+  }
+
+  const cookie = request.headers.get("cookie");
+  if (cookie === null) return undefined;
+  for (const part of cookie.split(";")) {
+    const [name, ...value] = part.trim().split("=");
+    if (name === "vz_session") {
+      const token = decodeURIComponent(value.join("=")).trim();
+      return token.length === 0 ? undefined : token;
+    }
+  }
+  return undefined;
+}
+
 export function createInMemoryMembershipRepository(
   memberships: readonly StoreMembership[] = createDefaultMemberships(),
 ): InMemoryMembershipRepository {
@@ -229,6 +272,10 @@ export function createSessionContext(decision: AuthorizationDecision) {
     },
     activeRole: role,
     capabilities: [...capabilities],
+    sessionExpiresAt: decision.context.identity.expiresAt ?? "2999-12-31T23:59:59.000Z",
+    accountStatus: "active" as const,
+    canRequestRecovery: true,
+    privacyCenterUrl: "/privacy",
     actions: {
       canActOnTask: roleAllowsCapability(role, "task.act"),
       canCloseShift: roleAllowsCapability(role, "shift.close"),
