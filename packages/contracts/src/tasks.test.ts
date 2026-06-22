@@ -64,6 +64,45 @@ describe("Today task contracts", () => {
     ).toThrow();
   });
 
+  it("keeps sync metadata optional and rejects malformed sync state", () => {
+    expect(TodayTaskRecordSchema.parse(baseTask)).toEqual(baseTask);
+    expect(
+      TodayTaskRecordSchema.parse({
+        ...baseTask,
+        sync: {
+          state: "pending_sync",
+          savedAt: "2030-01-10T09:10:00.000Z",
+          pendingCommandId: "cmd-ficticio-001",
+          attemptCount: 0,
+        },
+      }),
+    ).toMatchObject({
+      sync: {
+        state: "pending_sync",
+        pendingCommandId: "cmd-ficticio-001",
+      },
+    });
+    expect(() =>
+      TodayTaskRecordSchema.parse({
+        ...baseTask,
+        sync: {
+          state: "sync_conflict",
+          savedAt: "2030-01-10T09:10:00.000Z",
+          pendingCommandId: "cmd-ficticio-001",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      TodayTaskRecordSchema.parse({
+        ...baseTask,
+        sync: {
+          state: "synced",
+          savedAt: "2030-01-10T09:10:00.000Z",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("rejects unknown generic task fields and generic resolved actions", () => {
     expect(() =>
       TodayTaskRecordSchema.parse({

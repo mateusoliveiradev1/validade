@@ -7,6 +7,7 @@ import {
   TODAY_TASK_SEVERITIES,
   RISK_REASON_CODES,
   MARKDOWN_WORKFLOW_STATUSES,
+  SYNC_COMMAND_STATES,
   type RequiredResolution,
 } from "@validade-zero/domain";
 import { z } from "zod";
@@ -76,6 +77,52 @@ export const TaskRefreshMetadataSchema = z
   })
   .strict();
 
+export const TodayTaskSyncMetadataSchema = z
+  .object({
+    state: z.enum(SYNC_COMMAND_STATES),
+    savedAt: IsoDateTimeSchema,
+    pendingCommandId: IdentifierSchema.optional(),
+    conflictId: IdentifierSchema.optional(),
+    lastSyncedAt: IsoDateTimeSchema.optional(),
+    lastError: RequiredTextSchema.optional(),
+    attemptCount: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      [
+        "command_saved_local",
+        "pending_sync",
+        "syncing",
+        "sync_failed",
+        "sync_conflict",
+      ].includes(value.state) &&
+      value.pendingCommandId === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["pendingCommandId"],
+        message: "Pending sync metadata requires the command id saved on this device.",
+      });
+    }
+
+    if (value.state === "sync_conflict" && value.conflictId === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["conflictId"],
+        message: "Conflict sync metadata requires a conflict id.",
+      });
+    }
+
+    if (value.state === "synced" && value.lastSyncedAt === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["lastSyncedAt"],
+        message: "Synced task metadata requires the sync acknowledgement time.",
+      });
+    }
+  });
+
 export const TodayTaskRecordSchema = z
   .object({
     id: IdentifierSchema,
@@ -100,6 +147,7 @@ export const TodayTaskRecordSchema = z
     markdownWorkflowId: IdentifierSchema.optional(),
     markdownStage: MarkdownTaskStageSchema.optional(),
     responsibleActorLabel: RequiredTextSchema.optional(),
+    sync: TodayTaskSyncMetadataSchema.optional(),
     resolutionHistory: z
       .array(
         z
@@ -159,5 +207,6 @@ export type TodayTaskStatus = z.infer<typeof TodayTaskStatusSchema>;
 export type TodayTaskRecord = z.infer<typeof TodayTaskRecordSchema>;
 export type FutureAttentionRecord = z.infer<typeof FutureAttentionRecordSchema>;
 export type TaskRefreshMetadata = z.infer<typeof TaskRefreshMetadataSchema>;
+export type TodayTaskSyncMetadata = z.infer<typeof TodayTaskSyncMetadataSchema>;
 export type TaskResolutionCommand = z.infer<typeof TaskResolutionCommandSchema>;
 export type EvidencePromptMetadata = z.infer<typeof EvidencePromptMetadataSchema>;
