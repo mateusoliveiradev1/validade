@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   auditEventStatusEnum,
   auditEvents,
+  evidenceAssets,
+  evidenceAssetStateEnum,
   membershipRoleEnum,
   membershipStatusEnum,
   storeMemberships,
@@ -11,6 +13,10 @@ import {
 
 const migrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0001_phase_08_identity_audit.sql"),
+  "utf8",
+);
+const evidenceMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0002_phase_08_evidence.sql"),
   "utf8",
 );
 
@@ -60,5 +66,35 @@ describe("phase 08 database schema", () => {
     expect(migrationSql).toContain("T8-01");
     expect(migrationSql).toContain("T8-04");
     expect(migrationSql).toContain("T8-05");
+  });
+
+  it("stores evidence metadata and an opaque object reference without binary or URL columns", () => {
+    expect(evidenceAssetStateEnum.enumValues).toEqual([
+      "upload_requested",
+      "uploading",
+      "uploaded",
+      "failed",
+      "invalidated",
+      "expired",
+    ]);
+    expect(evidenceAssets.storeId.name).toBe("store_id");
+    expect(evidenceAssets.targetId.name).toBe("target_id");
+    expect(evidenceAssets.objectKey.name).toBe("object_key");
+    expect(evidenceAssets.sha256.name).toBe("sha256");
+    expect(evidenceAssets.retentionDays.name).toBe("retention_days");
+
+    expect(Object.keys(evidenceAssets)).not.toEqual(
+      expect.arrayContaining(["bytes", "base64", "uri", "localUri", "signedUrl", "url"]),
+    );
+  });
+
+  it("migration scopes evidence access and retention reconciliation with explicit indexes", () => {
+    expect(evidenceMigrationSql).toContain("evidence_assets_store_target_idx");
+    expect(evidenceMigrationSql).toContain("evidence_assets_store_state_idx");
+    expect(evidenceMigrationSql).toContain("evidence_assets_retention_idx");
+    expect(evidenceMigrationSql).toContain("retention_days integer NOT NULL DEFAULT 90");
+    expect(evidenceMigrationSql).toContain("CHECK (size_bytes > 0)");
+    expect(evidenceMigrationSql).toContain("CHECK (sha256 ~ '^[0-9a-fA-F]{64}$')");
+    expect(evidenceMigrationSql).not.toMatch(/\b(uri|base64|signed_url|binary|bytea)\b/i);
   });
 });

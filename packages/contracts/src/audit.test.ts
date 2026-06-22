@@ -13,7 +13,7 @@ const baseEvent = {
   type: "task.changed",
   store: {
     storeId: "loja-piloto",
-    storeName: "Loja Piloto",
+    storeName: "Loja Ficticia Piloto",
   },
   actor: {
     actorId: "lead-local",
@@ -71,6 +71,7 @@ describe("audit contracts", () => {
 
   it("projects timeline items without idempotency keys", () => {
     const { idempotencyKey: _idempotencyKey, ...projection } = baseEvent;
+    void _idempotencyKey;
     const timelineItem = AuditTimelineItemSchema.parse({
       ...projection,
     });
@@ -81,6 +82,8 @@ describe("audit contracts", () => {
 
   it("allows pending local timeline items without central receipt", () => {
     const { idempotencyKey: _idempotencyKey, receivedAt: _receivedAt, ...projection } = baseEvent;
+    void _idempotencyKey;
+    void _receivedAt;
     const timelineItem = AuditTimelineItemSchema.parse({
       ...projection,
       eventId: "local-audit-event-001",
@@ -93,6 +96,7 @@ describe("audit contracts", () => {
 
   it("types every producer seam before it can reach the audit ledger", () => {
     const { idempotencyKey: _idempotencyKey, ...projection } = baseEvent;
+    void _idempotencyKey;
 
     expect(
       AuditProducerCommandSchema.parse({
@@ -120,9 +124,7 @@ describe("audit contracts", () => {
     ).toMatchObject({ storeId: "loja-piloto", limit: 10 });
 
     expect(AuditQuerySchema.safeParse({ type: "task.changed" }).success).toBe(false);
-    expect(AuditQuerySchema.safeParse({ storeId: "loja-piloto", limit: 500 }).success).toBe(
-      false,
-    );
+    expect(AuditQuerySchema.safeParse({ storeId: "loja-piloto", limit: 500 }).success).toBe(false);
     expect(
       AuditQuerySchema.safeParse({
         storeId: "loja-piloto",
@@ -133,6 +135,7 @@ describe("audit contracts", () => {
 
   it("validates cursor pages without total counts", () => {
     const { idempotencyKey: _idempotencyKey, ...projection } = baseEvent;
+    void _idempotencyKey;
     const page = AuditCursorPageSchema.parse({
       items: [
         {

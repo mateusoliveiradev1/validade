@@ -4,22 +4,23 @@ import { createMembershipRepositoryFromQuery } from "./membership-repository";
 
 describe("database repositories", () => {
   it("maps active membership rows to the domain shape", async () => {
-    const repository = createMembershipRepositoryFromQuery((() => Promise.resolve([
-      {
-        subject_id: "lead-local",
-        role: "lead",
-        store_id: "loja-piloto",
-        store_name: "Loja Piloto",
-        status: "active",
-      },
-    ])) as never);
+    const repository = createMembershipRepositoryFromQuery((() =>
+      Promise.resolve([
+        {
+          subject_id: "lead-local",
+          role: "lead",
+          store_id: "loja-piloto",
+          store_name: "Loja Ficticia Piloto",
+          status: "active",
+        },
+      ])) as never);
 
     await expect(repository.listActiveMemberships("lead-local")).resolves.toEqual([
       {
         subjectId: "lead-local",
         role: "lead",
         storeId: "loja-piloto",
-        storeName: "Loja Piloto",
+        storeName: "Loja Ficticia Piloto",
         status: "active",
       },
     ]);
@@ -51,7 +52,7 @@ describe("database repositories", () => {
       idempotencyKey: "idem-1",
       type: "access.denied",
       storeId: "loja-piloto",
-      storeName: "Loja Piloto",
+      storeName: "Loja Ficticia Piloto",
       actorId: "actor-1",
       actorDisplayName: "Pessoa Piloto",
       actorRoleSnapshot: "lead",
@@ -92,7 +93,7 @@ describe("database repositories", () => {
         idempotencyKey: "idem-1",
         type: "task.changed",
         storeId: "loja-piloto",
-        storeName: "Loja Piloto",
+        storeName: "Loja Ficticia Piloto",
         actorId: "actor-1",
         actorDisplayName: "Pessoa Piloto",
         actorRoleSnapshot: "lead",
@@ -141,7 +142,7 @@ function createAuditRow() {
     idempotency_key: "idem-1",
     type: "access.denied",
     store_id: "loja-piloto",
-    store_name: "Loja Piloto",
+    store_name: "Loja Ficticia Piloto",
     actor_id: "actor-1",
     actor_display_name: "Pessoa Piloto",
     actor_role_snapshot: "lead",

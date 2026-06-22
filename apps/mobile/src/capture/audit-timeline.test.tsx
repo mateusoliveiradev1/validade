@@ -23,7 +23,7 @@ vi.mock("react-native", async () => {
 const baseEvent = {
   eventId: "audit-mobile-001",
   type: "task.changed",
-  store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+  store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
   actor: {
     actorId: "ana-ficticia",
     displayName: "Ana FICTICIA",

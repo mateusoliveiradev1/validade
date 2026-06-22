@@ -12,7 +12,7 @@ describe("authorization contracts", () => {
       subjectId: "actor-1",
       role: "lead",
       storeId: "loja-piloto",
-      storeName: "Loja Piloto",
+      storeName: "Loja Ficticia Piloto",
       status: "active",
       extra: "not allowed",
     });
@@ -40,7 +40,7 @@ describe("authorization contracts", () => {
       },
       store: {
         storeId: "loja-piloto",
-        storeName: "Loja Piloto",
+        storeName: "Loja Ficticia Piloto",
       },
       activeRole: "lead",
       capabilities: ["task.act", "shift.close", "audit.read_store"],

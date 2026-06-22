@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { SessionContextResponseSchema, type SessionContextResponse } from "@validade-zero/contracts";
+import {
+  SessionContextResponseSchema,
+  type SessionContextResponse,
+} from "@validade-zero/contracts";
 
 type ScopeState =
   | { status: "loading" }

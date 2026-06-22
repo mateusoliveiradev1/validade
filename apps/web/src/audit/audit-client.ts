@@ -31,7 +31,15 @@ function toSearchParams(query: AuditQuery): URLSearchParams {
   params.set("storeId", query.storeId);
   params.set("limit", String(query.limit));
 
-  for (const key of ["from", "to", "actorId", "type", "targetType", "targetId", "cursor"] as const) {
+  for (const key of [
+    "from",
+    "to",
+    "actorId",
+    "type",
+    "targetType",
+    "targetId",
+    "cursor",
+  ] as const) {
     const value = query[key];
 
     if (value !== undefined) {

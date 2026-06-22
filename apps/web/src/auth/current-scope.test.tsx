@@ -14,7 +14,7 @@ describe("CurrentScope", () => {
         Promise.resolve(
           Response.json({
             actor: { subjectId: "collaborator-local", displayName: "Colaborador local" },
-            store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+            store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
             activeRole: "collaborator",
             capabilities: ["task.act", "evidence.attach", "markdown.request"],
             actions: {
@@ -35,9 +35,7 @@ describe("CurrentScope", () => {
     });
 
     expect(screen.queryByRole("button", { name: "Fechar turno" })).toBeNull();
-    expect(screen.getByTestId("lead-only-explanation").textContent).toContain(
-      "lideranca ativa",
-    );
+    expect(screen.getByTestId("lead-only-explanation").textContent).toContain("lideranca ativa");
   });
 
   it("renders lead scope with close action", async () => {
@@ -47,7 +45,7 @@ describe("CurrentScope", () => {
         Promise.resolve(
           Response.json({
             actor: { subjectId: "lead-local", displayName: "Lideranca local" },
-            store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+            store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
             activeRole: "lead",
             capabilities: ["task.act", "shift.close", "audit.read_store"],
             actions: {

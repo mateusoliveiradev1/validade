@@ -15,7 +15,7 @@ const leadMembership: StoreMembership = {
   subjectId: "actor-1",
   role: "lead",
   storeId: "loja-piloto",
-  storeName: "Loja Piloto",
+  storeName: "Loja Ficticia Piloto",
   status: "active",
 };
 
@@ -65,7 +65,7 @@ describe("authorization matrix", () => {
           subjectId: "actor-1",
           role: "admin",
           storeId: "loja-piloto",
-          storeName: "Loja Piloto",
+          storeName: "Loja Ficticia Piloto",
           status: "active",
         },
       ],

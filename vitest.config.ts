@@ -66,6 +66,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "adapters",
+          root: "packages/adapters",
+          include: ["src/**/*.test.ts"],
+          environment: "node",
+        },
+      },
+      {
+        test: {
           name: "test-utils",
           root: "packages/test-utils",
           include: ["src/**/*.test.ts"],

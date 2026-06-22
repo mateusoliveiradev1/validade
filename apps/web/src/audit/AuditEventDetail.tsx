@@ -1,13 +1,24 @@
 import type { AuditTimelineItem } from "@validade-zero/contracts";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { EvidenceAccessConfirm, type EvidenceAccessMode } from "./EvidenceAccessConfirm";
 
 export function AuditEventDetail({
   event,
   onClose,
+  evidenceAccessMode = "same_store",
+  onOpenEvidence,
 }: {
   event: AuditTimelineItem;
   onClose: () => void;
+  evidenceAccessMode?: EvidenceAccessMode | undefined;
+  onOpenEvidence?:
+    | ((input: {
+        evidenceId: string;
+        confirmedTargetStore: boolean;
+        reason?: string | undefined;
+      }) => void)
+    | undefined;
 }) {
   const metadataEntries = Object.entries(event.metadata ?? {}).filter(([key]) =>
     ["action", "productDisplayName", "lotCode", "requestedCapability", "denialReason"].includes(
@@ -31,7 +42,10 @@ export function AuditEventDetail({
       </div>
 
       <dl className="grid gap-3 text-sm">
-        <DetailRow label="Pessoa" value={`${event.actor.displayName} (${roleLabel(event.actor.roleSnapshot)})`} />
+        <DetailRow
+          label="Pessoa"
+          value={`${event.actor.displayName} (${roleLabel(event.actor.roleSnapshot)})`}
+        />
         <DetailRow label="Loja" value={event.store.storeName} />
         <DetailRow label="Realizada no aparelho" value={formatDateTime(event.occurredAt)} />
         <DetailRow
@@ -55,6 +69,17 @@ export function AuditEventDetail({
           </dl>
         </section>
       )}
+
+      {event.target.type === "evidence" ? (
+        <EvidenceAccessConfirm
+          evidenceId={event.target.id}
+          evidenceLabel={event.target.label ?? "Evidência operacional"}
+          targetStoreId={event.store.storeId}
+          targetStoreName={event.store.storeName}
+          mode={evidenceAccessMode}
+          onOpenEvidence={onOpenEvidence}
+        />
+      ) : null}
     </div>
   );
 }
@@ -108,7 +133,9 @@ function statusLabel(status: AuditTimelineItem["status"]): string {
   return "Recebido";
 }
 
-function badgeTone(status: AuditTimelineItem["status"]): "neutral" | "success" | "warning" | "critical" {
+function badgeTone(
+  status: AuditTimelineItem["status"],
+): "neutral" | "success" | "warning" | "critical" {
   if (status === "received") {
     return "success";
   }

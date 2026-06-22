@@ -141,10 +141,7 @@ export function createInMemoryAuditRepository(): InMemoryAuditEventRepository {
       const startIndex =
         parsedQuery.cursor === undefined
           ? 0
-          : Math.max(
-              0,
-              sorted.findIndex((event) => event.eventId === parsedQuery.cursor) + 1,
-            );
+          : Math.max(0, sorted.findIndex((event) => event.eventId === parsedQuery.cursor) + 1);
       const visible = sorted.slice(startIndex, startIndex + parsedQuery.limit);
       const next = sorted[startIndex + parsedQuery.limit];
 
@@ -240,8 +237,7 @@ export function createAuditService(input: {
         actor: {
           actorId: request.actorContext.identity.subjectId,
           displayName:
-            request.actorContext.identity.displayName ??
-            request.actorContext.membership.subjectId,
+            request.actorContext.identity.displayName ?? request.actorContext.membership.subjectId,
           roleSnapshot: request.actorContext.membership.role,
         },
         target: {
@@ -319,7 +315,7 @@ export function createAuditAccessDeniedRecorder(input: {
           type: "access.denied",
           store: {
             storeId,
-            storeName: storeId === "unknown-store" ? "Loja nao informada" : storeId,
+            storeName: storeId === "unknown-store" ? "Loja ficticia nao informada" : storeId,
           },
           actor: {
             actorId: event.actorSubjectId,
@@ -416,6 +412,7 @@ function fromDatabaseProjection(event: DatabaseAuditEventProjection): AuditEvent
 
 function toTimelineItem(event: AuditEventRecord): AuditTimelineItem {
   const { idempotencyKey: _idempotencyKey, ...timelineItem } = event;
+  void _idempotencyKey;
 
   return AuditTimelineItemSchema.parse(timelineItem);
 }
@@ -490,12 +487,12 @@ function denialTargetLabel(capability: Capability): string {
   return "Acao operacional bloqueada";
 }
 
-function removeUndefined<TValue extends Record<string, unknown>>(value: TValue): Record<string, unknown> {
+function removeUndefined<TValue extends Record<string, unknown>>(
+  value: TValue,
+): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, Exclude<unknown, undefined>] => {
-      const [_key, entryValue] = entry;
-
-      return entryValue !== undefined;
-    }),
+    Object.entries(value).filter(
+      (entry): entry is [string, Exclude<unknown, undefined>] => entry[1] !== undefined,
+    ),
   );
 }

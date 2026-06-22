@@ -60,7 +60,7 @@ describe("authorization API seam", () => {
           subjectId: "lead-local",
           role: "lead",
           storeId: "loja-piloto",
-          storeName: "Loja Piloto",
+          storeName: "Loja Ficticia Piloto",
           status: "inactive",
         },
       ]),
@@ -194,17 +194,21 @@ describe("authorization API seam", () => {
     });
 
     await expect(
-      provider.verify(new Request("https://api.local/session", {
-        headers: { authorization: "Bearer good-token" },
-      })),
+      provider.verify(
+        new Request("https://api.local/session", {
+          headers: { authorization: "Bearer good-token" },
+        }),
+      ),
     ).resolves.toMatchObject({
       subjectId: "lead-local",
       issuer: "jwks-test",
     });
     await expect(
-      provider.verify(new Request("https://api.local/session", {
-        headers: { authorization: "Bearer bad-token" },
-      })),
+      provider.verify(
+        new Request("https://api.local/session", {
+          headers: { authorization: "Bearer bad-token" },
+        }),
+      ),
     ).resolves.toBeUndefined();
   });
 });

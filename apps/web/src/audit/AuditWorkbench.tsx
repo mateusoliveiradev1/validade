@@ -10,7 +10,14 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 import { Skeleton } from "../components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 import { AuditEventDetail } from "./AuditEventDetail";
 import { createFetchAuditClient, type AuditClient } from "./audit-client";
 
@@ -28,7 +35,7 @@ type WorkbenchStatus = "loading" | "ready" | "error";
 export function AuditWorkbench({
   client: providedClient,
   initialStoreId = "loja-piloto",
-  initialStoreName = "Loja Piloto",
+  initialStoreName = "Loja Ficticia Piloto",
 }: {
   client?: AuditClient;
   initialStoreId?: string;
@@ -214,7 +221,10 @@ export function AuditWorkbench({
       {isInitialLoading ? <AuditSkeleton /> : null}
 
       {status === "error" ? (
-        <div className="rounded-lg border border-critical-border bg-critical-surface p-4" role="alert">
+        <div
+          className="rounded-lg border border-critical-border bg-critical-surface p-4"
+          role="alert"
+        >
           <p className="font-semibold text-destructive">Nao foi possivel carregar a auditoria.</p>
           <p className="mt-1 text-sm text-foreground">
             {error ?? "Seus filtros foram mantidos; tente novamente."}
@@ -273,7 +283,10 @@ export function AuditWorkbench({
         </Button>
       )}
 
-      <Sheet open={selectedEvent !== undefined} onOpenChange={(open) => (!open ? closeDetail() : undefined)}>
+      <Sheet
+        open={selectedEvent !== undefined}
+        onOpenChange={(open) => (!open ? closeDetail() : undefined)}
+      >
         <SheetContent ref={sheetRef} aria-label="Detalhe do evento de auditoria">
           {selectedEvent === undefined ? null : (
             <AuditEventDetail event={selectedEvent} onClose={closeDetail} />
@@ -366,7 +379,9 @@ function AuditTable({
             </TableCell>
             <TableCell>
               <span className="block font-semibold">{event.actor.displayName}</span>
-              <span className="text-xs text-muted-foreground">{roleLabel(event.actor.roleSnapshot)}</span>
+              <span className="text-xs text-muted-foreground">
+                {roleLabel(event.actor.roleSnapshot)}
+              </span>
             </TableCell>
             <TableCell>
               <Badge tone={badgeTone(event.status)}>{statusLabel(event.status)}</Badge>
@@ -409,7 +424,10 @@ const AuditListItem = React.forwardRef<
 
 function AuditSkeleton() {
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-card p-4" aria-label="Carregando auditoria">
+    <div
+      className="grid gap-2 rounded-lg border border-border bg-card p-4"
+      aria-label="Carregando auditoria"
+    >
       {Array.from({ length: 6 }).map((_, index) => (
         <Skeleton key={index} className="h-12 w-full" />
       ))}
@@ -512,7 +530,9 @@ function statusLabel(status: AuditTimelineItem["status"]): string {
   return "Recebido";
 }
 
-function badgeTone(status: AuditTimelineItem["status"]): "neutral" | "success" | "warning" | "critical" {
+function badgeTone(
+  status: AuditTimelineItem["status"],
+): "neutral" | "success" | "warning" | "critical" {
   if (status === "received") {
     return "success";
   }

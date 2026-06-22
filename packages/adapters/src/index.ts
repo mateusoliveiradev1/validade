@@ -6,6 +6,7 @@ import {
 } from "@validade-zero/contracts";
 
 export * from "./alerts";
+export * from "./evidence";
 
 export interface SafeProbeAdapter {
   read(): Promise<SafeProbePayload>;

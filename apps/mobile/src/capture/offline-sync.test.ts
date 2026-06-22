@@ -157,7 +157,9 @@ describe("offline sync repository behavior", () => {
       },
     });
 
-    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toMatchObject([
+    await expect(
+      listAuditTimeline({ targetType: "task", targetId: task.id }),
+    ).resolves.toMatchObject([
       {
         status: "pending_ack",
         summary: "Retirada salva neste aparelho.",
@@ -176,9 +178,9 @@ describe("offline sync repository behavior", () => {
       },
     });
 
-    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toHaveLength(
-      1,
-    );
+    await expect(
+      listAuditTimeline({ targetType: "task", targetId: task.id }),
+    ).resolves.toHaveLength(1);
 
     await repository.applySyncTransportResult({
       status: "ack",
@@ -187,7 +189,9 @@ describe("offline sync repository behavior", () => {
       syncedAt: "2030-01-10T12:12:00.000Z",
     });
 
-    await expect(listAuditTimeline({ targetType: "task", targetId: task.id })).resolves.toMatchObject([
+    await expect(
+      listAuditTimeline({ targetType: "task", targetId: task.id }),
+    ).resolves.toMatchObject([
       {
         status: "received",
         receivedAt: "2030-01-10T12:12:00.000Z",

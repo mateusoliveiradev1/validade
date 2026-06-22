@@ -41,6 +41,8 @@ import type {
   TodayTaskRefreshResult,
   LoadMarkdownEntryStateInput,
   MarkdownEntryState,
+  EvidenceUploadQueueRecord,
+  QueueEvidenceUploadInput,
   SaveLotInput,
 } from "./repository";
 import {
@@ -100,6 +102,7 @@ export function createMemoryCaptureRepository(
   const alertDevices = new Map<string, DevicePushRegistrationCommand>();
   const taskAlertStates = new Map<string, TaskAlertStateRecord>();
   const syncCommands = new Map<string, SyncCommandRecord>();
+  const evidenceUploads = new Map<string, EvidenceUploadQueueRecord>();
   const syncConflicts = new Map<string, SyncConflictRecord>();
   const localAuditEvents = new Map<string, AuditTimelineItem & { idempotencyKey: string }>();
   const alertAttempts: RecordAlertAttemptInput[] = [];
@@ -979,6 +982,101 @@ export function createMemoryCaptureRepository(
     );
   }
 
+  function queueEvidenceUpload(
+    input: QueueEvidenceUploadInput,
+  ): Promise<EvidenceUploadQueueRecord> {
+    return Promise.resolve().then(() => {
+      const existing = evidenceUploads.get(input.localEvidenceId);
+
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const now = dependencies.clock();
+      const record: EvidenceUploadQueueRecord = {
+        ...input,
+        state: "waiting_upload",
+        createdAt: now,
+        updatedAt: now,
+        attemptCount: 0,
+      };
+
+      evidenceUploads.set(record.localEvidenceId, record);
+
+      return record;
+    });
+  }
+
+  function listEvidenceUploads(): Promise<readonly EvidenceUploadQueueRecord[]> {
+    return Promise.resolve([...evidenceUploads.values()]);
+  }
+
+  function markEvidenceUploadAttempt(
+    localEvidenceId: string,
+    attemptedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    return Promise.resolve(
+      updateEvidenceUpload(localEvidenceId, (record) => ({
+        ...withoutEvidenceUploadError(record),
+        state: "uploading",
+        updatedAt: attemptedAt,
+        attemptCount: record.attemptCount + 1,
+      })),
+    );
+  }
+
+  function applyEvidenceUploadIntent(
+    localEvidenceId: string,
+    response: Parameters<CaptureRepository["applyEvidenceUploadIntent"]>[1],
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    return Promise.resolve(
+      updateEvidenceUpload(localEvidenceId, (record) => ({
+        ...record,
+        assetId: response.evidence.assetId,
+        uploadPath: response.uploadPath,
+        state: response.evidence.state === "uploaded" ? "uploaded" : "uploading",
+        updatedAt,
+        ...(response.evidence.uploadedAt === undefined
+          ? {}
+          : { uploadedAt: response.evidence.uploadedAt }),
+        retentionExpiresAt: response.evidence.retentionExpiresAt,
+      })),
+    );
+  }
+
+  function applyEvidenceUploadAck(
+    localEvidenceId: string,
+    ack: Parameters<CaptureRepository["applyEvidenceUploadAck"]>[1],
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    return Promise.resolve(
+      updateEvidenceUpload(localEvidenceId, (record) => ({
+        ...withoutEvidenceUploadError(record),
+        assetId: ack.assetId,
+        state: "uploaded",
+        uploadedAt: ack.uploadedAt,
+        retentionExpiresAt: ack.retentionExpiresAt,
+        updatedAt,
+      })),
+    );
+  }
+
+  function markEvidenceUploadFailed(
+    localEvidenceId: string,
+    error: string,
+    failedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    return Promise.resolve(
+      updateEvidenceUpload(localEvidenceId, (record) => ({
+        ...record,
+        state: "failed",
+        lastError: error,
+        updatedAt: failedAt,
+      })),
+    );
+  }
+
   function listSyncQueue(): Promise<SyncQueueSummary> {
     const queueCommands = sortSyncQueueItems(
       [...syncCommands.values()].filter(
@@ -1207,7 +1305,11 @@ export function createMemoryCaptureRepository(
         )
         .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
         .slice(0, limit)
-        .map(({ idempotencyKey: _idempotencyKey, ...event }) => event),
+        .map(({ idempotencyKey: _idempotencyKey, ...event }) => {
+          void _idempotencyKey;
+
+          return event;
+        }),
     );
   }
 
@@ -1242,6 +1344,12 @@ export function createMemoryCaptureRepository(
     acknowledgeEscalation,
     resolvePushOpenIntent,
     loadOfflineCacheStatus,
+    queueEvidenceUpload,
+    listEvidenceUploads,
+    markEvidenceUploadAttempt,
+    applyEvidenceUploadIntent,
+    applyEvidenceUploadAck,
+    markEvidenceUploadFailed,
     listSyncQueue,
     saveOfflineAction,
     markSyncCommandAttempt,
@@ -1292,6 +1400,31 @@ export function createMemoryCaptureRepository(
             ? "apply_markdown"
             : "confirm_markdown_on_shelf",
     };
+  }
+
+  function updateEvidenceUpload(
+    localEvidenceId: string,
+    update: (record: EvidenceUploadQueueRecord) => EvidenceUploadQueueRecord,
+  ): EvidenceUploadQueueRecord {
+    const existing = evidenceUploads.get(localEvidenceId);
+
+    if (existing === undefined) {
+      throw new Error(`Cannot update unknown evidence upload: ${localEvidenceId}`);
+    }
+
+    const updated = update(existing);
+    evidenceUploads.set(updated.localEvidenceId, updated);
+
+    return updated;
+  }
+
+  function withoutEvidenceUploadError(
+    record: EvidenceUploadQueueRecord,
+  ): Omit<EvidenceUploadQueueRecord, "lastError"> {
+    const { lastError: _lastError, ...rest } = record;
+    void _lastError;
+
+    return rest;
   }
 
   function findTaskForLot(lotId: string): TodayTaskRecord {
@@ -1368,7 +1501,7 @@ export function createMemoryCaptureRepository(
       type: auditEventTypeForCommand(command),
       store: {
         storeId: "local-device",
-        storeName: "Loja deste aparelho",
+        storeName: "Loja ficticia deste aparelho",
       },
       actor: {
         actorId: actorLabel,
@@ -1406,7 +1539,11 @@ export function createMemoryCaptureRepository(
     if (existing === undefined) {
       appendLocalAuditEventForCommand(
         command,
-        result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+        result.status === "ack"
+          ? "received"
+          : result.status === "conflict"
+            ? "conflict"
+            : "pending_ack",
       );
       return;
     }
@@ -1415,7 +1552,11 @@ export function createMemoryCaptureRepository(
     const updated = parseAuditTimelineItem({
       ...existingEvent,
       status:
-        result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+        result.status === "ack"
+          ? "received"
+          : result.status === "conflict"
+            ? "conflict"
+            : "pending_ack",
       ...(result.status === "ack" ? { receivedAt: result.syncedAt } : {}),
       ...(result.status === "retry" ? { reason: result.error } : {}),
     });
@@ -1442,7 +1583,7 @@ export function createMemoryCaptureRepository(
       type: "sync.changed",
       store: {
         storeId: "local-device",
-        storeName: "Loja deste aparelho",
+        storeName: "Loja ficticia deste aparelho",
       },
       actor: {
         actorId: conflict.localAction.actorLabel,
@@ -1523,7 +1664,9 @@ function auditEventTypeForCommand(command: SyncCommandRecord): AuditTimelineItem
   return "sync.changed";
 }
 
-function auditTargetTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["target"]["type"] {
+function auditTargetTypeForCommand(
+  command: SyncCommandRecord,
+): AuditTimelineItem["target"]["type"] {
   return command.kind === "resolve_task" ? "task" : "markdown";
 }
 

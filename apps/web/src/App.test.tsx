@@ -17,7 +17,7 @@ describe("Validade Zero web smoke", () => {
           return Promise.resolve(
             Response.json({
               actor: { subjectId: "collaborator-local", displayName: "Colaborador local" },
-              store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+              store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
               activeRole: "collaborator",
               capabilities: ["task.act", "evidence.attach", "markdown.request"],
               actions: {
@@ -39,7 +39,7 @@ describe("Validade Zero web smoke", () => {
                   type: "task.changed",
                   store: {
                     storeId: "loja-piloto",
-                    storeName: "Loja Piloto",
+                    storeName: "Loja Ficticia Piloto",
                   },
                   actor: {
                     actorId: "lead-local",

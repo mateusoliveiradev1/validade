@@ -23,6 +23,11 @@ import {
   type CaptureProductInput,
   type AlertDeliveryResult,
   type DevicePushRegistrationCommand,
+  type EvidenceTarget,
+  type EvidenceUploadAck,
+  type EvidenceUploadIntentRequest,
+  type EvidenceUploadIntentResponse,
+  type EvidenceUploadState,
   type FutureAttentionRecord,
   type MarkdownApplicationCommand,
   type MarkdownApprovalCommand,
@@ -164,6 +169,39 @@ export interface AuditTimelineQuery {
   limit?: number;
 }
 
+export interface EvidenceUploadQueueRecord {
+  localEvidenceId: string;
+  taskId: string;
+  storeId: string;
+  target: EvidenceTarget;
+  localUri: string;
+  mimeType: EvidenceUploadIntentRequest["mimeType"];
+  sizeBytes: number;
+  sha256: string;
+  capturedAt: string;
+  state: EvidenceUploadState;
+  createdAt: string;
+  updatedAt: string;
+  attemptCount: number;
+  assetId?: string;
+  uploadPath?: string;
+  uploadedAt?: string;
+  retentionExpiresAt?: string;
+  lastError?: string;
+}
+
+export interface QueueEvidenceUploadInput {
+  localEvidenceId: string;
+  taskId: string;
+  storeId: string;
+  target: EvidenceTarget;
+  localUri: string;
+  mimeType: EvidenceUploadIntentRequest["mimeType"];
+  sizeBytes: number;
+  sha256: string;
+  capturedAt: string;
+}
+
 export type MarkdownEntryState =
   | {
       status: "presence_required";
@@ -231,6 +269,27 @@ export interface CaptureRepository {
   acknowledgeEscalation(input: AcknowledgeEscalationInput): Promise<TaskAlertStateRecord>;
   resolvePushOpenIntent(input: ResolvePushOpenIntentInput): Promise<PushOpenIntent>;
   loadOfflineCacheStatus(): Promise<OfflineCacheStatus>;
+  queueEvidenceUpload(input: QueueEvidenceUploadInput): Promise<EvidenceUploadQueueRecord>;
+  listEvidenceUploads(): Promise<readonly EvidenceUploadQueueRecord[]>;
+  markEvidenceUploadAttempt(
+    localEvidenceId: string,
+    attemptedAt: string,
+  ): Promise<EvidenceUploadQueueRecord>;
+  applyEvidenceUploadIntent(
+    localEvidenceId: string,
+    response: EvidenceUploadIntentResponse,
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord>;
+  applyEvidenceUploadAck(
+    localEvidenceId: string,
+    ack: EvidenceUploadAck,
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord>;
+  markEvidenceUploadFailed(
+    localEvidenceId: string,
+    error: string,
+    failedAt: string,
+  ): Promise<EvidenceUploadQueueRecord>;
   listSyncQueue(): Promise<SyncQueueSummary>;
   saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord>;
   markSyncCommandAttempt(

@@ -1,11 +1,17 @@
 import {
   createFakeExpoAlertDeliveryProvider,
+  createInMemoryEvidenceStore,
   createLocalProviderRegistry,
   type AlertDeliveryProvider,
+  type EvidenceStore,
 } from "@validade-zero/adapters";
 import {
   AlertDeliveryResultSchema,
+  AuditEventRecordSchema,
   AuthorizationContract,
+  EvidenceExceptionalAccessRequestSchema,
+  EvidenceInvalidationRequestSchema,
+  EvidenceUploadIntentRequestSchema,
   HEALTH_SERVICE_NAME,
   HealthContract,
   ProtectedCapabilityProbeResponseSchema,
@@ -20,6 +26,7 @@ import {
   type SyncTransportBatch,
   type SyncTransportResult,
 } from "@validade-zero/contracts";
+import type { EvidenceRepository } from "@validade-zero/database/evidence-repository";
 import { createNeonMembershipRepository } from "@validade-zero/database/membership-repository";
 import type { Capability } from "@validade-zero/domain";
 import { Hono } from "hono";
@@ -35,7 +42,6 @@ import {
 import {
   createAuthorizationService,
   createDefaultMemberships,
-  createInMemoryAccessDeniedAuditRecorder,
   createInMemoryMembershipRepository,
   createSessionContext,
   FakeAuthProvider,
@@ -46,6 +52,12 @@ import {
   type AuthorizationService,
   type MembershipRepository,
 } from "./auth";
+import {
+  createDatabaseEvidenceRepository,
+  createEvidenceService,
+  createInMemoryEvidenceRepository,
+  type EvidenceService,
+} from "./evidence";
 
 export interface SyncCommandService {
   handleBatch(batch: SyncTransportBatch): Promise<readonly SyncTransportResult[]>;
@@ -61,6 +73,9 @@ export function createApiApp(input?: {
   auditRepository?: AuditEventRepository;
   databaseUrl?: string;
   membershipRepository?: MembershipRepository;
+  evidenceRepository?: EvidenceRepository;
+  evidenceStore?: EvidenceStore;
+  evidenceService?: EvidenceService;
   authorizationService?: AuthorizationService;
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
   now?: () => Date;
@@ -76,7 +91,8 @@ export function createApiApp(input?: {
       ? createInMemoryMembershipRepository(createDefaultMemberships())
       : createNeonMembershipRepository({ connectionString: input.databaseUrl }));
   const authorizationService =
-    input?.authorizationService ?? createAuthorizationService({ memberships: membershipRepository });
+    input?.authorizationService ??
+    createAuthorizationService({ memberships: membershipRepository });
   const auditRepository =
     input?.auditRepository ??
     (input?.databaseUrl === undefined
@@ -86,6 +102,20 @@ export function createApiApp(input?: {
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
     createAuditAccessDeniedRecorder({ repository: auditRepository, now });
+  const evidenceRepository =
+    input?.evidenceRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryEvidenceRepository()
+      : createDatabaseEvidenceRepository(input.databaseUrl));
+  const evidenceStore = input?.evidenceStore ?? createInMemoryEvidenceStore();
+  const evidenceService =
+    input?.evidenceService ??
+    createEvidenceService({
+      repository: evidenceRepository,
+      store: evidenceStore,
+      auditRepository,
+      now,
+    });
 
   api.get("/health", (context) => {
     const payload = HealthContract.response.parse({
@@ -188,6 +218,221 @@ export function createApiApp(input?: {
     });
 
     return context.json(result);
+  });
+
+  api.post("/evidence/upload-intents", async (context) => {
+    let rawPayload: unknown;
+
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+
+    const parsed = EvidenceUploadIntentRequestSchema.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_evidence_upload_intent" }, 400);
+    }
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId: parsed.data.storeId,
+      capability: "evidence.attach",
+      authProvider,
+      authorizationService,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "evidence.attach",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "evidence_upload_intent",
+        storeScope: parsed.data.storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    return context.json(
+      await evidenceService.createUploadIntent({
+        actorContext: decision.context,
+        request: parsed.data,
+      }),
+    );
+  });
+
+  api.put("/evidence/assets/:assetId/content", async (context) => {
+    const storeId = context.req.query("storeId");
+
+    if (storeId === undefined || storeId.trim().length === 0) {
+      return context.json({ error: "missing_store_id" }, 400);
+    }
+
+    const body = await context.req.raw.arrayBuffer();
+    const sha256 = context.req.header("x-evidence-sha256");
+    const mimeType = context.req.header("content-type")?.split(";")[0]?.trim();
+
+    if (sha256 === undefined || mimeType === undefined || body.byteLength === 0) {
+      return context.json({ error: "invalid_evidence_upload" }, 400);
+    }
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId,
+      capability: "evidence.attach",
+      authProvider,
+      authorizationService,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "evidence.attach",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "evidence_upload",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        await evidenceService.upload({
+          actorContext: decision.context,
+          assetId: context.req.param("assetId"),
+          storeId,
+          body,
+          mimeType,
+          sizeBytes: body.byteLength,
+          sha256,
+        }),
+      );
+    } catch {
+      return context.json({ error: "evidence_upload_failed" }, 400);
+    }
+  });
+
+  api.get("/evidence/assets/:assetId/metadata", async (context) => {
+    const storeId = context.req.query("storeId");
+
+    if (storeId === undefined || storeId.trim().length === 0) {
+      return context.json({ error: "missing_store_id" }, 400);
+    }
+
+    const decision = await authorizeEvidenceRead({
+      request: context.req.raw,
+      storeId,
+      authProvider,
+      authorizationService,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "evidence.read_store",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "evidence_read",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    if (decision.capability === "evidence.read_global") {
+      const confirmation = EvidenceExceptionalAccessRequestSchema.safeParse({
+        storeId,
+        confirmedTargetStore: context.req.query("confirmedTargetStore") === "true",
+        reason: context.req.query("reason"),
+      });
+
+      if (!confirmation.success || !confirmation.data.confirmedTargetStore) {
+        return context.json(
+          {
+            error: "exceptional_access_requires_confirmation",
+            action: "Abrir evidência desta loja",
+            storeId,
+          },
+          409,
+        );
+      }
+    }
+
+    const result = await evidenceService.read({
+      assetId: context.req.param("assetId"),
+      storeId,
+    });
+
+    if (result === undefined) {
+      return context.json({ error: "evidence_not_found" }, 404);
+    }
+
+    if (decision.capability === "evidence.read_global") {
+      await recordExceptionalEvidenceAccess({
+        auditRepository,
+        actorContext: decision.context,
+        assetId: context.req.param("assetId"),
+        storeId,
+        reason: context.req.query("reason") ?? "Acesso administrativo excepcional confirmado.",
+        now,
+      });
+    }
+
+    return context.json(result.evidence);
+  });
+
+  api.post("/evidence/assets/:assetId/invalidation", async (context) => {
+    let rawPayload: unknown;
+
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+
+    const parsed = EvidenceInvalidationRequestSchema.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_evidence_invalidation" }, 400);
+    }
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId: parsed.data.storeId,
+      capability: "evidence.invalidate",
+      authProvider,
+      authorizationService,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "evidence.invalidate",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "evidence_invalidation",
+        storeScope: parsed.data.storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    return context.json(
+      await evidenceService.invalidate({
+        actorContext: decision.context,
+        assetId: context.req.param("assetId"),
+        request: parsed.data,
+      }),
+    );
   });
 
   api.get("/audit/events", async (context) => {
@@ -553,6 +798,108 @@ const worker = {
 };
 
 export default worker;
+
+async function authorizeRequest(input: {
+  request: Request;
+  storeId: string;
+  capability: Capability;
+  authProvider: AuthProvider;
+  authorizationService: AuthorizationService;
+}): Promise<
+  ApiAuthorizationDecision & {
+    identity: import("@validade-zero/domain").AuthenticatedIdentity | undefined;
+    capability: Capability;
+  }
+> {
+  const identity = await input.authProvider.verify(input.request);
+  const decision = await input.authorizationService.authorize({
+    identity,
+    capability: input.capability,
+    resourceStoreId: input.storeId,
+  });
+
+  return { ...decision, identity, capability: input.capability };
+}
+
+async function authorizeEvidenceRead(input: {
+  request: Request;
+  storeId: string;
+  authProvider: AuthProvider;
+  authorizationService: AuthorizationService;
+}): Promise<
+  ApiAuthorizationDecision & {
+    identity: import("@validade-zero/domain").AuthenticatedIdentity | undefined;
+    capability: "evidence.read_store" | "evidence.read_global";
+  }
+> {
+  const storeDecision = await authorizeRequest({
+    ...input,
+    capability: "evidence.read_store",
+  });
+
+  if (storeDecision.allowed) {
+    return { ...storeDecision, capability: "evidence.read_store" };
+  }
+
+  if (storeDecision.reason !== "capability_not_allowed") {
+    return { ...storeDecision, capability: "evidence.read_store" };
+  }
+
+  const globalDecision = await input.authorizationService.authorize({
+    identity: storeDecision.identity,
+    capability: "evidence.read_global",
+    resourceStoreId: input.storeId,
+  });
+
+  return {
+    ...globalDecision,
+    identity: storeDecision.identity,
+    capability: "evidence.read_global",
+  };
+}
+
+async function recordExceptionalEvidenceAccess(input: {
+  auditRepository: AuditEventRepository;
+  actorContext: import("@validade-zero/domain").AuthorizedActorContext;
+  assetId: string;
+  storeId: string;
+  reason: string;
+  now: () => Date;
+}): Promise<void> {
+  const occurredAt = input.now().toISOString();
+
+  await input.auditRepository.append(
+    AuditEventRecordSchema.parse({
+      eventId: `audit:evidence-accessed-exceptionally:${input.assetId}:${occurredAt}`,
+      idempotencyKey: `evidence-accessed-exceptionally:${input.assetId}:${occurredAt}`,
+      type: "evidence.changed",
+      store: {
+        storeId: input.storeId,
+        storeName: input.actorContext.membership.storeName,
+      },
+      actor: {
+        actorId: input.actorContext.identity.subjectId,
+        displayName:
+          input.actorContext.identity.displayName ?? input.actorContext.membership.subjectId,
+        roleSnapshot: input.actorContext.membership.role,
+      },
+      target: {
+        type: "evidence",
+        id: input.assetId,
+        label: "Acesso excepcional a evidência",
+      },
+      occurredAt,
+      receivedAt: occurredAt,
+      summary: "Acesso administrativo excepcional a evidência confirmado.",
+      reason: input.reason,
+      status: "received",
+      metadata: {
+        action: "evidence.accessed_exceptionally",
+        targetStore: input.storeId,
+      },
+    }),
+  );
+}
 
 async function authorizeProbe(input: {
   request: Request;

@@ -39,7 +39,9 @@ import type {
   CaptureProductRecord,
   CaptureRepository,
   CaptureRepositoryDependencies,
+  EvidenceUploadQueueRecord,
   RecordAlertAttemptInput,
+  QueueEvidenceUploadInput,
   RecentLotsQuery,
   RefreshTaskAlertStatesInput,
   ResolvePushOpenIntentInput,
@@ -257,6 +259,27 @@ interface OfflineCacheStatusRow {
   stale_after_hours: number;
   source: string;
   updated_at: string;
+}
+
+interface EvidenceUploadRow {
+  local_evidence_id: string;
+  task_id: string;
+  store_id: string;
+  target_json: string;
+  local_uri: string;
+  mime_type: EvidenceUploadQueueRecord["mimeType"];
+  size_bytes: number;
+  sha256: string;
+  captured_at: string;
+  state: EvidenceUploadQueueRecord["state"];
+  created_at: string;
+  updated_at: string;
+  attempt_count: number;
+  asset_id: string | null;
+  upload_path: string | null;
+  uploaded_at: string | null;
+  retention_expires_at: string | null;
+  last_error: string | null;
 }
 
 interface SyncCommandRow {
@@ -1522,6 +1545,132 @@ export function createSQLiteCaptureRepository(
     });
   }
 
+  async function queueEvidenceUpload(
+    input: QueueEvidenceUploadInput,
+  ): Promise<EvidenceUploadQueueRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await db.getFirstAsync<EvidenceUploadRow>(
+      "SELECT * FROM evidence_uploads WHERE local_evidence_id = ?",
+      input.localEvidenceId,
+    );
+
+    if (existing !== null) {
+      return mapEvidenceUpload(existing);
+    }
+
+    const now = dependencies.clock();
+    const record: EvidenceUploadQueueRecord = {
+      ...input,
+      state: "waiting_upload",
+      createdAt: now,
+      updatedAt: now,
+      attemptCount: 0,
+    };
+
+    await upsertEvidenceUpload(db, record);
+
+    return record;
+  }
+
+  async function listEvidenceUploads(): Promise<readonly EvidenceUploadQueueRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<EvidenceUploadRow>(
+      `SELECT * FROM evidence_uploads
+       WHERE state IN ('waiting_upload', 'failed', 'uploading')
+       ORDER BY created_at ASC`,
+    );
+
+    return rows.map(mapEvidenceUpload);
+  }
+
+  async function markEvidenceUploadAttempt(
+    localEvidenceId: string,
+    attemptedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireEvidenceUpload(db, localEvidenceId);
+    const updated: EvidenceUploadQueueRecord = {
+      ...withoutEvidenceUploadError(existing),
+      state: "uploading",
+      updatedAt: attemptedAt,
+      attemptCount: existing.attemptCount + 1,
+    };
+
+    await upsertEvidenceUpload(db, updated);
+
+    return updated;
+  }
+
+  async function applyEvidenceUploadIntent(
+    localEvidenceId: string,
+    response: Parameters<CaptureRepository["applyEvidenceUploadIntent"]>[1],
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireEvidenceUpload(db, localEvidenceId);
+    const updated: EvidenceUploadQueueRecord = {
+      ...existing,
+      assetId: response.evidence.assetId,
+      uploadPath: response.uploadPath,
+      state: response.evidence.state === "uploaded" ? "uploaded" : "uploading",
+      updatedAt,
+      ...(response.evidence.uploadedAt === undefined
+        ? {}
+        : { uploadedAt: response.evidence.uploadedAt }),
+      retentionExpiresAt: response.evidence.retentionExpiresAt,
+    };
+
+    await upsertEvidenceUpload(db, updated);
+
+    return updated;
+  }
+
+  async function applyEvidenceUploadAck(
+    localEvidenceId: string,
+    ack: Parameters<CaptureRepository["applyEvidenceUploadAck"]>[1],
+    updatedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireEvidenceUpload(db, localEvidenceId);
+    const updated: EvidenceUploadQueueRecord = {
+      ...withoutEvidenceUploadError(existing),
+      assetId: ack.assetId,
+      state: "uploaded",
+      uploadedAt: ack.uploadedAt,
+      retentionExpiresAt: ack.retentionExpiresAt,
+      updatedAt,
+    };
+
+    await upsertEvidenceUpload(db, updated);
+
+    return updated;
+  }
+
+  async function markEvidenceUploadFailed(
+    localEvidenceId: string,
+    error: string,
+    failedAt: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireEvidenceUpload(db, localEvidenceId);
+    const updated: EvidenceUploadQueueRecord = {
+      ...existing,
+      state: "failed",
+      lastError: error,
+      updatedAt: failedAt,
+    };
+
+    await upsertEvidenceUpload(db, updated);
+
+    return updated;
+  }
+
   async function listSyncQueue(): Promise<SyncQueueSummary> {
     await initialize();
     const db = await getDatabase();
@@ -1807,6 +1956,7 @@ export function createSQLiteCaptureRepository(
 
     return rows.map((row) => {
       const { idempotencyKey: _idempotencyKey, ...event } = mapLocalAuditEvent(row);
+      void _idempotencyKey;
 
       return event;
     });
@@ -1923,6 +2073,22 @@ export function createSQLiteCaptureRepository(
     return mapTodayTask(row);
   }
 
+  async function requireEvidenceUpload(
+    db: SQLite.SQLiteDatabase,
+    localEvidenceId: string,
+  ): Promise<EvidenceUploadQueueRecord> {
+    const row = await db.getFirstAsync<EvidenceUploadRow>(
+      "SELECT * FROM evidence_uploads WHERE local_evidence_id = ?",
+      parseLotId(localEvidenceId),
+    );
+
+    if (row === null) {
+      throw new Error(`Cannot load an unknown evidence upload: ${localEvidenceId}`);
+    }
+
+    return mapEvidenceUpload(row);
+  }
+
   async function requireSyncCommand(
     db: SQLite.SQLiteDatabase,
     commandId: string,
@@ -2017,6 +2183,12 @@ export function createSQLiteCaptureRepository(
     acknowledgeEscalation,
     resolvePushOpenIntent,
     loadOfflineCacheStatus,
+    queueEvidenceUpload,
+    listEvidenceUploads,
+    markEvidenceUploadAttempt,
+    applyEvidenceUploadIntent,
+    applyEvidenceUploadAck,
+    markEvidenceUploadFailed,
     listSyncQueue,
     saveOfflineAction,
     markSyncCommandAttempt,
@@ -2122,6 +2294,27 @@ async function initializeDatabase(
       stale_after_hours REAL NOT NULL,
       source TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS evidence_uploads (
+      local_evidence_id TEXT PRIMARY KEY NOT NULL,
+      task_id TEXT NOT NULL,
+      store_id TEXT NOT NULL,
+      target_json TEXT NOT NULL,
+      local_uri TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      captured_at TEXT NOT NULL,
+      state TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL,
+      asset_id TEXT,
+      upload_path TEXT,
+      uploaded_at TEXT,
+      retention_expires_at TEXT,
+      last_error TEXT,
+      FOREIGN KEY (task_id) REFERENCES today_tasks(id)
     );
     CREATE TABLE IF NOT EXISTS sync_commands (
       id TEXT PRIMARY KEY NOT NULL,
@@ -2282,6 +2475,10 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
     CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
     CREATE INDEX IF NOT EXISTS offline_cache_status_state_idx ON offline_cache_status(state);
+    CREATE INDEX IF NOT EXISTS evidence_uploads_state_created_idx
+      ON evidence_uploads(state, created_at);
+    CREATE INDEX IF NOT EXISTS evidence_uploads_task_state_idx
+      ON evidence_uploads(task_id, state);
     CREATE INDEX IF NOT EXISTS sync_commands_state_urgency_created_idx
       ON sync_commands(state, urgency, created_at);
     CREATE INDEX IF NOT EXISTS sync_commands_task_state_idx ON sync_commands(task_id, state);
@@ -2473,6 +2670,54 @@ async function upsertOfflineCacheStatus(
   );
 }
 
+async function upsertEvidenceUpload(
+  db: SQLite.SQLiteDatabase,
+  record: EvidenceUploadQueueRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO evidence_uploads (
+      local_evidence_id, task_id, store_id, target_json, local_uri, mime_type,
+      size_bytes, sha256, captured_at, state, created_at, updated_at, attempt_count,
+      asset_id, upload_path, uploaded_at, retention_expires_at, last_error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(local_evidence_id) DO UPDATE SET
+      task_id = excluded.task_id,
+      store_id = excluded.store_id,
+      target_json = excluded.target_json,
+      local_uri = excluded.local_uri,
+      mime_type = excluded.mime_type,
+      size_bytes = excluded.size_bytes,
+      sha256 = excluded.sha256,
+      captured_at = excluded.captured_at,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      attempt_count = excluded.attempt_count,
+      asset_id = excluded.asset_id,
+      upload_path = excluded.upload_path,
+      uploaded_at = excluded.uploaded_at,
+      retention_expires_at = excluded.retention_expires_at,
+      last_error = excluded.last_error`,
+    record.localEvidenceId,
+    record.taskId,
+    record.storeId,
+    JSON.stringify(record.target),
+    record.localUri,
+    record.mimeType,
+    record.sizeBytes,
+    record.sha256,
+    record.capturedAt,
+    record.state,
+    record.createdAt,
+    record.updatedAt,
+    record.attemptCount,
+    record.assetId ?? null,
+    record.uploadPath ?? null,
+    record.uploadedAt ?? null,
+    record.retentionExpiresAt ?? null,
+    record.lastError ?? null,
+  );
+}
+
 async function upsertSyncCommand(
   db: SQLite.SQLiteDatabase,
   command: SyncCommandRecord,
@@ -2625,12 +2870,18 @@ async function reconcileLocalAuditEvent(
     result.idempotencyKey,
   );
   const existing =
-    row === null ? createLocalAuditEventForCommand(command, "pending_ack") : mapLocalAuditEvent(row);
+    row === null
+      ? createLocalAuditEventForCommand(command, "pending_ack")
+      : mapLocalAuditEvent(row);
   const { idempotencyKey, ...event } = existing;
   const updated = parseAuditTimelineItem({
     ...event,
     status:
-      result.status === "ack" ? "received" : result.status === "conflict" ? "conflict" : "pending_ack",
+      result.status === "ack"
+        ? "received"
+        : result.status === "conflict"
+          ? "conflict"
+          : "pending_ack",
     ...(result.status === "ack" ? { receivedAt: result.syncedAt } : {}),
     ...(result.status === "retry" ? { reason: result.error } : {}),
   });
@@ -2647,7 +2898,7 @@ function createLocalAuditEventForCommand(
     type: auditEventTypeForCommand(command),
     store: {
       storeId: "local-device",
-      storeName: "Loja deste aparelho",
+      storeName: "Loja ficticia deste aparelho",
     },
     actor: {
       actorId: command.payload.payload.actorLabel,
@@ -2683,7 +2934,7 @@ function createConflictResolutionAuditEvent(
     type: "sync.changed",
     store: {
       storeId: "local-device",
-      storeName: "Loja deste aparelho",
+      storeName: "Loja ficticia deste aparelho",
     },
     actor: {
       actorId: conflict.localAction.actorLabel,
@@ -3049,6 +3300,29 @@ function mapOfflineCacheStatus(row: OfflineCacheStatusRow): OfflineCacheStatus {
   });
 }
 
+function mapEvidenceUpload(row: EvidenceUploadRow): EvidenceUploadQueueRecord {
+  return {
+    localEvidenceId: row.local_evidence_id,
+    taskId: row.task_id,
+    storeId: row.store_id,
+    target: parseJson(row.target_json) as EvidenceUploadQueueRecord["target"],
+    localUri: row.local_uri,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    sha256: row.sha256,
+    capturedAt: row.captured_at,
+    state: row.state,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    attemptCount: row.attempt_count,
+    ...(row.asset_id === null ? {} : { assetId: row.asset_id }),
+    ...(row.upload_path === null ? {} : { uploadPath: row.upload_path }),
+    ...(row.uploaded_at === null ? {} : { uploadedAt: row.uploaded_at }),
+    ...(row.retention_expires_at === null ? {} : { retentionExpiresAt: row.retention_expires_at }),
+    ...(row.last_error === null ? {} : { lastError: row.last_error }),
+  };
+}
+
 function mapSyncCommand(row: SyncCommandRow): SyncCommandRecord {
   return parseSyncCommandRecord({
     id: row.id,
@@ -3133,7 +3407,9 @@ function auditEventTypeForCommand(command: SyncCommandRecord): AuditTimelineItem
   return command.kind === "resolve_task" ? "task.changed" : "markdown.changed";
 }
 
-function auditTargetTypeForCommand(command: SyncCommandRecord): AuditTimelineItem["target"]["type"] {
+function auditTargetTypeForCommand(
+  command: SyncCommandRecord,
+): AuditTimelineItem["target"]["type"] {
   return command.kind === "resolve_task" ? "task" : "markdown";
 }
 
@@ -3203,4 +3479,13 @@ function mapLocation(kind: string, customName: string | null): OperationalLocati
 
 function parseJson(value: string): unknown {
   return JSON.parse(value) as unknown;
+}
+
+function withoutEvidenceUploadError(
+  record: EvidenceUploadQueueRecord,
+): Omit<EvidenceUploadQueueRecord, "lastError"> {
+  const { lastError: _lastError, ...rest } = record;
+  void _lastError;
+
+  return rest;
 }

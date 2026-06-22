@@ -52,6 +52,12 @@ export const EvidencePromptMetadataSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("photo_recorded_placeholder") }).strict(),
   z
     .object({
+      kind: z.literal("photo_recorded"),
+      localEvidenceId: IdentifierSchema,
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("no_photo_reason"),
       reason: RequiredTextSchema,
     })

@@ -6,6 +6,11 @@ workers_dev = true
 [vars]
 VALIDADE_ZERO_APP_ENV = "local"
 SAFE_PROBE_DEFAULT_VALUE = "sonda-segura-ficticia"
+EVIDENCE_STORE_MODE = "memory"
+EVIDENCE_RETENTION_DAYS = "90"
+
+# Evidence binaries use a private R2 bucket bound as EVIDENCE_BUCKET outside local mode.
+# Do not commit real bucket names, account identifiers, object keys, photos, or credentials here.
 
 [triggers]
 crons = ["*/15 * * * *"]

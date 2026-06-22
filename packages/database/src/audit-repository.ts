@@ -10,12 +10,7 @@ export type AuditEventType =
 
 export type AuditActorRoleSnapshot = "collaborator" | "lead" | "admin";
 
-export type AuditEventStatus =
-  | "received"
-  | "pending_ack"
-  | "conflict"
-  | "denied"
-  | "invalidated";
+export type AuditEventStatus = "received" | "pending_ack" | "conflict" | "denied" | "invalidated";
 
 export type AuditTargetType =
   | "task"
@@ -269,9 +264,7 @@ export function createAuditRepositoryFromQuery(
 
     return {
       items,
-      ...(hasNextPage && lastItem !== undefined
-        ? { nextCursor: encodeCursor(lastItem) }
-        : {}),
+      ...(hasNextPage && lastItem !== undefined ? { nextCursor: encodeCursor(lastItem) } : {}),
     };
   }
 
@@ -353,7 +346,9 @@ function encodeCursor(event: Pick<AuditEventProjection, "occurredAt" | "eventId"
   return `${event.occurredAt.toISOString()}__${event.eventId}`;
 }
 
-function decodeCursor(cursor: string | undefined): { occurredAt: string; eventId: string } | undefined {
+function decodeCursor(
+  cursor: string | undefined,
+): { occurredAt: string; eventId: string } | undefined {
   if (cursor === undefined) {
     return undefined;
   }

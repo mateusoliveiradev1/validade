@@ -8,7 +8,7 @@ const auditEvent = {
   type: "task.changed",
   store: {
     storeId: "loja-piloto",
-    storeName: "Loja Piloto",
+    storeName: "Loja Ficticia Piloto",
   },
   actor: {
     actorId: "lead-local",
@@ -44,7 +44,7 @@ describe("AuditWorkbench", () => {
 
     render(<AuditWorkbench client={client} />);
 
-    expect(screen.getByText(/Escopo:/i).textContent).toContain("Loja Piloto");
+    expect(screen.getByText(/Escopo:/i).textContent).toContain("Loja Ficticia Piloto");
     const trigger = await screen.findByRole("button", {
       name: /Retirada registrada na area de venda/i,
     });

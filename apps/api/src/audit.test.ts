@@ -15,21 +15,21 @@ function createApp() {
         subjectId: "lead-local",
         role: "lead",
         storeId: "loja-piloto",
-        storeName: "Loja Piloto",
+        storeName: "Loja Ficticia Piloto",
         status: "active",
       },
       {
         subjectId: "lead-outra",
         role: "lead",
         storeId: "loja-outra",
-        storeName: "Loja Outra",
+        storeName: "Loja Ficticia Outra",
         status: "active",
       },
       {
         subjectId: "collaborator-local",
         role: "collaborator",
         storeId: "loja-piloto",
-        storeName: "Loja Piloto",
+        storeName: "Loja Ficticia Piloto",
         status: "active",
       },
     ]),
@@ -78,7 +78,7 @@ describe("audit API seam", () => {
       },
       auditEvent: {
         type: "task.changed",
-        store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+        store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
         actor: { actorId: "lead-local", roleSnapshot: "lead" },
         target: {
           type: "task",

@@ -148,6 +148,15 @@ describe("Today task contracts", () => {
     });
     expect(
       EvidencePromptMetadataSchema.parse({
+        kind: "photo_recorded",
+        localEvidenceId: "evidence-local-ficticio-001",
+      }),
+    ).toEqual({
+      kind: "photo_recorded",
+      localEvidenceId: "evidence-local-ficticio-001",
+    });
+    expect(
+      EvidencePromptMetadataSchema.parse({
         kind: "no_photo_reason",
         reason: "Camera indisponivel",
       }),
@@ -160,8 +169,16 @@ describe("Today task contracts", () => {
     ).toThrow();
     expect(() =>
       EvidencePromptMetadataSchema.parse({
-        kind: "photo_recorded_placeholder",
-        objectKey: "fotos/reais/nao-deve-existir.jpg",
+        kind: "photo_recorded",
+        localEvidenceId: "evidence-local-ficticio-001",
+        localUri: "file:///device/private/evidence-001.jpg",
+      }),
+    ).toThrow();
+    expect(() =>
+      EvidencePromptMetadataSchema.parse({
+        kind: "photo_recorded",
+        localEvidenceId: "evidence-local-ficticio-001",
+        objectKey: "private/loja-piloto/evidence-001",
       }),
     ).toThrow();
   });

@@ -10,6 +10,7 @@ import type {
 import { isResolutionCompatible, type TaskResolutionAction } from "@validade-zero/domain";
 import { AuditTimeline } from "./AuditTimeline";
 import { ConfirmationSheet } from "./ConfirmationSheet";
+import { EvidenceStatus } from "./EvidenceStatus";
 import { formatLocation } from "./capture-copy";
 import {
   Field,
@@ -20,6 +21,7 @@ import {
   StatusNotice,
 } from "./capture-ui";
 import type { CaptureRepository } from "./repository";
+import type { EvidenceUploadQueueRecord } from "./repository";
 import { todayActionLabel, todayCopy } from "./today-copy";
 
 const STANDARD_RESOLUTION_ACTIONS = [
@@ -51,6 +53,8 @@ export function TaskResolutionPanel({
   onBack,
   onLocalSave,
   auditEvents = [],
+  evidenceUploads = [],
+  onRetryEvidenceUpload,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -59,6 +63,8 @@ export function TaskResolutionPanel({
   onBack: () => void;
   onLocalSave?: (() => void) | undefined;
   auditEvents?: readonly AuditTimelineItem[] | undefined;
+  evidenceUploads?: readonly EvidenceUploadQueueRecord[] | undefined;
+  onRetryEvidenceUpload?: ((localEvidenceId: string) => void) | undefined;
   now?: () => Date;
 }) {
   const [selectedAction, setSelectedAction] = useState<TaskResolutionAction | undefined>();
@@ -393,6 +399,11 @@ export function TaskResolutionPanel({
           <Text style={styles.summaryLine}>Responsavel: {task.ownerLabel}</Text>
           <Text style={styles.summaryLine}>Etapa: {todayActionLabel(task)}</Text>
         </View>
+        <EvidenceUploadList
+          taskId={task.id}
+          uploads={evidenceUploads}
+          onRetry={onRetryEvidenceUpload}
+        />
 
         {task.requiredResolution === "approve_markdown" ? (
           <View style={styles.group}>
@@ -510,6 +521,11 @@ export function TaskResolutionPanel({
           ) : null}
         </View>
       ) : null}
+      <EvidenceUploadList
+        taskId={task.id}
+        uploads={evidenceUploads}
+        onRetry={onRetryEvidenceUpload}
+      />
 
       {blockingNotice === undefined ? null : (
         <StatusNotice tone="error">{blockingNotice}</StatusNotice>
@@ -528,6 +544,31 @@ export function TaskResolutionPanel({
       <SecondaryAction label="Voltar e revisar" onPress={onBack} />
       {auditEvents.length === 0 ? null : <AuditTimeline events={auditEvents} />}
     </ScrollView>
+  );
+}
+
+function EvidenceUploadList({
+  taskId,
+  uploads,
+  onRetry,
+}: {
+  taskId: string;
+  uploads: readonly EvidenceUploadQueueRecord[];
+  onRetry?: ((localEvidenceId: string) => void) | undefined;
+}) {
+  const taskUploads = uploads.filter((upload) => upload.taskId === taskId);
+
+  if (taskUploads.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.group}>
+      <Text style={styles.groupTitle}>Evidências desta tarefa</Text>
+      {taskUploads.map((upload) => (
+        <EvidenceStatus key={upload.localEvidenceId} evidence={upload} onRetry={onRetry} />
+      ))}
+    </View>
   );
 }
 

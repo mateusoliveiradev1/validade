@@ -193,21 +193,21 @@ export function createDefaultMemberships(): readonly StoreMembership[] {
       subjectId: "collaborator-local",
       role: "collaborator",
       storeId: "loja-piloto",
-      storeName: "Loja Piloto",
+      storeName: "Loja Ficticia Piloto",
       status: "active",
     },
     {
       subjectId: "lead-local",
       role: "lead",
       storeId: "loja-piloto",
-      storeName: "Loja Piloto",
+      storeName: "Loja Ficticia Piloto",
       status: "active",
     },
     {
       subjectId: "admin-local",
       role: "admin",
       storeId: "loja-piloto",
-      storeName: "Loja Piloto",
+      storeName: "Loja Ficticia Piloto",
       status: "active",
     },
   ];
@@ -282,9 +282,7 @@ function findAuditMembership(
   memberships: readonly StoreMembership[],
   resourceStoreId: string,
 ): StoreMembership | undefined {
-  return (
-    memberships.find((membership) => membership.storeId === resourceStoreId) ?? memberships[0]
-  );
+  return memberships.find((membership) => membership.storeId === resourceStoreId) ?? memberships[0];
 }
 
 function isExpired(expiresAt: string | undefined): boolean {
