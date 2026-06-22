@@ -994,7 +994,9 @@ export function createMemoryCaptureRepository(
       ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
       ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
     }));
-    const conflictCount = queueCommands.filter((command) => command.state === "sync_conflict").length;
+    const conflictCount = queueCommands.filter(
+      (command) => command.state === "sync_conflict",
+    ).length;
     const hasCriticalConflict = queueCommands.some(
       (command) => command.state === "sync_conflict" && command.urgency === "critical",
     );
@@ -1123,7 +1125,9 @@ export function createMemoryCaptureRepository(
                 nextRetryAt:
                   parsed.retryAfterSeconds === undefined
                     ? undefined
-                    : new Date(Date.parse(updatedAt) + parsed.retryAfterSeconds * 1000).toISOString(),
+                    : new Date(
+                        Date.parse(updatedAt) + parsed.retryAfterSeconds * 1000,
+                      ).toISOString(),
               })
             : parseSyncCommandRecord({
                 ...existing,
@@ -1158,14 +1162,16 @@ export function createMemoryCaptureRepository(
         ...(input.reason === undefined ? {} : { resolutionReason: input.reason }),
       });
       const command = requireSyncCommand(existing.commandId);
-      const commandState =
-        input.action === "keep_local_and_retry" ? "pending_sync" : "discarded";
+      const commandState = input.action === "keep_local_and_retry" ? "pending_sync" : "discarded";
       const updatedCommand = parseSyncCommandRecord({
         ...command,
         state: commandState,
         updatedAt: input.resolvedAt,
         ...(commandState === "discarded"
-          ? { discardedAt: input.resolvedAt, discardReason: input.reason ?? "Atualizado pela tarefa atual" }
+          ? {
+              discardedAt: input.resolvedAt,
+              discardReason: input.reason ?? "Atualizado pela tarefa atual",
+            }
           : { conflictId: undefined }),
       });
 

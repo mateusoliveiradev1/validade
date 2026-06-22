@@ -24,7 +24,9 @@ function formalProduct(displayName: string) {
   } satisfies CaptureProductInput;
 }
 
-function createHarness(initialNetwork: NetInfoSnapshot = { isConnected: true, isInternetReachable: true }) {
+function createHarness(
+  initialNetwork: NetInfoSnapshot = { isConnected: true, isInternetReachable: true },
+) {
   let idCounter = 0;
   let now = "2030-01-10T12:30:00.000Z";
   let handler: (batch: SyncTransportBatch) => Promise<readonly SyncTransportResult[]> = (batch) =>
@@ -189,7 +191,9 @@ describe("sync engine", () => {
     });
     expect(harness.batches[0]).toMatchObject({
       deviceId: "aparelho-ficticio-sync",
-      commands: [expect.objectContaining({ id: command.id, idempotencyKey: command.idempotencyKey })],
+      commands: [
+        expect.objectContaining({ id: command.id, idempotencyKey: command.idempotencyKey }),
+      ],
     });
     await expect(harness.repository.listSyncQueue()).resolves.toMatchObject({ totalCount: 0 });
   });
@@ -301,7 +305,9 @@ describe("sync engine", () => {
   it("submits the oldest critical command before lower urgency work", async () => {
     const harness = createHarness();
     await harness.repository.initialize();
-    const markdownProduct = await harness.repository.createProduct(formalProduct("Queijo FICTICIO"));
+    const markdownProduct = await harness.repository.createProduct(
+      formalProduct("Queijo FICTICIO"),
+    );
     const lot = await harness.repository.saveLot({
       lot: {
         productId: markdownProduct.id,

@@ -1487,7 +1487,9 @@ export function createSQLiteCaptureRepository(
       state: deriveOfflineCacheState({
         activeTaskCount: status.activeTaskCount,
         requiredLotSnippetCount: status.requiredLotSnippetCount,
-        ...(status.lastRefreshedAt === undefined ? {} : { lastRefreshedAt: status.lastRefreshedAt }),
+        ...(status.lastRefreshedAt === undefined
+          ? {}
+          : { lastRefreshedAt: status.lastRefreshedAt }),
         staleAfterHours: status.staleAfterHours,
         referenceTime,
         isConnected: true,
@@ -1517,7 +1519,9 @@ export function createSQLiteCaptureRepository(
       ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
       ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
     }));
-    const conflictCount = queueCommands.filter((command) => command.state === "sync_conflict").length;
+    const conflictCount = queueCommands.filter(
+      (command) => command.state === "sync_conflict",
+    ).length;
     const hasCriticalConflict = queueCommands.some(
       (command) => command.state === "sync_conflict" && command.urgency === "critical",
     );
@@ -1817,7 +1821,10 @@ export function createSQLiteCaptureRepository(
       return mapTodayTask(row);
     }
 
-    const lotRow = await db.getFirstAsync<LotRow>(`${LOT_SELECT} WHERE l.id = ?`, parseLotId(lotId));
+    const lotRow = await db.getFirstAsync<LotRow>(
+      `${LOT_SELECT} WHERE l.id = ?`,
+      parseLotId(lotId),
+    );
 
     if (lotRow === null) {
       throw new Error(`Cannot save an offline action for an unknown lot: ${lotId}`);

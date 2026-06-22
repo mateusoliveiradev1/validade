@@ -225,7 +225,10 @@ export interface CaptureRepository {
   loadOfflineCacheStatus(): Promise<OfflineCacheStatus>;
   listSyncQueue(): Promise<SyncQueueSummary>;
   saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord>;
-  markSyncCommandAttempt(commandIds: readonly string[], attemptedAt: string): Promise<readonly SyncCommandRecord[]>;
+  markSyncCommandAttempt(
+    commandIds: readonly string[],
+    attemptedAt: string,
+  ): Promise<readonly SyncCommandRecord[]>;
   applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord>;
   resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord>;
   loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null>;

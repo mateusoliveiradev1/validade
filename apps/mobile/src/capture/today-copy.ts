@@ -17,6 +17,34 @@ export const todayCopy = {
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
+  sync: {
+    primary: "Sincronizar pendencias",
+    offlineReady: "Pronto para operar sem internet",
+    offlineMode: "Sem internet agora. Usando tarefas salvas neste aparelho.",
+    localSaved: "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+    pending: "Pendente de sincronizacao",
+    syncing: "Sincronizando pendencias",
+    syncedAt: (label: string) => `Sincronizado as ${label}.`,
+    retry: "Tentar sincronizar novamente",
+    reviewConflict: "Revisar conflito",
+    keepLocal: "Manter acao local e reenviar",
+    useCurrent: "Atualizar pela tarefa atual",
+    discardOffline: "Descartar acao offline",
+    allSynced: "Tudo sincronizado neste aparelho",
+    allSyncedBody: "Nenhuma acao esta pendente. Continue conferindo as tarefas em Hoje.",
+    unavailable: "Conecte uma vez para preparar o trabalho offline",
+    unavailableBody:
+      "Ainda nao ha tarefas salvas neste aparelho. Conecte para baixar as tarefas do turno e os dados essenciais dos lotes.",
+    failed:
+      "Nao foi possivel sincronizar. As acoes continuam salvas neste aparelho; confira a conexao e tente novamente.",
+    conflict: "Conflito de sincronizacao. Revise antes de confirmar esta acao.",
+    stale:
+      "Tarefas salvas podem estar desatualizadas. Sincronize antes de marcar a area como segura.",
+    retryHelper: "Tentaremos novamente sem duplicar a acao.",
+    discardReason: "Motivo para descartar a acao offline",
+    discardConfirmation:
+      "Descartar acao offline: informe o motivo. Esta acao deixara de ser enviada e a tarefa atual precisara ser revisada.",
+  },
   push: {
     activate: "Ativar alertas do turno",
     notNow: "Agora nao",

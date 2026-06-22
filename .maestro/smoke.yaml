@@ -8,10 +8,12 @@ appId: com.validadezero.app
 - assertVisible: "Hoje"
 - assertVisible: "Area de venda segura"
 - assertVisible: "Ativar alertas do turno"
+- assertVisible: "Pronto para operar sem internet"
+- assertVisible: "Tudo sincronizado neste aparelho"
 - assertVisible: "Atualizar tarefas"
 - assertVisible: "Registrar lote"
 - assertVisible: "Conferir lotes recentes"
-# Phase 6 markdown/rebaixa smoke is fixture-driven in component tests.
+# Phase 6 markdown/rebaixa and Phase 7 pending-sync smoke are fixture-driven in component tests.
 # This native smoke intentionally stays camera/storage-free until evidence storage lands.
 - tapOn: "Registrar lote"
 - assertVisible: "Localizar produto"

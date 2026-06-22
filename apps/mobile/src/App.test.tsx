@@ -1,6 +1,12 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { MarkdownWorkflowRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  MarkdownWorkflowRecord,
+  OfflineCacheStatus,
+  SyncCommandSummary,
+  SyncQueueSummary,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import type { CaptureLotDetail, CaptureRepository, MarkdownEntryState } from "./capture/repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -58,6 +64,49 @@ vi.mock("@react-native-community/datetimepicker", () => ({
   default: () => null,
   DateTimePickerAndroid: { open: () => undefined },
 }));
+
+function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
+  return {
+    state: "offline_ready",
+    lastRefreshedAt: "2030-01-10T09:00:00.000Z",
+    activeTaskCount: 0,
+    requiredLotSnippetCount: 0,
+    staleAfterHours: 4,
+    source: "today_open",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function syncCommandSummary(overrides: Partial<SyncCommandSummary> = {}): SyncCommandSummary {
+  return {
+    id: "sync-cmd-smoke-001",
+    kind: "resolve_task",
+    state: "pending_sync",
+    urgency: "critical",
+    productDisplayName: "Produto Rebaixa FICTICIO",
+    lotIdentity: { identitySource: "printed", value: "REB-001" },
+    currentLocation: { kind: "area_de_venda" },
+    savedAt: "2030-01-10T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function lotDetailFixture(): CaptureLotDetail {
   const currentObservation = {
@@ -189,6 +238,13 @@ function createRepositoryForDetail(
     recordAlertAttempt: () => Promise.reject(new Error("not used")),
     acknowledgeEscalation: () => Promise.reject(new Error("not used")),
     resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
+    loadOfflineCacheStatus: () => Promise.resolve(offlineReadyStatus()),
+    listSyncQueue: () => Promise.resolve(emptySyncQueue()),
+    saveOfflineAction: () => Promise.reject(new Error("not used")),
+    markSyncCommandAttempt: () => Promise.resolve([]),
+    applySyncTransportResult: () => Promise.reject(new Error("not used")),
+    resolveSyncConflict: () => Promise.reject(new Error("not used")),
+    loadSyncConflict: () => Promise.resolve(null),
     ...overrides,
   };
 }
@@ -273,6 +329,65 @@ describe("Validade Zero mobile smoke", () => {
     expect(rendered).toContain("Ativar alertas do turno");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
+  });
+
+  it("renders Hoje with offline sync status and a pending local action marker", async () => {
+    const pendingTask: TodayTaskRecord = {
+      ...markdownTodayTask(),
+      sync: {
+        state: "pending_sync",
+        savedAt: "2030-01-10T10:00:00.000Z",
+        pendingCommandId: "sync-cmd-smoke-001",
+        attemptCount: 0,
+      },
+    };
+    const tree = await renderCaptureApp(
+      createRepositoryForDetail(
+        {
+          status: "presence_required",
+          label: "Conferir presenca antes da rebaixa",
+          lotId: "lote-rebaixa",
+        },
+        {
+          refreshTodayTasks: (input) =>
+            Promise.resolve({
+              metadata: {
+                refreshedAt: input.currentTimestamp,
+                activeTaskCount: 1,
+                futureAttentionCount: 0,
+                source: input.source,
+              },
+              tasks: [pendingTask],
+              futureAttention: [],
+            }),
+          loadOfflineCacheStatus: () =>
+            Promise.resolve(
+              offlineReadyStatus({
+                state: "offline_mode",
+                activeTaskCount: 1,
+                requiredLotSnippetCount: 1,
+              }),
+            ),
+          listSyncQueue: () =>
+            Promise.resolve(
+              emptySyncQueue({
+                state: "has_pending",
+                totalCount: 1,
+                criticalCount: 1,
+                commands: [syncCommandSummary()],
+              }),
+            ),
+        },
+      ),
+    );
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Hoje");
+    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Sem internet agora. Usando tarefas salvas neste aparelho.");
+    expect(rendered).toContain("Atualizar tarefas");
+    expect(rendered).toContain("Registrar lote");
+    expect(rendered).toContain("Pendente de sincronizacao");
   });
 
   it("requests eligible markdown from lot detail with the rule-window reason", async () => {

@@ -27,12 +27,7 @@ export interface SyncEngineRunInput {
 }
 
 export interface SyncEngineRunResult {
-  state:
-    | "skipped_offline"
-    | "skipped_degraded"
-    | "empty"
-    | "sent"
-    | "transport_failed";
+  state: "skipped_offline" | "skipped_degraded" | "empty" | "sent" | "transport_failed";
   network: NetworkState;
   selectedCommandIds: readonly string[];
   attemptedCommandIds: readonly string[];

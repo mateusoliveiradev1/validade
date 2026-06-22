@@ -5,6 +5,8 @@ import type {
   MarkdownApprovalCommand,
   MarkdownRequestCommand,
   MarkdownShelfConfirmationCommand,
+  OfflineCacheStatus,
+  SyncQueueSummary,
   TaskResolutionCommand,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
@@ -32,6 +34,35 @@ vi.mock("react-native", async () => {
       React.createElement("Pressable", props, children),
   };
 });
+
+function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
+  return {
+    state: "offline_ready",
+    lastRefreshedAt: "2030-01-10T09:00:00.000Z",
+    activeTaskCount: 0,
+    requiredLotSnippetCount: 0,
+    staleAfterHours: 4,
+    source: "today_open",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function expiredTask(): TodayTaskRecord {
   return {
@@ -177,6 +208,13 @@ function createRepository(overrides: Partial<CaptureRepository> = {}): CaptureRe
     recordAlertAttempt: () => Promise.reject(new Error("not used")),
     acknowledgeEscalation: () => Promise.reject(new Error("not used")),
     resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
+    loadOfflineCacheStatus: () => Promise.resolve(offlineReadyStatus()),
+    listSyncQueue: () => Promise.resolve(emptySyncQueue()),
+    saveOfflineAction: () => Promise.reject(new Error("not used")),
+    markSyncCommandAttempt: () => Promise.resolve([]),
+    applySyncTransportResult: () => Promise.reject(new Error("not used")),
+    resolveSyncConflict: () => Promise.reject(new Error("not used")),
+    loadSyncConflict: () => Promise.resolve(null),
     ...overrides,
   };
 }
@@ -327,6 +365,120 @@ describe("TaskResolutionPanel", () => {
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Responsavel");
     expect(JSON.stringify(tree.toJSON())).toContain("Equipe do turno");
+  });
+
+  it("saves withdrawal locally while offline only after physical confirmation", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    const resolveTodayTask = vi.fn();
+    const tree = await renderPanel(
+      createRepository({
+        loadOfflineCacheStatus: () =>
+          Promise.resolve(offlineReadyStatus({ state: "offline_mode" })),
+        saveOfflineAction,
+        resolveTodayTask,
+      }),
+    );
+    const withdraw = tree.root.findAllByProps({ accessibilityLabel: "Retirar agora" })[0];
+
+    await act(async () => {
+      withdraw.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Confirmar retirada");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("Confirme antes de registrar");
+
+    const confirm = findEnabledButton(tree, "Confirmar retirada");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "resolve_task",
+      payload: expect.objectContaining({
+        taskId: "tarefa-vencida-ficticia",
+        action: "withdraw",
+        destination: { kind: "retirada_perda" },
+      }),
+    });
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
+  });
+
+  it("keeps the recheck evidence gate before saving an offline action", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    const resolveTodayTask = vi.fn();
+    const tree = await renderPanel(
+      createRepository({
+        loadOfflineCacheStatus: () =>
+          Promise.resolve(offlineReadyStatus({ state: "offline_mode" })),
+        saveOfflineAction,
+        resolveTodayTask,
+      }),
+      recheckTask(),
+    );
+    const recheck = tree.root.findByProps({ accessibilityLabel: "Confirmar reconferencia" });
+
+    await act(async () => {
+      recheck.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submitWithoutEvidence = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      submitWithoutEvidence.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Registre foto da area ou informe por que a foto nao foi feita antes de concluir.",
+    );
+
+    await act(async () => {
+      tree.root.findByProps({ accessibilityLabel: "Camera indisponivel" }).props.onPress();
+      await Promise.resolve();
+    });
+
+    const submitWithReason = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      submitWithReason.props.onPress();
+      await Promise.resolve();
+    });
+
+    const confirm = findEnabledButton(tree, "Confirmar reconferencia");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "resolve_task",
+      payload: expect.objectContaining({
+        taskId: "tarefa-reconferencia-ficticia",
+        action: "complete_recheck",
+        evidence: {
+          kind: "no_photo_reason",
+          reason: "Camera indisponivel",
+        },
+      }),
+    });
+    expect(resolveTodayTask).not.toHaveBeenCalled();
   });
 
   it("requires a no-photo reason before completing a sales-area recheck", async () => {
@@ -508,6 +660,46 @@ describe("TaskResolutionPanel", () => {
       }),
     );
     expect(resolveTodayTask).not.toHaveBeenCalled();
+  });
+
+  it("saves a markdown request locally while offline instead of resolving the task", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    const requestMarkdown = vi.fn();
+    const resolveTodayTask = vi.fn();
+    const tree = await renderPanel(
+      createRepository({
+        loadOfflineCacheStatus: () =>
+          Promise.resolve(offlineReadyStatus({ state: "offline_mode" })),
+        saveOfflineAction,
+        requestMarkdown,
+        resolveTodayTask,
+      }),
+      markdownRequestTask(),
+    );
+
+    await act(async () => {
+      tree.root.findAllByProps({ accessibilityLabel: "Solicitar rebaixa" })[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Solicitar rebaixa");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "request_markdown",
+      payload: expect.objectContaining({
+        lotId: "lote-ovos",
+        sourceTaskId: "tarefa-request-markdown-ficticia",
+        reason: "rule_window",
+      }),
+    });
+    expect(requestMarkdown).not.toHaveBeenCalled();
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
   });
 
   it("approves markdown through the workflow command without resolving the task directly", async () => {
@@ -702,6 +894,49 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(command)).not.toContain("uri");
     expect(JSON.stringify(command)).not.toContain("base64");
     expect(JSON.stringify(command)).not.toContain("objectKey");
+  });
+
+  it("saves markdown application locally while offline after evidence is provided", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    const recordMarkdownApplication = vi.fn();
+    const tree = await renderPanel(
+      createRepository({
+        loadOfflineCacheStatus: () =>
+          Promise.resolve(offlineReadyStatus({ state: "offline_mode" })),
+        saveOfflineAction,
+        recordMarkdownApplication,
+      }),
+      markdownTask("apply_markdown"),
+    );
+
+    await act(async () => {
+      tree.root.findByProps({ accessibilityLabel: "Camera indisponivel" }).props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Registrar etiqueta aplicada");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "record_markdown_application",
+      payload: expect.objectContaining({
+        workflowId: "workflow-rebaixa-ficticio",
+        taskId: "tarefa-apply_markdown-ficticia",
+        evidence: {
+          kind: "no_photo_reason",
+          reason: "Camera indisponivel",
+        },
+      }),
+    });
+    expect(recordMarkdownApplication).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
   });
 
   it("requires safe evidence metadata before confirming markdown on shelf", async () => {

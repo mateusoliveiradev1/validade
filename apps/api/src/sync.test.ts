@@ -30,7 +30,8 @@ function createSyncCommand(input?: {
 
   return SyncCommandRecordSchema.parse({
     id: input?.id ?? "command-sync-001",
-    idempotencyKey: input?.idempotencyKey ?? "resolve_task:task-sync-001:withdraw:2030-01-10T12:10:00.000Z",
+    idempotencyKey:
+      input?.idempotencyKey ?? "resolve_task:task-sync-001:withdraw:2030-01-10T12:10:00.000Z",
     kind: payload.kind,
     state: "syncing",
     urgency: "critical",

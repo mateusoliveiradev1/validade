@@ -16,6 +16,19 @@ The local cache is not a proof that work happened. It is only enough context for
 - Failed transport attempts remain visible as `sync_failed` and can be retried.
 - Commands already marked `syncing` are not sent again by the sync engine.
 
+## Hoje Operator Flow
+
+Hoje remains the source of truth. The safety verdict appears first, then the offline/sync band:
+
+- `Pronto para operar sem internet` means the device has current cached tasks and essential lot snippets.
+- `Sem internet agora. Usando tarefas salvas neste aparelho.` means the operator can continue with cached work, but central sync has not happened.
+- `Conecte uma vez para preparar o trabalho offline` means the device cannot be trusted for offline work yet.
+- `Tarefas salvas podem estar desatualizadas. Sincronize antes de marcar a area como segura.` means cached context should be refreshed before any safety conclusion.
+
+When an action is saved locally, the panel and Hoje must say `Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.` and keep `Pendente de sincronizacao` visible. Do not write copy that implies central confirmation before an `ack`.
+
+The manual CTA is `Sincronizar pendencias`. It is disabled while commands are already syncing and never creates a separate sync dashboard.
+
 ## Idempotency
 
 The mobile repository derives a stable idempotency key from the command kind, target task/workflow/lot, action, and occurrence time. Retries must reuse the same command id, payload, and idempotency key.
@@ -34,6 +47,8 @@ A conflict must include enough detail for a human review before any safety-affec
 - Remote change kind, summary, and time when known.
 
 Critical conflicts stay visible in "Hoje" until the collaborator chooses an explicit conflict resolution action.
+
+Destructive discard is allowed only with an explicit reason in `Motivo para descartar a acao offline`. For critical or terminal work, treat discard as an audited operational decision, not as a normal retry path.
 
 ## Network Adapter
 
@@ -64,3 +79,16 @@ Manual native verification is still required because NetInfo behavior depends on
 7. Confirm the task changes only after ack, or remains visible as retry/conflict when the seam returns that result.
 
 Do not treat a successful local save, network reachability, or API retry response as proof that the sales area is safe.
+
+## Developer Verification
+
+Run the focused regression set before shipping offline UI changes:
+
+- `pnpm.cmd --filter @validade-zero/mobile test -- today-screen`
+- `pnpm.cmd --filter @validade-zero/mobile test -- today-accessibility`
+- `pnpm.cmd --filter @validade-zero/mobile test -- task-resolution`
+- `pnpm.cmd --filter @validade-zero/mobile test -- offline-sync`
+- `pnpm.cmd --filter @validade-zero/mobile test -- sync-engine`
+- `pnpm.cmd --filter @validade-zero/mobile typecheck`
+
+Native Maestro smoke should assert Hoje-first, the safety verdict, the offline-ready/sync status, `Atualizar tarefas`, `Registrar lote`, and the recent-lot path. Pending-sync fixture coverage lives in `apps/mobile/src/App.test.tsx` until a native fixture mode exists.

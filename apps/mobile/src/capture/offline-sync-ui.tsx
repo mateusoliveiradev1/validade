@@ -1,0 +1,419 @@
+import { useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import type {
+  OfflineCacheStatus,
+  SyncCommandSummary,
+  SyncConflictRecord,
+  SyncQueueSummary as SyncQueueSummaryRecord,
+} from "@validade-zero/contracts";
+import { formatLocation } from "./capture-copy";
+import { Field, PrimaryAction, SecondaryAction, SelectionRow, StatusNotice } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
+import { formatAlertTime, todayCopy } from "./today-copy";
+
+export function OfflineStatusBand({
+  status,
+  queue,
+  onRetry,
+  disabled = false,
+}: {
+  status: OfflineCacheStatus | undefined;
+  queue: SyncQueueSummaryRecord | undefined;
+  onRetry: () => void;
+  disabled?: boolean;
+}) {
+  if (status === undefined) {
+    return null;
+  }
+
+  const tone =
+    status.state === "offline_unavailable"
+      ? "critical"
+      : status.state === "offline_stale"
+        ? "warning"
+        : "info";
+  const title = offlineTitle(status);
+  const body = offlineBody(status);
+  const hasPending = queue !== undefined && queue.totalCount > 0;
+
+  return (
+    <View
+      style={[
+        styles.band,
+        tone === "warning" ? styles.bandWarning : undefined,
+        tone === "critical" ? styles.bandCritical : undefined,
+      ]}
+    >
+      <Text style={styles.bandTitle}>{title}</Text>
+      <Text style={styles.bandBody}>{body}</Text>
+      {hasPending ? (
+        <Text style={styles.bandMeta}>
+          {queue.totalCount} pendencia(s), {queue.conflictCount} conflito(s).
+        </Text>
+      ) : (
+        <Text style={styles.bandMeta}>{todayCopy.sync.allSynced}</Text>
+      )}
+      <SecondaryAction
+        disabled={disabled || queue?.state === "syncing"}
+        label={queue?.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.primary}
+        onPress={onRetry}
+      />
+    </View>
+  );
+}
+
+export function OfflineCacheNotice({ status }: { status: OfflineCacheStatus | undefined }) {
+  if (status === undefined || status.state !== "offline_unavailable") {
+    return null;
+  }
+
+  return (
+    <StatusNotice tone="error">
+      {todayCopy.sync.unavailable}. {todayCopy.sync.unavailableBody}
+    </StatusNotice>
+  );
+}
+
+export function PendingSyncNotice() {
+  return <StatusNotice>{todayCopy.sync.localSaved}</StatusNotice>;
+}
+
+export function SyncRetryNotice() {
+  return (
+    <StatusNotice tone="error">
+      {todayCopy.sync.failed} {todayCopy.sync.retryHelper}
+    </StatusNotice>
+  );
+}
+
+export function SyncQueueSummary({
+  queue,
+  onRetry,
+  onReviewConflict,
+  disabled = false,
+}: {
+  queue: SyncQueueSummaryRecord | undefined;
+  onRetry: () => void;
+  onReviewConflict: (conflictId: string) => void;
+  disabled?: boolean;
+}) {
+  if (queue === undefined) {
+    return null;
+  }
+
+  const conflicts = queue.commands.filter((command) => command.state === "sync_conflict");
+  const pending = queue.commands.filter((command) => command.state !== "sync_conflict");
+
+  return (
+    <View style={styles.queue}>
+      <View style={styles.queueHeader}>
+        <Text style={styles.queueTitle}>
+          {queue.totalCount === 0 ? todayCopy.sync.allSynced : todayCopy.sync.primary}
+        </Text>
+        <Text style={styles.queueMeta}>
+          {queue.criticalCount} criticas, {queue.highCount} altas, {queue.mediumCount} medias
+        </Text>
+      </View>
+      {queue.totalCount === 0 ? (
+        <Text style={styles.queueBody}>{todayCopy.sync.allSyncedBody}</Text>
+      ) : (
+        <>
+          {queue.hasCriticalConflict ? (
+            <StatusNotice tone="error">{todayCopy.sync.conflict}</StatusNotice>
+          ) : null}
+          {[...conflicts, ...pending].map((command) => (
+            <CommandSyncStatusRow
+              key={command.id}
+              command={command}
+              onReviewConflict={onReviewConflict}
+            />
+          ))}
+          <PrimaryAction
+            disabled={disabled || queue.state === "syncing"}
+            label={queue.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.retry}
+            onPress={onRetry}
+          />
+          {queue.state === "has_failed" ? <SyncRetryNotice /> : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+export function CommandSyncStatusRow({
+  command,
+  onReviewConflict,
+}: {
+  command: SyncCommandSummary;
+  onReviewConflict: (conflictId: string) => void;
+}) {
+  const isConflict = command.state === "sync_conflict";
+
+  return (
+    <View style={[styles.commandRow, isConflict ? styles.commandRowConflict : undefined]}>
+      <Text style={styles.commandState}>{syncCommandLabel(command)}</Text>
+      <Text style={styles.commandTitle}>
+        {command.productDisplayName} - lote {command.lotIdentity.value}
+      </Text>
+      <Text style={styles.commandMeta}>Local: {formatLocation(command.currentLocation)}</Text>
+      {command.lastError === undefined ? null : (
+        <Text style={styles.commandMeta}>{command.lastError}</Text>
+      )}
+      <ConflictReviewAction command={command} isConflict={isConflict} onReview={onReviewConflict} />
+    </View>
+  );
+}
+
+function ConflictReviewAction({
+  command,
+  isConflict,
+  onReview,
+}: {
+  command: SyncCommandSummary;
+  isConflict: boolean;
+  onReview: (conflictId: string) => void;
+}) {
+  const conflictId = command.conflictId;
+
+  if (!isConflict || conflictId === undefined) {
+    return null;
+  }
+
+  return (
+    <SecondaryAction label={todayCopy.sync.reviewConflict} onPress={() => onReview(conflictId)} />
+  );
+}
+
+export function SyncConflictPanel({
+  conflict,
+  onResolve,
+  onClose,
+}: {
+  conflict: SyncConflictRecord;
+  onResolve: (input: {
+    action: SyncConflictRecord["allowedActions"][number];
+    reason?: string | undefined;
+  }) => void;
+  onClose: () => void;
+}) {
+  const [discardReason, setDiscardReason] = useState("");
+  const canDiscard = discardReason.trim().length > 0;
+
+  return (
+    <View style={styles.conflictPanel}>
+      <Text style={styles.conflictTitle}>{todayCopy.sync.conflict}</Text>
+      <Text style={styles.conflictBody}>{conflict.reason}</Text>
+      <SelectionRow
+        label={conflict.localAction.label}
+        detail={`${conflict.localAction.productDisplayName} - lote ${conflict.localAction.lotIdentity.value}`}
+        selected
+        onPress={() => undefined}
+      />
+      <Text style={styles.conflictBody}>
+        Local: {formatLocation(conflict.localAction.currentLocation)}
+      </Text>
+      <Text style={styles.conflictBody}>
+        Acao local as {formatAlertTime(conflict.localAction.occurredAt)} por{" "}
+        {conflict.localAction.actorLabel}
+      </Text>
+      <Text style={styles.conflictBody}>{remoteChangeCopy(conflict)}</Text>
+      {conflict.allowedActions.includes("keep_local_and_retry") ? (
+        <SecondaryAction
+          label={todayCopy.sync.keepLocal}
+          onPress={() => onResolve({ action: "keep_local_and_retry" })}
+        />
+      ) : null}
+      {conflict.allowedActions.includes("use_current_task") ? (
+        <SecondaryAction
+          label={todayCopy.sync.useCurrent}
+          onPress={() => onResolve({ action: "use_current_task" })}
+        />
+      ) : null}
+      {conflict.allowedActions.includes("discard_offline_action") ? (
+        <View style={styles.discardGroup}>
+          <StatusNotice tone="error">{todayCopy.sync.discardConfirmation}</StatusNotice>
+          <Field
+            label={todayCopy.sync.discardReason}
+            value={discardReason}
+            onChangeText={setDiscardReason}
+          />
+          <PrimaryAction
+            disabled={!canDiscard}
+            label={todayCopy.sync.discardOffline}
+            onPress={() =>
+              onResolve({
+                action: "discard_offline_action",
+                reason: discardReason.trim(),
+              })
+            }
+          />
+        </View>
+      ) : null}
+      <SecondaryAction label="Voltar e revisar" onPress={onClose} />
+    </View>
+  );
+}
+
+function offlineTitle(status: OfflineCacheStatus): string {
+  if (status.state === "offline_unavailable") {
+    return todayCopy.sync.unavailable;
+  }
+
+  if (status.state === "offline_mode") {
+    return todayCopy.sync.offlineMode;
+  }
+
+  if (status.state === "offline_stale") {
+    return todayCopy.sync.stale;
+  }
+
+  return todayCopy.sync.offlineReady;
+}
+
+function offlineBody(status: OfflineCacheStatus): string {
+  const refreshed =
+    status.lastRefreshedAt === undefined
+      ? "Ainda sem atualizacao salva."
+      : `Atualizado as ${formatAlertTime(status.lastRefreshedAt)}.`;
+
+  return `${refreshed} ${status.activeTaskCount} tarefa(s) e ${status.requiredLotSnippetCount} lote(s) essenciais neste aparelho.`;
+}
+
+function syncCommandLabel(command: SyncCommandSummary): string {
+  if (command.state === "sync_conflict") {
+    return todayCopy.sync.conflict;
+  }
+
+  if (command.state === "sync_failed") {
+    return todayCopy.sync.failed;
+  }
+
+  if (command.state === "syncing") {
+    return todayCopy.sync.syncing;
+  }
+
+  return todayCopy.sync.pending;
+}
+
+function remoteChangeCopy(conflict: SyncConflictRecord): string {
+  return `${conflict.remoteChange.summary}${
+    conflict.remoteChange.changedAt === undefined
+      ? ""
+      : ` Alterado as ${formatAlertTime(conflict.remoteChange.changedAt)}.`
+  }`;
+}
+
+const styles = StyleSheet.create({
+  band: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.small,
+    padding: captureSpacing.large,
+  },
+  bandWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
+  bandCritical: {
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  bandTitle: {
+    color: captureColors.ink,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  bandBody: {
+    color: captureColors.mutedInk,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  bandMeta: {
+    color: captureColors.ink,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  queue: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  queueHeader: {
+    gap: captureSpacing.xsmall,
+  },
+  queueTitle: {
+    color: captureColors.ink,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  queueMeta: {
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  queueBody: {
+    color: captureColors.mutedInk,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  commandRow: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
+    minHeight: 48,
+    padding: captureSpacing.medium,
+  },
+  commandRowConflict: {
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  commandState: {
+    color: captureColors.warningInk,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  commandTitle: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
+  },
+  commandMeta: {
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  conflictPanel: {
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  conflictTitle: {
+    color: captureColors.critical,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  conflictBody: {
+    color: captureColors.ink,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  discardGroup: {
+    gap: captureSpacing.medium,
+  },
+});

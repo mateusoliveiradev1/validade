@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type {
   CompletedEvidenceMetadata,
   EvidencePromptMetadata,
+  OfflineActionCommand,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import { isResolutionCompatible, type TaskResolutionAction } from "@validade-zero/domain";
@@ -46,12 +47,14 @@ export function TaskResolutionPanel({
   task,
   onDone,
   onBack,
+  onLocalSave,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
   task: TodayTaskRecord;
   onDone: () => void;
   onBack: () => void;
+  onLocalSave?: (() => void) | undefined;
   now?: () => Date;
 }) {
   const [selectedAction, setSelectedAction] = useState<TaskResolutionAction | undefined>();
@@ -158,14 +161,22 @@ export function TaskResolutionPanel({
           return;
         }
 
-        await repository.decideMarkdown({
+        const command = {
           workflowId,
           taskId: task.id,
           actorLabel: todayCopy.localActor,
           occurredAt: now().toISOString(),
           decision: markdownDecision,
           ...(markdownDecision === "rejected" ? { rejectionReason: trimmedReason } : {}),
-        });
+        } satisfies OfflineActionCommand["payload"];
+
+        if (await shouldSaveOffline()) {
+          await repository.saveOfflineAction({ kind: "decide_markdown", payload: command });
+          handleLocalSave();
+          return;
+        }
+
+        await repository.decideMarkdown(command);
         onDone();
         return;
       }
@@ -178,21 +189,43 @@ export function TaskResolutionPanel({
       }
 
       if (task.requiredResolution === "apply_markdown") {
-        await repository.recordMarkdownApplication({
+        const command = {
           workflowId,
           taskId: task.id,
           actorLabel: todayCopy.localActor,
           occurredAt: now().toISOString(),
           evidence,
-        });
+        };
+
+        if (await shouldSaveOffline()) {
+          await repository.saveOfflineAction({
+            kind: "record_markdown_application",
+            payload: command,
+          });
+          handleLocalSave();
+          return;
+        }
+
+        await repository.recordMarkdownApplication(command);
       } else {
-        await repository.confirmMarkdownOnShelf({
+        const command = {
           workflowId,
           taskId: task.id,
           actorLabel: todayCopy.localActor,
           occurredAt: now().toISOString(),
           evidence,
-        });
+        };
+
+        if (await shouldSaveOffline()) {
+          await repository.saveOfflineAction({
+            kind: "confirm_markdown_on_shelf",
+            payload: command,
+          });
+          handleLocalSave();
+          return;
+        }
+
+        await repository.confirmMarkdownOnShelf(command);
       }
 
       onDone();
@@ -220,13 +253,22 @@ export function TaskResolutionPanel({
 
     if (selectedAction === "request_markdown" && task.requiredResolution === "request_markdown") {
       try {
-        await repository.requestMarkdown({
+        const command = {
           lotId: task.lotId,
           sourceTaskId: task.id,
           actorLabel: todayCopy.localActor,
           occurredAt: now().toISOString(),
           reason: "rule_window",
-        });
+        } satisfies OfflineActionCommand["payload"];
+
+        if (await shouldSaveOffline()) {
+          await repository.saveOfflineAction({ kind: "request_markdown", payload: command });
+          setConfirming(false);
+          handleLocalSave();
+          return;
+        }
+
+        await repository.requestMarkdown(command);
         setConfirming(false);
         onDone();
       } catch {
@@ -238,7 +280,7 @@ export function TaskResolutionPanel({
       return;
     }
 
-    await repository.resolveTodayTask({
+    const command = {
       taskId: task.id,
       action: selectedAction,
       actorLabel: todayCopy.localActor,
@@ -248,7 +290,17 @@ export function TaskResolutionPanel({
         : {}),
       ...(evidence === undefined ? {} : { evidence }),
       ...(task.recheckParentId === undefined ? {} : { recheckParentId: task.recheckParentId }),
-    });
+    } satisfies OfflineActionCommand["payload"];
+
+    if (await shouldSaveOffline()) {
+      await repository.saveOfflineAction({ kind: "resolve_task", payload: command });
+      setSubmitting(false);
+      setConfirming(false);
+      handleLocalSave();
+      return;
+    }
+
+    await repository.resolveTodayTask(command);
     setSubmitting(false);
     setConfirming(false);
 
@@ -257,6 +309,17 @@ export function TaskResolutionPanel({
     }
 
     onDone();
+  }
+
+  async function shouldSaveOffline(): Promise<boolean> {
+    const status = await repository.loadOfflineCacheStatus();
+
+    return status.state !== "offline_ready";
+  }
+
+  function handleLocalSave(): void {
+    setFeedback(todayCopy.sync.localSaved);
+    onLocalSave?.();
   }
 
   function evidenceForRecheck(): EvidencePromptMetadata | undefined {
@@ -373,6 +436,7 @@ export function TaskResolutionPanel({
         {blockingNotice === undefined ? null : (
           <StatusNotice tone="error">{blockingNotice}</StatusNotice>
         )}
+        <LocalSaveFeedback feedback={feedback} />
 
         <PrimaryAction
           label={markdownPrimaryLabel(task, markdownDecision)}
@@ -445,7 +509,7 @@ export function TaskResolutionPanel({
       {blockingNotice === undefined ? null : (
         <StatusNotice tone="error">{blockingNotice}</StatusNotice>
       )}
-      {feedback === undefined ? null : <StatusNotice>{feedback}</StatusNotice>}
+      <LocalSaveFeedback feedback={feedback} />
 
       <PrimaryAction
         label={
@@ -458,6 +522,21 @@ export function TaskResolutionPanel({
       />
       <SecondaryAction label="Voltar e revisar" onPress={onBack} />
     </ScrollView>
+  );
+}
+
+function LocalSaveFeedback({ feedback }: { feedback: string | undefined }) {
+  if (feedback === undefined) {
+    return null;
+  }
+
+  return (
+    <>
+      <StatusNotice>{feedback}</StatusNotice>
+      {feedback === todayCopy.sync.localSaved ? (
+        <StatusNotice>{todayCopy.sync.pending}</StatusNotice>
+      ) : null}
+    </>
   );
 }
 

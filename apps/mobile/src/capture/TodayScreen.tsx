@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type {
   FutureAttentionRecord,
+  OfflineCacheStatus,
+  SyncConflictRecord,
+  SyncQueueSummary as SyncQueueSummaryRecord,
   TaskAlertStateRecord,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
@@ -10,6 +13,13 @@ import { formatLocation } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { PushAlertChannel } from "./alert-channel";
+import type { SyncEngine } from "./sync-engine";
+import {
+  OfflineCacheNotice,
+  OfflineStatusBand,
+  SyncConflictPanel,
+  SyncQueueSummary,
+} from "./offline-sync-ui";
 import {
   alertChannelStateForRegistration,
   type CaptureRepository,
@@ -39,6 +49,7 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   alertChannel,
+  syncEngine,
   pushFallbackNotice,
   highlightedTaskId,
   now = () => new Date(),
@@ -48,12 +59,16 @@ export function TodayScreen({
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
   alertChannel?: PushAlertChannel;
+  syncEngine?: SyncEngine | undefined;
   pushFallbackNotice?: string | undefined;
   highlightedTaskId?: string | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
   const [futureAttention, setFutureAttention] = useState<readonly FutureAttentionRecord[]>([]);
+  const [offlineStatus, setOfflineStatus] = useState<OfflineCacheStatus | undefined>();
+  const [syncQueue, setSyncQueue] = useState<SyncQueueSummaryRecord | undefined>();
+  const [selectedConflict, setSelectedConflict] = useState<SyncConflictRecord | undefined>();
   const [alertStates, setAlertStates] = useState<readonly TaskAlertStateRecord[]>([]);
   const [alertChannelState, setAlertChannelState] = useState<AlertChannelState>("not_requested");
   const [alertChannelFeedback, setAlertChannelFeedback] = useState<string | undefined>();
@@ -61,11 +76,22 @@ export function TodayScreen({
   const [refreshError, setRefreshError] = useState<string | undefined>();
   const [refreshFeedback, setRefreshFeedback] = useState<string | undefined>();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isRequestingAlerts, setIsRequestingAlerts] = useState(false);
 
   async function refreshAlertChannelState(): Promise<void> {
     const registration = await repository.loadAlertChannelState();
     setAlertChannelState(alertChannelStateForRegistration(registration));
+  }
+
+  async function refreshSyncState(): Promise<void> {
+    const [cacheStatus, queue] = await Promise.all([
+      repository.loadOfflineCacheStatus(),
+      repository.listSyncQueue(),
+    ]);
+
+    setOfflineStatus(cacheStatus);
+    setSyncQueue(queue);
   }
 
   async function refreshTasks(source: TodayTaskRefreshSource): Promise<void> {
@@ -100,6 +126,7 @@ export function TodayScreen({
             .map((task) => task.id),
         }),
       );
+      await refreshSyncState();
 
       if (source === "manual_refresh") {
         setRefreshFeedback(todayCopy.refreshSuccess(result.metadata.activeTaskCount));
@@ -115,6 +142,56 @@ export function TodayScreen({
   useEffect(() => {
     void refreshTasks("today_open");
   }, []);
+
+  async function manualSync(): Promise<void> {
+    if (syncEngine === undefined || isSyncing) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setRefreshError(undefined);
+    setRefreshFeedback(undefined);
+
+    try {
+      const result = await syncEngine.syncPendingCommands({ manual: true });
+      await refreshSyncState();
+
+      if (result.state === "sent" && result.appliedResults.length > 0) {
+        setRefreshFeedback(todayCopy.sync.retryHelper);
+      } else if (result.state === "empty") {
+        setRefreshFeedback(todayCopy.sync.allSynced);
+      } else if (result.state === "transport_failed") {
+        setRefreshError(todayCopy.sync.failed);
+      }
+    } catch {
+      setRefreshError(todayCopy.sync.failed);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function reviewConflict(conflictId: string): Promise<void> {
+    const conflict = await repository.loadSyncConflict(conflictId);
+    setSelectedConflict(conflict ?? undefined);
+  }
+
+  async function resolveConflict(input: {
+    action: SyncConflictRecord["allowedActions"][number];
+    reason?: string | undefined;
+  }): Promise<void> {
+    if (selectedConflict === undefined) {
+      return;
+    }
+
+    await repository.resolveSyncConflict({
+      conflictId: selectedConflict.id,
+      action: input.action,
+      resolvedAt: now().toISOString(),
+      ...(input.reason === undefined ? {} : { reason: input.reason }),
+    });
+    setSelectedConflict(undefined);
+    await refreshSyncState();
+  }
 
   async function activateAlerts(): Promise<void> {
     if (alertChannel === undefined || isRequestingAlerts) {
@@ -224,7 +301,17 @@ export function TodayScreen({
           disabled={isRefreshing}
           onPress={() => void refreshTasks("manual_refresh")}
         />
+        <SecondaryAction label={todayCopy.registerLot} onPress={onRegisterLot} />
+        <SecondaryAction label={todayCopy.recentLots} onPress={onOpenRecentLots} />
       </View>
+
+      <OfflineStatusBand
+        disabled={isSyncing || syncEngine === undefined}
+        queue={syncQueue}
+        status={offlineStatus}
+        onRetry={() => void manualSync()}
+      />
+      <OfflineCacheNotice status={offlineStatus} />
 
       {refreshError === undefined ? null : <StatusNotice tone="error">{refreshError}</StatusNotice>}
       {refreshFeedback === undefined ? null : (
@@ -241,6 +328,21 @@ export function TodayScreen({
         feedback={alertChannelFeedback}
         isRequesting={isRequestingAlerts}
         onActivate={() => void activateAlerts()}
+      />
+
+      {selectedConflict === undefined ? null : (
+        <SyncConflictPanel
+          conflict={selectedConflict}
+          onClose={() => setSelectedConflict(undefined)}
+          onResolve={(input) => void resolveConflict(input)}
+        />
+      )}
+
+      <SyncQueueSummary
+        disabled={isSyncing || syncEngine === undefined}
+        queue={syncQueue}
+        onRetry={() => void manualSync()}
+        onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
       />
 
       {tasks.length === 0 ? (
@@ -401,7 +503,47 @@ export function TodayTaskRow({
           task={task}
         />
       )}
+      <TaskSyncStatus task={task} />
     </Pressable>
+  );
+}
+
+function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
+  if (task.sync === undefined) {
+    return null;
+  }
+
+  const label =
+    task.sync.state === "synced"
+      ? todayCopy.sync.syncedAt(formatAlertTime(task.sync.lastSyncedAt ?? task.updatedAt))
+      : task.sync.state === "sync_failed"
+        ? todayCopy.sync.failed
+        : task.sync.state === "sync_conflict"
+          ? todayCopy.sync.conflict
+          : task.sync.state === "syncing"
+            ? todayCopy.sync.syncing
+            : todayCopy.sync.pending;
+
+  return (
+    <View
+      style={[
+        styles.syncMarker,
+        task.sync.state === "sync_conflict" || task.sync.state === "sync_failed"
+          ? styles.syncMarkerCritical
+          : undefined,
+      ]}
+    >
+      <Text
+        style={[
+          styles.syncMarkerText,
+          task.sync.state === "sync_conflict" || task.sync.state === "sync_failed"
+            ? styles.syncMarkerTextCritical
+            : undefined,
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -790,6 +932,26 @@ const styles = StyleSheet.create({
   alertStatusCriticalText: {
     color: captureColors.critical,
     fontWeight: "700",
+  },
+  syncMarker: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    padding: captureSpacing.small,
+  },
+  syncMarkerCritical: {
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  syncMarkerText: {
+    color: captureColors.warningInk,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  syncMarkerTextCritical: {
+    color: captureColors.critical,
   },
   acknowledgementPanel: {
     gap: captureSpacing.xsmall,

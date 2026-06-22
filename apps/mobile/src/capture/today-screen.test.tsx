@@ -1,11 +1,16 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type {
+  OfflineCacheStatus,
+  SyncConflictRecord,
+  SyncCommandSummary,
+  SyncQueueSummary,
   FutureAttentionRecord,
   TaskAlertStateRecord,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
+import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -24,10 +29,40 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", null, children),
+    TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
   };
 });
+
+function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
+  return {
+    state: "offline_ready",
+    lastRefreshedAt: "2030-01-10T09:00:00.000Z",
+    activeTaskCount: 0,
+    requiredLotSnippetCount: 0,
+    staleAfterHours: 4,
+    source: "today_open",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function createRepository(
   refreshTodayTasks: CaptureRepository["refreshTodayTasks"],
@@ -65,6 +100,13 @@ function createRepository(
     recordAlertAttempt: () => Promise.reject(new Error("not used")),
     acknowledgeEscalation: () => Promise.reject(new Error("not used")),
     resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
+    loadOfflineCacheStatus: () => Promise.resolve(offlineReadyStatus()),
+    listSyncQueue: () => Promise.resolve(emptySyncQueue()),
+    saveOfflineAction: () => Promise.reject(new Error("not used")),
+    markSyncCommandAttempt: () => Promise.resolve([]),
+    applySyncTransportResult: () => Promise.reject(new Error("not used")),
+    resolveSyncConflict: () => Promise.reject(new Error("not used")),
+    loadSyncConflict: () => Promise.resolve(null),
     ...overrides,
   };
 }
@@ -202,6 +244,71 @@ function radarAttention(): FutureAttentionRecord {
   };
 }
 
+function syncCommandSummary(overrides: Partial<SyncCommandSummary> = {}): SyncCommandSummary {
+  return {
+    id: "sync-cmd-ficticio-001",
+    kind: "resolve_task",
+    state: "pending_sync",
+    urgency: "critical",
+    productDisplayName: "Ovos FICTICIOS",
+    lotIdentity: { identitySource: "printed", value: "OVOS-FICTICIOS-001" },
+    currentLocation: { kind: "area_de_venda" },
+    savedAt: "2030-01-10T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function conflictRecord(overrides: Partial<SyncConflictRecord> = {}): SyncConflictRecord {
+  return {
+    id: "conflict-ficticio-001",
+    commandId: "sync-cmd-conflito",
+    severity: "critical",
+    reason: "Tarefa critica mudou antes do envio offline.",
+    localAction: {
+      commandId: "sync-cmd-conflito",
+      kind: "resolve_task",
+      label: "Confirmar retirada",
+      actorLabel: "Colaborador local",
+      occurredAt: "2030-01-10T10:30:00.000Z",
+      productDisplayName: "Maca FICTICIA",
+      lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
+      currentLocation: { kind: "area_de_venda" },
+    },
+    remoteChange: {
+      kind: "task_changed",
+      summary: "A tarefa atual exige reconferencia da area de venda.",
+      changedAt: "2030-01-10T11:00:00.000Z",
+    },
+    allowedActions: ["keep_local_and_retry", "use_current_task", "discard_offline_action"],
+    createdAt: "2030-01-10T11:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function findButton(tree: ReactTestRenderer, label: string): ReactTestInstance {
+  return tree.root.findByProps({ accessibilityLabel: label });
+}
+
+function renderedText(tree: ReactTestRenderer): string {
+  return flattenText(tree.toJSON());
+}
+
+function flattenText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(flattenText).join("");
+  }
+
+  if (value !== null && typeof value === "object" && "children" in value) {
+    return flattenText((value as { children?: unknown }).children);
+  }
+
+  return "";
+}
+
 function refreshWith(input: {
   tasks: readonly TodayTaskRecord[];
   futureAttention?: readonly FutureAttentionRecord[];
@@ -218,7 +325,10 @@ function refreshWith(input: {
   };
 }
 
-async function renderTodayScreen(repository: CaptureRepository): Promise<ReactTestRenderer> {
+async function renderTodayScreen(
+  repository: CaptureRepository,
+  syncEngine?: SyncEngine,
+): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
 
   await act(async () => {
@@ -227,6 +337,7 @@ async function renderTodayScreen(repository: CaptureRepository): Promise<ReactTe
         repository={repository}
         onRegisterLot={() => undefined}
         onOpenRecentLots={() => undefined}
+        syncEngine={syncEngine}
         now={() => new Date("2030-01-10T12:00:00.000Z")}
       />,
     );
@@ -251,6 +362,277 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Area de venda segura agora");
     expect(rendered).toContain("Registrar lote");
     expect(rendered).toContain("Conferir lotes recentes");
+  });
+
+  it("renders offline readiness directly after the sales-area safety verdict", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered.indexOf("Area de venda segura")).toBeLessThan(
+      rendered.indexOf("Pronto para operar sem internet"),
+    );
+    expect(rendered).toContain("Tudo sincronizado neste aparelho");
+  });
+
+  it("renders offline mode with cached tasks and keeps task paths available", async () => {
+    const repository = createRepository(
+      () => Promise.resolve(refreshWith({ tasks: [expiredTask()] })),
+      {
+        loadOfflineCacheStatus: () =>
+          Promise.resolve(
+            offlineReadyStatus({
+              state: "offline_mode",
+              activeTaskCount: 1,
+              requiredLotSnippetCount: 1,
+            }),
+          ),
+      },
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Sem internet agora. Usando tarefas salvas neste aparelho.");
+    expect(rendered).toContain("Retirar agora");
+    expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+  });
+
+  it("renders offline unavailable copy when this device has no cache", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      loadOfflineCacheStatus: () =>
+        Promise.resolve(
+          offlineReadyStatus({
+            state: "offline_unavailable",
+            lastRefreshedAt: undefined,
+            activeTaskCount: 0,
+            requiredLotSnippetCount: 0,
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Conecte uma vez para preparar o trabalho offline");
+    expect(rendered).toContain(
+      "Ainda nao ha tarefas salvas neste aparelho. Conecte para baixar as tarefas do turno e os dados essenciais dos lotes.",
+    );
+  });
+
+  it("warns when cached tasks may be stale", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      loadOfflineCacheStatus: () =>
+        Promise.resolve(
+          offlineReadyStatus({
+            state: "offline_stale",
+            lastRefreshedAt: "2030-01-10T04:00:00.000Z",
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain(
+      "Tarefas salvas podem estar desatualizadas. Sincronize antes de marcar a area como segura.",
+    );
+  });
+
+  it("renders pending sync text in a task row", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(
+        refreshWith({
+          tasks: [
+            taskFixture({
+              id: "tarefa-pendente-sync",
+              sync: {
+                state: "pending_sync",
+                savedAt: "2030-01-10T10:00:00.000Z",
+                pendingCommandId: "sync-cmd-ficticio-001",
+                attemptCount: 0,
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Pendente de sincronizacao");
+  });
+
+  it("renders critical conflicts before pending commands in the compact queue", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_conflict",
+            totalCount: 2,
+            conflictCount: 1,
+            hasCriticalConflict: true,
+            criticalCount: 1,
+            highCount: 1,
+            commands: [
+              syncCommandSummary({
+                id: "sync-cmd-pendente",
+                state: "pending_sync",
+                urgency: "high",
+                productDisplayName: "Banana FICTICIA",
+                lotIdentity: { identitySource: "printed", value: "BANANA-PENDENTE-001" },
+              }),
+              syncCommandSummary({
+                id: "sync-cmd-conflito",
+                state: "sync_conflict",
+                urgency: "critical",
+                productDisplayName: "Maca FICTICIA",
+                lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
+                conflictId: "conflict-ficticio-001",
+              }),
+            ],
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+    const text = renderedText(tree);
+
+    expect(text).toContain("1 criticas, 1 altas, 0 medias");
+    expect(rendered.indexOf("MACA-CONFLITO-001")).toBeLessThan(
+      rendered.indexOf("BANANA-PENDENTE-001"),
+    );
+    expect(rendered).toContain("Conflito de sincronizacao. Revise antes de confirmar esta acao.");
+  });
+
+  it("disables the manual sync CTA while queue sync is already running", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "syncing",
+            totalCount: 1,
+            criticalCount: 1,
+            commands: [syncCommandSummary({ state: "syncing" })],
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository);
+    const syncingButtons = tree.root.findAllByProps({
+      accessibilityLabel: "Sincronizando pendencias",
+    });
+
+    expect(
+      syncingButtons.some((button) => button.props.accessibilityState?.disabled === true),
+    ).toBe(true);
+  });
+
+  it("runs manual sync from Hoje and refreshes queue state", async () => {
+    const syncPendingCommands = vi.fn().mockResolvedValue({
+      state: "sent",
+      network: { kind: "online" },
+      selectedCommandIds: ["sync-cmd-ficticio-001"],
+      attemptedCommandIds: ["sync-cmd-ficticio-001"],
+      appliedResults: [
+        {
+          status: "ack",
+          commandId: "sync-cmd-ficticio-001",
+          idempotencyKey: "sync-cmd-ficticio-001",
+          syncedAt: "2030-01-10T12:00:00.000Z",
+        },
+      ],
+    });
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_pending",
+            totalCount: 1,
+            criticalCount: 1,
+            commands: [syncCommandSummary()],
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository, { syncPendingCommands });
+    const syncButton = findButton(tree, "Sincronizar pendencias");
+
+    await act(async () => {
+      syncButton.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
+  });
+
+  it("requires a reason before discarding an offline conflict", async () => {
+    const resolveSyncConflict = vi.fn().mockResolvedValue(conflictRecord());
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_conflict",
+            totalCount: 1,
+            conflictCount: 1,
+            hasCriticalConflict: true,
+            criticalCount: 1,
+            commands: [
+              syncCommandSummary({
+                id: "sync-cmd-conflito",
+                state: "sync_conflict",
+                conflictId: "conflict-ficticio-001",
+                productDisplayName: "Maca FICTICIA",
+                lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
+              }),
+            ],
+          }),
+        ),
+      loadSyncConflict: () => Promise.resolve(conflictRecord()),
+      resolveSyncConflict,
+    });
+    const tree = await renderTodayScreen(repository);
+    const reviewButton = findButton(tree, "Revisar conflito");
+
+    await act(async () => {
+      reviewButton.props.onPress();
+      await Promise.resolve();
+    });
+
+    const renderedConflict = JSON.stringify(tree.toJSON());
+    const conflictText = renderedText(tree);
+    const disabledDiscard = tree.root
+      .findAllByProps({ accessibilityLabel: "Descartar acao offline" })
+      .find((button) => button.props.accessibilityState?.disabled === true);
+
+    expect(renderedConflict).toContain("Confirmar retirada");
+    expect(renderedConflict).toContain("Maca FICTICIA - lote MACA-CONFLITO-001");
+    expect(conflictText).toContain("Local:");
+    expect(conflictText).toContain("venda");
+    expect(conflictText).toContain("Acao local as");
+    expect(conflictText).toContain("A tarefa atual exige reconferencia da area de venda.");
+    expect(disabledDiscard).toBeDefined();
+
+    const reasonInput = tree.root.findByProps({
+      accessibilityLabel: "Motivo para descartar a acao offline",
+    });
+
+    await act(async () => {
+      reasonInput.props.onChangeText("Tarefa atual exige nova conferencia fisica.");
+      await Promise.resolve();
+    });
+
+    const enabledDiscard = tree.root
+      .findAllByProps({ accessibilityLabel: "Descartar acao offline" })
+      .find((button) => button.props.accessibilityState?.disabled === false);
+
+    await act(async () => {
+      enabledDiscard?.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(resolveSyncConflict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conflictId: "conflict-ficticio-001",
+        action: "discard_offline_action",
+        reason: "Tarefa atual exige nova conferencia fisica.",
+      }),
+    );
   });
 
   it("keeps the previous task list visible when manual refresh fails", async () => {

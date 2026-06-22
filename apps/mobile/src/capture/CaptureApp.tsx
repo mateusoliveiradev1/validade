@@ -15,6 +15,8 @@ import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import type { TodayTaskRecord } from "@validade-zero/contracts";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
+import type { SyncEngine } from "./sync-engine";
+import { todayCopy } from "./today-copy";
 
 type CaptureScreen =
   | "today"
@@ -31,9 +33,11 @@ type CaptureScreen =
 export function CaptureApp({
   repository,
   alertChannel,
+  syncEngine,
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
+  syncEngine?: SyncEngine | undefined;
 }) {
   const [screen, setScreen] = useState<CaptureScreen>("today");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
@@ -188,6 +192,7 @@ export function CaptureApp({
           highlightedTaskId={highlightedTaskId}
           pushFallbackNotice={pushFallbackNotice}
           repository={repository}
+          syncEngine={syncEngine}
           onRegisterLot={() => setScreen("discovery")}
           onOpenRecentLots={() => setScreen("recent")}
           onOpenTask={(task) => {
@@ -207,6 +212,11 @@ export function CaptureApp({
         task={selectedTask}
         onBack={() => setScreen("today")}
         onDone={() => setScreen("today")}
+        onLocalSave={() => {
+          setPushFallbackNotice(todayCopy.sync.localSaved);
+          setHighlightedTaskId(selectedTask.id);
+          setScreen("today");
+        }}
       />
     );
   }

@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { FutureAttentionRecord, TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  FutureAttentionRecord,
+  OfflineCacheStatus,
+  SyncQueueSummary,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 
@@ -26,6 +31,35 @@ vi.mock("react-native", async () => {
       React.createElement("Pressable", props, children),
   };
 });
+
+function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
+  return {
+    state: "offline_ready",
+    lastRefreshedAt: "2030-01-10T09:00:00.000Z",
+    activeTaskCount: 0,
+    requiredLotSnippetCount: 0,
+    staleAfterHours: 4,
+    source: "today_open",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function createRepository(
   refreshTodayTasks: CaptureRepository["refreshTodayTasks"],
@@ -62,6 +96,13 @@ function createRepository(
     recordAlertAttempt: () => Promise.reject(new Error("not used")),
     acknowledgeEscalation: () => Promise.reject(new Error("not used")),
     resolvePushOpenIntent: (input) => Promise.resolve({ ...input, result: "task_missing" }),
+    loadOfflineCacheStatus: () => Promise.resolve(offlineReadyStatus()),
+    listSyncQueue: () => Promise.resolve(emptySyncQueue()),
+    saveOfflineAction: () => Promise.reject(new Error("not used")),
+    markSyncCommandAttempt: () => Promise.resolve([]),
+    applySyncTransportResult: () => Promise.reject(new Error("not used")),
+    resolveSyncConflict: () => Promise.reject(new Error("not used")),
+    loadSyncConflict: () => Promise.resolve(null),
   };
 }
 
@@ -188,6 +229,16 @@ describe("Today accessibility and copy hardening", () => {
     expect(rendered).not.toContain("Enviar");
     expect(rendered).not.toContain("OK");
     expect(rendered).not.toContain("Cancelar");
+  });
+
+  it("keeps screen-reader order on safety verdict before offline sync support", async () => {
+    const tree = await renderTodayScreen(createRepository(() => Promise.resolve(refreshWith([]))));
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered.indexOf("Area de venda segura")).toBeLessThan(
+      rendered.indexOf("Pronto para operar sem internet"),
+    );
+    expect(rendered).toContain("Sincronizar pendencias");
   });
 
   it("protects 48dp touch targets and accessible names in local primitives", () => {

@@ -14,17 +14,19 @@ import {
   MarkdownRequestCommandSchema,
   MarkdownShelfConfirmationCommandSchema,
 } from "./markdown";
-import {
-  RequiredResolutionSchema,
-  TaskResolutionCommandSchema,
-  TodayTaskSyncMetadataSchema,
-} from "./tasks";
+import { RequiredResolutionSchema, TaskResolutionCommandSchema } from "./tasks";
 
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IdentifierSchema = z.string().trim().min(1).max(160);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 
-const ForbiddenSyncPayloadFields = ["uri", "base64", "objectKey", "photoUri", "imageBytes"] as const;
+const ForbiddenSyncPayloadFields = [
+  "uri",
+  "base64",
+  "objectKey",
+  "photoUri",
+  "imageBytes",
+] as const;
 
 export const OfflineCacheStatusSchema = z
   .object({
@@ -205,7 +207,10 @@ export const SyncConflictRecordSchema = z
   .superRefine((value, context) => {
     rejectForbiddenSyncPayloadFields(value, context);
 
-    if (value.resolutionAction === "discard_offline_action" && value.resolutionReason === undefined) {
+    if (
+      value.resolutionAction === "discard_offline_action" &&
+      value.resolutionReason === undefined
+    ) {
       context.addIssue({
         code: "custom",
         path: ["resolutionReason"],
@@ -266,7 +271,9 @@ function rejectForbiddenSyncPayloadFields(
   path: (string | number)[] = [],
 ): void {
   if (Array.isArray(value)) {
-    value.forEach((item, index) => rejectForbiddenSyncPayloadFields(item, context, [...path, index]));
+    value.forEach((item, index) =>
+      rejectForbiddenSyncPayloadFields(item, context, [...path, index]),
+    );
     return;
   }
 

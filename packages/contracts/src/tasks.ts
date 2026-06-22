@@ -90,13 +90,9 @@ export const TodayTaskSyncMetadataSchema = z
   .strict()
   .superRefine((value, context) => {
     if (
-      [
-        "command_saved_local",
-        "pending_sync",
-        "syncing",
-        "sync_failed",
-        "sync_conflict",
-      ].includes(value.state) &&
+      ["command_saved_local", "pending_sync", "syncing", "sync_failed", "sync_conflict"].includes(
+        value.state,
+      ) &&
       value.pendingCommandId === undefined
     ) {
       context.addIssue({

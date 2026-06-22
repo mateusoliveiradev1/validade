@@ -92,7 +92,10 @@ export function deriveOfflineCacheState(input: OfflineCacheStateInput): OfflineC
     return "offline_unavailable";
   }
 
-  if (lastRefreshedAt !== undefined && isOlderThanHours(lastRefreshedAt, input.referenceTime, input.staleAfterHours)) {
+  if (
+    lastRefreshedAt !== undefined &&
+    isOlderThanHours(lastRefreshedAt, input.referenceTime, input.staleAfterHours)
+  ) {
     return "offline_stale";
   }
 
