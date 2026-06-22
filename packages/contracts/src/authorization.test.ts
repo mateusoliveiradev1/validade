@@ -47,6 +47,10 @@ describe("authorization contracts", () => {
       },
       activeRole: "lead",
       capabilities: ["task.act", "shift.close", "audit.read_store"],
+      sessionExpiresAt: "2026-06-23T12:00:00.000Z",
+      accountStatus: "active",
+      canRequestRecovery: true,
+      privacyCenterUrl: "/privacy",
       actions: {
         canActOnTask: true,
         canCloseShift: true,

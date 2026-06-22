@@ -12,6 +12,14 @@ export const AuthorizationRoleSchema = z.enum(AUTHORIZATION_ROLES);
 
 export const MembershipStatusSchema = z.enum(MEMBERSHIP_STATUSES);
 
+export const AccountStatusSchema = z.enum([
+  "invited",
+  "active",
+  "blocked",
+  "revoked",
+  "recovery_pending",
+]);
+
 export const AuthenticatedIdentitySchema = z
   .object({
     subjectId: RequiredIdentifierSchema,
@@ -66,6 +74,10 @@ export const SessionContextResponseSchema = z
       .strict(),
     activeRole: AuthorizationRoleSchema,
     capabilities: z.array(CapabilitySchema),
+    sessionExpiresAt: IsoDateTimeSchema,
+    accountStatus: AccountStatusSchema,
+    canRequestRecovery: z.boolean(),
+    privacyCenterUrl: z.string().trim().min(1).max(500),
     actions: z
       .object({
         canActOnTask: z.boolean(),
@@ -153,6 +165,7 @@ export const AuthorizationContract = {
 
 export type Capability = z.infer<typeof CapabilitySchema>;
 export type AuthorizationRole = z.infer<typeof AuthorizationRoleSchema>;
+export type AccountStatus = z.infer<typeof AccountStatusSchema>;
 export type AuthenticatedIdentity = z.infer<typeof AuthenticatedIdentitySchema>;
 export type StoreMembership = z.infer<typeof StoreMembershipSchema>;
 export type AuthorizedActorContext = z.infer<typeof AuthorizedActorContextSchema>;

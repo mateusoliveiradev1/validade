@@ -6,6 +6,7 @@ export * from "./alerts";
 export * from "./markdown";
 export * from "./sync";
 export * from "./authorization";
+export * from "./authentication";
 export * from "./audit";
 export * from "./evidence";
 export * from "./shift-close";
