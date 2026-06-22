@@ -19,8 +19,8 @@ export interface MembershipRepository {
 
 export interface AccessDeniedEvent {
   eventId: string;
-  actorSubjectId?: string;
-  actorRoleSnapshot?: string;
+  actorSubjectId?: string | undefined;
+  actorRoleSnapshot?: string | undefined;
   requestedCapability: Capability;
   targetType: string;
   storeScope?: string;
@@ -39,7 +39,7 @@ export interface InMemoryAccessDeniedAuditRecorder extends AccessDeniedAuditReco
 
 export interface AuthorizationService {
   authorize(input: {
-    identity?: AuthenticatedIdentity;
+    identity?: AuthenticatedIdentity | undefined;
     capability: Capability;
     resourceStoreId: string;
   }): Promise<AuthorizationDecision>;

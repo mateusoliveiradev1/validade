@@ -20,6 +20,7 @@ import {
   type SyncTransportBatch,
   type SyncTransportResult,
 } from "@validade-zero/contracts";
+import { createNeonMembershipRepository } from "@validade-zero/database/membership-repository";
 import type { Capability } from "@validade-zero/domain";
 import { Hono } from "hono";
 import {
@@ -47,6 +48,7 @@ export interface InMemorySyncCommandService extends SyncCommandService {
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
   authProvider?: AuthProvider;
+  databaseUrl?: string;
   membershipRepository?: MembershipRepository;
   authorizationService?: AuthorizationService;
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
@@ -56,7 +58,10 @@ export function createApiApp(input?: {
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
   const authProvider = input?.authProvider ?? new FakeAuthProvider("collaborator-local");
   const membershipRepository =
-    input?.membershipRepository ?? createInMemoryMembershipRepository(createDefaultMemberships());
+    input?.membershipRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryMembershipRepository(createDefaultMemberships())
+      : createNeonMembershipRepository({ connectionString: input.databaseUrl }));
   const authorizationService =
     input?.authorizationService ?? createAuthorizationService({ memberships: membershipRepository });
   const accessDeniedAuditRecorder =
@@ -492,7 +497,7 @@ async function authorizeProbe(input: {
 
 async function recordDeniedAccess(input: {
   recorder: AccessDeniedAuditRecorder;
-  identity?: import("@validade-zero/domain").AuthenticatedIdentity;
+  identity?: import("@validade-zero/domain").AuthenticatedIdentity | undefined;
   capability: Capability;
   reason: import("@validade-zero/domain").AuthorizationDenialReason;
   targetType: string;

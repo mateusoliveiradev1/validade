@@ -62,7 +62,7 @@ export interface AuthorizationDecision {
 }
 
 export interface StoreCapabilityAuthorizationInput {
-  identity?: AuthenticatedIdentity;
+  identity?: AuthenticatedIdentity | undefined;
   memberships: readonly StoreMembership[];
   capability: Capability;
   resourceStoreId: string;

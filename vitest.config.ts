@@ -58,6 +58,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "database",
+          root: "packages/database",
+          include: ["src/**/*.test.ts"],
+          environment: "node",
+        },
+      },
+      {
+        test: {
           name: "test-utils",
           root: "packages/test-utils",
           include: ["src/**/*.test.ts"],
