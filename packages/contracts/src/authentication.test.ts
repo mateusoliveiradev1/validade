@@ -9,7 +9,7 @@ import {
 
 const session = {
   actor: { subjectId: "subject-1", displayName: "Pessoa piloto" },
-  store: { storeId: "store-1", storeName: "Loja Piloto" },
+  store: { storeId: "store-1", storeName: "Loja Ficticia Piloto" },
   activeRole: "lead" as const,
   capabilities: ["task.act", "shift.close"] as const,
   sessionExpiresAt: "2026-06-23T12:00:00.000Z",

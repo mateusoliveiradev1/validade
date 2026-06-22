@@ -55,7 +55,7 @@ const forbiddenPatterns = [
 const realDataHints = [
   /\bCPF\b/i,
   /\bCNPJ\b/i,
-  /\bloja\s+(?!ficticia|exemplo)[A-Z0-9]{2,}/i,
+  /\bloja\s+(?!ficticia|exemplo)[A-Z][\p{L}0-9-]+/u,
   /\b(supermercado|rede)\s+(?!ficticia|exemplo)[A-Z][\p{L}]+/iu,
 ];
 const fakeMarker = /(fictici|exemplo|example|placeholder|localhost|00000000)/i;
