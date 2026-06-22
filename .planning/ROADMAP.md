@@ -275,11 +275,11 @@ Plans:
 3. Security and public-repo checks pass with no known critical issues.
 4. v1 release criteria are documented with remaining risks.
 
-**Plans:** 0/5 plans complete
+**Plans:** 1/5 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md - Closed-pilot auth, session, invite, and privacy foundation
+- [x] 09-01-PLAN.md - Closed-pilot auth, session, invite, and privacy foundation
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
