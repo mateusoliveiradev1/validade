@@ -275,6 +275,25 @@ Plans:
 3. Security and public-repo checks pass with no known critical issues.
 4. v1 release criteria are documented with remaining risks.
 
+**Plans:** 0/5 plans complete
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md - Closed-pilot auth, session, invite, and privacy foundation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 09-02-PLAN.md - Mobile Android product shell, auth gate, privacy, and polish
+- [ ] 09-03-PLAN.md - Web Command Center, shell, invites, and admin polish
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 09-04-PLAN.md - E2E, security, accessibility, and performance release gates
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 09-05-PLAN.md - Impeccable audit, APK readiness, UAT, and release go/no-go
+
 ## Coverage
 
 | Requirement | Phase |

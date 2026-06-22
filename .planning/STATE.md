@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 09
-status: Ready to Plan
-stopped_at: Phase 09 UI-SPEC approved
-last_updated: "2026-06-22T22:31:05.046Z"
+status: Ready to execute
+stopped_at: Phase 09 planned with 5 plans
+last_updated: "2026-06-22T22:48:07.990Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 8
-  total_plans: 34
+  total_plans: 39
   completed_plans: 34
-  percent: 89
+  percent: 87
 ---
 
 # Project State: Validade Zero
@@ -43,7 +43,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
-| 9 | Pending | Impeccable Hardening and v1 Readiness |
+| 9 | Planned | Impeccable Hardening and v1 Readiness - 5/5 plans ready |
 
 ## Active Constraints
 
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run the Phase 9 UI contract and planning flow: `$gsd-ui-phase 9`, then `$gsd-plan-phase 9`.
+Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
 
 ### Quick Tasks Completed
 
@@ -107,8 +107,8 @@ Run the Phase 9 UI contract and planning flow: `$gsd-ui-phase 9`, then `$gsd-pla
 ## Session
 
 **Last session:** 2026-06-22T22:31:05.042Z
-**Stopped at:** Phase 09 UI-SPEC approved
-**Resume file:** .planning/phases/09-impeccable-hardening-and-v1-readiness/09-UI-SPEC.md
+**Stopped at:** Phase 09 planned with 5 executable plans
+**Resume file:** .planning/phases/09-impeccable-hardening-and-v1-readiness/09-01-PLAN.md
 
 ## Decisions
 
