@@ -209,6 +209,24 @@ Plans:
 3. Sync conflicts are explicit and never silently confirm critical actions.
 4. User can understand which actions are synced and which are pending.
 
+**Plans:** 4/4 plans planned
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md - Sync contracts and pure offline policy
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md - Mobile offline cache, outbox, and repository projections
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-03-PLAN.md - Connectivity adapter, sync engine, and API transport seam
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-04-PLAN.md - Hoje sync UI, conflict review, smoke, docs, and regression
+
 ### Phase 8: Audit, Roles, and Shift Close
 
 **Goal:** Provide leadership visibility, role-based access, evidence control, and shift-close assurance.
