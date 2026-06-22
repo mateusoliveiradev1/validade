@@ -7,6 +7,10 @@ const ADMIN_CONTEXT = {
   store: { storeId: "loja-ficticia", storeName: "Loja Ficticia" },
   activeRole: "admin",
   capabilities: ["user.manage"],
+  sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+  accountStatus: "active",
+  canRequestRecovery: true,
+  privacyCenterUrl: "/privacidade",
   actions: {
     canActOnTask: false,
     canCloseShift: false,

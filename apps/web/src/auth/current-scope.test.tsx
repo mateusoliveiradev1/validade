@@ -17,6 +17,10 @@ describe("CurrentScope", () => {
             store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
             activeRole: "collaborator",
             capabilities: ["task.act", "evidence.attach", "markdown.request"],
+            sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+            accountStatus: "active",
+            canRequestRecovery: true,
+            privacyCenterUrl: "/privacidade",
             actions: {
               canActOnTask: true,
               canCloseShift: false,
@@ -48,6 +52,10 @@ describe("CurrentScope", () => {
             store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
             activeRole: "lead",
             capabilities: ["task.act", "shift.close", "audit.read_store"],
+            sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+            accountStatus: "active",
+            canRequestRecovery: true,
+            privacyCenterUrl: "/privacidade",
             actions: {
               canActOnTask: true,
               canCloseShift: true,
