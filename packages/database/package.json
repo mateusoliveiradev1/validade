@@ -16,6 +16,10 @@
       "types": "./src/audit-repository.ts",
       "import": "./src/audit-repository.ts"
     },
+    "./auth-repository": {
+      "types": "./src/auth-repository.ts",
+      "import": "./src/auth-repository.ts"
+    },
     "./evidence-repository": {
       "types": "./src/evidence-repository.ts",
       "import": "./src/evidence-repository.ts"

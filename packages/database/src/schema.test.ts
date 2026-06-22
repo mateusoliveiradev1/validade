@@ -4,11 +4,17 @@ import { describe, expect, it } from "vitest";
 import {
   auditEventStatusEnum,
   auditEvents,
+  authAccountStatusEnum,
+  authCredentials,
+  authInvites,
+  authRecoveryTokens,
+  authSessions,
   evidenceAssets,
   evidenceAssetStateEnum,
   membershipRoleEnum,
   membershipStatusEnum,
   membershipMutations,
+  privacyRequests,
   shiftClosures,
   shiftCloseEligibilityEnum,
   shiftCloseVerdictEnum,
@@ -30,6 +36,10 @@ const shiftCloseMigrationSql = readFileSync(
 );
 const membershipMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0004_phase_08_memberships.sql"),
+  "utf8",
+);
+const authMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0005_phase_09_auth.sql"),
   "utf8",
 );
 
@@ -142,5 +152,32 @@ describe("phase 08 database schema", () => {
     expect(membershipMigrationSql).toContain("membership_mutations_store_occurred_idx");
     expect(membershipMigrationSql).toContain("membership_mutations_append_only_guard");
     expect(membershipMigrationSql).toContain("membership.changed");
+  });
+
+  it("defines durable account, invite, session, recovery, and privacy records", () => {
+    expect(authAccountStatusEnum.enumValues).toEqual([
+      "invited",
+      "active",
+      "blocked",
+      "revoked",
+      "recovery_pending",
+    ]);
+    expect(authInvites.tokenHash.name).toBe("token_hash");
+    expect(authCredentials.passwordHash.name).toBe("password_hash");
+    expect(authCredentials.passwordSalt.name).toBe("password_salt");
+    expect(authSessions.tokenHash.name).toBe("token_hash");
+    expect(authRecoveryTokens.tokenHash.name).toBe("token_hash");
+    expect(privacyRequests.requestBody.name).toBe("request_body");
+  });
+
+  it("indexes auth scope and never declares raw token, password, or evidence columns", () => {
+    expect(authMigrationSql).toContain("auth_invites_subject_store_idx");
+    expect(authMigrationSql).toContain("auth_invites_expires_status_idx");
+    expect(authMigrationSql).toContain("auth_sessions_subject_store_revoked_idx");
+    expect(authMigrationSql).toContain("auth_recovery_tokens_expires_consumed_idx");
+    expect(authMigrationSql).toContain("privacy_requests_subject_store_idx");
+    expect(authMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
   });
 });

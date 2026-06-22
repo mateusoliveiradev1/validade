@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
-import { createMembershipRepositoryFromQuery } from "./membership-repository";
+import { createInMemoryAuthRepository } from "./auth-repository";
+import {
+  createInMemoryMembershipManagementRepository,
+  createMembershipRepositoryFromQuery,
+} from "./membership-repository";
 
 describe("database repositories", () => {
   it("maps active membership rows to the domain shape", async () => {
@@ -134,7 +138,171 @@ describe("database repositories", () => {
     expect(String(captured[0]?.[0])).toContain("limit");
     expect(page.items).toHaveLength(1);
   });
+
+  it("deduplicates pilot invites and rejects expired invite tokens", async () => {
+    const repository = createInMemoryAuthRepository({
+      memberships: createMemberships(),
+      secrets: TEST_SECRETS,
+    });
+    const first = await repository.createInvite({ ...inviteInput(), token: RAW_INVITE_TOKEN });
+    const replay = await repository.createInvite({
+      ...inviteInput(),
+      token: "different-raw-token-that-must-not-be-stored",
+    });
+
+    expect(first.replayed).toBe(false);
+    expect(replay).toEqual({ invite: first.invite, replayed: true });
+    await expect(
+      repository.validateInvite({
+        token: RAW_INVITE_TOKEN,
+        now: new Date("2026-06-30T00:00:00.000Z"),
+      }),
+    ).resolves.toEqual({ status: "expired" });
+  });
+
+  it("stores only salted password and token hashes", async () => {
+    const repository = createInMemoryAuthRepository({
+      memberships: createMemberships(),
+      secrets: TEST_SECRETS,
+    });
+    await repository.createInvite({ ...inviteInput(), token: RAW_INVITE_TOKEN });
+    await repository.activateAccount({
+      token: RAW_INVITE_TOKEN,
+      password: RAW_PASSWORD,
+      activatedAt: new Date("2026-06-22T10:05:00.000Z"),
+    });
+    await repository.rotateSession({
+      sessionId: "session-1",
+      subjectId: "subject-1",
+      storeId: "store-1",
+      nextToken: RAW_SESSION_TOKEN,
+      expiresAt: new Date("2026-06-22T18:05:00.000Z"),
+      occurredAt: new Date("2026-06-22T10:05:00.000Z"),
+    });
+    await repository.createRecoveryRequest({
+      recoveryId: "recovery-1",
+      idempotencyKey: "recovery-idempotency-1",
+      identifier: "person@example.invalid",
+      token: RAW_RECOVERY_TOKEN,
+      expiresAt: new Date("2026-06-22T10:35:00.000Z"),
+      createdAt: new Date("2026-06-22T10:06:00.000Z"),
+    });
+
+    const stored = JSON.stringify(repository.readStoredState());
+    expect(stored).not.toContain(RAW_INVITE_TOKEN);
+    expect(stored).not.toContain(RAW_SESSION_TOKEN);
+    expect(stored).not.toContain(RAW_RECOVERY_TOKEN);
+    expect(stored).not.toContain(RAW_PASSWORD);
+    expect(repository.readStoredState().credentials[0]?.passwordSalt).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it("blocks session refresh after the store membership is revoked", async () => {
+    const memberships = createMemberships();
+    const repository = createInMemoryAuthRepository({ memberships, secrets: TEST_SECRETS });
+    await repository.createInvite({ ...inviteInput(), token: RAW_INVITE_TOKEN });
+    await repository.activateAccount({
+      token: RAW_INVITE_TOKEN,
+      password: RAW_PASSWORD,
+      activatedAt: new Date("2026-06-22T10:05:00.000Z"),
+    });
+    await repository.rotateSession({
+      sessionId: "session-1",
+      subjectId: "subject-1",
+      storeId: "store-1",
+      nextToken: RAW_SESSION_TOKEN,
+      expiresAt: new Date("2026-06-22T18:05:00.000Z"),
+      occurredAt: new Date("2026-06-22T10:05:00.000Z"),
+    });
+    await expect(
+      repository.verifySession({
+        token: RAW_SESSION_TOKEN,
+        now: new Date("2026-06-22T10:06:00.000Z"),
+      }),
+    ).resolves.toMatchObject({ subjectId: "subject-1", storeId: "store-1" });
+
+    await memberships.revokeMembership({
+      membershipId: "membership-1",
+      storeId: "store-1",
+      expectedVersion: 1,
+      idempotencyKey: "revoke-membership-1",
+      occurredAt: new Date("2026-06-22T10:07:00.000Z"),
+    });
+
+    await expect(
+      repository.verifySession({
+        token: RAW_SESSION_TOKEN,
+        now: new Date("2026-06-22T10:08:00.000Z"),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("stores bounded privacy intake without evidence or secret fields", async () => {
+    const repository = createInMemoryAuthRepository({
+      memberships: createMemberships(),
+      secrets: TEST_SECRETS,
+    });
+    const receipt = await repository.createPrivacyRequest({
+      requestId: "privacy-1",
+      idempotencyKey: "privacy-idempotency-1",
+      subjectId: "subject-1",
+      storeId: "store-1",
+      requestType: "access",
+      contactChannel: "email",
+      contactValue: "person@example.invalid",
+      dataCategories: ["identity", "store_and_role", "timestamps_and_audit"],
+      requestBody: "Solicito uma copia dos dados associados a minha conta.",
+      receivedAt: new Date("2026-06-22T10:10:00.000Z"),
+    });
+
+    expect(receipt.replayed).toBe(false);
+    expect(Object.keys(receipt.request)).not.toEqual(
+      expect.arrayContaining(["binary", "base64", "deviceUri", "signedUrl", "secret"]),
+    );
+  });
 });
+
+const TEST_SECRETS = {
+  tokenPepper: "test-token-pepper-at-least-16",
+  passwordPepper: "test-password-pepper-at-least-16",
+};
+const RAW_INVITE_TOKEN = "raw-invite-token-at-least-thirty-two-characters";
+const RAW_SESSION_TOKEN = "raw-session-token-at-least-thirty-two-characters";
+const RAW_RECOVERY_TOKEN = "raw-recovery-token-at-least-thirty-two-characters";
+const RAW_PASSWORD = "senha-piloto-forte-123";
+
+function createMemberships() {
+  const occurredAt = new Date("2026-06-22T10:00:00.000Z");
+  return createInMemoryMembershipManagementRepository([
+    {
+      membershipId: "membership-1",
+      subjectId: "subject-1",
+      displayName: "Pessoa Piloto",
+      role: "lead",
+      storeId: "store-1",
+      storeName: "Loja Piloto",
+      status: "active",
+      version: 1,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    },
+  ]);
+}
+
+function inviteInput() {
+  return {
+    inviteId: "invite-1",
+    idempotencyKey: "invite-idempotency-1",
+    identifier: "Person@Example.Invalid",
+    subjectId: "subject-1",
+    displayName: "Pessoa Piloto",
+    storeId: "store-1",
+    storeName: "Loja Piloto",
+    role: "lead" as const,
+    expiresAt: new Date("2026-06-29T10:00:00.000Z"),
+    createdBy: "admin-1",
+    createdAt: new Date("2026-06-22T10:00:00.000Z"),
+  };
+}
 
 function createAuditRow() {
   return {

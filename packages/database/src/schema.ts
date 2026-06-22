@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -14,6 +15,14 @@ import {
 export const membershipRoleEnum = pgEnum("membership_role", ["collaborator", "lead", "admin"]);
 
 export const membershipStatusEnum = pgEnum("membership_status", ["active", "inactive"]);
+
+export const authAccountStatusEnum = pgEnum("auth_account_status", [
+  "invited",
+  "active",
+  "blocked",
+  "revoked",
+  "recovery_pending",
+]);
 
 export const auditEventTypeEnum = pgEnum("audit_event_type", [
   "access.denied",
@@ -90,6 +99,129 @@ export const membershipMutations = pgTable(
   (table) => [
     index("membership_mutations_store_occurred_idx").on(table.storeId, table.occurredAt),
     index("membership_mutations_membership_idx").on(table.membershipId),
+  ],
+);
+
+export const authInvites = pgTable(
+  "auth_invites",
+  {
+    inviteId: text("invite_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    identifier: text("identifier").notNull(),
+    subjectId: text("subject_id").notNull(),
+    displayName: text("display_name").notNull(),
+    storeId: text("store_id").notNull(),
+    storeName: text("store_name").notNull(),
+    role: membershipRoleEnum("role").notNull(),
+    status: authAccountStatusEnum("status").notNull().default("invited"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("auth_invites_idempotency_key_uidx").on(table.idempotencyKey),
+    uniqueIndex("auth_invites_token_hash_uidx").on(table.tokenHash),
+    index("auth_invites_subject_store_idx").on(table.subjectId, table.storeId),
+    index("auth_invites_identifier_idx").on(table.identifier),
+    index("auth_invites_expires_status_idx").on(table.expiresAt, table.status),
+  ],
+);
+
+export const authCredentials = pgTable(
+  "auth_credentials",
+  {
+    subjectId: text("subject_id").notNull(),
+    storeId: text("store_id").notNull(),
+    identifier: text("identifier").notNull(),
+    displayName: text("display_name").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    passwordSalt: text("password_salt").notNull(),
+    passwordAlgorithm: text("password_algorithm").notNull(),
+    status: authAccountStatusEnum("status").notNull().default("active"),
+    passwordUpdatedAt: timestamp("password_updated_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.subjectId, table.storeId] }),
+    uniqueIndex("auth_credentials_identifier_uidx").on(table.identifier),
+    index("auth_credentials_subject_store_status_idx").on(
+      table.subjectId,
+      table.storeId,
+      table.status,
+    ),
+  ],
+);
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    sessionId: text("session_id").primaryKey(),
+    tokenHash: text("token_hash").notNull(),
+    subjectId: text("subject_id").notNull(),
+    storeId: text("store_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    rotatedFromSessionId: text("rotated_from_session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("auth_sessions_token_hash_uidx").on(table.tokenHash),
+    index("auth_sessions_subject_store_revoked_idx").on(
+      table.subjectId,
+      table.storeId,
+      table.revokedAt,
+    ),
+    index("auth_sessions_expires_revoked_idx").on(table.expiresAt, table.revokedAt),
+  ],
+);
+
+export const authRecoveryTokens = pgTable(
+  "auth_recovery_tokens",
+  {
+    recoveryId: text("recovery_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    subjectId: text("subject_id").notNull(),
+    storeId: text("store_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("auth_recovery_tokens_idempotency_key_uidx").on(table.idempotencyKey),
+    uniqueIndex("auth_recovery_tokens_token_hash_uidx").on(table.tokenHash),
+    index("auth_recovery_tokens_subject_store_idx").on(table.subjectId, table.storeId),
+    index("auth_recovery_tokens_expires_consumed_idx").on(table.expiresAt, table.consumedAt),
+  ],
+);
+
+export const privacyRequests = pgTable(
+  "privacy_requests",
+  {
+    requestId: text("request_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    subjectId: text("subject_id").notNull(),
+    storeId: text("store_id").notNull(),
+    requestType: text("request_type").notNull(),
+    contactChannel: text("contact_channel").notNull(),
+    contactValue: text("contact_value").notNull(),
+    dataCategories: jsonb("data_categories").$type<readonly string[]>().notNull(),
+    requestBody: text("request_body").notNull(),
+    status: text("status").notNull().default("received"),
+    receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("privacy_requests_idempotency_key_uidx").on(table.idempotencyKey),
+    index("privacy_requests_subject_store_idx").on(table.subjectId, table.storeId),
+    index("privacy_requests_store_received_idx").on(table.storeId, table.receivedAt),
   ],
 );
 
@@ -240,6 +372,16 @@ export type StoreMembershipRecord = typeof storeMemberships.$inferSelect;
 export type NewStoreMembershipRecord = typeof storeMemberships.$inferInsert;
 export type MembershipMutationRecord = typeof membershipMutations.$inferSelect;
 export type NewMembershipMutationRecord = typeof membershipMutations.$inferInsert;
+export type AuthInviteDatabaseRecord = typeof authInvites.$inferSelect;
+export type NewAuthInviteDatabaseRecord = typeof authInvites.$inferInsert;
+export type AuthCredentialDatabaseRecord = typeof authCredentials.$inferSelect;
+export type NewAuthCredentialDatabaseRecord = typeof authCredentials.$inferInsert;
+export type AuthSessionDatabaseRecord = typeof authSessions.$inferSelect;
+export type NewAuthSessionDatabaseRecord = typeof authSessions.$inferInsert;
+export type AuthRecoveryTokenDatabaseRecord = typeof authRecoveryTokens.$inferSelect;
+export type NewAuthRecoveryTokenDatabaseRecord = typeof authRecoveryTokens.$inferInsert;
+export type PrivacyRequestDatabaseRecord = typeof privacyRequests.$inferSelect;
+export type NewPrivacyRequestDatabaseRecord = typeof privacyRequests.$inferInsert;
 export type AuditEventRecord = typeof auditEvents.$inferSelect;
 export type NewAuditEventRecord = typeof auditEvents.$inferInsert;
 export type EvidenceAssetRecord = typeof evidenceAssets.$inferSelect;

@@ -13,7 +13,18 @@ const requiredKeys = [
   "CLOUDFLARE_ACCOUNT_ID",
   "R2_BUCKET_NAME",
   "EXPO_PROJECT_ID",
+  "AUTH_SESSION_TTL_SECONDS",
+  "AUTH_INVITE_TTL_SECONDS",
+  "AUTH_RECOVERY_TTL_SECONDS",
+  "AUTH_TOKEN_PEPPER",
+  "AUTH_PASSWORD_PEPPER",
 ];
+const intentionallyEmptyKeys = new Set(["AUTH_TOKEN_PEPPER", "AUTH_PASSWORD_PEPPER"]);
+const numericKeys = new Set([
+  "AUTH_SESSION_TTL_SECONDS",
+  "AUTH_INVITE_TTL_SECONDS",
+  "AUTH_RECOVERY_TTL_SECONDS",
+]);
 const safeMarker = /(example|fictici|placeholder|localhost|00000000)/i;
 const secretLike = /(sk_live_|AKIA[0-9A-Z]{16}|-----BEGIN|xox[baprs]-|ghp_[A-Za-z0-9_]{20,})/;
 
@@ -36,13 +47,25 @@ const failures = [];
 for (const key of requiredKeys) {
   const value = env[key];
 
-  if (value === undefined || value.trim().length === 0) {
+  if (value === undefined || (value.trim().length === 0 && !intentionallyEmptyKeys.has(key))) {
     failures.push(`${key} is missing or empty`);
     continue;
   }
 
   if (secretLike.test(value)) {
     failures.push(`${key} looks like a real secret`);
+  }
+
+  if (intentionallyEmptyKeys.has(key)) {
+    if (value.length > 0) failures.push(`${key} must stay empty in the public example`);
+    continue;
+  }
+
+  if (numericKeys.has(key)) {
+    if (!/^\d+$/.test(value) || Number(value) <= 0) {
+      failures.push(`${key} must be a positive integer`);
+    }
+    continue;
   }
 
   if (!["NODE_ENV", "VALIDADE_ZERO_APP_ENV"].includes(key) && !safeMarker.test(value)) {
