@@ -1,10 +1,11 @@
 ---
 phase: 08
 slug: audit-roles-and-shift-close
-status: draft
+status: approved
 shadcn_initialized: true
 preset: b2fA
 created: 2026-06-22
+reviewed_at: 2026-06-22T00:58:03-03:00
 surface: mobile-react-native-and-web-react-vite
 ---
 
@@ -30,6 +31,8 @@ Fontes: 08-CONTEXT.md D-01–D-24; 08-RESEARCH.md; apps/mobile/src/capture/captu
 
 - Cena física: a liderança usa o celular com uma mão, sob iluminação forte, no fim do turno e sob pressão para não declarar segurança indevida. Mobile permanece claro, firme, de alto contraste e em coluna única.
 - Web é uma mesa de investigação complementar para liderança/admin. Deve ser densa, calma e confiável: lista/tabela, filtros e detalhe; sem cards métricos, gráficos decorativos ou aparência de dashboard SaaS.
+- Foco visual mobile: o veredito de segurança e sua próxima ação formam a âncora primária; blockers e checklist entram logo depois, em ordem operacional, sem competir com o veredito.
+- Foco visual web: escopo da loja e filtros estabelecem o contexto; a lista/tabela de eventos é a âncora de trabalho e o painel de detalhe é secundário, preservando a linha selecionada e o retorno de foco.
 - Estratégia de cor: restrained. Verde identifica ação primária, seleção e segurança confirmada; amarelo identifica atenção/pendência; vermelho identifica bloqueio crítico ou ação destrutiva.
 - Preservar a identidade de captureColors. Os neutros gerados pelo preset shadcn são infraestrutura, não direção final; mapear os tokens web para a paleta deste contrato antes de implementar a tela de auditoria.
 - Não usar dark mode nesta fase. O uso principal acontece em ambiente iluminado; suporte futuro não pode atrasar o fluxo operacional.
@@ -197,7 +200,7 @@ Valores declarados para toda UI nova da Fase 8:
 
 Exceções:
 
-- Componentes mobile existentes podem conservar captureSpacing.medium de 12px; componentes novos não criam novos valores fora da escala.
+- Componentes mobile existentes podem conservar o espaçamento interno legado; toda UI nova usa exclusivamente os tokens declarados nesta escala.
 - Controles web têm mínimo de 40px; ações icon-only têm 44×44px; ambos são múltiplos de 4 e não viram novos tokens de layout.
 - Alvos mobile, checklist, retry, recebimento e fechamento têm no mínimo 48×48dp.
 
@@ -287,8 +290,8 @@ Mapeamento shadcn obrigatório:
 | Handoff acknowledgment | Confirmar recebimento da passagem |
 | Handoff acknowledgment feedback | Passagem recebida. As pendências continuam abertas até a resolução física. |
 | Evidence retry | Tentar enviar novamente |
-| Audit empty heading | Nenhum evento encontrado |
-| Audit empty body | Não há eventos para este período e filtros. Ajuste os filtros ou limpe a busca. |
+| Audit empty heading | Refine a busca de eventos |
+| Audit empty body | Amplie o período, remova um filtro ou limpe a busca para consultar outros eventos. |
 | Audit error state | Não foi possível carregar a auditoria. Seus filtros foram mantidos; tente novamente. |
 | Audit pagination | Carregar mais eventos |
 | Permission block | Somente a liderança desta loja pode realizar esta ação. |
@@ -351,11 +354,11 @@ Regras de voz:
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved inline em 2026-06-22T00:58:03-03:00
