@@ -51,9 +51,9 @@
 
 ### Offline and Sync
 
-- [ ] **SYN-01**: Mobile app stores active tasks and required lot snippets locally for poor-connectivity operation.
-- [ ] **SYN-02**: Mobile app records actions as idempotent offline commands before syncing.
-- [ ] **SYN-03**: System syncs queued commands and surfaces conflicts clearly without silently marking critical actions as confirmed.
+- [x] **SYN-01**: Mobile app stores active tasks and required lot snippets locally for poor-connectivity operation.
+- [x] **SYN-02**: Mobile app records actions as idempotent offline commands before syncing.
+- [x] **SYN-03**: System syncs queued commands and surfaces conflicts clearly without silently marking critical actions as confirmed.
 
 ### Audit and Security
 
@@ -131,9 +131,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MRK-02 | Phase 6 | Complete |
 | MRK-03 | Phase 6 | Complete |
 | MRK-04 | Phase 6 | Complete |
-| SYN-01 | Phase 7 | Pending |
-| SYN-02 | Phase 7 | Pending |
-| SYN-03 | Phase 7 | Pending |
+| SYN-01 | Phase 7 | Complete |
+| SYN-02 | Phase 7 | Complete |
+| SYN-03 | Phase 7 | Complete |
 | AUD-01 | Phase 8 | Pending |
 | AUD-02 | Phase 8 | Pending |
 | AUD-03 | Phase 8 | Pending |

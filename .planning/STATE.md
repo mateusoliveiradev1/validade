@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 07
-status: Ready to execute
-stopped_at: Phase 7 planned
-last_updated: "2026-06-22T01:12:21.806Z"
+status: In Progress
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-06-22T01:55:02.300Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 29
-  completed_plans: 25
+  completed_plans: 26
   percent: 67
 ---
 
@@ -41,7 +41,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
-| 7 | Planned | Offline Sync - 4/4 plans ready |
+| 7 | In Progress | Offline Sync - 1/4 plans executed |
 | 8 | Pending | Audit, Roles, and Shift Close |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Execute Phase 7 - Offline Sync.
+Continue Phase 7 - Offline Sync with 07-02 repository cache/outbox work.
 
 ### Quick Tasks Completed
 
@@ -94,15 +94,17 @@ Execute Phase 7 - Offline Sync.
 | Phase 06 P02 | 11 min | 2 tasks | 6 files |
 | Phase 06 P03 | 24 min | 2 tasks | 7 files |
 | Phase 06 P04 | 15 min | 2 tasks | 15 files |
+| Phase 07 P01 | 5 min | 2 tasks | 8 files |
 
 ## Session
 
-**Last session:** 2026-06-22T00:13:24.248Z
-**Stopped at:** Phase 7 context gathered
-**Resume file:** .planning/phases/07-offline-sync/07-CONTEXT.md
+**Last session:** 2026-06-22T01:55:02.296Z
+**Stopped at:** Completed 07-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
+- [Phase 07]: Today task sync metadata lives beside TodayTaskRecordSchema to avoid a contracts import cycle. — Keeps the task record extension runtime-safe while sync contracts still reuse task and markdown command schemas.
 - [Phase 04]: Today tasks are created only for actionable risks: expired, critical, markdown_due, and uncertain; radar remains future attention, not a task. — Keeps the shift workflow focused on execution instead of noise.
 - [Phase 04]: Sales-area expired/critical risks require compatible action plus reconference before the area can be marked safe. — Prevents a weak click from hiding expired product in the sales area.
 - [Phase 04]: Withdrawal of expired product from the sales area requires reinforced confirmation, destination Retirada/perda, reconference, and photo when possible or explicit no-photo reason. — Provides strong validation without pulling full evidence storage/audit into Phase 4.
