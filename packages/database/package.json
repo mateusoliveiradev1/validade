@@ -19,6 +19,10 @@
     "./evidence-repository": {
       "types": "./src/evidence-repository.ts",
       "import": "./src/evidence-repository.ts"
+    },
+    "./shift-close-repository": {
+      "types": "./src/shift-close-repository.ts",
+      "import": "./src/shift-close-repository.ts"
     }
   },
   "scripts": {

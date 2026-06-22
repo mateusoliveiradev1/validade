@@ -13,6 +13,7 @@ import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
+import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import type { TodayTaskRecord } from "@validade-zero/contracts";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
@@ -27,6 +28,7 @@ type CaptureScreen =
   | "recent"
   | "detail"
   | "task-resolution"
+  | "shift-close"
   | "observation"
   | "barcode";
 
@@ -34,10 +36,12 @@ export function CaptureApp({
   repository,
   alertChannel,
   syncEngine,
+  activeRole = "lead",
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
+  activeRole?: "collaborator" | "lead" | "admin" | undefined;
 }) {
   const [screen, setScreen] = useState<CaptureScreen>("today");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
@@ -200,6 +204,8 @@ export function CaptureApp({
             setSelectedTask(task);
             setScreen("task-resolution");
           }}
+          canCloseShift={activeRole === "lead"}
+          onOpenShiftClose={() => setScreen("shift-close")}
         />
       </>
     );
@@ -217,6 +223,16 @@ export function CaptureApp({
           setHighlightedTaskId(selectedTask.id);
           setScreen("today");
         }}
+      />
+    );
+  }
+
+  if (screen === "shift-close") {
+    return (
+      <ShiftCloseScreen
+        repository={repository}
+        canCloseShift={activeRole === "lead"}
+        onBack={() => setScreen("today")}
       />
     );
   }

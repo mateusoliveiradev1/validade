@@ -22,6 +22,7 @@ export const auditEventTypeEnum = pgEnum("audit_event_type", [
   "sync.changed",
   "evidence.changed",
   "shift.changed",
+  "membership.changed",
 ]);
 
 export const auditEventStatusEnum = pgEnum("audit_event_status", [
@@ -41,6 +42,14 @@ export const evidenceAssetStateEnum = pgEnum("evidence_asset_state", [
   "expired",
 ]);
 
+export const shiftCloseVerdictEnum = pgEnum("shift_close_verdict", ["safe", "unsafe"]);
+
+export const shiftCloseEligibilityEnum = pgEnum("shift_close_eligibility", [
+  "eligible_safe",
+  "must_close_unsafe",
+  "cannot_evaluate",
+]);
+
 export const storeMemberships = pgTable(
   "store_memberships",
   {
@@ -51,6 +60,7 @@ export const storeMemberships = pgTable(
     storeId: text("store_id").notNull(),
     storeName: text("store_name").notNull(),
     status: membershipStatusEnum("status").notNull().default("active"),
+    version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
@@ -64,6 +74,22 @@ export const storeMemberships = pgTable(
       table.status,
     ),
     index("store_memberships_store_role_idx").on(table.storeId, table.role),
+  ],
+);
+
+export const membershipMutations = pgTable(
+  "membership_mutations",
+  {
+    idempotencyKey: text("idempotency_key").primaryKey(),
+    membershipId: text("membership_id").notNull(),
+    storeId: text("store_id").notNull(),
+    operation: text("operation").notNull(),
+    response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("membership_mutations_store_occurred_idx").on(table.storeId, table.occurredAt),
+    index("membership_mutations_membership_idx").on(table.membershipId),
   ],
 );
 
@@ -153,9 +179,72 @@ export const evidenceAssets = pgTable(
   ],
 );
 
+export const shiftClosures = pgTable(
+  "shift_closures",
+  {
+    closureId: text("closure_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    storeId: text("store_id").notNull(),
+    storeName: text("store_name").notNull(),
+    verdict: shiftCloseVerdictEnum("verdict").notNull(),
+    eligibility: shiftCloseEligibilityEnum("eligibility").notNull(),
+    blockers: jsonb("blockers").$type<readonly Record<string, unknown>[]>().notNull().default([]),
+    checklist: jsonb("checklist").$type<readonly string[]>().notNull().default([]),
+    actorId: text("actor_id").notNull(),
+    actorDisplayName: text("actor_display_name").notNull(),
+    actorRoleSnapshot: membershipRoleEnum("actor_role_snapshot").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    ruleVersion: text("rule_version").notNull(),
+    reason: text("reason"),
+    continuityOwner: text("continuity_owner"),
+    continuityDeadline: timestamp("continuity_deadline", { withTimezone: true, mode: "date" }),
+    note: text("note"),
+    revisionOfClosureId: text("revision_of_closure_id"),
+    reopenReason: text("reopen_reason"),
+    reopenSummary: text("reopen_summary"),
+  },
+  (table) => [
+    uniqueIndex("shift_closures_idempotency_key_uidx").on(table.idempotencyKey),
+    index("shift_closures_store_occurred_idx").on(table.storeId, table.occurredAt),
+    index("shift_closures_store_verdict_idx").on(table.storeId, table.verdict),
+    index("shift_closures_revision_idx").on(table.revisionOfClosureId),
+  ],
+);
+
+export const shiftHandoffs = pgTable(
+  "shift_handoffs",
+  {
+    handoffId: text("handoff_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    closureId: text("closure_id").notNull(),
+    storeId: text("store_id").notNull(),
+    acknowledgedBy: text("acknowledged_by").notNull(),
+    acknowledgedDisplayName: text("acknowledged_display_name").notNull(),
+    acknowledgedRoleSnapshot: membershipRoleEnum("acknowledged_role_snapshot").notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shift_handoffs_idempotency_key_uidx").on(table.idempotencyKey),
+    index("shift_handoffs_closure_idx").on(table.closureId),
+    index("shift_handoffs_store_acknowledged_idx").on(table.storeId, table.acknowledgedAt),
+  ],
+);
+
 export type StoreMembershipRecord = typeof storeMemberships.$inferSelect;
 export type NewStoreMembershipRecord = typeof storeMemberships.$inferInsert;
+export type MembershipMutationRecord = typeof membershipMutations.$inferSelect;
+export type NewMembershipMutationRecord = typeof membershipMutations.$inferInsert;
 export type AuditEventRecord = typeof auditEvents.$inferSelect;
 export type NewAuditEventRecord = typeof auditEvents.$inferInsert;
 export type EvidenceAssetRecord = typeof evidenceAssets.$inferSelect;
 export type NewEvidenceAssetRecord = typeof evidenceAssets.$inferInsert;
+export type ShiftClosureRecord = typeof shiftClosures.$inferSelect;
+export type NewShiftClosureRecord = typeof shiftClosures.$inferInsert;
+export type ShiftHandoffRecord = typeof shiftHandoffs.$inferSelect;
+export type NewShiftHandoffRecord = typeof shiftHandoffs.$inferInsert;

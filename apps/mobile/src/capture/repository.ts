@@ -43,6 +43,7 @@ import {
   type SyncConflictRecord,
   type SyncQueueSummary,
   type SyncTransportResult,
+  type ShiftCloseUnsafeRequest,
   type TaskAlertStateRecord,
   type TaskRefreshMetadata,
   TaskResolutionCommandSchema,
@@ -202,6 +203,24 @@ export interface QueueEvidenceUploadInput {
   capturedAt: string;
 }
 
+export type ShiftCloseOutboxState = "pending_sync" | "syncing" | "synced" | "failed";
+
+export interface ShiftCloseOutboxRecord {
+  localCloseId: string;
+  request: ShiftCloseUnsafeRequest;
+  state: ShiftCloseOutboxState;
+  createdAt: string;
+  updatedAt: string;
+  attemptCount: number;
+  serverClosureId?: string;
+  lastError?: string;
+}
+
+export interface QueueUnsafeShiftCloseInput {
+  localCloseId: string;
+  request: ShiftCloseUnsafeRequest;
+}
+
 export type MarkdownEntryState =
   | {
       status: "presence_required";
@@ -290,6 +309,8 @@ export interface CaptureRepository {
     error: string,
     failedAt: string,
   ): Promise<EvidenceUploadQueueRecord>;
+  queueUnsafeShiftClose?: (input: QueueUnsafeShiftCloseInput) => Promise<ShiftCloseOutboxRecord>;
+  listShiftCloseOutbox?: () => Promise<readonly ShiftCloseOutboxRecord[]>;
   listSyncQueue(): Promise<SyncQueueSummary>;
   saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord>;
   markSyncCommandAttempt(

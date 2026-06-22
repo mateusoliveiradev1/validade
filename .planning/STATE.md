@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-status: In Progress
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-06-22T16:20:40.000Z"
+current_phase: 09
+status: Ready to Plan
+stopped_at: Completed Phase 08 verification
+last_updated: "2026-06-22T17:40:00.000Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 34
-  completed_plans: 32
-  percent: 94
+  completed_plans: 34
+  percent: 100
 ---
 
 # Project State: Validade Zero
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 08 — audit-roles-and-shift-close
+**Current focus:** Phase 09 — impeccable-hardening-and-v1-readiness
 
 ## Roadmap Progress
 
@@ -42,7 +42,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | In Progress | Audit, Roles, and Shift Close - 3/5 plans executed |
+| 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
 ## Active Constraints
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 8 - Audit, Roles, and Shift Close with Wave 4 (`$gsd-execute-phase 8`).
+Start Phase 9 - Impeccable Hardening and v1 Readiness (`$gsd-discuss-phase 9`).
 
 ### Quick Tasks Completed
 
@@ -101,11 +101,13 @@ Continue Phase 8 - Audit, Roles, and Shift Close with Wave 4 (`$gsd-execute-phas
 | Phase 08 P01 | 70 min | 3 tasks | 30 files |
 | Phase 08 P02 | 35min | 2 tasks | 33 files |
 | Phase 08 P03 | 90min | 2 tasks | 58 files |
+| Phase 08 P04 | inline | 2 tasks | truthful close, mobile flow, Neon verification |
+| Phase 08 P05 | inline | 2 tasks | memberships, E2E, security, and runbooks |
 
 ## Session
 
-**Last session:** 2026-06-22T16:20:40.000Z
-**Stopped at:** Completed 08-03-PLAN.md
+**Last session:** 2026-06-22T17:40:00.000Z
+**Stopped at:** Phase 08 complete; Phase 09 ready for discussion
 **Resume file:** None
 
 ## Decisions
@@ -114,6 +116,10 @@ Continue Phase 8 - Audit, Roles, and Shift Close with Wave 4 (`$gsd-execute-phas
 - [Phase 08]: Evidence upload uses a separate queue from command sync. - Keeps device paths and binary material out of operational command payloads.
 - [Phase 08]: Evidence invalidation preserves original metadata/history and may link a replacement instead of mutating proof. - Keeps proof corrections accountable and append-only.
 - [Phase 08]: Admin cross-store evidence reads are exceptional and audited. - Maintains store isolation while allowing controlled investigation.
+- [Phase 08]: Safe close requires central revalidation and the ordered physical checklist; offline or stale state can only close unsafe. - Prevents a cached view from becoming a false safety claim.
+- [Phase 08]: Handoff acknowledgement and reopening add append-only records without resolving active physical work. - Preserves truthful continuity and immutable history.
+- [Phase 08]: Admin membership is explicit and does not grant shift.close without a separate lead membership. - Keeps operational authority least-privilege.
+- [Phase 08]: Neon migration verification captures CLI connection output only in process memory and deletes disposable branches by default. - Prevents credential leakage in logs while retaining a real migration gate.
 - [Phase 08]: Audit producer vocabulary covers domain/security events only; navigation, filters, and ordinary clicks remain outside the audit trail. - Keeps audit useful for operational accountability instead of becoming noisy UI telemetry.
 - [Phase 08]: Pending local audit timeline entries omit receivedAt until central acknowledgement exists. - Prevents offline physical actions from looking centrally confirmed before sync.
 - [Phase 08]: Corrections, conflicts, and discards create linked audit events instead of rewriting the original operational fact. - Preserves append-only history and explains later changes.

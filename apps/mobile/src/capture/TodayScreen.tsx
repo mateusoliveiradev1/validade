@@ -48,6 +48,8 @@ export function TodayScreen({
   onRegisterLot,
   onOpenRecentLots,
   onOpenTask,
+  onOpenShiftClose,
+  canCloseShift = false,
   alertChannel,
   syncEngine,
   pushFallbackNotice,
@@ -58,6 +60,8 @@ export function TodayScreen({
   onRegisterLot: () => void;
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
+  onOpenShiftClose?: (() => void) | undefined;
+  canCloseShift?: boolean | undefined;
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   pushFallbackNotice?: string | undefined;
@@ -312,6 +316,18 @@ export function TodayScreen({
         onRetry={() => void manualSync()}
       />
       <OfflineCacheNotice status={offlineStatus} />
+
+      <View style={styles.shiftCloseEntry}>
+        <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>
+        <Text style={styles.shiftCloseBody}>
+          {canCloseShift
+            ? "Revise riscos, sincronização e a conferência física antes de encerrar o turno."
+            : "O fechamento exige liderança autorizada nesta loja."}
+        </Text>
+        {canCloseShift && onOpenShiftClose !== undefined ? (
+          <SecondaryAction label="Revisar fechamento do turno" onPress={onOpenShiftClose} />
+        ) : null}
+      </View>
 
       {refreshError === undefined ? null : <StatusNotice tone="error">{refreshError}</StatusNotice>}
       {refreshFeedback === undefined ? null : (
@@ -973,6 +989,25 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 13,
     lineHeight: 18,
+  },
+  shiftCloseEntry: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.small,
+    padding: captureSpacing.large,
+  },
+  shiftCloseTitle: {
+    color: captureColors.ink,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+  },
+  shiftCloseBody: {
+    color: captureColors.mutedInk,
+    fontSize: 15,
+    lineHeight: 22,
   },
   futureItem: {
     color: captureColors.warningInk,

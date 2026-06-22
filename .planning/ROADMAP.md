@@ -256,11 +256,11 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 08-04-PLAN.md - Truthful safe/unsafe shift close, handoff, and immutable reopen
+- [x] 08-04-PLAN.md - Truthful safe/unsafe shift close, handoff, and immutable reopen
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 08-05-PLAN.md - Membership administration, integrated security/E2E gates, and runbooks
+- [x] 08-05-PLAN.md - Membership administration, integrated security/E2E gates, and runbooks
 
 ### Phase 9: Impeccable Hardening and v1 Readiness
 

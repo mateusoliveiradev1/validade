@@ -3,6 +3,7 @@ import { HealthContract } from "@validade-zero/contracts";
 import { AuditWorkbench } from "./audit/AuditWorkbench";
 import { CurrentScope } from "./auth/CurrentScope";
 import { Button } from "./components/ui/button";
+import { MembershipAdministration } from "./memberships/MembershipAdministration";
 
 const INITIAL_STATUS = "API ainda nao verificada";
 
@@ -51,6 +52,7 @@ export function App() {
         </header>
 
         <CurrentScope />
+        <MembershipAdministration />
         <AuditWorkbench />
       </div>
     </main>

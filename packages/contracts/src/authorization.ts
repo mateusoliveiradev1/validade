@@ -4,6 +4,7 @@ import { z } from "zod";
 const RequiredIdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const VersionSchema = z.number().int().min(1).max(2_147_483_647);
 
 export const CapabilitySchema = z.enum(CAPABILITIES);
 
@@ -84,6 +85,57 @@ export const ProtectedCapabilityProbeResponseSchema = z
   })
   .strict();
 
+export const ManagedStoreMembershipSchema = z
+  .object({
+    membershipId: RequiredIdentifierSchema,
+    subjectId: RequiredIdentifierSchema,
+    displayName: RequiredTextSchema,
+    role: AuthorizationRoleSchema,
+    storeId: RequiredIdentifierSchema,
+    storeName: RequiredTextSchema,
+    status: MembershipStatusSchema,
+    version: VersionSchema,
+    createdAt: IsoDateTimeSchema,
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+const MembershipMutationBaseSchema = z
+  .object({
+    storeId: RequiredIdentifierSchema,
+    idempotencyKey: RequiredIdentifierSchema,
+  })
+  .strict();
+
+export const CreateMembershipRequestSchema = MembershipMutationBaseSchema.extend({
+  subjectId: RequiredIdentifierSchema,
+  displayName: RequiredTextSchema,
+  storeName: RequiredTextSchema,
+  role: AuthorizationRoleSchema,
+}).strict();
+
+export const ChangeMembershipRoleRequestSchema = MembershipMutationBaseSchema.extend({
+  role: AuthorizationRoleSchema,
+  expectedVersion: VersionSchema,
+}).strict();
+
+export const RevokeMembershipRequestSchema = MembershipMutationBaseSchema.extend({
+  expectedVersion: VersionSchema,
+}).strict();
+
+export const MembershipListResponseSchema = z
+  .object({
+    items: z.array(ManagedStoreMembershipSchema),
+  })
+  .strict();
+
+export const MembershipMutationResponseSchema = z
+  .object({
+    membership: ManagedStoreMembershipSchema,
+    replayed: z.boolean(),
+  })
+  .strict();
+
 export const AuthorizationContract = {
   identity: AuthenticatedIdentitySchema,
   membership: StoreMembershipSchema,
@@ -91,6 +143,12 @@ export const AuthorizationContract = {
   denial: ClientSafeAuthorizationDenialSchema,
   sessionContext: SessionContextResponseSchema,
   protectedCapabilityProbe: ProtectedCapabilityProbeResponseSchema,
+  managedMembership: ManagedStoreMembershipSchema,
+  createMembership: CreateMembershipRequestSchema,
+  changeMembershipRole: ChangeMembershipRoleRequestSchema,
+  revokeMembership: RevokeMembershipRequestSchema,
+  membershipList: MembershipListResponseSchema,
+  membershipMutation: MembershipMutationResponseSchema,
 } as const;
 
 export type Capability = z.infer<typeof CapabilitySchema>;
@@ -103,3 +161,9 @@ export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema
 export type ProtectedCapabilityProbeResponse = z.infer<
   typeof ProtectedCapabilityProbeResponseSchema
 >;
+export type ManagedStoreMembership = z.infer<typeof ManagedStoreMembershipSchema>;
+export type CreateMembershipRequest = z.infer<typeof CreateMembershipRequestSchema>;
+export type ChangeMembershipRoleRequest = z.infer<typeof ChangeMembershipRoleRequestSchema>;
+export type RevokeMembershipRequest = z.infer<typeof RevokeMembershipRequestSchema>;
+export type MembershipListResponse = z.infer<typeof MembershipListResponseSchema>;
+export type MembershipMutationResponse = z.infer<typeof MembershipMutationResponseSchema>;

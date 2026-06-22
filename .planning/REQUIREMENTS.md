@@ -39,7 +39,7 @@
 - [x] **PSH-01**: Collaborator receives push reminders for assigned and critical tasks.
 - [x] **PSH-02**: System repeats or escalates reminders while tasks remain unresolved.
 - [x] **PSH-03**: Collaborator can open a mobile "Hoje" view that lists what must be checked, rebaixado, moved, or withdrawn in the current shift.
-- [ ] **PSH-04**: Lead can see whether the sales area is safe or has pending critical risks before shift close.
+- [x] **PSH-04**: Lead can see whether the sales area is safe or has pending critical risks before shift close.
 - [x] **PSH-05**: System does not rely on push alone; every push corresponds to a persistent in-app task.
 
 ### Markdown / Rebaixa
@@ -125,7 +125,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PSH-01 | Phase 5 | Complete |
 | PSH-02 | Phase 5 | Complete |
 | PSH-03 | Phase 4 | Complete |
-| PSH-04 | Phase 8 | Pending |
+| PSH-04 | Phase 8 | Complete |
 | PSH-05 | Phase 5 | Complete |
 | MRK-01 | Phase 6 | Complete |
 | MRK-02 | Phase 6 | Complete |

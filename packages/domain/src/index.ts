@@ -21,6 +21,7 @@ export * from "./risk";
 export * from "./alerts";
 export * from "./authorization";
 export * from "./evidence";
+export * from "./shift-close";
 export * from "./markdown";
 export * from "./sync";
 export * from "./tasks";

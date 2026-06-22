@@ -25,6 +25,7 @@ import {
   type SyncConflictRecord,
   type SyncQueueSummary,
   type SyncTransportResult,
+  type ShiftCloseUnsafeRequest,
   type TaskAlertStateRecord,
   type TaskResolutionCommand,
   type TodayTaskRecord,
@@ -42,6 +43,7 @@ import type {
   EvidenceUploadQueueRecord,
   RecordAlertAttemptInput,
   QueueEvidenceUploadInput,
+  QueueUnsafeShiftCloseInput,
   RecentLotsQuery,
   RefreshTaskAlertStatesInput,
   ResolvePushOpenIntentInput,
@@ -49,6 +51,7 @@ import type {
   RefreshTodayTasksInput,
   SaveLotInput,
   TodayTaskRefreshResult,
+  ShiftCloseOutboxRecord,
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
@@ -279,6 +282,17 @@ interface EvidenceUploadRow {
   upload_path: string | null;
   uploaded_at: string | null;
   retention_expires_at: string | null;
+  last_error: string | null;
+}
+
+interface ShiftCloseOutboxRow {
+  local_close_id: string;
+  request_json: string;
+  state: ShiftCloseOutboxRecord["state"];
+  created_at: string;
+  updated_at: string;
+  attempt_count: number;
+  server_closure_id: string | null;
   last_error: string | null;
 }
 
@@ -1671,6 +1685,39 @@ export function createSQLiteCaptureRepository(
     return updated;
   }
 
+  async function queueUnsafeShiftClose(
+    input: QueueUnsafeShiftCloseInput,
+  ): Promise<ShiftCloseOutboxRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await db.getFirstAsync<ShiftCloseOutboxRow>(
+      "SELECT * FROM shift_close_outbox WHERE local_close_id = ?",
+      input.localCloseId,
+    );
+    if (existing !== null) return mapShiftCloseOutbox(existing);
+
+    const now = dependencies.clock();
+    const record: ShiftCloseOutboxRecord = {
+      localCloseId: input.localCloseId,
+      request: input.request,
+      state: "pending_sync",
+      createdAt: now,
+      updatedAt: now,
+      attemptCount: 0,
+    };
+    await upsertShiftCloseOutbox(db, record);
+    return record;
+  }
+
+  async function listShiftCloseOutbox(): Promise<readonly ShiftCloseOutboxRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<ShiftCloseOutboxRow>(
+      "SELECT * FROM shift_close_outbox ORDER BY created_at ASC",
+    );
+    return rows.map(mapShiftCloseOutbox);
+  }
+
   async function listSyncQueue(): Promise<SyncQueueSummary> {
     await initialize();
     const db = await getDatabase();
@@ -2189,6 +2236,8 @@ export function createSQLiteCaptureRepository(
     applyEvidenceUploadIntent,
     applyEvidenceUploadAck,
     markEvidenceUploadFailed,
+    queueUnsafeShiftClose,
+    listShiftCloseOutbox,
     listSyncQueue,
     saveOfflineAction,
     markSyncCommandAttempt,
@@ -2315,6 +2364,16 @@ async function initializeDatabase(
       retention_expires_at TEXT,
       last_error TEXT,
       FOREIGN KEY (task_id) REFERENCES today_tasks(id)
+    );
+    CREATE TABLE IF NOT EXISTS shift_close_outbox (
+      local_close_id TEXT PRIMARY KEY NOT NULL,
+      request_json TEXT NOT NULL,
+      state TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL,
+      server_closure_id TEXT,
+      last_error TEXT
     );
     CREATE TABLE IF NOT EXISTS sync_commands (
       id TEXT PRIMARY KEY NOT NULL,
@@ -2479,6 +2538,8 @@ async function initializeDatabase(
       ON evidence_uploads(state, created_at);
     CREATE INDEX IF NOT EXISTS evidence_uploads_task_state_idx
       ON evidence_uploads(task_id, state);
+    CREATE INDEX IF NOT EXISTS shift_close_outbox_state_created_idx
+      ON shift_close_outbox(state, created_at);
     CREATE INDEX IF NOT EXISTS sync_commands_state_urgency_created_idx
       ON sync_commands(state, urgency, created_at);
     CREATE INDEX IF NOT EXISTS sync_commands_task_state_idx ON sync_commands(task_id, state);
@@ -2714,6 +2775,33 @@ async function upsertEvidenceUpload(
     record.uploadPath ?? null,
     record.uploadedAt ?? null,
     record.retentionExpiresAt ?? null,
+    record.lastError ?? null,
+  );
+}
+
+async function upsertShiftCloseOutbox(
+  db: SQLite.SQLiteDatabase,
+  record: ShiftCloseOutboxRecord,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO shift_close_outbox (
+      local_close_id, request_json, state, created_at, updated_at, attempt_count,
+      server_closure_id, last_error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(local_close_id) DO UPDATE SET
+      request_json = excluded.request_json,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      attempt_count = excluded.attempt_count,
+      server_closure_id = excluded.server_closure_id,
+      last_error = excluded.last_error`,
+    record.localCloseId,
+    JSON.stringify(record.request),
+    record.state,
+    record.createdAt,
+    record.updatedAt,
+    record.attemptCount,
+    record.serverClosureId ?? null,
     record.lastError ?? null,
   );
 }
@@ -3319,6 +3407,19 @@ function mapEvidenceUpload(row: EvidenceUploadRow): EvidenceUploadQueueRecord {
     ...(row.upload_path === null ? {} : { uploadPath: row.upload_path }),
     ...(row.uploaded_at === null ? {} : { uploadedAt: row.uploaded_at }),
     ...(row.retention_expires_at === null ? {} : { retentionExpiresAt: row.retention_expires_at }),
+    ...(row.last_error === null ? {} : { lastError: row.last_error }),
+  };
+}
+
+function mapShiftCloseOutbox(row: ShiftCloseOutboxRow): ShiftCloseOutboxRecord {
+  return {
+    localCloseId: row.local_close_id,
+    request: parseJson(row.request_json) as ShiftCloseUnsafeRequest,
+    state: row.state,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    attemptCount: row.attempt_count,
+    ...(row.server_closure_id === null ? {} : { serverClosureId: row.server_closure_id }),
     ...(row.last_error === null ? {} : { lastError: row.last_error }),
   };
 }

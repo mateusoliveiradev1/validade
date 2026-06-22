@@ -9,7 +9,7 @@ Validade Zero starts with smoke-level confidence in Phase 1. The goal is to prov
 - `pnpm typecheck` validates runtime TypeScript projects.
 - `pnpm lint` runs ESLint plus dependency-boundary validation.
 - `pnpm format:check` checks code style.
-- `pnpm security` runs env, secret, data-safety, and package security gates.
+- `pnpm security` runs env, secret, data-safety, sensitive-evidence, and package security gates.
 - `pnpm check` combines the CI-safe quality gates.
 
 ## Local Setup Commands
@@ -44,3 +44,13 @@ Future phases should extend this matrix with real flows as they are implemented:
 - Use fixtures from `@validade-zero/test-utils` instead of real data.
 - Every store, user, product, lot, and evidence example must include `FICTICIO` or `EXEMPLO`.
 - Evidence examples must use fake object keys, not real photos or operational assets.
+
+## Phase 8 authorization and truthful close
+
+- `pnpm --filter @validade-zero/contracts test -- authorization` validates strict membership commands and server-owned authority fields.
+- `pnpm vitest run --config vitest.config.ts --project api -- memberships` covers admin-only, store-scoped, versioned membership mutations and audit records.
+- `pnpm vitest run --config vitest.config.ts --project mobile -- shift-close` covers blocker policy, unsafe offline receipts, checklist ordering, and role visibility.
+- `pnpm test:e2e:web` covers the administrative web surface and its explicit confirmation state. Cross-store and forged-role denials remain API-level tests because the Vite E2E fixture contains no privileged backend.
+- `pnpm security:evidence` scans tracked source, fixtures, docs, snapshots, and generated text artifacts for device URIs, embedded binaries, signed object queries, raw bearer material, and private production-like object references.
+
+The remaining release checks are intentionally manual: real auth issuer claims, private R2 policy and 90-day lifecycle, disposable Neon migration verification, and a device/offline handoff walkthrough. Do not mark these as automated based on a local component or browser fixture.

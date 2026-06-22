@@ -6,7 +6,8 @@ export type AuditEventType =
   | "markdown.changed"
   | "sync.changed"
   | "evidence.changed"
-  | "shift.changed";
+  | "shift.changed"
+  | "membership.changed";
 
 export type AuditActorRoleSnapshot = "collaborator" | "lead" | "admin";
 
@@ -19,7 +20,8 @@ export type AuditTargetType =
   | "shift"
   | "markdown"
   | "sync_command"
-  | "access_request";
+  | "access_request"
+  | "membership";
 
 export interface AppendAuditEventInput {
   eventId: string;

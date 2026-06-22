@@ -36,6 +36,7 @@ export const AuditEventTypeSchema = z.enum([
   "sync.changed",
   "evidence.changed",
   "shift.changed",
+  "membership.changed",
 ]);
 
 export const AuditEventStatusSchema = z.enum([
@@ -54,6 +55,7 @@ export const AuditTargetTypeSchema = z.enum([
   "markdown",
   "sync_command",
   "access_request",
+  "membership",
 ]);
 
 export const AuditProducerKindSchema = z.enum([

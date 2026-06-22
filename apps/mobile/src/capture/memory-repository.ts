@@ -42,6 +42,8 @@ import type {
   LoadMarkdownEntryStateInput,
   MarkdownEntryState,
   EvidenceUploadQueueRecord,
+  QueueUnsafeShiftCloseInput,
+  ShiftCloseOutboxRecord,
   QueueEvidenceUploadInput,
   SaveLotInput,
 } from "./repository";
@@ -98,6 +100,7 @@ export function createMemoryCaptureRepository(
   const observations = new Map<string, CaptureObservationRecord[]>();
   const todayTasks = new Map<string, TodayTaskRecord>();
   const futureAttention = new Map<string, FutureAttentionRecord>();
+  const shiftCloseOutbox = new Map<string, ShiftCloseOutboxRecord>();
   const markdownWorkflows = new Map<string, MarkdownWorkflowRecord>();
   const alertDevices = new Map<string, DevicePushRegistrationCommand>();
   const taskAlertStates = new Map<string, TaskAlertStateRecord>();
@@ -1077,6 +1080,37 @@ export function createMemoryCaptureRepository(
     );
   }
 
+  function queueUnsafeShiftClose(
+    input: QueueUnsafeShiftCloseInput,
+  ): Promise<ShiftCloseOutboxRecord> {
+    return Promise.resolve().then(() => {
+      const existing = shiftCloseOutbox.get(input.localCloseId);
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const now = dependencies.clock();
+      const record: ShiftCloseOutboxRecord = {
+        localCloseId: input.localCloseId,
+        request: input.request,
+        state: "pending_sync",
+        createdAt: now,
+        updatedAt: now,
+        attemptCount: 0,
+      };
+      shiftCloseOutbox.set(record.localCloseId, record);
+      return record;
+    });
+  }
+
+  function listShiftCloseOutbox(): Promise<readonly ShiftCloseOutboxRecord[]> {
+    return Promise.resolve(
+      [...shiftCloseOutbox.values()].sort((left, right) =>
+        left.createdAt.localeCompare(right.createdAt),
+      ),
+    );
+  }
+
   function listSyncQueue(): Promise<SyncQueueSummary> {
     const queueCommands = sortSyncQueueItems(
       [...syncCommands.values()].filter(
@@ -1350,6 +1384,8 @@ export function createMemoryCaptureRepository(
     applyEvidenceUploadIntent,
     applyEvidenceUploadAck,
     markEvidenceUploadFailed,
+    queueUnsafeShiftClose,
+    listShiftCloseOutbox,
     listSyncQueue,
     saveOfflineAction,
     markSyncCommandAttempt,

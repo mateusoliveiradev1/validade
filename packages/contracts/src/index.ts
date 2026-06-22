@@ -8,6 +8,7 @@ export * from "./sync";
 export * from "./authorization";
 export * from "./audit";
 export * from "./evidence";
+export * from "./shift-close";
 
 export const HEALTH_SERVICE_NAME = "validade-zero-api" as const;
 

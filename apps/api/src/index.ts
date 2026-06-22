@@ -9,14 +9,22 @@ import {
   AlertDeliveryResultSchema,
   AuditEventRecordSchema,
   AuthorizationContract,
+  ChangeMembershipRoleRequestSchema,
+  CreateMembershipRequestSchema,
   EvidenceExceptionalAccessRequestSchema,
   EvidenceInvalidationRequestSchema,
   EvidenceUploadIntentRequestSchema,
   HEALTH_SERVICE_NAME,
   HealthContract,
+  MembershipListResponseSchema,
+  MembershipMutationResponseSchema,
   ProtectedCapabilityProbeResponseSchema,
   SafeProbeContract,
+  RevokeMembershipRequestSchema,
   SessionContextResponseSchema,
+  ShiftCloseReopenRequestSchema,
+  ShiftCloseRequestSchema,
+  ShiftHandoffAcknowledgementRequestSchema,
   SyncTransportBatchSchema,
   SyncTransportResultSchema,
   type AlertDeliveryResult,
@@ -27,9 +35,14 @@ import {
   type SyncTransportResult,
 } from "@validade-zero/contracts";
 import type { EvidenceRepository } from "@validade-zero/database/evidence-repository";
-import { createNeonMembershipRepository } from "@validade-zero/database/membership-repository";
-import type { Capability } from "@validade-zero/domain";
-import { Hono } from "hono";
+import {
+  createInMemoryMembershipManagementRepository,
+  createNeonMembershipRepository,
+  type MembershipManagementRepository,
+} from "@validade-zero/database/membership-repository";
+import type { ShiftCloseRepository } from "@validade-zero/database/shift-close-repository";
+import type { AuthorizedActorContext, Capability } from "@validade-zero/domain";
+import { Hono, type Context } from "hono";
 import {
   createAuditAccessDeniedRecorder,
   createAuditService,
@@ -42,7 +55,6 @@ import {
 import {
   createAuthorizationService,
   createDefaultMemberships,
-  createInMemoryMembershipRepository,
   createSessionContext,
   FakeAuthProvider,
   toClientSafeDenial,
@@ -58,6 +70,14 @@ import {
   createInMemoryEvidenceRepository,
   type EvidenceService,
 } from "./evidence";
+import { createMembershipService, type MembershipService } from "./memberships";
+import {
+  createDatabaseShiftCloseRepository,
+  createInMemoryShiftCloseRepository,
+  createShiftCloseService,
+  type ShiftCloseRevalidator,
+  type ShiftCloseService,
+} from "./shift-close";
 
 export interface SyncCommandService {
   handleBatch(batch: SyncTransportBatch): Promise<readonly SyncTransportResult[]>;
@@ -73,9 +93,14 @@ export function createApiApp(input?: {
   auditRepository?: AuditEventRepository;
   databaseUrl?: string;
   membershipRepository?: MembershipRepository;
+  membershipManagementRepository?: MembershipManagementRepository;
+  membershipService?: MembershipService;
   evidenceRepository?: EvidenceRepository;
   evidenceStore?: EvidenceStore;
   evidenceService?: EvidenceService;
+  shiftCloseRepository?: ShiftCloseRepository;
+  shiftCloseRevalidator?: ShiftCloseRevalidator;
+  shiftCloseService?: ShiftCloseService;
   authorizationService?: AuthorizationService;
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
   now?: () => Date;
@@ -85,11 +110,26 @@ export function createApiApp(input?: {
   const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
   const authProvider = input?.authProvider ?? new FakeAuthProvider("collaborator-local");
-  const membershipRepository =
-    input?.membershipRepository ??
+  const membershipManagementRepository =
+    input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined
-      ? createInMemoryMembershipRepository(createDefaultMemberships())
+      ? createInMemoryMembershipManagementRepository(
+          createDefaultMemberships().map((membership, index) => ({
+            membershipId: `membership-default-${index + 1}`,
+            ...membership,
+            displayName:
+              membership.subjectId === "lead-local"
+                ? "Lideranca local"
+                : membership.subjectId === "admin-local"
+                  ? "Administracao local"
+                  : "Colaborador local",
+            version: 1,
+            createdAt: new Date("2030-01-10T12:00:00.000Z"),
+            updatedAt: new Date("2030-01-10T12:00:00.000Z"),
+          })),
+        )
       : createNeonMembershipRepository({ connectionString: input.databaseUrl }));
+  const membershipRepository = input?.membershipRepository ?? membershipManagementRepository;
   const authorizationService =
     input?.authorizationService ??
     createAuthorizationService({ memberships: membershipRepository });
@@ -102,6 +142,13 @@ export function createApiApp(input?: {
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
     createAuditAccessDeniedRecorder({ repository: auditRepository, now });
+  const membershipService =
+    input?.membershipService ??
+    createMembershipService({
+      repository: membershipManagementRepository,
+      auditRepository,
+      now,
+    });
   const evidenceRepository =
     input?.evidenceRepository ??
     (input?.databaseUrl === undefined
@@ -114,6 +161,21 @@ export function createApiApp(input?: {
       repository: evidenceRepository,
       store: evidenceStore,
       auditRepository,
+      now,
+    });
+  const shiftCloseRepository =
+    input?.shiftCloseRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryShiftCloseRepository()
+      : createDatabaseShiftCloseRepository(input.databaseUrl));
+  const shiftCloseService =
+    input?.shiftCloseService ??
+    createShiftCloseService({
+      repository: shiftCloseRepository,
+      auditRepository,
+      ...(input?.shiftCloseRevalidator === undefined
+        ? {}
+        : { revalidator: input.shiftCloseRevalidator }),
       now,
     });
 
@@ -435,6 +497,222 @@ export function createApiApp(input?: {
     );
   });
 
+  api.post("/shift-closes", async (context) => {
+    let rawPayload: unknown;
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+    const parsed = ShiftCloseRequestSchema.safeParse(rawPayload);
+    if (!parsed.success) return context.json({ error: "invalid_shift_close" }, 400);
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId: parsed.data.storeId,
+      capability: "shift.close",
+      authProvider,
+      authorizationService,
+    });
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "shift.close",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "shift_close",
+        storeScope: parsed.data.storeId,
+      });
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        await shiftCloseService.close({ actorContext: decision.context, request: parsed.data }),
+      );
+    } catch (error) {
+      return context.json(
+        { error: error instanceof Error ? "shift_close_rejected" : "shift_close_failed" },
+        409,
+      );
+    }
+  });
+
+  api.post("/shift-closes/:closureId/handoff-acknowledgements", async (context) => {
+    let rawPayload: unknown;
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+    const parsed = ShiftHandoffAcknowledgementRequestSchema.safeParse({
+      ...(typeof rawPayload === "object" && rawPayload !== null ? rawPayload : {}),
+      closureId: context.req.param("closureId"),
+    });
+    if (!parsed.success) return context.json({ error: "invalid_shift_handoff" }, 400);
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId: parsed.data.storeId,
+      capability: "shift.handoff_ack",
+      authProvider,
+      authorizationService,
+    });
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "shift.handoff_ack",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "shift_handoff",
+        storeScope: parsed.data.storeId,
+      });
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        await shiftCloseService.acknowledgeHandoff({
+          actorContext: decision.context,
+          request: parsed.data,
+        }),
+      );
+    } catch {
+      return context.json({ error: "shift_handoff_rejected" }, 409);
+    }
+  });
+
+  api.post("/shift-closes/:closureId/reopen", async (context) => {
+    let rawPayload: unknown;
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+    const parsed = ShiftCloseReopenRequestSchema.safeParse(rawPayload);
+    if (!parsed.success) return context.json({ error: "invalid_shift_reopen" }, 400);
+
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId: parsed.data.storeId,
+      capability: "shift.close",
+      authProvider,
+      authorizationService,
+    });
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "shift.close",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "shift_reopen",
+        storeScope: parsed.data.storeId,
+      });
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        await shiftCloseService.reopen({
+          actorContext: decision.context,
+          closureId: context.req.param("closureId"),
+          request: parsed.data,
+        }),
+      );
+    } catch {
+      return context.json({ error: "shift_reopen_rejected" }, 409);
+    }
+  });
+
+  api.get("/memberships", async (context) => {
+    const storeId = context.req.query("storeId");
+    if (storeId === undefined || storeId.trim().length === 0) {
+      return context.json({ error: "missing_store_id" }, 400);
+    }
+    const decision = await authorizeRequest({
+      request: context.req.raw,
+      storeId,
+      capability: "user.manage",
+      authProvider,
+      authorizationService,
+    });
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: decision.identity,
+        decision,
+        capability: "user.manage",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "membership_list",
+        storeScope: storeId,
+      });
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+    return context.json(
+      MembershipListResponseSchema.parse({
+        items: await membershipService.list({ actorContext: decision.context, storeId }),
+      }),
+    );
+  });
+
+  api.post("/memberships", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    if (rawPayload === undefined) return context.json({ error: "invalid_json" }, 400);
+    const parsed = CreateMembershipRequestSchema.safeParse(rawPayload);
+    if (!parsed.success) return context.json({ error: "invalid_membership_grant" }, 400);
+    return handleMembershipMutation({
+      context,
+      storeId: parsed.data.storeId,
+      authProvider,
+      authorizationService,
+      accessDeniedAuditRecorder,
+      run: (actorContext) => membershipService.grant({ actorContext, request: parsed.data }),
+    });
+  });
+
+  api.patch("/memberships/:membershipId/role", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    if (rawPayload === undefined) return context.json({ error: "invalid_json" }, 400);
+    const parsed = ChangeMembershipRoleRequestSchema.safeParse(rawPayload);
+    if (!parsed.success) return context.json({ error: "invalid_membership_change" }, 400);
+    return handleMembershipMutation({
+      context,
+      storeId: parsed.data.storeId,
+      authProvider,
+      authorizationService,
+      accessDeniedAuditRecorder,
+      run: (actorContext) =>
+        membershipService.changeRole({
+          actorContext,
+          membershipId: context.req.param("membershipId"),
+          request: parsed.data,
+        }),
+    });
+  });
+
+  api.post("/memberships/:membershipId/revoke", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    if (rawPayload === undefined) return context.json({ error: "invalid_json" }, 400);
+    const parsed = RevokeMembershipRequestSchema.safeParse(rawPayload);
+    if (!parsed.success) return context.json({ error: "invalid_membership_revoke" }, 400);
+    return handleMembershipMutation({
+      context,
+      storeId: parsed.data.storeId,
+      authProvider,
+      authorizationService,
+      accessDeniedAuditRecorder,
+      run: (actorContext) =>
+        membershipService.revoke({
+          actorContext,
+          membershipId: context.req.param("membershipId"),
+          request: parsed.data,
+        }),
+    });
+  });
+
   api.get("/audit/events", async (context) => {
     let query: ReturnType<typeof parseAuditQueryFromUrl>;
 
@@ -471,11 +749,36 @@ export function createApiApp(input?: {
   api.get("/session/context", async (context) => {
     const identity = await authProvider.verify(context.req.raw);
     const storeId = context.req.query("storeId") ?? "loja-piloto";
-    const decision = await authorizationService.authorize({
+    const taskDecision = await authorizationService.authorize({
       identity,
       capability: "task.act",
       resourceStoreId: storeId,
     });
+
+    const userManagementDecision = await authorizationService.authorize({
+      identity,
+      capability: "user.manage",
+      resourceStoreId: storeId,
+    });
+    const shiftCloseDecision = await authorizationService.authorize({
+      identity,
+      capability: "shift.close",
+      resourceStoreId: storeId,
+    });
+    const auditReadDecision = await authorizationService.authorize({
+      identity,
+      capability: "audit.read_store",
+      resourceStoreId: storeId,
+    });
+    const decision = taskDecision.allowed
+      ? taskDecision
+      : userManagementDecision.allowed
+        ? userManagementDecision
+        : shiftCloseDecision.allowed
+          ? shiftCloseDecision
+          : auditReadDecision.allowed
+            ? auditReadDecision
+            : taskDecision;
 
     if (!decision.allowed) {
       const denial = await recordDeniedAccess({
@@ -502,7 +805,18 @@ export function createApiApp(input?: {
       );
     }
 
-    return context.json(SessionContextResponseSchema.parse(sessionContext));
+    return context.json(
+      SessionContextResponseSchema.parse({
+        ...sessionContext,
+        actions: {
+          ...sessionContext.actions,
+          canActOnTask: taskDecision.allowed,
+          canCloseShift: shiftCloseDecision.allowed,
+          canReadStoreAudit: auditReadDecision.allowed,
+          canManageUsers: userManagementDecision.allowed,
+        },
+      }),
+    );
   });
 
   api.all("/session/probe/task-act", async (context) =>
@@ -972,4 +1286,52 @@ async function recordDeniedAccess(input: {
     reason: input.reason,
     denialId,
   });
+}
+
+async function parseJsonBody(context: Context): Promise<unknown> {
+  try {
+    return await context.req.json();
+  } catch {
+    return undefined;
+  }
+}
+
+async function handleMembershipMutation(input: {
+  context: Context;
+  storeId: string;
+  authProvider: AuthProvider;
+  authorizationService: AuthorizationService;
+  accessDeniedAuditRecorder: AccessDeniedAuditRecorder;
+  run: (actorContext: AuthorizedActorContext) => Promise<{
+    membership: import("@validade-zero/contracts").ManagedStoreMembership;
+    replayed: boolean;
+  }>;
+}): Promise<Response> {
+  const decision = await authorizeRequest({
+    request: input.context.req.raw,
+    storeId: input.storeId,
+    capability: "user.manage",
+    authProvider: input.authProvider,
+    authorizationService: input.authorizationService,
+  });
+  if (!decision.allowed || decision.context === undefined) {
+    const denial = await recordDeniedAccess({
+      recorder: input.accessDeniedAuditRecorder,
+      identity: decision.identity,
+      decision,
+      capability: "user.manage",
+      reason: decision.reason ?? "capability_not_allowed",
+      targetType: "membership_mutation",
+      storeScope: input.storeId,
+    });
+    return input.context.json(AuthorizationContract.denial.parse(denial), 403);
+  }
+
+  try {
+    return input.context.json(
+      MembershipMutationResponseSchema.parse(await input.run(decision.context)),
+    );
+  } catch {
+    return input.context.json({ error: "membership_mutation_rejected" }, 409);
+  }
 }

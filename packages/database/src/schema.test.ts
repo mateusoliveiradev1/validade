@@ -8,6 +8,11 @@ import {
   evidenceAssetStateEnum,
   membershipRoleEnum,
   membershipStatusEnum,
+  membershipMutations,
+  shiftClosures,
+  shiftCloseEligibilityEnum,
+  shiftCloseVerdictEnum,
+  shiftHandoffs,
   storeMemberships,
 } from "./schema";
 
@@ -17,6 +22,14 @@ const migrationSql = readFileSync(
 );
 const evidenceMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0002_phase_08_evidence.sql"),
+  "utf8",
+);
+const shiftCloseMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0003_phase_08_shift_close.sql"),
+  "utf8",
+);
+const membershipMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0004_phase_08_memberships.sql"),
   "utf8",
 );
 
@@ -96,5 +109,38 @@ describe("phase 08 database schema", () => {
     expect(evidenceMigrationSql).toContain("CHECK (size_bytes > 0)");
     expect(evidenceMigrationSql).toContain("CHECK (sha256 ~ '^[0-9a-fA-F]{64}$')");
     expect(evidenceMigrationSql).not.toMatch(/\b(uri|base64|signed_url|binary|bytea)\b/i);
+  });
+
+  it("stores immutable, store-scoped close and handoff snapshots", () => {
+    expect(shiftCloseVerdictEnum.enumValues).toEqual(["safe", "unsafe"]);
+    expect(shiftCloseEligibilityEnum.enumValues).toEqual([
+      "eligible_safe",
+      "must_close_unsafe",
+      "cannot_evaluate",
+    ]);
+    expect(shiftClosures.storeId.name).toBe("store_id");
+    expect(shiftClosures.blockers.name).toBe("blockers");
+    expect(shiftClosures.revisionOfClosureId.name).toBe("revision_of_closure_id");
+    expect(shiftHandoffs.closureId.name).toBe("closure_id");
+    expect(shiftHandoffs.storeId.name).toBe("store_id");
+  });
+
+  it("migration preserves unsafe continuity, idempotency, and append-only history", () => {
+    expect(shiftCloseMigrationSql).toContain("shift_closures_unsafe_continuity_check");
+    expect(shiftCloseMigrationSql).toContain("shift_closures_idempotency_key_uidx");
+    expect(shiftCloseMigrationSql).toContain("shift_handoffs_idempotency_key_uidx");
+    expect(shiftCloseMigrationSql).toContain("shift_closures_append_only_guard");
+    expect(shiftCloseMigrationSql).toContain("shift_handoffs_append_only_guard");
+    expect(shiftCloseMigrationSql).toContain("shift_closures_store_occurred_idx");
+  });
+
+  it("keeps membership changes versioned, idempotent, and auditable", () => {
+    expect(storeMemberships.version.name).toBe("version");
+    expect(membershipMutations.idempotencyKey.name).toBe("idempotency_key");
+    expect(membershipMutations.storeId.name).toBe("store_id");
+    expect(membershipMigrationSql).toContain("store_memberships_version_positive_check");
+    expect(membershipMigrationSql).toContain("membership_mutations_store_occurred_idx");
+    expect(membershipMigrationSql).toContain("membership_mutations_append_only_guard");
+    expect(membershipMigrationSql).toContain("membership.changed");
   });
 });

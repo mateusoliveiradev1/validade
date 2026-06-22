@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ClientSafeAuthorizationDenialSchema,
+  ChangeMembershipRoleRequestSchema,
+  CreateMembershipRequestSchema,
+  ManagedStoreMembershipSchema,
   ProtectedCapabilityProbeResponseSchema,
   SessionContextResponseSchema,
   StoreMembershipSchema,
@@ -64,5 +67,46 @@ describe("authorization contracts", () => {
     });
 
     expect(JSON.stringify(denial)).not.toMatch(/target|payload|token|authorization/i);
+  });
+
+  it("requires explicit store, role, version, and idempotency for membership changes", () => {
+    expect(
+      CreateMembershipRequestSchema.safeParse({
+        storeId: "loja-ficticia",
+        storeName: "Loja Ficticia",
+        subjectId: "colaborador-ficticio",
+        displayName: "Colaborador Ficticio",
+        role: "lead",
+        idempotencyKey: "grant-001",
+        capabilities: ["shift.close"],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      ChangeMembershipRoleRequestSchema.safeParse({
+        storeId: "loja-ficticia",
+        role: "collaborator",
+        expectedVersion: 0,
+        idempotencyKey: "role-001",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps managed identity read-only in the server response", () => {
+    const parsed = ManagedStoreMembershipSchema.safeParse({
+      membershipId: "membership-ficticia",
+      subjectId: "colaborador-ficticio",
+      displayName: "Colaborador Ficticio",
+      role: "collaborator",
+      storeId: "loja-ficticia",
+      storeName: "Loja Ficticia",
+      status: "active",
+      version: 1,
+      createdAt: "2030-01-10T12:00:00.000Z",
+      updatedAt: "2030-01-10T12:00:00.000Z",
+      clientAuthority: true,
+    });
+
+    expect(parsed.success).toBe(false);
   });
 });
