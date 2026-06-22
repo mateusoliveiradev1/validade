@@ -59,7 +59,7 @@
 
 - [x] **AUD-01**: System records an audit trail for task creation, assignment, action, escalation, evidence upload, and resolution.
 - [x] **AUD-02**: System enforces role-based access for collaborator, lead, and admin workflows.
-- [ ] **AUD-03**: Evidence photos are stored outside Postgres with controlled access and only object references in the database.
+- [x] **AUD-03**: Evidence photos are stored outside Postgres with controlled access and only object references in the database.
 - [x] **AUD-04**: Security checks include dependency audit, secret scanning, authorization tests, and threat-model review before release.
 
 ### UI / UX / Copy
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SYN-03 | Phase 7 | Complete |
 | AUD-01 | Phase 8 | Complete |
 | AUD-02 | Phase 8 | Complete |
-| AUD-03 | Phase 8 | Pending |
+| AUD-03 | Phase 8 | Complete |
 | AUD-04 | Phase 1 | Complete |
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |

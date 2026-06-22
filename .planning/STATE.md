@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 08
 status: In Progress
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-06-22T11:50:36.454Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-06-22T16:20:40.000Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 34
-  completed_plans: 31
-  percent: 91
+  completed_plans: 32
+  percent: 94
 ---
 
 # Project State: Validade Zero
@@ -42,7 +42,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | In Progress | Audit, Roles, and Shift Close - 2/5 plans executed |
+| 8 | In Progress | Audit, Roles, and Shift Close - 3/5 plans executed |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
 ## Active Constraints
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 8 - Audit, Roles, and Shift Close with Wave 3 (`$gsd-execute-phase 8`).
+Continue Phase 8 - Audit, Roles, and Shift Close with Wave 4 (`$gsd-execute-phase 8`).
 
 ### Quick Tasks Completed
 
@@ -100,15 +100,20 @@ Continue Phase 8 - Audit, Roles, and Shift Close with Wave 3 (`$gsd-execute-phas
 | Phase 07 P04 | 24min | 2 tasks | 21 files |
 | Phase 08 P01 | 70 min | 3 tasks | 30 files |
 | Phase 08 P02 | 35min | 2 tasks | 33 files |
+| Phase 08 P03 | 90min | 2 tasks | 58 files |
 
 ## Session
 
-**Last session:** 2026-06-22T11:50:26.864Z
-**Stopped at:** Completed 08-02-PLAN.md
+**Last session:** 2026-06-22T16:20:40.000Z
+**Stopped at:** Completed 08-03-PLAN.md
 **Resume file:** None
 
 ## Decisions
 
+- [Phase 08]: Only central private-store acknowledgement can produce `Evidência enviada`; local capture and connectivity are not proof. - Prevents offline evidence from being misread as centrally available.
+- [Phase 08]: Evidence upload uses a separate queue from command sync. - Keeps device paths and binary material out of operational command payloads.
+- [Phase 08]: Evidence invalidation preserves original metadata/history and may link a replacement instead of mutating proof. - Keeps proof corrections accountable and append-only.
+- [Phase 08]: Admin cross-store evidence reads are exceptional and audited. - Maintains store isolation while allowing controlled investigation.
 - [Phase 08]: Audit producer vocabulary covers domain/security events only; navigation, filters, and ordinary clicks remain outside the audit trail. - Keeps audit useful for operational accountability instead of becoming noisy UI telemetry.
 - [Phase 08]: Pending local audit timeline entries omit receivedAt until central acknowledgement exists. - Prevents offline physical actions from looking centrally confirmed before sync.
 - [Phase 08]: Corrections, conflicts, and discards create linked audit events instead of rewriting the original operational fact. - Preserves append-only history and explains later changes.

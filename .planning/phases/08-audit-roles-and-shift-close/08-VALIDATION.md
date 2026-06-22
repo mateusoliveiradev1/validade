@@ -37,8 +37,8 @@ created: 2026-06-22
 | 08-01-03 | 01 | 1 | AUD-02 | T8-01/T8-10 | API autoriza, isola lojas e audita negação | integration | `pnpm vitest run --config vitest.config.ts --project api` | ❌ W0 | ⬜ pending |
 | 08-02-01 | 02 | 2 | AUD-01 | T8-04/T8-05 | fatos de task/sync/markdown/alert viram eventos idempotentes | integration | `pnpm vitest run --config vitest.config.ts --project api --project mobile` | ❌ W0 | ⬜ pending |
 | 08-02-02 | 02 | 2 | AUD-01/AUD-02 | T8-01 | timeline contextual e geral respeitam escopo | component/integration | `pnpm vitest run --config vitest.config.ts --project mobile --project web --project api` | ❌ W0 | ⬜ pending |
-| 08-03-01 | 03 | 3 | AUD-03 | T8-06/T8-07/T8-08 | fila separada e bucket privado não vazam bytes/URLs | unit/integration | `pnpm vitest run --config vitest.config.ts --project contracts --project mobile --project api` | ❌ W0 | ⬜ pending |
-| 08-03-02 | 03 | 3 | AUD-01/AUD-03 | T8-06/T8-07 | ack, retry, invalidação e retenção preservam histórico | integration | `pnpm vitest run --config vitest.config.ts --project mobile --project api` | ❌ W0 | ⬜ pending |
+| 08-03-01 | 03 | 3 | AUD-03 | T8-06/T8-07/T8-08 | fila separada e bucket privado não vazam bytes/URLs | unit/integration | `pnpm vitest run --config vitest.config.ts --project contracts --project mobile --project api` | ✅ W3 | ✅ green |
+| 08-03-02 | 03 | 3 | AUD-01/AUD-03 | T8-06/T8-07 | ack, retry, invalidação e retenção preservam histórico | integration | `pnpm vitest run --config vitest.config.ts --project mobile --project api` | ✅ W3 | ✅ green |
 | 08-04-01 | 04 | 4 | PSH-04 | T8-09 | todos os blockers de D-02 impedem selo seguro | unit/property | `pnpm vitest run --config vitest.config.ts --project domain --project contracts` | ❌ W0 | ⬜ pending |
 | 08-04-02 | 04 | 4 | PSH-04/AUD-01 | T8-09 | snapshot imutável, passagem e reabertura auditada | integration | `pnpm vitest run --config vitest.config.ts --project api --project mobile` | ❌ W0 | ⬜ pending |
 | 08-05-01 | 05 | 5 | AUD-02 | T8-01/T8-02/T8-03/T8-10 | vínculos não concedem poder operacional implícito | integration/component | `pnpm vitest run --config vitest.config.ts --project api --project web` | ❌ W0 | ⬜ pending |
@@ -51,13 +51,13 @@ created: 2026-06-22
 - [ ] `packages/domain/src/authorization.test.ts` — matriz collaborator/lead/admin + loja.
 - [ ] `packages/domain/src/shift-close.test.ts` — blockers, checklist e imutabilidade.
 - [ ] `packages/contracts/src/audit.test.ts` — contratos de evento/timeline.
-- [ ] `packages/contracts/src/evidence.test.ts` — lifecycle sem bytes/URL.
+- [x] `packages/contracts/src/evidence.test.ts` — lifecycle sem bytes/URL.
 - [ ] `packages/contracts/src/shift-close.test.ts` — comandos e snapshots.
 - [ ] `apps/api/src/authorization.test.ts` — auth fake, capability e IDOR.
 - [ ] `apps/api/src/audit.test.ts` — atomicidade/idempotência/consulta.
-- [ ] `apps/api/src/evidence.test.ts` — R2 fake, validação e redaction.
+- [x] `apps/api/src/evidence.test.ts` — R2 fake, validação e redaction.
 - [ ] `apps/api/src/shift-close.test.ts` — revalidação central/passagem/reabertura.
-- [ ] `apps/mobile/src/capture/evidence-upload.test.ts` — SQLite queue, retry e ack.
+- [x] `apps/mobile/src/capture/evidence-upload.test.ts` — SQLite queue, retry e ack.
 - [ ] `apps/mobile/src/capture/shift-close.test.tsx` — fluxo lead e blockers.
 - [ ] `apps/web/src/audit/AuditWorkbench.test.tsx` — filtros, escopo e estados.
 - [ ] `apps/web/src/memberships/memberships.test.tsx` — vínculos, revogação e poder operacional explícito.
