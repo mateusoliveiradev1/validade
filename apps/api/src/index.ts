@@ -5,9 +5,12 @@ import {
 } from "@validade-zero/adapters";
 import {
   AlertDeliveryResultSchema,
+  AuthorizationContract,
   HEALTH_SERVICE_NAME,
   HealthContract,
+  ProtectedCapabilityProbeResponseSchema,
   SafeProbeContract,
+  SessionContextResponseSchema,
   SyncTransportBatchSchema,
   SyncTransportResultSchema,
   type AlertDeliveryResult,
@@ -17,7 +20,21 @@ import {
   type SyncTransportBatch,
   type SyncTransportResult,
 } from "@validade-zero/contracts";
+import type { Capability } from "@validade-zero/domain";
 import { Hono } from "hono";
+import {
+  createAuthorizationService,
+  createDefaultMemberships,
+  createInMemoryAccessDeniedAuditRecorder,
+  createInMemoryMembershipRepository,
+  createSessionContext,
+  FakeAuthProvider,
+  toClientSafeDenial,
+  type AccessDeniedAuditRecorder,
+  type AuthProvider,
+  type AuthorizationService,
+  type MembershipRepository,
+} from "./auth";
 
 export interface SyncCommandService {
   handleBatch(batch: SyncTransportBatch): Promise<readonly SyncTransportResult[]>;
@@ -27,10 +44,23 @@ export interface InMemorySyncCommandService extends SyncCommandService {
   readResults(): readonly SyncTransportResult[];
 }
 
-export function createApiApp(input?: { syncCommandService?: SyncCommandService }): Hono {
+export function createApiApp(input?: {
+  syncCommandService?: SyncCommandService;
+  authProvider?: AuthProvider;
+  membershipRepository?: MembershipRepository;
+  authorizationService?: AuthorizationService;
+  accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
+}): Hono {
   const api = new Hono();
   const providers = createLocalProviderRegistry();
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
+  const authProvider = input?.authProvider ?? new FakeAuthProvider("collaborator-local");
+  const membershipRepository =
+    input?.membershipRepository ?? createInMemoryMembershipRepository(createDefaultMemberships());
+  const authorizationService =
+    input?.authorizationService ?? createAuthorizationService({ memberships: membershipRepository });
+  const accessDeniedAuditRecorder =
+    input?.accessDeniedAuditRecorder ?? createInMemoryAccessDeniedAuditRecorder();
 
   api.get("/health", (context) => {
     const payload = HealthContract.response.parse({
@@ -89,6 +119,65 @@ export function createApiApp(input?: { syncCommandService?: SyncCommandService }
       results: results.map((result) => SyncTransportResultSchema.parse(result)),
     });
   });
+
+  api.get("/session/context", async (context) => {
+    const identity = await authProvider.verify(context.req.raw);
+    const storeId = context.req.query("storeId") ?? "loja-piloto";
+    const decision = await authorizationService.authorize({
+      identity,
+      capability: "task.act",
+      resourceStoreId: storeId,
+    });
+
+    if (!decision.allowed) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity,
+        capability: "task.act",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "session_context",
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    const sessionContext = createSessionContext(decision);
+
+    if (sessionContext === undefined) {
+      return context.json(
+        AuthorizationContract.denial.parse(
+          toClientSafeDenial({ reason: "capability_not_allowed" }),
+        ),
+        403,
+      );
+    }
+
+    return context.json(SessionContextResponseSchema.parse(sessionContext));
+  });
+
+  api.all("/session/probe/task-act", async (context) =>
+    authorizeProbe({
+      request: context.req.raw,
+      storeId: context.req.query("storeId") ?? "loja-piloto",
+      capability: "task.act",
+      targetType: "task_probe",
+      authProvider,
+      authorizationService,
+      accessDeniedAuditRecorder,
+    }).then((result) => context.json(result.body, result.status)),
+  );
+
+  api.all("/session/probe/shift-close", async (context) =>
+    authorizeProbe({
+      request: context.req.raw,
+      storeId: context.req.query("storeId") ?? "loja-piloto",
+      capability: "shift.close",
+      targetType: "shift_close_probe",
+      authProvider,
+      authorizationService,
+      accessDeniedAuditRecorder,
+    }).then((result) => context.json(result.body, result.status)),
+  );
 
   return api;
 }
@@ -359,3 +448,69 @@ const worker = {
 };
 
 export default worker;
+
+async function authorizeProbe(input: {
+  request: Request;
+  storeId: string;
+  capability: Capability;
+  targetType: string;
+  authProvider: AuthProvider;
+  authorizationService: AuthorizationService;
+  accessDeniedAuditRecorder: AccessDeniedAuditRecorder;
+}): Promise<{ status: 200 | 403; body: unknown }> {
+  const identity = await input.authProvider.verify(input.request);
+  const decision = await input.authorizationService.authorize({
+    identity,
+    capability: input.capability,
+    resourceStoreId: input.storeId,
+  });
+
+  if (!decision.allowed) {
+    return {
+      status: 403,
+      body: AuthorizationContract.denial.parse(
+        await recordDeniedAccess({
+          recorder: input.accessDeniedAuditRecorder,
+          identity,
+          capability: input.capability,
+          reason: decision.reason ?? "capability_not_allowed",
+          targetType: input.targetType,
+        }),
+      ),
+    };
+  }
+
+  return {
+    status: 200,
+    body: ProtectedCapabilityProbeResponseSchema.parse({
+      status: "authorized",
+      capability: input.capability,
+      checkedAt: new Date().toISOString(),
+    }),
+  };
+}
+
+async function recordDeniedAccess(input: {
+  recorder: AccessDeniedAuditRecorder;
+  identity?: import("@validade-zero/domain").AuthenticatedIdentity;
+  capability: Capability;
+  reason: import("@validade-zero/domain").AuthorizationDenialReason;
+  targetType: string;
+}) {
+  const denialId = `denial:${input.capability}:${Date.now()}`;
+
+  await input.recorder.recordAccessDenied({
+    eventId: denialId,
+    actorSubjectId: input.identity?.subjectId,
+    requestedCapability: input.capability,
+    targetType: input.targetType,
+    reason: input.reason,
+    occurredAt: new Date().toISOString(),
+    summary: "Access denied by role and store scope policy.",
+  });
+
+  return toClientSafeDenial({
+    reason: input.reason,
+    denialId,
+  });
+}

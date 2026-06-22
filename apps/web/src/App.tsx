@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { HealthContract } from "@validade-zero/contracts";
+import { CurrentScope } from "./auth/CurrentScope";
 
 const INITIAL_STATUS = "API ainda nao verificada";
 
@@ -40,6 +41,7 @@ export function App() {
       <p style={{ maxWidth: "42rem", margin: 0, fontSize: "1.125rem" }}>
         Smoke web ficticio para validar contrato compartilhado, API local e ausencia de dados reais.
       </p>
+      <CurrentScope />
       <button
         type="button"
         onClick={() => void verifyApi()}
