@@ -162,7 +162,7 @@ describe("offline sync contracts", () => {
         commandId: "cmd-ficticio-001",
         idempotencyKey: "idem-ficticio-001",
         retryAfterSeconds: 60,
-        error: "Rede indisponivel",
+        error: "Rede ficticia indisponivel",
       }),
     ).toMatchObject({ status: "retry" });
   });

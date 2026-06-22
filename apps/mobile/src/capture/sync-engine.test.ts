@@ -197,7 +197,7 @@ describe("sync engine", () => {
   it("keeps failed transport visible as sync_failed with retry metadata", async () => {
     const harness = createHarness();
     const command = await saveWithdrawCommand(harness.repository);
-    harness.setTransport(() => Promise.reject(new Error("rede indisponivel")));
+    harness.setTransport(() => Promise.reject(new Error("rede ficticia indisponivel")));
 
     await expect(harness.engine.syncPendingCommands()).resolves.toMatchObject({
       state: "transport_failed",
@@ -212,7 +212,7 @@ describe("sync engine", () => {
       sync: {
         state: "sync_failed",
         pendingCommandId: command.id,
-        lastError: "rede indisponivel",
+        lastError: "rede ficticia indisponivel",
       },
     });
   });

@@ -8,49 +8,213 @@ import {
   HEALTH_SERVICE_NAME,
   HealthContract,
   SafeProbeContract,
+  SyncTransportBatchSchema,
+  SyncTransportResultSchema,
   type AlertDeliveryResult,
   type AlertDispatchCommand,
+  type SyncCommandRecord,
+  type SyncConflictRecord,
+  type SyncTransportBatch,
+  type SyncTransportResult,
 } from "@validade-zero/contracts";
 import { Hono } from "hono";
 
-export const app = new Hono();
-const providers = createLocalProviderRegistry();
+export interface SyncCommandService {
+  handleBatch(batch: SyncTransportBatch): Promise<readonly SyncTransportResult[]>;
+}
 
-app.get("/health", (context) => {
-  const payload = HealthContract.response.parse({
-    status: "ok",
-    service: HEALTH_SERVICE_NAME,
-    checkedAt: new Date().toISOString(),
+export interface InMemorySyncCommandService extends SyncCommandService {
+  readResults(): readonly SyncTransportResult[];
+}
+
+export function createApiApp(input?: { syncCommandService?: SyncCommandService }): Hono {
+  const api = new Hono();
+  const providers = createLocalProviderRegistry();
+  const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
+
+  api.get("/health", (context) => {
+    const payload = HealthContract.response.parse({
+      status: "ok",
+      service: HEALTH_SERVICE_NAME,
+      checkedAt: new Date().toISOString(),
+    });
+
+    return context.json(payload);
   });
 
-  return context.json(payload);
-});
+  api.get("/probe", async (context) => {
+    const payload = SafeProbeContract.payload.parse(await providers.safeProbe.read());
 
-app.get("/probe", async (context) => {
-  const payload = SafeProbeContract.payload.parse(await providers.safeProbe.read());
+    return context.json(payload);
+  });
 
-  return context.json(payload);
-});
+  api.post("/probe", async (context) => {
+    let rawPayload: unknown;
 
-app.post("/probe", async (context) => {
-  let rawPayload: unknown;
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
 
-  try {
-    rawPayload = await context.req.json();
-  } catch {
-    return context.json({ error: "invalid_json" }, 400);
+    const parsed = SafeProbeContract.write.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_probe_payload" }, 400);
+    }
+
+    const payload = SafeProbeContract.payload.parse(await providers.safeProbe.write(parsed.data));
+
+    return context.json(payload);
+  });
+
+  api.post("/sync/commands", async (context) => {
+    let rawPayload: unknown;
+
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+
+    const parsed = SyncTransportBatchSchema.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_sync_batch" }, 400);
+    }
+
+    const results = await syncCommandService.handleBatch(parsed.data);
+
+    return context.json({
+      results: results.map((result) => SyncTransportResultSchema.parse(result)),
+    });
+  });
+
+  return api;
+}
+
+export const app = createApiApp();
+
+export function createInMemorySyncCommandService(input?: {
+  now?: () => string;
+  retryIdempotencyKeys?: readonly string[];
+  conflictIdempotencyKeys?: readonly string[];
+  remoteChangeSummary?: string;
+}): InMemorySyncCommandService {
+  const now = input?.now ?? (() => new Date().toISOString());
+  const retryKeys = new Set(input?.retryIdempotencyKeys ?? []);
+  const conflictKeys = new Set(input?.conflictIdempotencyKeys ?? []);
+  const byIdempotencyKey = new Map<string, SyncTransportResult>();
+  const results: SyncTransportResult[] = [];
+
+  return {
+    async handleBatch(batch) {
+      const batchResults = batch.commands.map((command) => {
+        const existing = byIdempotencyKey.get(command.idempotencyKey);
+
+        if (existing !== undefined) {
+          return existing;
+        }
+
+        const result = buildSyncResult(command, {
+          now: now(),
+          shouldRetry: retryKeys.has(command.idempotencyKey),
+          shouldConflict: conflictKeys.has(command.idempotencyKey),
+          ...(input?.remoteChangeSummary === undefined
+            ? {}
+            : { remoteChangeSummary: input.remoteChangeSummary }),
+        });
+
+        byIdempotencyKey.set(command.idempotencyKey, result);
+        results.push(result);
+
+        return result;
+      });
+
+      return Promise.resolve(batchResults);
+    },
+    readResults() {
+      return results;
+    },
+  };
+}
+
+function buildSyncResult(
+  command: SyncCommandRecord,
+  input: {
+    now: string;
+    shouldRetry: boolean;
+    shouldConflict: boolean;
+    remoteChangeSummary?: string;
+  },
+): SyncTransportResult {
+  if (input.shouldRetry) {
+    return SyncTransportResultSchema.parse({
+      status: "retry",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      retryAfterSeconds: 60,
+      error: "Falha temporaria no sync piloto.",
+    });
   }
 
-  const parsed = SafeProbeContract.write.safeParse(rawPayload);
-
-  if (!parsed.success) {
-    return context.json({ error: "invalid_probe_payload" }, 400);
+  if (input.shouldConflict) {
+    return SyncTransportResultSchema.parse({
+      status: "conflict",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      conflict: buildSyncConflict(command, input),
+    });
   }
 
-  const payload = SafeProbeContract.payload.parse(await providers.safeProbe.write(parsed.data));
+  return SyncTransportResultSchema.parse({
+    status: "ack",
+    commandId: command.id,
+    idempotencyKey: command.idempotencyKey,
+    syncedAt: input.now,
+  });
+}
 
-  return context.json(payload);
-});
+function buildSyncConflict(
+  command: SyncCommandRecord,
+  input: { now: string; remoteChangeSummary?: string },
+): SyncConflictRecord {
+  return {
+    id: `conflict:${command.id}`,
+    commandId: command.id,
+    severity: command.urgency,
+    reason: "A tarefa mudou antes da sincronizacao.",
+    localAction: {
+      commandId: command.id,
+      kind: command.kind,
+      label: syncActionLabel(command),
+      actorLabel: command.payload.payload.actorLabel,
+      occurredAt: command.payload.payload.occurredAt,
+      productDisplayName: command.productDisplayName,
+      lotIdentity: command.lotIdentity,
+      currentLocation: command.currentLocation,
+    },
+    remoteChange: {
+      kind: "task_changed",
+      summary: input.remoteChangeSummary ?? "A tarefa atual foi alterada em outro aparelho.",
+      changedAt: input.now,
+    },
+    allowedActions: ["keep_local_and_retry", "use_current_task", "discard_offline_action"],
+    createdAt: input.now,
+  };
+}
+
+function syncActionLabel(command: SyncCommandRecord): string {
+  if (command.payload.kind === "resolve_task") {
+    return command.payload.payload.action;
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return command.payload.payload.decision === "approved" ? "approve_markdown" : "reject_markdown";
+  }
+
+  return command.kind;
+}
 
 export interface DueAlertDispatchRecord {
   dispatch: AlertDispatchCommand;
