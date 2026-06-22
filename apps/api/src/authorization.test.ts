@@ -4,6 +4,7 @@ import {
   createInMemoryAccessDeniedAuditRecorder,
   createInMemoryMembershipRepository,
   FakeAuthProvider,
+  JwtAuthProvider,
 } from "./auth";
 import { createApiApp } from "./index";
 
@@ -120,8 +121,16 @@ describe("authorization API seam", () => {
     });
     expect(JSON.stringify(body)).not.toContain("loja-outra");
     expect(auditRecorder.readEvents()).toHaveLength(1);
+    expect(auditRecorder.readEvents()[0]).toMatchObject({
+      actorSubjectId: "collaborator-local",
+      actorRoleSnapshot: "collaborator",
+      requestedCapability: "task.act",
+      targetType: "task_probe",
+      storeScope: "loja-outra",
+      reason: "outside_store_scope",
+    });
     expect(JSON.stringify(auditRecorder.readEvents()[0])).not.toMatch(
-      /Bearer|authorization|headers|raw|payload|loja-outra/i,
+      /Bearer|authorization|headers|raw|payload|token/i,
     );
   });
 
@@ -140,5 +149,62 @@ describe("authorization API seam", () => {
     expect(body).toMatchObject({
       reason: "capability_not_allowed",
     });
+  });
+
+  it("treats expired and invalid identities as unauthenticated", async () => {
+    const auditRecorder = createInMemoryAccessDeniedAuditRecorder();
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository(),
+      accessDeniedAuditRecorder: auditRecorder,
+    });
+
+    const expiredResponse = await app.request("/session/context?storeId=loja-piloto", {
+      headers: { authorization: "Bearer expired:lead-local" },
+    });
+    const invalidResponse = await app.request("/session/context?storeId=loja-piloto", {
+      headers: { authorization: "Bearer invalid" },
+    });
+
+    expect(expiredResponse.status).toBe(403);
+    await expect(expiredResponse.json()).resolves.toMatchObject({
+      reason: "unauthenticated",
+    });
+    expect(invalidResponse.status).toBe(403);
+    await expect(invalidResponse.json()).resolves.toMatchObject({
+      reason: "unauthenticated",
+    });
+    expect(JSON.stringify(auditRecorder.readEvents())).not.toMatch(/expired:lead-local|Bearer/i);
+  });
+
+  it("keeps JWT verification behind a replaceable AuthProvider boundary", async () => {
+    const provider = new JwtAuthProvider({
+      verify(token) {
+        if (token === "good-token") {
+          return Promise.resolve({
+            subjectId: "lead-local",
+            displayName: "Lideranca local",
+            issuer: "jwks-test",
+            expiresAt: "2999-01-01T00:00:00.000Z",
+          });
+        }
+
+        return Promise.resolve(undefined);
+      },
+    });
+
+    await expect(
+      provider.verify(new Request("https://api.local/session", {
+        headers: { authorization: "Bearer good-token" },
+      })),
+    ).resolves.toMatchObject({
+      subjectId: "lead-local",
+      issuer: "jwks-test",
+    });
+    await expect(
+      provider.verify(new Request("https://api.local/session", {
+        headers: { authorization: "Bearer bad-token" },
+      })),
+    ).resolves.toBeUndefined();
   });
 });

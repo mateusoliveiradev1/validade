@@ -4,7 +4,7 @@ import { createMembershipRepositoryFromQuery } from "./membership-repository";
 
 describe("database repositories", () => {
   it("maps active membership rows to the domain shape", async () => {
-    const repository = createMembershipRepositoryFromQuery((async () => [
+    const repository = createMembershipRepositoryFromQuery((() => Promise.resolve([
       {
         subject_id: "lead-local",
         role: "lead",
@@ -12,7 +12,7 @@ describe("database repositories", () => {
         store_name: "Loja Piloto",
         status: "active",
       },
-    ]) as never);
+    ])) as never);
 
     await expect(repository.listActiveMemberships("lead-local")).resolves.toEqual([
       {
@@ -26,7 +26,7 @@ describe("database repositories", () => {
   });
 
   it("only exposes append for audit events", () => {
-    const repository = createAuditRepositoryFromQuery((async () => []) as never);
+    const repository = createAuditRepositoryFromQuery((() => Promise.resolve([])) as never);
     const keys = Object.keys(repository);
 
     expect(keys).toEqual(["append"]);

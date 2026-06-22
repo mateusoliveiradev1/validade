@@ -20,6 +20,7 @@ import {
   type SyncTransportBatch,
   type SyncTransportResult,
 } from "@validade-zero/contracts";
+import { createNeonAuditRepository } from "@validade-zero/database/audit-repository";
 import { createNeonMembershipRepository } from "@validade-zero/database/membership-repository";
 import type { Capability } from "@validade-zero/domain";
 import { Hono } from "hono";
@@ -31,6 +32,7 @@ import {
   createSessionContext,
   FakeAuthProvider,
   toClientSafeDenial,
+  type ApiAuthorizationDecision,
   type AccessDeniedAuditRecorder,
   type AuthProvider,
   type AuthorizationService,
@@ -65,7 +67,10 @@ export function createApiApp(input?: {
   const authorizationService =
     input?.authorizationService ?? createAuthorizationService({ memberships: membershipRepository });
   const accessDeniedAuditRecorder =
-    input?.accessDeniedAuditRecorder ?? createInMemoryAccessDeniedAuditRecorder();
+    input?.accessDeniedAuditRecorder ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryAccessDeniedAuditRecorder()
+      : createDatabaseAccessDeniedAuditRecorder(input.databaseUrl));
 
   api.get("/health", (context) => {
     const payload = HealthContract.response.parse({
@@ -138,9 +143,11 @@ export function createApiApp(input?: {
       const denial = await recordDeniedAccess({
         recorder: accessDeniedAuditRecorder,
         identity,
+        decision,
         capability: "task.act",
         reason: decision.reason ?? "capability_not_allowed",
         targetType: "session_context",
+        storeScope: storeId,
       });
 
       return context.json(AuthorizationContract.denial.parse(denial), 403);
@@ -477,9 +484,11 @@ async function authorizeProbe(input: {
         await recordDeniedAccess({
           recorder: input.accessDeniedAuditRecorder,
           identity,
+          decision,
           capability: input.capability,
           reason: decision.reason ?? "capability_not_allowed",
           targetType: input.targetType,
+          storeScope: input.storeId,
         }),
       ),
     };
@@ -498,17 +507,22 @@ async function authorizeProbe(input: {
 async function recordDeniedAccess(input: {
   recorder: AccessDeniedAuditRecorder;
   identity?: import("@validade-zero/domain").AuthenticatedIdentity | undefined;
+  decision?: ApiAuthorizationDecision | undefined;
   capability: Capability;
   reason: import("@validade-zero/domain").AuthorizationDenialReason;
   targetType: string;
+  storeScope?: string | undefined;
 }) {
   const denialId = `denial:${input.capability}:${Date.now()}`;
 
   await input.recorder.recordAccessDenied({
     eventId: denialId,
     actorSubjectId: input.identity?.subjectId,
+    actorDisplayName: input.identity?.displayName,
+    actorRoleSnapshot: input.decision?.auditMembership?.role,
     requestedCapability: input.capability,
     targetType: input.targetType,
+    storeScope: input.storeScope,
     reason: input.reason,
     occurredAt: new Date().toISOString(),
     summary: "Access denied by role and store scope policy.",
@@ -518,4 +532,38 @@ async function recordDeniedAccess(input: {
     reason: input.reason,
     denialId,
   });
+}
+
+function createDatabaseAccessDeniedAuditRecorder(databaseUrl: string): AccessDeniedAuditRecorder {
+  const repository = createNeonAuditRepository({ connectionString: databaseUrl });
+
+  return {
+    async recordAccessDenied(event) {
+      if (event.actorSubjectId === undefined || event.actorRoleSnapshot === undefined) {
+        return;
+      }
+
+      await repository.append({
+        eventId: event.eventId,
+        idempotencyKey: event.eventId,
+        type: "access.denied",
+        storeId: event.storeScope ?? "unknown-store",
+        actorId: event.actorSubjectId,
+        actorDisplayName: event.actorDisplayName ?? event.actorSubjectId,
+        actorRoleSnapshot:
+          event.actorRoleSnapshot === "admin" || event.actorRoleSnapshot === "lead"
+            ? event.actorRoleSnapshot
+            : "collaborator",
+        occurredAt: new Date(event.occurredAt),
+        targetType: event.targetType,
+        targetId: "redacted",
+        summary: event.summary,
+        reason: event.reason,
+        metadata: {
+          requestedCapability: event.requestedCapability,
+          denialReason: event.reason,
+        },
+      });
+    },
+  };
 }

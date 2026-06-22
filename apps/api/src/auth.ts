@@ -13,6 +13,17 @@ export interface AuthProvider {
   verify(request: Request): Promise<AuthenticatedIdentity | undefined>;
 }
 
+export interface JwtVerificationResult {
+  subjectId: string;
+  displayName?: string;
+  issuer?: string;
+  expiresAt?: string;
+}
+
+export interface JwtVerifier {
+  verify(token: string): Promise<JwtVerificationResult | undefined>;
+}
+
 export interface MembershipRepository {
   listActiveMemberships(subjectId: string): Promise<readonly StoreMembership[]>;
 }
@@ -21,9 +32,10 @@ export interface AccessDeniedEvent {
   eventId: string;
   actorSubjectId?: string | undefined;
   actorRoleSnapshot?: string | undefined;
+  actorDisplayName?: string | undefined;
   requestedCapability: Capability;
   targetType: string;
-  storeScope?: string;
+  storeScope?: string | undefined;
   reason: AuthorizationDenialReason;
   occurredAt: string;
   summary: string;
@@ -42,7 +54,11 @@ export interface AuthorizationService {
     identity?: AuthenticatedIdentity | undefined;
     capability: Capability;
     resourceStoreId: string;
-  }): Promise<AuthorizationDecision>;
+  }): Promise<ApiAuthorizationDecision>;
+}
+
+export interface ApiAuthorizationDecision extends AuthorizationDecision {
+  auditMembership?: StoreMembership | undefined;
 }
 
 export interface InMemoryMembershipRepository extends MembershipRepository {
@@ -52,8 +68,19 @@ export interface InMemoryMembershipRepository extends MembershipRepository {
 export class FakeAuthProvider implements AuthProvider {
   constructor(private readonly defaultSubjectId?: string) {}
 
-  async verify(request: Request): Promise<AuthenticatedIdentity | undefined> {
+  verify(request: Request): Promise<AuthenticatedIdentity | undefined> {
     const authorizationHeader = request.headers.get("authorization");
+    const isExpired =
+      authorizationHeader?.startsWith("Bearer expired:") === true ||
+      request.headers.get("x-validade-expired") === "true";
+    const isInvalid =
+      authorizationHeader?.startsWith("Bearer invalid") === true ||
+      request.headers.get("x-validade-invalid") === "true";
+
+    if (isExpired || isInvalid) {
+      return Promise.resolve(undefined);
+    }
+
     const subjectFromHeader = authorizationHeader?.startsWith("Bearer fake:")
       ? authorizationHeader.slice("Bearer fake:".length).trim()
       : undefined;
@@ -61,13 +88,39 @@ export class FakeAuthProvider implements AuthProvider {
     const subjectId = subjectFromHeader ?? subjectFromTestHeader ?? this.defaultSubjectId;
 
     if (subjectId === undefined || subjectId.length === 0) {
+      return Promise.resolve(undefined);
+    }
+
+    return Promise.resolve({
+      subjectId,
+      displayName: subjectIdToDisplayName(subjectId),
+      issuer: "fake-auth-provider",
+    });
+  }
+}
+
+export class JwtAuthProvider implements AuthProvider {
+  constructor(private readonly verifier: JwtVerifier) {}
+
+  async verify(request: Request): Promise<AuthenticatedIdentity | undefined> {
+    const authorizationHeader = request.headers.get("authorization");
+
+    if (authorizationHeader === null || !authorizationHeader.startsWith("Bearer ")) {
+      return undefined;
+    }
+
+    const token = authorizationHeader.slice("Bearer ".length).trim();
+    const verified = await this.verifier.verify(token);
+
+    if (verified === undefined || isExpired(verified.expiresAt)) {
       return undefined;
     }
 
     return {
-      subjectId,
-      displayName: subjectIdToDisplayName(subjectId),
-      issuer: "fake-auth-provider",
+      subjectId: verified.subjectId,
+      ...(verified.displayName === undefined ? {} : { displayName: verified.displayName }),
+      ...(verified.issuer === undefined ? {} : { issuer: verified.issuer }),
+      ...(verified.expiresAt === undefined ? {} : { expiresAt: verified.expiresAt }),
     };
   }
 }
@@ -78,9 +131,11 @@ export function createInMemoryMembershipRepository(
   let records = [...memberships];
 
   return {
-    async listActiveMemberships(subjectId) {
-      return records.filter(
-        (membership) => membership.subjectId === subjectId && membership.status === "active",
+    listActiveMemberships(subjectId) {
+      return Promise.resolve(
+        records.filter(
+          (membership) => membership.subjectId === subjectId && membership.status === "active",
+        ),
       );
     },
     replaceMemberships(nextMemberships) {
@@ -99,12 +154,21 @@ export function createAuthorizationService(input: {
           ? []
           : await input.memberships.listActiveMemberships(request.identity.subjectId);
 
-      return authorizeStoreCapability({
+      const decision = authorizeStoreCapability({
         identity: request.identity,
         memberships,
         capability: request.capability,
         resourceStoreId: request.resourceStoreId,
       });
+
+      if (decision.allowed) {
+        return decision;
+      }
+
+      return {
+        ...decision,
+        auditMembership: findAuditMembership(memberships, request.resourceStoreId),
+      };
     },
   };
 }
@@ -113,8 +177,9 @@ export function createInMemoryAccessDeniedAuditRecorder(): InMemoryAccessDeniedA
   const events: AccessDeniedEvent[] = [];
 
   return {
-    async recordAccessDenied(event) {
+    recordAccessDenied(event) {
       events.push(event);
+      return Promise.resolve();
     },
     readEvents() {
       return events;
@@ -211,4 +276,17 @@ function subjectIdToDisplayName(subjectId: string): string {
   }
 
   return "Colaborador local";
+}
+
+function findAuditMembership(
+  memberships: readonly StoreMembership[],
+  resourceStoreId: string,
+): StoreMembership | undefined {
+  return (
+    memberships.find((membership) => membership.storeId === resourceStoreId) ?? memberships[0]
+  );
+}
+
+function isExpired(expiresAt: string | undefined): boolean {
+  return expiresAt !== undefined && new Date(expiresAt).getTime() <= Date.now();
 }
