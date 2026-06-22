@@ -38,6 +38,7 @@ key-files:
     - apps/web/src/audit/EvidenceAccessConfirm.tsx
     - apps/web/src/components/ui/alert-dialog.tsx
     - docs/operations/evidence-lifecycle.md
+    - .planning/phases/08-audit-roles-and-shift-close/08-03-NEON-VERIFICATION.md
   modified:
     - apps/api/src/index.ts
     - apps/api/wrangler.toml
@@ -114,11 +115,12 @@ status: complete
 - `pnpm.cmd format:check`
 - `pnpm.cmd security`
 - `pnpm.cmd build`
+- Neon disposable branch verification: `gsd-08-03-evidence-20260622` / `br-super-recipe-acx50lf8`, deleted after verification.
 
 ## Deviations / Remaining Manual Validation
 
-- A disposable Neon branch and real R2 test binding were not available in this session, so no external migration application or R2 lifecycle inspection was claimed.
-- The migration, schema, repository, and metadata-only guarantees are covered by local tests and security scans; the real Neon/R2 lifecycle check remains a manual validation item for 08-05/release verification.
+- A disposable Neon branch was created, `0001` and `0002` were applied, schema/index/constraint assertions passed, and branch deletion was requested after verification.
+- A real R2 test binding was still not provided in this session, so R2 lifecycle inspection remains a manual validation item for 08-05/release verification.
 
 ## Handoff to 08-04
 
