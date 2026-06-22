@@ -121,6 +121,7 @@ describe("offline sync contracts", () => {
         state: "has_pending",
         totalCount: 1,
         conflictCount: 0,
+        hasCriticalConflict: false,
         criticalCount: 1,
         highCount: 0,
         mediumCount: 0,

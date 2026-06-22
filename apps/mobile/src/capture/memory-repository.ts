@@ -4,13 +4,24 @@ import type {
   DevicePushRegistrationCommand,
   FutureAttentionRecord,
   MarkdownWorkflowRecord,
+  OfflineActionCommand,
+  OfflineCacheStatus,
   PhysicalObservationInput,
   PushOpenIntent,
+  SyncCommandRecord,
+  SyncConflictRecord,
+  SyncQueueSummary,
+  SyncTransportResult,
   TaskAlertStateRecord,
   TaskResolutionCommand,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
-import { canStartMarkdownWorkflow } from "@validade-zero/domain";
+import {
+  canStartMarkdownWorkflow,
+  classifySyncCommandUrgency,
+  deriveOfflineCacheState,
+  sortSyncQueueItems,
+} from "@validade-zero/domain";
 import type {
   AcknowledgeEscalationInput,
   CaptureLotDetail,
@@ -23,6 +34,7 @@ import type {
   RecordAlertAttemptInput,
   RecentLotsQuery,
   RefreshTaskAlertStatesInput,
+  ResolveSyncConflictInput,
   ResolvePushOpenIntentInput,
   RefreshTodayTasksInput,
   TodayTaskRefreshResult,
@@ -61,10 +73,18 @@ import {
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
   parsePushOpenIntent,
+  parseOfflineActionCommand,
+  parseOfflineCacheStatus,
+  parseSyncCommandRecord,
+  parseSyncConflictRecord,
+  parseSyncQueueSummary,
+  parseSyncTransportResult,
   parseTodayTaskRecord,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
+
+const OFFLINE_CACHE_STALE_AFTER_HOURS = 4;
 
 export function createMemoryCaptureRepository(
   dependencies: CaptureRepositoryDependencies,
@@ -77,8 +97,11 @@ export function createMemoryCaptureRepository(
   const markdownWorkflows = new Map<string, MarkdownWorkflowRecord>();
   const alertDevices = new Map<string, DevicePushRegistrationCommand>();
   const taskAlertStates = new Map<string, TaskAlertStateRecord>();
+  const syncCommands = new Map<string, SyncCommandRecord>();
+  const syncConflicts = new Map<string, SyncConflictRecord>();
   const alertAttempts: RecordAlertAttemptInput[] = [];
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
+  let offlineCacheStatus: OfflineCacheStatus | undefined;
 
   async function initialize(): Promise<void> {
     return Promise.resolve();
@@ -350,6 +373,23 @@ export function createMemoryCaptureRepository(
 
     const tasks = await listActiveTodayTasks();
     const future = await listFutureAttention();
+
+    offlineCacheStatus = parseOfflineCacheStatus({
+      state: deriveOfflineCacheState({
+        activeTaskCount: tasks.length,
+        requiredLotSnippetCount: tasks.length,
+        lastRefreshedAt: refreshedAt,
+        staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+        referenceTime: refreshedAt,
+        isConnected: true,
+      }),
+      lastRefreshedAt: refreshedAt,
+      activeTaskCount: tasks.length,
+      requiredLotSnippetCount: tasks.length,
+      staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+      source: input.source,
+      updatedAt: refreshedAt,
+    });
 
     return {
       metadata: {
@@ -904,6 +944,243 @@ export function createMemoryCaptureRepository(
     });
   }
 
+  function loadOfflineCacheStatus(): Promise<OfflineCacheStatus> {
+    if (offlineCacheStatus !== undefined) {
+      return Promise.resolve(
+        parseOfflineCacheStatus({
+          ...offlineCacheStatus,
+          state: deriveOfflineCacheState({
+            activeTaskCount: offlineCacheStatus.activeTaskCount,
+            requiredLotSnippetCount: offlineCacheStatus.requiredLotSnippetCount,
+            ...(offlineCacheStatus.lastRefreshedAt === undefined
+              ? {}
+              : { lastRefreshedAt: offlineCacheStatus.lastRefreshedAt }),
+            staleAfterHours: offlineCacheStatus.staleAfterHours,
+            referenceTime: dependencies.clock(),
+            isConnected: true,
+          }),
+          updatedAt: dependencies.clock(),
+        }),
+      );
+    }
+
+    return Promise.resolve(
+      parseOfflineCacheStatus({
+        state: "offline_unavailable",
+        activeTaskCount: 0,
+        requiredLotSnippetCount: 0,
+        staleAfterHours: OFFLINE_CACHE_STALE_AFTER_HOURS,
+        source: "startup",
+        updatedAt: dependencies.clock(),
+      }),
+    );
+  }
+
+  function listSyncQueue(): Promise<SyncQueueSummary> {
+    const queueCommands = sortSyncQueueItems(
+      [...syncCommands.values()].filter(
+        (command) => command.state !== "synced" && command.state !== "discarded",
+      ),
+    );
+    const summaries = queueCommands.map((command) => ({
+      id: command.id,
+      kind: command.kind,
+      state: command.state,
+      urgency: command.urgency,
+      productDisplayName: command.productDisplayName,
+      lotIdentity: command.lotIdentity,
+      currentLocation: command.currentLocation,
+      savedAt: command.savedAt,
+      ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
+      ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
+    }));
+    const conflictCount = queueCommands.filter((command) => command.state === "sync_conflict").length;
+    const hasCriticalConflict = queueCommands.some(
+      (command) => command.state === "sync_conflict" && command.urgency === "critical",
+    );
+    const oldestPendingCritical = summaries.find((command) => command.urgency === "critical");
+    const hasFailed = queueCommands.some((command) => command.state === "sync_failed");
+    const hasSyncing = queueCommands.some((command) => command.state === "syncing");
+
+    return Promise.resolve(
+      parseSyncQueueSummary({
+        state:
+          conflictCount > 0
+            ? "has_conflict"
+            : hasSyncing
+              ? "syncing"
+              : hasFailed
+                ? "has_failed"
+                : summaries.length > 0
+                  ? "has_pending"
+                  : "empty",
+        totalCount: summaries.length,
+        conflictCount,
+        hasCriticalConflict,
+        criticalCount: queueCommands.filter((command) => command.urgency === "critical").length,
+        highCount: queueCommands.filter((command) => command.urgency === "high").length,
+        mediumCount: queueCommands.filter((command) => command.urgency === "medium").length,
+        lowCount: queueCommands.filter((command) => command.urgency === "low").length,
+        ...(oldestPendingCritical === undefined ? {} : { oldestPendingCritical }),
+        commands: summaries,
+        updatedAt: dependencies.clock(),
+      }),
+    );
+  }
+
+  function saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord> {
+    return Promise.resolve().then(() => {
+      const action = parseOfflineActionCommand(input);
+      const snapshot = snapshotForOfflineAction(action);
+      const existing = [...syncCommands.values()].find(
+        (command) => command.idempotencyKey === snapshot.idempotencyKey,
+      );
+
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const savedAt = dependencies.clock();
+      const command = parseSyncCommandRecord({
+        id: nextGeneratedId(dependencies),
+        idempotencyKey: snapshot.idempotencyKey,
+        kind: action.kind,
+        state: "pending_sync",
+        urgency: classifySyncCommandUrgency({
+          kind: action.kind,
+          ...(snapshot.taskAction === undefined ? {} : { action: snapshot.taskAction }),
+          requiredResolution: snapshot.task.requiredResolution,
+          riskState: snapshot.task.riskState,
+          currentLocation: snapshot.task.currentLocation,
+        }),
+        payload: action,
+        taskId: snapshot.task.id,
+        taskActiveKey: snapshot.task.activeKey,
+        lotId: snapshot.task.lotId,
+        productDisplayName: snapshot.task.productDisplayName,
+        lotIdentity: snapshot.task.lotIdentity,
+        currentLocation: snapshot.task.currentLocation,
+        riskState: snapshot.task.riskState,
+        requiredResolution: snapshot.task.requiredResolution,
+        createdAt: savedAt,
+        updatedAt: savedAt,
+        savedAt,
+        attemptCount: 0,
+      });
+
+      syncCommands.set(command.id, command);
+      attachSyncMetadata(command);
+
+      return command;
+    });
+  }
+
+  function markSyncCommandAttempt(
+    commandIds: readonly string[],
+    attemptedAt: string,
+  ): Promise<readonly SyncCommandRecord[]> {
+    return Promise.resolve(
+      commandIds.map((commandId) => {
+        const existing = requireSyncCommand(commandId);
+        const updated = parseSyncCommandRecord({
+          ...existing,
+          state: "syncing",
+          updatedAt: attemptedAt,
+          firstAttemptedAt: existing.firstAttemptedAt ?? attemptedAt,
+          lastAttemptedAt: attemptedAt,
+          attemptCount: existing.attemptCount + 1,
+        });
+
+        syncCommands.set(updated.id, updated);
+        attachSyncMetadata(updated);
+
+        return updated;
+      }),
+    );
+  }
+
+  function applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord> {
+    return Promise.resolve().then(() => {
+      const parsed = parseSyncTransportResult(result);
+      const existing = requireSyncCommand(parsed.commandId);
+      const updatedAt = "syncedAt" in parsed ? parsed.syncedAt : dependencies.clock();
+      const updated =
+        parsed.status === "ack"
+          ? parseSyncCommandRecord({
+              ...existing,
+              state: "synced",
+              updatedAt,
+              ackedAt: parsed.syncedAt,
+              lastError: undefined,
+              nextRetryAt: undefined,
+            })
+          : parsed.status === "retry"
+            ? parseSyncCommandRecord({
+                ...existing,
+                state: "sync_failed",
+                updatedAt,
+                lastError: parsed.error,
+                nextRetryAt:
+                  parsed.retryAfterSeconds === undefined
+                    ? undefined
+                    : new Date(Date.parse(updatedAt) + parsed.retryAfterSeconds * 1000).toISOString(),
+              })
+            : parseSyncCommandRecord({
+                ...existing,
+                state: "sync_conflict",
+                updatedAt,
+                conflictId: parsed.conflict.id,
+              });
+
+      if (parsed.status === "conflict") {
+        syncConflicts.set(parsed.conflict.id, parseSyncConflictRecord(parsed.conflict));
+      }
+
+      syncCommands.set(updated.id, updated);
+      attachSyncMetadata(updated);
+
+      return updated;
+    });
+  }
+
+  function resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord> {
+    return Promise.resolve().then(() => {
+      const existing = syncConflicts.get(parseLotId(input.conflictId));
+
+      if (existing === undefined) {
+        throw new Error(`Cannot resolve an unknown sync conflict: ${input.conflictId}`);
+      }
+
+      const resolved = parseSyncConflictRecord({
+        ...existing,
+        resolvedAt: input.resolvedAt,
+        resolutionAction: input.action,
+        ...(input.reason === undefined ? {} : { resolutionReason: input.reason }),
+      });
+      const command = requireSyncCommand(existing.commandId);
+      const commandState =
+        input.action === "keep_local_and_retry" ? "pending_sync" : "discarded";
+      const updatedCommand = parseSyncCommandRecord({
+        ...command,
+        state: commandState,
+        updatedAt: input.resolvedAt,
+        ...(commandState === "discarded"
+          ? { discardedAt: input.resolvedAt, discardReason: input.reason ?? "Atualizado pela tarefa atual" }
+          : { conflictId: undefined }),
+      });
+
+      syncConflicts.set(resolved.id, resolved);
+      syncCommands.set(updatedCommand.id, updatedCommand);
+      attachSyncMetadata(updatedCommand);
+
+      return resolved;
+    });
+  }
+
+  function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
+    return Promise.resolve(syncConflicts.get(parseLotId(conflictId)) ?? null);
+  }
+
   return {
     initialize,
     createProduct,
@@ -934,7 +1211,150 @@ export function createMemoryCaptureRepository(
     recordAlertAttempt,
     acknowledgeEscalation,
     resolvePushOpenIntent,
+    loadOfflineCacheStatus,
+    listSyncQueue,
+    saveOfflineAction,
+    markSyncCommandAttempt,
+    applySyncTransportResult,
+    resolveSyncConflict,
+    loadSyncConflict,
   };
+
+  function snapshotForOfflineAction(action: OfflineActionCommand): {
+    idempotencyKey: string;
+    task: TodayTaskRecord;
+    taskAction?: TaskResolutionCommand["action"];
+  } {
+    if (action.kind === "resolve_task") {
+      const task = requireTodayTask(action.payload.taskId);
+
+      return {
+        idempotencyKey: `${action.kind}:${action.payload.taskId}:${action.payload.action}:${action.payload.occurredAt}`,
+        task,
+        taskAction: action.payload.action,
+      };
+    }
+
+    if (action.kind === "request_markdown") {
+      const task =
+        action.payload.sourceTaskId === undefined
+          ? findTaskForLot(action.payload.lotId)
+          : requireTodayTask(action.payload.sourceTaskId);
+
+      return {
+        idempotencyKey: `${action.kind}:${action.payload.lotId}:${action.payload.sourceTaskId ?? "lot"}:${action.payload.occurredAt}`,
+        task,
+      };
+    }
+
+    const task = requireTodayTask(action.payload.taskId);
+
+    return {
+      idempotencyKey: `${action.kind}:${action.payload.workflowId}:${action.payload.taskId}:${action.payload.occurredAt}`,
+      task,
+      taskAction:
+        action.kind === "decide_markdown"
+          ? action.payload.decision === "approved"
+            ? "approve_markdown"
+            : "reject_markdown"
+          : action.kind === "record_markdown_application"
+            ? "apply_markdown"
+            : "confirm_markdown_on_shelf",
+    };
+  }
+
+  function findTaskForLot(lotId: string): TodayTaskRecord {
+    const task = [...todayTasks.values()].find(
+      (candidate) => candidate.lotId === lotId && candidate.status === "active",
+    );
+
+    if (task !== undefined) {
+      return task;
+    }
+
+    const lot = lots.get(lotId);
+
+    if (lot === undefined) {
+      throw new Error(`Cannot save an offline action for an unknown lot: ${lotId}`);
+    }
+
+    return parseTodayTaskRecord({
+      id: `offline:${lot.id}:request_markdown`,
+      activeKey: `offline:${lot.id}:request_markdown`,
+      lotId: lot.id,
+      productDisplayName: lot.productDisplayName,
+      lotIdentity: lot.identity,
+      currentLocation: lot.currentObservation.location,
+      riskState: "markdown_due",
+      severity: "medium",
+      dueBucket: "today",
+      requiredResolution: "request_markdown",
+      section: "request_markdown",
+      ownerLabel: "Equipe do turno",
+      status: "active",
+      sourceRisk: {
+        state: "markdown_due",
+        reasons: [{ code: "expires_in_15_days", field: "offlineMarkdown" }],
+      },
+      priority: 3,
+      createdAt: dependencies.clock(),
+      updatedAt: dependencies.clock(),
+    });
+  }
+
+  function requireTodayTask(taskId: string): TodayTaskRecord {
+    const task = todayTasks.get(parseLotId(taskId));
+
+    if (task === undefined) {
+      throw new Error(`Cannot save an offline action for an unknown Today task: ${taskId}`);
+    }
+
+    return task;
+  }
+
+  function requireSyncCommand(commandId: string): SyncCommandRecord {
+    const command = syncCommands.get(parseLotId(commandId));
+
+    if (command === undefined) {
+      throw new Error(`Cannot load an unknown sync command: ${commandId}`);
+    }
+
+    return command;
+  }
+
+  function attachSyncMetadata(command: SyncCommandRecord): void {
+    const task = todayTasks.get(command.taskId);
+
+    if (task === undefined) {
+      return;
+    }
+
+    const syncedState =
+      command.state === "synced"
+        ? {
+            state: command.state,
+            savedAt: command.savedAt,
+            lastSyncedAt: command.ackedAt ?? command.updatedAt,
+            attemptCount: command.attemptCount,
+          }
+        : {
+            state: command.state,
+            savedAt: command.savedAt,
+            pendingCommandId: command.id,
+            ...(command.conflictId === undefined ? {} : { conflictId: command.conflictId }),
+            ...(command.lastError === undefined ? {} : { lastError: command.lastError }),
+            attemptCount: command.attemptCount,
+          };
+
+    todayTasks.set(
+      task.id,
+      parseTodayTaskRecord({
+        ...task,
+        sync: syncedState,
+        updatedAt: command.updatedAt,
+      }),
+    );
+  }
 }
 
 function isActiveTask(task: TodayTaskRecord): boolean {

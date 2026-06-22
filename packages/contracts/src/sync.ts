@@ -149,6 +149,7 @@ export const SyncQueueSummarySchema = z
     state: z.enum(["empty", "has_pending", "syncing", "has_failed", "has_conflict"]),
     totalCount: z.number().int().nonnegative(),
     conflictCount: z.number().int().nonnegative(),
+    hasCriticalConflict: z.boolean(),
     criticalCount: z.number().int().nonnegative(),
     highCount: z.number().int().nonnegative(),
     mediumCount: z.number().int().nonnegative(),

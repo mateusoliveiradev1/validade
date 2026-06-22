@@ -8,8 +8,14 @@ import {
   MarkdownRequestCommandSchema,
   MarkdownShelfConfirmationCommandSchema,
   MarkdownWorkflowRecordSchema,
+  OfflineActionCommandSchema,
+  OfflineCacheStatusSchema,
   PhysicalObservationInputSchema,
   PushOpenIntentSchema,
+  SyncCommandRecordSchema,
+  SyncConflictRecordSchema,
+  SyncQueueSummarySchema,
+  SyncTransportResultSchema,
   TaskAlertStateRecordSchema,
   type CaptureLotInput,
   type CaptureProductInput,
@@ -21,9 +27,15 @@ import {
   type MarkdownRequestCommand,
   type MarkdownShelfConfirmationCommand,
   type MarkdownWorkflowRecord,
+  type OfflineActionCommand,
+  type OfflineCacheStatus,
   type OperationalLocation,
   type PhysicalObservationInput,
   type PushOpenIntent,
+  type SyncCommandRecord,
+  type SyncConflictRecord,
+  type SyncQueueSummary,
+  type SyncTransportResult,
   type TaskAlertStateRecord,
   type TaskRefreshMetadata,
   TaskResolutionCommandSchema,
@@ -46,6 +58,7 @@ import {
   type RiskAssessment,
   type RiskWindows,
   type MarkdownRequestReason,
+  type SyncConflictResolutionAction,
 } from "@validade-zero/domain";
 
 export interface CaptureRepositoryDependencies {
@@ -136,6 +149,13 @@ export interface ResolvePushOpenIntentInput {
   openedAt: string;
 }
 
+export interface ResolveSyncConflictInput {
+  conflictId: string;
+  action: SyncConflictResolutionAction;
+  resolvedAt: string;
+  reason?: string;
+}
+
 export type MarkdownEntryState =
   | {
       status: "presence_required";
@@ -202,6 +222,13 @@ export interface CaptureRepository {
   recordAlertAttempt(input: RecordAlertAttemptInput): Promise<TaskAlertStateRecord>;
   acknowledgeEscalation(input: AcknowledgeEscalationInput): Promise<TaskAlertStateRecord>;
   resolvePushOpenIntent(input: ResolvePushOpenIntentInput): Promise<PushOpenIntent>;
+  loadOfflineCacheStatus(): Promise<OfflineCacheStatus>;
+  listSyncQueue(): Promise<SyncQueueSummary>;
+  saveOfflineAction(input: OfflineActionCommand): Promise<SyncCommandRecord>;
+  markSyncCommandAttempt(commandIds: readonly string[], attemptedAt: string): Promise<readonly SyncCommandRecord[]>;
+  applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord>;
+  resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord>;
+  loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null>;
 }
 
 export function normalizeProductLookup(value: string): string {
@@ -268,6 +295,30 @@ export function parseAlertDeliveryResult(input: unknown): AlertDeliveryResult {
 
 export function parsePushOpenIntent(input: unknown): PushOpenIntent {
   return PushOpenIntentSchema.parse(input);
+}
+
+export function parseOfflineCacheStatus(input: unknown): OfflineCacheStatus {
+  return OfflineCacheStatusSchema.parse(input);
+}
+
+export function parseOfflineActionCommand(input: unknown): OfflineActionCommand {
+  return OfflineActionCommandSchema.parse(input);
+}
+
+export function parseSyncCommandRecord(input: unknown): SyncCommandRecord {
+  return SyncCommandRecordSchema.parse(input);
+}
+
+export function parseSyncQueueSummary(input: unknown): SyncQueueSummary {
+  return SyncQueueSummarySchema.parse(input);
+}
+
+export function parseSyncConflictRecord(input: unknown): SyncConflictRecord {
+  return SyncConflictRecordSchema.parse(input);
+}
+
+export function parseSyncTransportResult(input: unknown): SyncTransportResult {
+  return SyncTransportResultSchema.parse(input);
 }
 
 export function parseLotId(value: string): string {
