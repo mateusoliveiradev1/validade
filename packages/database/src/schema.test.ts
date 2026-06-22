@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  auditEventStatusEnum,
   auditEvents,
   membershipRoleEnum,
   membershipStatusEnum,
@@ -17,6 +18,13 @@ describe("phase 08 database schema", () => {
   it("defines membership roles and active status vocabulary", () => {
     expect(membershipRoleEnum.enumValues).toEqual(["collaborator", "lead", "admin"]);
     expect(membershipStatusEnum.enumValues).toEqual(["active", "inactive"]);
+    expect(auditEventStatusEnum.enumValues).toEqual([
+      "received",
+      "pending_ack",
+      "conflict",
+      "denied",
+      "invalidated",
+    ]);
   });
 
   it("keeps memberships and audit events store scoped", () => {
@@ -26,9 +34,13 @@ describe("phase 08 database schema", () => {
 
   it("tracks audit idempotency, actor snapshot, target, and sanitized metadata", () => {
     expect(auditEvents.idempotencyKey.name).toBe("idempotency_key");
+    expect(auditEvents.storeName.name).toBe("store_name");
     expect(auditEvents.actorRoleSnapshot.name).toBe("actor_role_snapshot");
     expect(auditEvents.targetType.name).toBe("target_type");
     expect(auditEvents.targetId.name).toBe("target_id");
+    expect(auditEvents.targetLabel.name).toBe("target_label");
+    expect(auditEvents.status.name).toBe("status");
+    expect(auditEvents.linkedEventId.name).toBe("linked_event_id");
     expect(auditEvents.metadata.name).toBe("metadata");
     expect(auditEvents.sanitized.name).toBe("sanitized");
   });
@@ -36,6 +48,8 @@ describe("phase 08 database schema", () => {
   it("migration includes indexes, idempotency, and append-only guard", () => {
     expect(migrationSql).toContain("store_memberships_active_subject_store_role_uidx");
     expect(migrationSql).toContain("audit_events_idempotency_key_uidx");
+    expect(migrationSql).toContain("audit_event_status");
+    expect(migrationSql).toContain("store_name text NOT NULL");
     expect(migrationSql).toContain("audit_events_store_occurred_idx");
     expect(migrationSql).toContain("audit_events_target_occurred_idx");
     expect(migrationSql).toContain("prevent_audit_events_mutation");

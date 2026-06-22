@@ -20,10 +20,18 @@ import {
   type SyncTransportBatch,
   type SyncTransportResult,
 } from "@validade-zero/contracts";
-import { createNeonAuditRepository } from "@validade-zero/database/audit-repository";
 import { createNeonMembershipRepository } from "@validade-zero/database/membership-repository";
 import type { Capability } from "@validade-zero/domain";
 import { Hono } from "hono";
+import {
+  createAuditAccessDeniedRecorder,
+  createAuditService,
+  createDatabaseAuditRepository,
+  createInMemoryAuditRepository,
+  parseAuditQueryFromUrl,
+  ProtectedTaskActionRequestSchema,
+  type AuditEventRepository,
+} from "./audit";
 import {
   createAuthorizationService,
   createDefaultMemberships,
@@ -50,13 +58,16 @@ export interface InMemorySyncCommandService extends SyncCommandService {
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
   authProvider?: AuthProvider;
+  auditRepository?: AuditEventRepository;
   databaseUrl?: string;
   membershipRepository?: MembershipRepository;
   authorizationService?: AuthorizationService;
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
+  now?: () => Date;
 }): Hono {
   const api = new Hono();
   const providers = createLocalProviderRegistry();
+  const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
   const authProvider = input?.authProvider ?? new FakeAuthProvider("collaborator-local");
   const membershipRepository =
@@ -66,11 +77,15 @@ export function createApiApp(input?: {
       : createNeonMembershipRepository({ connectionString: input.databaseUrl }));
   const authorizationService =
     input?.authorizationService ?? createAuthorizationService({ memberships: membershipRepository });
+  const auditRepository =
+    input?.auditRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryAuditRepository()
+      : createDatabaseAuditRepository(input.databaseUrl));
+  const auditService = createAuditService({ repository: auditRepository, now });
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
-    (input?.databaseUrl === undefined
-      ? createInMemoryAccessDeniedAuditRecorder()
-      : createDatabaseAccessDeniedAuditRecorder(input.databaseUrl));
+    createAuditAccessDeniedRecorder({ repository: auditRepository, now });
 
   api.get("/health", (context) => {
     const payload = HealthContract.response.parse({
@@ -128,6 +143,84 @@ export function createApiApp(input?: {
     return context.json({
       results: results.map((result) => SyncTransportResultSchema.parse(result)),
     });
+  });
+
+  api.post("/tasks/:taskId/actions", async (context) => {
+    let rawPayload: unknown;
+
+    try {
+      rawPayload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+
+    const parsed = ProtectedTaskActionRequestSchema.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_task_action" }, 400);
+    }
+
+    const identity = await authProvider.verify(context.req.raw);
+    const decision = await authorizationService.authorize({
+      identity,
+      capability: "task.act",
+      resourceStoreId: parsed.data.storeId,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity,
+        decision,
+        capability: "task.act",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "task_action",
+        storeScope: parsed.data.storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    const result = await auditService.recordProtectedTaskAction({
+      actorContext: decision.context,
+      taskId: context.req.param("taskId"),
+      command: parsed.data,
+    });
+
+    return context.json(result);
+  });
+
+  api.get("/audit/events", async (context) => {
+    let query: ReturnType<typeof parseAuditQueryFromUrl>;
+
+    try {
+      query = parseAuditQueryFromUrl(new URL(context.req.url).searchParams);
+    } catch {
+      return context.json({ error: "invalid_audit_query" }, 400);
+    }
+
+    const identity = await authProvider.verify(context.req.raw);
+    const decision = await authorizationService.authorize({
+      identity,
+      capability: "audit.read_store",
+      resourceStoreId: query.storeId,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity,
+        decision,
+        capability: "audit.read_store",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "audit_query",
+        storeScope: query.storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    return context.json(await auditService.queryStore(query));
   });
 
   api.get("/session/context", async (context) => {
@@ -532,38 +625,4 @@ async function recordDeniedAccess(input: {
     reason: input.reason,
     denialId,
   });
-}
-
-function createDatabaseAccessDeniedAuditRecorder(databaseUrl: string): AccessDeniedAuditRecorder {
-  const repository = createNeonAuditRepository({ connectionString: databaseUrl });
-
-  return {
-    async recordAccessDenied(event) {
-      if (event.actorSubjectId === undefined || event.actorRoleSnapshot === undefined) {
-        return;
-      }
-
-      await repository.append({
-        eventId: event.eventId,
-        idempotencyKey: event.eventId,
-        type: "access.denied",
-        storeId: event.storeScope ?? "unknown-store",
-        actorId: event.actorSubjectId,
-        actorDisplayName: event.actorDisplayName ?? event.actorSubjectId,
-        actorRoleSnapshot:
-          event.actorRoleSnapshot === "admin" || event.actorRoleSnapshot === "lead"
-            ? event.actorRoleSnapshot
-            : "collaborator",
-        occurredAt: new Date(event.occurredAt),
-        targetType: event.targetType,
-        targetId: "redacted",
-        summary: event.summary,
-        reason: event.reason,
-        metadata: {
-          requestedCapability: event.requestedCapability,
-          denialReason: event.reason,
-        },
-      });
-    },
-  };
 }

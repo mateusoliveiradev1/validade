@@ -34,6 +34,20 @@ EXCEPTION
 END
 $$;
 
+DO $$
+BEGIN
+  CREATE TYPE audit_event_status AS ENUM (
+    'received',
+    'pending_ack',
+    'conflict',
+    'denied',
+    'invalidated'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS store_memberships (
   membership_id text PRIMARY KEY,
   subject_id text NOT NULL,
@@ -61,6 +75,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
   idempotency_key text NOT NULL,
   type audit_event_type NOT NULL,
   store_id text NOT NULL,
+  store_name text NOT NULL,
   actor_id text NOT NULL,
   actor_display_name text NOT NULL,
   actor_role_snapshot membership_role NOT NULL,
@@ -68,11 +83,19 @@ CREATE TABLE IF NOT EXISTS audit_events (
   received_at timestamptz NOT NULL DEFAULT now(),
   target_type text NOT NULL,
   target_id text NOT NULL,
+  target_label text,
   summary text NOT NULL,
   reason text,
+  status audit_event_status NOT NULL DEFAULT 'received',
+  linked_event_id text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   sanitized boolean NOT NULL DEFAULT true
 );
+
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS store_name text NOT NULL DEFAULT 'Loja nao informada';
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS target_label text;
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS status audit_event_status NOT NULL DEFAULT 'received';
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS linked_event_id text;
 
 CREATE UNIQUE INDEX IF NOT EXISTS audit_events_idempotency_key_uidx
   ON audit_events (idempotency_key);

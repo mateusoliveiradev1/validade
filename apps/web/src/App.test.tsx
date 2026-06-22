@@ -30,6 +30,40 @@ describe("Validade Zero web smoke", () => {
           );
         }
 
+        if (url.includes("/audit/events")) {
+          return Promise.resolve(
+            Response.json({
+              items: [
+                {
+                  eventId: "audit-event-app-001",
+                  type: "task.changed",
+                  store: {
+                    storeId: "loja-piloto",
+                    storeName: "Loja Piloto",
+                  },
+                  actor: {
+                    actorId: "lead-local",
+                    displayName: "Lideranca local",
+                    roleSnapshot: "lead",
+                  },
+                  target: {
+                    type: "task",
+                    id: "task-app-001",
+                    label: "Ovos FICTICIOS - lote APP-001",
+                  },
+                  occurredAt: "2030-01-10T12:00:00.000Z",
+                  receivedAt: "2030-01-10T12:00:02.000Z",
+                  summary: "Retirada registrada na area de venda.",
+                  status: "received",
+                  metadata: {
+                    action: "withdraw",
+                  },
+                },
+              ],
+            }),
+          );
+        }
+
         return Promise.resolve(
           Response.json({
             status: "ok",
@@ -44,8 +78,12 @@ describe("Validade Zero web smoke", () => {
 
     expect(screen.getByText("Validade Zero")).toBeTruthy();
     expect(screen.getByText("Ambiente seguro para desenvolvimento")).toBeTruthy();
+    expect(screen.getByText("Auditoria operacional")).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText(/Colaborador local atua como/i)).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Retirada registrada na area de venda.")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Verificar API" }));

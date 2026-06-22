@@ -23,6 +23,14 @@ export const auditEventTypeEnum = pgEnum("audit_event_type", [
   "shift.changed",
 ]);
 
+export const auditEventStatusEnum = pgEnum("audit_event_status", [
+  "received",
+  "pending_ack",
+  "conflict",
+  "denied",
+  "invalidated",
+]);
+
 export const storeMemberships = pgTable(
   "store_memberships",
   {
@@ -60,6 +68,7 @@ export const auditEvents = pgTable(
     idempotencyKey: text("idempotency_key").notNull(),
     type: auditEventTypeEnum("type").notNull(),
     storeId: text("store_id").notNull(),
+    storeName: text("store_name").notNull(),
     actorId: text("actor_id").notNull(),
     actorDisplayName: text("actor_display_name").notNull(),
     actorRoleSnapshot: membershipRoleEnum("actor_role_snapshot").notNull(),
@@ -69,8 +78,11 @@ export const auditEvents = pgTable(
       .defaultNow(),
     targetType: text("target_type").notNull(),
     targetId: text("target_id").notNull(),
+    targetLabel: text("target_label"),
     summary: text("summary").notNull(),
     reason: text("reason"),
+    status: auditEventStatusEnum("status").notNull().default("received"),
+    linkedEventId: text("linked_event_id"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     sanitized: boolean("sanitized").notNull().default(true),
   },
