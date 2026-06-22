@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
+current_phase: 09
 status: Ready to Plan
 stopped_at: Phase 09 context gathered
-last_updated: "2026-06-22T22:17:30.440Z"
+last_updated: "2026-06-22T22:18:36.612Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
@@ -18,7 +18,7 @@ progress:
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 08
+**Current phase:** 09
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Start Phase 9 - Impeccable Hardening and v1 Readiness (`$gsd-discuss-phase 9`).
+Run the Phase 9 UI contract and planning flow: `$gsd-ui-phase 9`, then `$gsd-plan-phase 9`.
 
 ### Quick Tasks Completed
 
