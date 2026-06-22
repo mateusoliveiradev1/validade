@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 09
 status: Ready to Plan
-stopped_at: Phase 09 context gathered
-last_updated: "2026-06-22T22:18:36.612Z"
+stopped_at: Phase 09 UI-SPEC approved
+last_updated: "2026-06-22T22:31:05.046Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
@@ -106,9 +106,9 @@ Run the Phase 9 UI contract and planning flow: `$gsd-ui-phase 9`, then `$gsd-pla
 
 ## Session
 
-**Last session:** 2026-06-22T22:17:30.436Z
-**Stopped at:** Phase 09 context gathered
-**Resume file:** .planning/phases/09-impeccable-hardening-and-v1-readiness/09-CONTEXT.md
+**Last session:** 2026-06-22T22:31:05.042Z
+**Stopped at:** Phase 09 UI-SPEC approved
+**Resume file:** .planning/phases/09-impeccable-hardening-and-v1-readiness/09-UI-SPEC.md
 
 ## Decisions
 
