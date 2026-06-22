@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-06-22T10:10:16.880Z",
+  "phase": "08",
+  "phase_name": "audit-roles-and-shift-close",
+  "phase_dir": ".planning/phases/08-audit-roles-and-shift-close",
+  "plan": 1,
+  "task": 2,
+  "total_tasks": 3,
+  "status": "blocked",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Deliver the thinnest role-aware protected web path",
+      "status": "done",
+      "commit": "15ab5d9"
+    },
+    {
+      "id": 2,
+      "name": "Persist the working membership path in Neon",
+      "status": "in_progress",
+      "progress": "Database package, Drizzle schema, migration SQL, database Vitest project, package dependencies, lockfile update, db:check, database tests, security:env, and database typecheck are complete. Blocking external Neon branch migration verification is still pending because NEON_DATABASE_URL is not present in the environment."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 2,
+      "name": "Run blocking temporary Neon branch migration verification",
+      "status": "blocked"
+    },
+    {
+      "id": 3,
+      "name": "Enforce server-owned identity and audit sanitized access denials",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "NEON_DATABASE_URL is missing; Task 2 acceptance requires applying 0001_phase_08_identity_audit.sql to a disposable Neon branch and asserting tables, indexes, active uniqueness, append-only rejection, and migration idempotency before the task can be marked done.",
+      "type": "human_action",
+      "workaround": "Set NEON_DATABASE_URL only for a temporary Neon branch in the shell/environment, then resume $gsd-execute-phase 8. Do not commit the value or print it."
+    }
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {
+      "action": "Provide a temporary Neon branch connection string through NEON_DATABASE_URL in the environment.",
+      "context": "Required by Phase 8 Plan 08-01 Task 2 for blocking migration verification.",
+      "blocking": true
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Use a dedicated @validade-zero/database package with Drizzle/Neon serverless and hand-written idempotent SQL migration for the initial membership/audit schema.",
+      "rationale": "Keeps central persistence behind a typed package boundary while preserving Cloudflare/Neon zero-cost architecture and public-repo secret safety.",
+      "phase": "08"
+    },
+    {
+      "decision": "Do not commit Task 2 as complete until the disposable Neon branch verification runs.",
+      "rationale": "The plan marks Task 2 as BLOCKING and explicitly requires external migration assertions before completion.",
+      "phase": "08"
+    }
+  ],
+  "uncommitted_files": [
+    ".planning/STATE.md",
+    "apps/api/package.json",
+    "pnpm-lock.yaml",
+    "vitest.config.ts",
+    "packages/database/"
+  ],
+  "next_action": "After NEON_DATABASE_URL is available, run a non-printing migration assertion against the temporary branch, then re-run pnpm.cmd --filter @validade-zero/database typecheck, pnpm.cmd vitest run --config vitest.config.ts --project database, pnpm.cmd --filter @validade-zero/database db:check, and pnpm.cmd security:env.",
+  "context_notes": "Task 1 is committed and green. Task 2 code/setup gates are green except for external Neon verification. Preserve untracked .agents/ and .codex directories; they pre-existed and should not be staged."
+}
