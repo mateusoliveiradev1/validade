@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-community/netinfo": "12.0.1",
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "expo": "^56.0.12",
