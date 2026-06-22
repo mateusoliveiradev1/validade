@@ -240,7 +240,7 @@ Plans:
 3. Evidence assets are stored outside Postgres with controlled access.
 4. Lead can confirm whether the sales area is safe before shift close.
 
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 Plans:
 **Wave 1**
 
@@ -248,7 +248,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-02-PLAN.md - Append-only audit producers, mobile timelines, and web workbench
+- [x] 08-02-PLAN.md - Append-only audit producers, mobile timelines, and web workbench
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

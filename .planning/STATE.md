@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 08
 status: In Progress
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-06-22T11:14:50.965Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-06-22T11:50:36.454Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 34
-  completed_plans: 30
-  percent: 88
+  completed_plans: 31
+  percent: 91
 ---
 
 # Project State: Validade Zero
@@ -42,7 +42,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | In Progress | Audit, Roles, and Shift Close - 1/5 plans executed |
+| 8 | In Progress | Audit, Roles, and Shift Close - 2/5 plans executed |
 | 9 | Pending | Impeccable Hardening and v1 Readiness |
 
 ## Active Constraints
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 8 - Audit, Roles, and Shift Close with Wave 2 (`$gsd-execute-phase 8`).
+Continue Phase 8 - Audit, Roles, and Shift Close with Wave 3 (`$gsd-execute-phase 8`).
 
 ### Quick Tasks Completed
 
@@ -99,15 +99,20 @@ Continue Phase 8 - Audit, Roles, and Shift Close with Wave 2 (`$gsd-execute-phas
 | Phase 07 P03 | 8min | 2 tasks | 9 files |
 | Phase 07 P04 | 24min | 2 tasks | 21 files |
 | Phase 08 P01 | 70 min | 3 tasks | 30 files |
+| Phase 08 P02 | 35min | 2 tasks | 33 files |
 
 ## Session
 
-**Last session:** 2026-06-22T11:14:50.961Z
-**Stopped at:** Completed 08-01-PLAN.md
+**Last session:** 2026-06-22T11:50:26.864Z
+**Stopped at:** Completed 08-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
 
+- [Phase 08]: Audit producer vocabulary covers domain/security events only; navigation, filters, and ordinary clicks remain outside the audit trail. - Keeps audit useful for operational accountability instead of becoming noisy UI telemetry.
+- [Phase 08]: Pending local audit timeline entries omit receivedAt until central acknowledgement exists. - Prevents offline physical actions from looking centrally confirmed before sync.
+- [Phase 08]: Corrections, conflicts, and discards create linked audit events instead of rewriting the original operational fact. - Preserves append-only history and explains later changes.
+- [Phase 08]: The web audit surface stays an investigation table/list with filters and cursor loading, not a dashboard with totals or charts. - Supports leadership explanation without inventing analytics the pilot does not yet need.
 - [Phase 07]: Offline/sync support stays inside Hoje, directly below the sales-area verdict, instead of becoming a separate dashboard. - Keeps the operator focused on visible task execution while still exposing cache, queue, retry, and conflict state.
 - [Phase 07]: Local-save feedback says the action is saved on this device and pending sync; it never claims central confirmation before ack. - Prevents an offline action from being misread as proof that the sales area is safe.
 - [Phase 07]: Critical sync conflicts require explicit review and destructive discard requires a non-empty reason. - Prevents critical offline actions from being silently confirmed or erased.
