@@ -20,5 +20,6 @@ export * from "./profiles";
 export * from "./risk";
 export * from "./alerts";
 export * from "./markdown";
+export * from "./sync";
 export * from "./tasks";
 export * from "./types";
