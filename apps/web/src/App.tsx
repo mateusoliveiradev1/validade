@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccountAccessErrorResponseSchema, AuthenticatedSessionResponseSchema, InvalidCredentialsResponseSchema, InviteValidationResponseSchema, type SessionContextResponse } from "@validade-zero/contracts";
 import { AuditWorkbench } from "./audit/AuditWorkbench";
+import { CommandCenter } from "./command-center/CommandCenter";
 import { FirstAccessPage } from "./auth/FirstAccessPage";
 import { LoginPage } from "./auth/LoginPage";
 import { RecoveryPage } from "./auth/RecoveryPage";
@@ -20,6 +21,6 @@ export function App() {
   if (screen === "blocked") return <LoginPage error="Conta bloqueada ou sem permissao para esta loja. Fale com a lideranca ou administracao." onFirstAccess={() => setScreen("first")} onLogin={login} onPrivacy={() => setScreen("privacy")} onRecovery={() => setScreen("recovery")} />;
   if (session === undefined) return <LoginPage {...(error === undefined ? {} : { error })} onFirstAccess={() => setScreen("first")} onLogin={login} onPrivacy={() => setScreen("privacy")} onRecovery={() => setScreen("recovery")} />;
   return <AppShell session={session} route={route} onRouteChange={setRoute} onOpenPrivacy={() => setScreen("privacy")} onLogout={() => { void fetch("/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); setSession(undefined); }}>
-    {route === "command" ? <section aria-label="Command Center" className="grid gap-4"><h1 className="text-[28px] font-semibold leading-[34px]">Area de venda segura agora?</h1><p className="max-w-[75ch] text-base leading-6 text-muted-foreground">O Command Center consolida riscos, tarefas, evidencias, sincronizacao e fechamento a partir dos registros da loja.</p></section> : route === "access" ? <MembershipAdministration /> : <AuditWorkbench />}
+    {route === "command" ? <CommandCenter storeId={session.store.storeId} onOpenAudit={() => setRoute("audit")} /> : route === "access" ? <MembershipAdministration /> : <AuditWorkbench initialStoreId={session.store.storeId} initialStoreName={session.store.storeName} />}
   </AppShell>;
 }

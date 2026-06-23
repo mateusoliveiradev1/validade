@@ -29,6 +29,7 @@ import {
   SyncTransportResultSchema,
   type AlertDeliveryResult,
   type AlertDispatchCommand,
+  CommandCenterProjectionSchema,
   type SyncCommandRecord,
   type SyncConflictRecord,
   type SyncTransportBatch,
@@ -80,6 +81,10 @@ import {
   type RecoveryDeliveryProvider,
 } from "./authentication";
 import {
+  createInMemoryCommandCenterService,
+  type CommandCenterService,
+} from "./command-center";
+import {
   createDatabaseEvidenceRepository,
   createEvidenceService,
   createInMemoryEvidenceRepository,
@@ -125,12 +130,14 @@ export function createApiApp(input?: {
   loginAttemptLimiter?: LoginAttemptLimiter;
   sessionTtlSeconds?: number;
   recoveryTtlSeconds?: number;
+  commandCenterService?: CommandCenterService;
   now?: () => Date;
 }): Hono {
   const api = new Hono();
   const providers = createLocalProviderRegistry();
   const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
+  const commandCenterService = input?.commandCenterService ?? createInMemoryCommandCenterService({ now });
   const membershipManagementRepository =
     input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined
@@ -798,6 +805,43 @@ export function createApiApp(input?: {
     }
 
     return context.json(await auditService.queryStore(query));
+  });
+
+  api.get("/command-center", async (context) => {
+    const storeId = context.req.query("storeId") ?? "loja-piloto";
+    const identity = await authProvider.verify(context.req.raw);
+    const decision = await authorizationService.authorize({
+      identity,
+      capability: "audit.read_store",
+      resourceStoreId: storeId,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity,
+        decision,
+        capability: "audit.read_store",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "command_center",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        CommandCenterProjectionSchema.parse(
+          await commandCenterService.read({
+            storeId,
+            storeName: decision.context.membership.storeName,
+          }),
+        ),
+      );
+    } catch {
+      return context.json({ error: "command_center_unavailable" }, 503);
+    }
   });
 
   api.get("/session/context", async (context) => {

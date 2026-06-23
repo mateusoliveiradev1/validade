@@ -29,7 +29,37 @@ describe("authenticated web shell", () => {
   });
 
   it("shows the operational shell for an active session", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json(activeSession))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input);
+
+        if (url.includes("/command-center")) {
+          return Promise.resolve(
+            Response.json({
+              storeId: "loja-ficticia",
+              storeName: "Loja Ficticia Piloto",
+              refreshedAt: "2030-01-11T11:00:00.000Z",
+              freshness: "current",
+              verdict: {
+                state: "safe",
+                title: "Area de venda segura agora",
+                detail: "Nenhum bloqueio central exige acao neste momento.",
+              },
+              criticalLots: [],
+              overdueTasks: [],
+              pendingMarkdowns: [],
+              pendingEvidence: [],
+              syncConflicts: [],
+              pendingShiftCloses: [],
+              shiftHistory: [],
+            }),
+          );
+        }
+
+        return Promise.resolve(Response.json(activeSession));
+      }),
+    );
 
     render(<App />);
 
