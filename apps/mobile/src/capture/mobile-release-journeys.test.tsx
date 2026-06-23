@@ -23,6 +23,16 @@ vi.mock("react-native", async () => {
   };
 });
 
+vi.mock("expo-constants", () => ({
+  default: {
+    expoConfig: {
+      extra: {
+        EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
+      },
+    },
+  },
+}));
+
 function activeSession(): SessionContextResponse {
   return {
     actor: { subjectId: "worker-ficticio", displayName: "Colaborador FICTICIO" },

@@ -13,7 +13,7 @@
       "backgroundColor": "#166534"
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url",
+      "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }

@@ -24,6 +24,16 @@ import { RecoveryScreen } from "./RecoveryScreen";
 import { PrivacyCenterScreen } from "../privacy/PrivacyCenterScreen";
 import { MobileAuthError, type MobileAuthErrorCode } from "./auth-errors";
 
+declare const require: (moduleName: string) => unknown;
+
+interface ExpoConstantsConfigPort {
+  default: {
+    expoConfig?: {
+      extra?: Record<string, unknown> | null;
+    } | null;
+  };
+}
+
 type GateScreen =
   | "checking"
   | "login"
@@ -421,9 +431,37 @@ function roleLabel(role: SessionContextResponse["activeRole"]): string {
 }
 
 function configuredApiBaseUrl(): string {
-  const value = (process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL;
+  const value =
+    normalizeApiBaseUrl((process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL) ||
+    normalizeApiBaseUrl(apiUrlFromExpoConfig());
+  return value;
+}
+
+function apiUrlFromExpoConfig(): string | undefined {
+  let constants: ExpoConstantsConfigPort;
+  try {
+    const globalRequire = (globalThis as { require?: (moduleName: string) => unknown }).require;
+    const moduleLoader =
+      typeof globalRequire === "function"
+        ? globalRequire
+        : typeof require === "function"
+          ? require
+          : undefined;
+    if (moduleLoader === undefined) return undefined;
+    constants = moduleLoader("expo-constants") as ExpoConstantsConfigPort;
+  } catch {
+    return undefined;
+  }
+  const extra = constants.default.expoConfig?.extra;
+  if (extra === undefined || extra === null || typeof extra !== "object") return undefined;
+  const value = extra.EXPO_PUBLIC_API_URL;
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizeApiBaseUrl(value: string | undefined): string {
   if (typeof value !== "string") return "";
   const baseUrl = value.trim();
+  if (baseUrl === "" || baseUrl.includes("placeholder")) return "";
   return /^https?:\/\//.test(baseUrl) ? baseUrl.replace(/\/$/, "") : "";
 }
 

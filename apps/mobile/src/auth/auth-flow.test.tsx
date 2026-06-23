@@ -1,7 +1,7 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionContextResponse } from "@validade-zero/contracts";
-import { AuthGate, type MobileAuthClient } from "./AuthGate";
+import { AuthGate, createMobileAuthClient, type MobileAuthClient } from "./AuthGate";
 import { MobileAuthError } from "./auth-errors";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -21,6 +21,21 @@ vi.mock("react-native", async () => {
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
   };
+});
+
+vi.mock("expo-constants", () => ({
+  default: {
+    expoConfig: {
+      extra: {
+        EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
+      },
+    },
+  },
+}));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 function activeSession(overrides: Partial<SessionContextResponse> = {}): SessionContextResponse {
@@ -99,6 +114,45 @@ async function enter(tree: ReactTestRenderer, label: string, value: string): Pro
 }
 
 describe("mobile auth flow", () => {
+  it("uses the Expo config API URL when the public env is not bundled", async () => {
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "");
+    vi.stubGlobal("require", (moduleName: string) => {
+      if (moduleName !== "expo-constants") throw new Error("Unexpected module.");
+      return {
+        default: {
+          expoConfig: {
+            extra: {
+              EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
+            },
+          },
+        },
+      };
+    });
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            status: "authenticated",
+            sessionToken: "sessao-ficticia-com-tamanho-valido-0001",
+            session: activeSession(),
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        ),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createMobileAuthClient().readSession();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://validade-zero-api-staging.validadezero.workers.dev/auth/session",
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }),
+    );
+  });
+
   it("opens Hoje only after a valid active session and supports logout", async () => {
     const login = vi.fn(() => Promise.resolve(activeSession()));
     const logout = vi.fn(() => Promise.resolve());
