@@ -10,7 +10,7 @@ import type {
 } from "@validade-zero/contracts";
 import type { AlertChannelState } from "@validade-zero/domain";
 import { formatLocation } from "./capture-copy";
-import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
+import { PrimaryAction, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
@@ -282,6 +282,13 @@ export function TodayScreen({
   const renderedAt = now();
   const overdueTasks = tasks.filter((task) => isOverdueTask(task, renderedAt));
   const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
+  const firstPriorityTask = overdueTasks[0] ?? currentTasks[0];
+  const canOpenPriorityTask = firstPriorityTask !== undefined && onOpenTask !== undefined;
+  const heroPrimaryLabel =
+    firstPriorityTask === undefined || onOpenTask === undefined
+      ? todayCopy.registerLot
+      : todayActionLabel(firstPriorityTask);
+  const heroSecondaryLabel = canOpenPriorityTask ? todayCopy.registerLot : todayCopy.recentLots;
   const verdict = isInitialLoading
     ? "Carregando riscos da area de venda"
     : refreshError !== undefined
@@ -294,13 +301,13 @@ export function TodayScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader title={todayCopy.title} />
       <View
         style={[
           styles.safetyHeader,
           salesAreaRiskCount > 0 ? styles.safetyHeaderCritical : undefined,
         ]}
       >
+        <Text style={styles.heroKicker}>{todayCopy.title}</Text>
         <Text style={styles.safetyVerdict}>{verdict}</Text>
         <Text style={styles.safetyBody}>
           {salesAreaRiskCount > 0
@@ -311,13 +318,49 @@ export function TodayScreen({
                 ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
                 : "Continue conferindo os lotes do turno sem esconder pendencias."}
         </Text>
+        <View style={styles.heroMetrics}>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricValue}>{salesAreaRiskCount}</Text>
+            <Text style={styles.heroMetricLabel}>riscos na area</Text>
+          </View>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricValue}>{tasks.length}</Text>
+            <Text style={styles.heroMetricLabel}>tarefas ativas</Text>
+          </View>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricValue}>{syncQueue?.totalCount ?? 0}</Text>
+            <Text style={styles.heroMetricLabel}>a sincronizar</Text>
+          </View>
+        </View>
+        <View style={styles.heroActions}>
+          <View style={styles.heroActionPrimary}>
+            <PrimaryAction
+              label={heroPrimaryLabel}
+              onPress={() => {
+                if (firstPriorityTask !== undefined && onOpenTask !== undefined) {
+                  onOpenTask(firstPriorityTask);
+                  return;
+                }
+                onRegisterLot();
+              }}
+            />
+          </View>
+          <View style={styles.heroActionSecondary}>
+            <SecondaryAction
+              accessibilityLabel={heroSecondaryLabel}
+              label={canOpenPriorityTask ? heroSecondaryLabel : "Recentes"}
+              onPress={canOpenPriorityTask ? onRegisterLot : onOpenRecentLots}
+            />
+          </View>
+        </View>
         <SecondaryAction
           label={isRefreshing ? "Atualizando tarefas" : todayCopy.refresh}
           disabled={isRefreshing}
           onPress={() => void refreshTasks("manual_refresh")}
         />
-        <SecondaryAction label={todayCopy.registerLot} onPress={onRegisterLot} />
-        <SecondaryAction label={todayCopy.recentLots} onPress={onOpenRecentLots} />
+        {canOpenPriorityTask ? (
+          <SecondaryAction label={todayCopy.recentLots} onPress={onOpenRecentLots} />
+        ) : null}
       </View>
 
       <OfflineStatusBand
@@ -774,8 +817,8 @@ const styles = StyleSheet.create({
     borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: captureSpacing.medium,
-    minHeight: 156,
+    gap: captureSpacing.large,
+    minHeight: 176,
     padding: captureSpacing.large,
   },
   safetyHeaderCritical: {
@@ -788,10 +831,55 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 34,
   },
+  heroKicker: {
+    color: captureColors.accent,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
   safetyBody: {
     color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
+  },
+  heroMetrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: captureSpacing.small,
+  },
+  heroMetric: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    flexGrow: 1,
+    minWidth: 92,
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.small,
+  },
+  heroMetricValue: {
+    color: captureColors.ink,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  heroMetricLabel: {
+    color: captureColors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  heroActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: captureSpacing.small,
+  },
+  heroActionPrimary: {
+    flexBasis: 180,
+    flexGrow: 1,
+  },
+  heroActionSecondary: {
+    flexBasis: 132,
+    flexGrow: 1,
   },
   emptyState: {
     backgroundColor: captureColors.surface,
@@ -915,18 +1003,18 @@ const styles = StyleSheet.create({
     padding: captureSpacing.large,
   },
   pushPermissionCard: {
-    backgroundColor: captureColors.warningSurface,
+    backgroundColor: captureColors.surface,
     borderColor: captureColors.warningBorder,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: captureSpacing.medium,
-    padding: captureSpacing.large,
+    gap: captureSpacing.small,
+    padding: captureSpacing.medium,
   },
   pushPermissionTitle: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "600",
-    lineHeight: 25,
+    lineHeight: 24,
   },
   pushPermissionBody: {
     color: captureColors.warningInk,
@@ -1022,18 +1110,18 @@ const styles = StyleSheet.create({
     borderRadius: captureRadii.medium,
     borderWidth: 1,
     gap: captureSpacing.small,
-    padding: captureSpacing.large,
+    padding: captureSpacing.medium,
   },
   shiftCloseTitle: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,
   },
   shiftCloseBody: {
     color: captureColors.mutedInk,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
   futureItem: {
     color: captureColors.warningInk,

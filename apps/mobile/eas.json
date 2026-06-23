@@ -5,6 +5,16 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "env": {
+        "VALIDADE_ZERO_APP_ENV": "staging"
+      },
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }
