@@ -133,6 +133,7 @@ export const ChangeMembershipRoleRequestSchema = MembershipMutationBaseSchema.ex
 
 export const RevokeMembershipRequestSchema = MembershipMutationBaseSchema.extend({
   expectedVersion: VersionSchema,
+  reason: RequiredTextSchema,
 }).strict();
 
 export const MembershipListResponseSchema = z

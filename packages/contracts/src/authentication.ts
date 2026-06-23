@@ -238,6 +238,7 @@ export type AccountAccessErrorResponse = z.infer<typeof AccountAccessErrorRespon
 export type AuthenticatedSessionResponse = z.infer<typeof AuthenticatedSessionResponseSchema>;
 export type CreateInviteRequest = z.infer<typeof CreateInviteRequestSchema>;
 export type RevokeInviteRequest = z.infer<typeof RevokeInviteRequestSchema>;
+export type InviteMutationResponse = z.infer<typeof InviteMutationResponseSchema>;
 export type PrivacyRightsRequestType = z.infer<typeof PrivacyRightsRequestTypeSchema>;
 export type PrivacyDataCategory = z.infer<typeof PrivacyDataCategorySchema>;
 export type PrivacyRequest = z.infer<typeof PrivacyRequestSchema>;

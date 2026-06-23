@@ -53,12 +53,9 @@ describe("membership administration", () => {
     render(<MembershipAdministration />);
 
     await waitFor(() => {
-      expect(screen.getByText("Novo vinculo operacional")).toBeTruthy();
+      expect(screen.getByText("Convites de acesso fechado")).toBeTruthy();
     });
-    fireEvent.change(screen.getByRole("combobox", { name: "Papel" }), {
-      target: { value: "admin" },
-    });
-    expect(screen.getByText(/Administracao governa vinculos/)).toBeTruthy();
+    expect(screen.getByText(/Nao existe cadastro publico/)).toBeTruthy();
     expect(screen.getByText(MEMBERSHIP.displayName)).toBeTruthy();
     expect(
       screen.getByRole("combobox", {
@@ -90,6 +87,9 @@ describe("membership administration", () => {
     expect(screen.getByRole("alertdialog").textContent).toContain(
       "nao encerra nem resolve tarefas abertas",
     );
+    fireEvent.change(screen.getByLabelText("Motivo da revogacao"), {
+      target: { value: "Mudanca de funcao no piloto ficticio." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar revogacao" }));
     await waitFor(() => expect(screen.getByText("Revogado")).toBeTruthy());
   });

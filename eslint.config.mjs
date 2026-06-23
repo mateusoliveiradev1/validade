@@ -87,6 +87,7 @@ export default tseslint.config(
             "apps/web/src/auth/current-scope.test.tsx",
             "apps/web/src/command-center/command-center.test.tsx",
             "apps/web/src/memberships/memberships.test.tsx",
+            "apps/web/src/memberships/invite-administration.test.tsx",
             "apps/web/src/privacy/privacy-center.test.tsx",
             "apps/web/vite.config.ts",
             "packages/adapters/src/evidence.test.ts",

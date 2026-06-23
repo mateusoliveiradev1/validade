@@ -8,12 +8,14 @@ import {
 import { Button } from "../components/ui/button";
 import { DropdownMenu } from "../components/ui/dropdown-menu";
 import { Select } from "../components/ui/select";
+import { Input } from "../components/ui/input";
 
 export function MembershipTable(input: {
   items: readonly ManagedStoreMembership[];
   onChanged: (membership: ManagedStoreMembership) => void;
 }) {
   const [pendingRevoke, setPendingRevoke] = useState<ManagedStoreMembership | undefined>();
+  const [revokeReason, setRevokeReason] = useState("");
   const revokeTrigger = useRef<HTMLButtonElement>(null);
 
   async function changeRole(membership: ManagedStoreMembership, role: AuthorizationRole) {
@@ -41,6 +43,7 @@ export function MembershipTable(input: {
       body: JSON.stringify({
         storeId: pendingRevoke.storeId,
         expectedVersion: pendingRevoke.version,
+        reason: revokeReason.trim(),
         idempotencyKey: `membership-revoke:${pendingRevoke.membershipId}:${pendingRevoke.version}`,
       }),
     });
@@ -49,6 +52,7 @@ export function MembershipTable(input: {
       input.onChanged(payload.membership);
     }
     setPendingRevoke(undefined);
+    setRevokeReason("");
     revokeTrigger.current?.focus();
   }
 
@@ -109,7 +113,10 @@ export function MembershipTable(input: {
                       variant="destructive"
                       size="sm"
                       disabled={membership.status !== "active"}
-                      onClick={() => setPendingRevoke(membership)}
+                      onClick={() => {
+                        setRevokeReason("");
+                        setPendingRevoke(membership);
+                      }}
                     >
                       Revogar vinculo
                     </Button>
@@ -125,13 +132,17 @@ export function MembershipTable(input: {
           <AlertDialogTitle>Revogar vinculo operacional</AlertDialogTitle>
           <AlertDialogDescription>
             {pendingRevoke.displayName} perdera o papel de {pendingRevoke.role} em{" "}
-            {pendingRevoke.storeName}. Esta acao nao encerra nem resolve tarefas abertas.
+            {pendingRevoke.storeName}. Capacidades atuais deixam de valer no proximo refresh de sessao. Esta acao nao encerra nem resolve tarefas abertas.
           </AlertDialogDescription>
+          <label className="grid gap-1 text-sm font-semibold text-foreground">
+            Motivo da revogacao
+            <Input value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} />
+          </label>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="destructive" onClick={() => void confirmRevoke()}>
+            <Button type="button" variant="destructive" disabled={revokeReason.trim().length === 0} onClick={() => void confirmRevoke()}>
               Confirmar revogacao
             </Button>
-            <Button type="button" variant="outline" onClick={() => setPendingRevoke(undefined)}>
+            <Button type="button" variant="outline" onClick={() => { setPendingRevoke(undefined); setRevokeReason(""); }}>
               Cancelar
             </Button>
           </div>

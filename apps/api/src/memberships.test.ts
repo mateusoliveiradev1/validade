@@ -115,6 +115,7 @@ describe("membership administration", () => {
         body: JSON.stringify({
           storeId: "loja-piloto",
           expectedVersion: 2,
+          reason: "Acesso removido do piloto ficticio.",
           idempotencyKey: "membership-revoke-ficticia",
         }),
       },
@@ -140,6 +141,7 @@ describe("membership administration", () => {
       body: JSON.stringify({
         storeId: "loja-outra",
         expectedVersion: 1,
+        reason: "Tentativa fora do escopo ficticio.",
         idempotencyKey: "cross-store-ficticia",
       }),
     });

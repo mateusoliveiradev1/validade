@@ -5,8 +5,8 @@ import {
   type ManagedStoreMembership,
   type SessionContextResponse,
 } from "@validade-zero/contracts";
-import { MembershipEditor } from "./MembershipEditor";
 import { MembershipTable } from "./MembershipTable";
+import { InviteAdministration } from "./InviteAdministration";
 
 type MembershipState =
   | { status: "loading" }
@@ -14,17 +14,23 @@ type MembershipState =
   | { status: "ready"; context: SessionContextResponse; items: readonly ManagedStoreMembership[] }
   | { status: "error"; message: string };
 
-export function MembershipAdministration() {
+export function MembershipAdministration({ session: providedSession }: { session?: SessionContextResponse }) {
   const [state, setState] = useState<MembershipState>({ status: "loading" });
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const contextResponse = await fetch("/session/context?storeId=loja-piloto");
-        if (!contextResponse.ok)
-          throw new Error("Nao foi possivel carregar seu escopo administrativo.");
-        const context = SessionContextResponseSchema.parse(await contextResponse.json());
+        let context: SessionContextResponse;
+        if (providedSession !== undefined) {
+          context = providedSession;
+        } else {
+          const contextResponse = await fetch("/session/context?storeId=loja-piloto");
+          if (!contextResponse.ok) throw new Error("Nao foi possivel carregar seu escopo administrativo.");
+          const contextPayload: unknown = await contextResponse.json();
+          context = SessionContextResponseSchema.parse(contextPayload);
+        }
         if (!context.actions.canManageUsers) {
           if (!cancelled) setState({ status: "hidden" });
           return;
@@ -49,7 +55,7 @@ export function MembershipAdministration() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [providedSession, reloadKey]);
 
   if (state.status === "loading" || state.status === "hidden") return null;
   if (state.status === "error") return <p aria-live="polite">{state.message}</p>;
@@ -71,10 +77,11 @@ export function MembershipAdministration() {
 
   return (
     <section aria-label="Administracao de vinculos" className="grid gap-4">
-      <MembershipEditor
+      <InviteAdministration
         storeId={state.context.store.storeId}
         storeName={state.context.store.storeName}
-        onCreated={update}
+        issuerLabel={state.context.actor.displayName ?? state.context.actor.subjectId}
+        onInviteCreated={() => setReloadKey((value) => value + 1)}
       />
       <MembershipTable items={state.items} onChanged={update} />
     </section>

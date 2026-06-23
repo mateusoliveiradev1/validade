@@ -3,6 +3,8 @@ import {
   SessionContextResponseSchema,
   type SessionContextResponse,
 } from "@validade-zero/contracts";
+import { Button } from "../components/ui/button";
+import { Skeleton } from "../components/ui/skeleton";
 
 type ScopeState =
   | { status: "loading" }
@@ -57,14 +59,14 @@ export function CurrentScope() {
   }, []);
 
   if (scope.status === "loading") {
-    return <section aria-label="Escopo atual">Carregando escopo operacional...</section>;
+    return <section aria-label="Escopo atual" className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4"><Skeleton className="h-5 w-32" /><Skeleton className="h-5 w-full" /></section>;
   }
 
   if (scope.status === "blocked" || scope.status === "error") {
     return (
-      <section aria-label="Escopo atual">
-        <p style={{ margin: 0, fontWeight: 700 }}>Escopo operacional indisponivel</p>
-        <p style={{ margin: "0.35rem 0 0" }}>{scope.message}</p>
+      <section aria-label="Escopo atual" className="grid max-w-2xl gap-1 rounded-lg border border-critical-border bg-critical-surface p-4" role="alert">
+        <p className="font-semibold text-destructive">Escopo operacional indisponivel</p>
+        <p className="text-sm leading-5 text-foreground">{scope.message}</p>
       </section>
     );
   }
@@ -72,46 +74,22 @@ export function CurrentScope() {
   const { context } = scope;
 
   return (
-    <section
-      aria-label="Escopo atual"
-      style={{
-        display: "grid",
-        gap: "0.75rem",
-        maxWidth: "42rem",
-        border: "1px solid #cbd5c0",
-        borderRadius: "14px",
-        padding: "1rem",
-        background: "#ffffff",
-      }}
-    >
-      <p style={{ margin: 0, fontWeight: 700 }}>Escopo atual</p>
-      <p style={{ margin: 0 }}>
+    <section aria-label="Escopo atual" className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4">
+      <p className="font-semibold">Escopo atual</p>
+      <p className="text-base leading-6">
         {context.actor.displayName ?? context.actor.subjectId} atua como{" "}
         <strong>{roleLabel(context.activeRole)}</strong> em{" "}
         <strong>{context.store.storeName}</strong>.
       </p>
-      <p style={{ margin: 0 }}>
+      <p className="text-sm leading-5 text-muted-foreground">
         Tarefas operacionais: {context.actions.canActOnTask ? "liberadas" : "bloqueadas"}.
       </p>
       {context.actions.canCloseShift ? (
-        <button
-          type="button"
-          style={{
-            width: "fit-content",
-            minHeight: "48px",
-            border: 0,
-            borderRadius: "10px",
-            padding: "0.85rem 1rem",
-            color: "#f9fff6",
-            background: "#14532d",
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
-        >
+        <Button type="button" className="min-h-12 w-fit">
           Fechar turno
-        </button>
+        </Button>
       ) : (
-        <p data-testid="lead-only-explanation" style={{ margin: 0, color: "#4b5563" }}>
+        <p data-testid="lead-only-explanation" className="text-sm leading-5 text-muted-foreground">
           Fechamento de turno aparece para lideranca ativa nesta loja.
         </p>
       )}

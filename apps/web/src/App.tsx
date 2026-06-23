@@ -21,6 +21,6 @@ export function App() {
   if (screen === "blocked") return <LoginPage error="Conta bloqueada ou sem permissao para esta loja. Fale com a lideranca ou administracao." onFirstAccess={() => setScreen("first")} onLogin={login} onPrivacy={() => setScreen("privacy")} onRecovery={() => setScreen("recovery")} />;
   if (session === undefined) return <LoginPage {...(error === undefined ? {} : { error })} onFirstAccess={() => setScreen("first")} onLogin={login} onPrivacy={() => setScreen("privacy")} onRecovery={() => setScreen("recovery")} />;
   return <AppShell session={session} route={route} onRouteChange={setRoute} onOpenPrivacy={() => setScreen("privacy")} onLogout={() => { void fetch("/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); setSession(undefined); }}>
-    {route === "command" ? <CommandCenter storeId={session.store.storeId} onOpenAudit={() => setRoute("audit")} /> : route === "access" ? <MembershipAdministration /> : <AuditWorkbench initialStoreId={session.store.storeId} initialStoreName={session.store.storeName} />}
+    {route === "command" ? <CommandCenter storeId={session.store.storeId} onOpenAudit={() => setRoute("audit")} /> : route === "access" ? <MembershipAdministration session={session} /> : <AuditWorkbench initialStoreId={session.store.storeId} initialStoreName={session.store.storeName} />}
   </AppShell>;
 }

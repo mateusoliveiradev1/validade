@@ -117,6 +117,7 @@ export function createMembershipService(input: {
           action: "revoke",
           idempotencyKey: request.idempotencyKey,
           occurredAt: now(),
+          reason: request.reason,
         });
       }
       return { membership: toManagedMembership(result.membership), replayed: result.replayed };
@@ -137,6 +138,7 @@ async function appendMembershipAudit(input: {
   action: "grant" | "change_role" | "revoke";
   idempotencyKey: string;
   occurredAt: Date;
+  reason?: string;
 }): Promise<void> {
   await input.repository.append(
     AuditEventRecordSchema.parse({
@@ -158,6 +160,7 @@ async function appendMembershipAudit(input: {
       occurredAt: input.occurredAt.toISOString(),
       receivedAt: input.occurredAt.toISOString(),
       summary: membershipSummary(input.action),
+      ...(input.reason === undefined ? {} : { reason: input.reason }),
       status: "received",
       metadata: {
         action: `membership.${input.action}`,
