@@ -9,12 +9,7 @@ const PASSWORD_DIGEST = "sha256";
 const PASSWORD_ALGORITHM = `pbkdf2-${PASSWORD_DIGEST}:${PASSWORD_ITERATIONS}`;
 const textEncoder = new TextEncoder();
 
-export type AuthAccountStatus =
-  | "invited"
-  | "active"
-  | "blocked"
-  | "revoked"
-  | "recovery_pending";
+export type AuthAccountStatus = "invited" | "active" | "blocked" | "revoked" | "recovery_pending";
 
 export interface AuthRepositorySecrets {
   tokenPepper: string;
@@ -212,7 +207,10 @@ export function createInMemoryAuthRepository(input: {
   const privacyRequests = new Map<string, PrivacyRequestRecord>();
   const privacyIdempotency = new Map<string, string>();
 
-  async function requireActiveMembership(subjectId: string, storeId: string): Promise<StoreMembership> {
+  async function requireActiveMembership(
+    subjectId: string,
+    storeId: string,
+  ): Promise<StoreMembership> {
     const memberships = await input.memberships.listActiveMemberships(subjectId);
     const membership = memberships.find((candidate) => candidate.storeId === storeId);
     if (membership === undefined) {
@@ -221,7 +219,10 @@ export function createInMemoryAuthRepository(input: {
     return membership;
   }
 
-  async function findSession(token: string, now: Date): Promise<StoredAuthSessionRecord | undefined> {
+  async function findSession(
+    token: string,
+    now: Date,
+  ): Promise<StoredAuthSessionRecord | undefined> {
     const tokenHash = await hashToken(token, input.secrets.tokenPepper);
     const session = [...sessions.values()].find((candidate) => candidate.tokenHash === tokenHash);
     if (session === undefined || session.revokedAt !== undefined || session.expiresAt <= now) {
@@ -368,7 +369,11 @@ export function createInMemoryAuthRepository(input: {
     revokeSessionsForSubjectStore({ subjectId, storeId, revokedAt }) {
       let revoked = 0;
       for (const session of sessions.values()) {
-        if (session.subjectId === subjectId && session.storeId === storeId && session.revokedAt === undefined) {
+        if (
+          session.subjectId === subjectId &&
+          session.storeId === storeId &&
+          session.revokedAt === undefined
+        ) {
           session.revokedAt = revokedAt;
           revoked += 1;
         }
@@ -398,8 +403,14 @@ export function createInMemoryAuthRepository(input: {
     },
     async consumeRecoveryToken({ token, password, consumedAt }) {
       const tokenHash = await hashToken(token, input.secrets.tokenPepper);
-      const recovery = [...recoveries.values()].find((candidate) => candidate.tokenHash === tokenHash);
-      if (recovery === undefined || recovery.consumedAt !== undefined || recovery.expiresAt <= consumedAt) {
+      const recovery = [...recoveries.values()].find(
+        (candidate) => candidate.tokenHash === tokenHash,
+      );
+      if (
+        recovery === undefined ||
+        recovery.consumedAt !== undefined ||
+        recovery.expiresAt <= consumedAt
+      ) {
         return undefined;
       }
       const account = credentials.get(accountKey(recovery.subjectId, recovery.storeId));
@@ -519,14 +530,20 @@ export function createAuthRepositoryFromQuery(
         `select ${INVITE_COLUMNS} from auth_invites where idempotency_key = $1 limit 1`,
         [request.idempotencyKey],
       )) as AuthInviteRow[];
-      return { invite: mapInvite(requiredRow(retryRows, "Invite was not persisted.")), replayed: true };
+      return {
+        invite: mapInvite(requiredRow(retryRows, "Invite was not persisted.")),
+        replayed: true,
+      };
     },
     async validateInvite({ token, now }) {
       const rows = (await sql.query(
         `select ${INVITE_COLUMNS} from auth_invites where token_hash = $1 limit 1`,
         [await hashToken(token, secrets.tokenPepper)],
       )) as AuthInviteRow[];
-      return validateStoredInvite(rows[0] === undefined ? undefined : mapStoredInvite(rows[0]), now);
+      return validateStoredInvite(
+        rows[0] === undefined ? undefined : mapStoredInvite(rows[0]),
+        now,
+      );
     },
     async revokeInvite({ inviteId, storeId, revokedAt }) {
       const rows = (await sql.query(
@@ -563,7 +580,13 @@ export function createAuthRepositoryFromQuery(
            password_algorithm = excluded.password_algorithm, status = 'active',
            password_updated_at = excluded.password_updated_at, updated_at = excluded.updated_at
          returning ${ACCOUNT_COLUMNS}`,
-        [activatedAt.toISOString(), invite.inviteId, verifier.passwordHash, verifier.passwordSalt, verifier.passwordAlgorithm],
+        [
+          activatedAt.toISOString(),
+          invite.inviteId,
+          verifier.passwordHash,
+          verifier.passwordSalt,
+          verifier.passwordAlgorithm,
+        ],
       )) as AuthAccountRow[];
       return mapAccount(requiredRow(rows, "Invite activation was not persisted."));
     },
@@ -574,7 +597,11 @@ export function createAuthRepositoryFromQuery(
       )) as AuthAccountRow[];
       const row = rows[0];
       if (row === undefined) return undefined;
-      const valid = await verifyPasswordValue(password, mapStoredAccount(row), secrets.passwordPepper);
+      const valid = await verifyPasswordValue(
+        password,
+        mapStoredAccount(row),
+        secrets.passwordPepper,
+      );
       return valid ? mapAccount(row) : undefined;
     },
     async changeAccountStatus({ subjectId, storeId, status, occurredAt }) {
@@ -598,14 +625,18 @@ export function createAuthRepositoryFromQuery(
       let rotatedFromSessionId: string | undefined;
       if (request.currentToken !== undefined) {
         const current = await findSession(request.currentToken, request.occurredAt);
-        if (current === undefined || current.subject_id !== request.subjectId || current.store_id !== request.storeId) {
+        if (
+          current === undefined ||
+          current.subject_id !== request.subjectId ||
+          current.store_id !== request.storeId
+        ) {
           throw new Error("The current session is invalid or expired.");
         }
         rotatedFromSessionId = current.session_id;
-        await sql.query("update auth_sessions set revoked_at = $1 where session_id = $2 and revoked_at is null", [
-          request.occurredAt.toISOString(),
-          current.session_id,
-        ]);
+        await sql.query(
+          "update auth_sessions set revoked_at = $1 where session_id = $2 and revoked_at is null",
+          [request.occurredAt.toISOString(), current.session_id],
+        );
       }
       const rows = (await sql.query(
         `insert into auth_sessions (
@@ -731,7 +762,10 @@ export function createAuthRepositoryFromQuery(
         `select ${PRIVACY_COLUMNS} from privacy_requests where idempotency_key = $1 limit 1`,
         [request.idempotencyKey],
       )) as PrivacyRequestRow[];
-      return { request: mapPrivacyRequest(requiredRow(replayRows, "Privacy request was not persisted.")), replayed: true };
+      return {
+        request: mapPrivacyRequest(requiredRow(replayRows, "Privacy request was not persisted.")),
+        replayed: true,
+      };
     },
   };
 }
@@ -907,7 +941,9 @@ function mapSession(row: AuthSessionRow): AuthSessionRecord {
     expiresAt: toDate(row.expires_at),
     createdAt: toDate(row.created_at),
     lastSeenAt: toDate(row.last_seen_at),
-    ...(row.rotated_from_session_id === null ? {} : { rotatedFromSessionId: row.rotated_from_session_id }),
+    ...(row.rotated_from_session_id === null
+      ? {}
+      : { rotatedFromSessionId: row.rotated_from_session_id }),
   };
 }
 

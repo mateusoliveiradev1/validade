@@ -13,13 +13,7 @@ const OpaqueTokenSchema = z.string().trim().min(32).max(512);
 const PasswordSchema = z.string().min(12).max(128);
 const IdempotencyKeySchema = z.string().trim().min(8).max(160);
 
-export const InviteStatusSchema = z.enum([
-  "valid",
-  "invalid",
-  "expired",
-  "revoked",
-  "activated",
-]);
+export const InviteStatusSchema = z.enum(["valid", "invalid", "expired", "revoked", "activated"]);
 
 export const InviteValidationRequestSchema = z
   .object({
@@ -83,12 +77,7 @@ export const SessionStatusResponseSchema = SessionContextResponseSchema;
 
 export const AccountAccessErrorResponseSchema = z
   .object({
-    error: z.enum([
-      "account_blocked",
-      "account_revoked",
-      "recovery_required",
-      "session_expired",
-    ]),
+    error: z.enum(["account_blocked", "account_revoked", "recovery_required", "session_expired"]),
     accountStatus: AccountStatusSchema.optional(),
     canRequestRecovery: z.boolean(),
   })
