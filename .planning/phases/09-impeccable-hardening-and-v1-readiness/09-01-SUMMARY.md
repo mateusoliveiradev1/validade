@@ -111,6 +111,11 @@ None - `.env.example` documents the new TTL and pepper variable names without ad
 - Mobile and web can now consume the shared session states and invite-first endpoints in Plans 09-02 and 09-03.
 - Deployment still needs real secret values and pilot invitation provisioning outside the public repository.
 
+## Self-Check: PASSED
+
+- All three task commits exist and their declared files are present.
+- Contracts, database, API, typecheck, lint, migration, environment, and post-wave integration gates passed.
+
 ---
 *Phase: 09-impeccable-hardening-and-v1-readiness*
 *Completed: 2026-06-22*
