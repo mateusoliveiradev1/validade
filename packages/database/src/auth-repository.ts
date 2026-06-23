@@ -3,7 +3,9 @@ import type { AuthorizationRole, StoreMembership } from "@validade-zero/domain";
 
 import type { MembershipRepository } from "./membership-repository";
 
-const PASSWORD_ITERATIONS = 310_000;
+const PASSWORD_ITERATIONS = 20_000;
+const PASSWORD_MIN_ITERATIONS = 10_000;
+const PASSWORD_MAX_VERIFY_ITERATIONS = 20_000;
 const PASSWORD_KEY_LENGTH = 32;
 const PASSWORD_DIGEST = "sha256";
 const PASSWORD_ALGORITHM = `pbkdf2-${PASSWORD_DIGEST}:${PASSWORD_ITERATIONS}`;
@@ -718,7 +720,7 @@ export function createAuthRepositoryFromQuery(
          update auth_credentials a set password_hash = $3, password_salt = $4,
            password_algorithm = $5, status = 'active', password_updated_at = $1, updated_at = $1
          from consumed c where a.subject_id = c.subject_id and a.store_id = c.store_id
-           and a.status not in ('blocked', 'revoked') returning ${ACCOUNT_COLUMNS}`,
+           and a.status not in ('blocked', 'revoked') returning ${QUALIFIED_ACCOUNT_COLUMNS}`,
         [
           consumedAt.toISOString(),
           await hashToken(token, secrets.tokenPepper),
@@ -777,6 +779,10 @@ const INVITE_COLUMNS = `
 const ACCOUNT_COLUMNS = `
   subject_id, store_id, identifier, display_name, password_hash, password_salt,
   password_algorithm, status, password_updated_at, created_at, updated_at
+`;
+const QUALIFIED_ACCOUNT_COLUMNS = `
+  a.subject_id, a.store_id, a.identifier, a.display_name, a.password_hash, a.password_salt,
+  a.password_algorithm, a.status, a.password_updated_at, a.created_at, a.updated_at
 `;
 const SESSION_COLUMNS = `
   session_id, subject_id, store_id, expires_at, created_at, last_seen_at, rotated_from_session_id
@@ -981,12 +987,23 @@ async function verifyPasswordValue(
   account: Pick<StoredAuthAccountRecord, "passwordHash" | "passwordSalt" | "passwordAlgorithm">,
   pepper: string,
 ): Promise<boolean> {
-  if (account.passwordAlgorithm !== PASSWORD_ALGORITHM) return false;
-  const candidate = await derivePassword(password, account.passwordSalt, pepper);
+  const algorithm = parsePasswordAlgorithm(account.passwordAlgorithm);
+  if (algorithm === undefined) return false;
+  const candidate = await derivePassword(
+    password,
+    account.passwordSalt,
+    pepper,
+    algorithm.iterations,
+  );
   return constantTimeHexEqual(account.passwordHash, candidate);
 }
 
-async function derivePassword(password: string, salt: string, pepper: string): Promise<string> {
+async function derivePassword(
+  password: string,
+  salt: string,
+  pepper: string,
+  iterations = PASSWORD_ITERATIONS,
+): Promise<string> {
   const material = await crypto.subtle.importKey(
     "raw",
     textEncoder.encode(`${password}\u0000${pepper}`),
@@ -999,7 +1016,7 @@ async function derivePassword(password: string, salt: string, pepper: string): P
       name: "PBKDF2",
       hash: "SHA-256",
       salt: hexToBytes(salt).buffer as ArrayBuffer,
-      iterations: PASSWORD_ITERATIONS,
+      iterations,
     },
     material,
     PASSWORD_KEY_LENGTH * 8,
@@ -1017,6 +1034,22 @@ async function hashToken(token: string, pepper: string): Promise<string> {
   );
   const signature = await crypto.subtle.sign("HMAC", key, textEncoder.encode(token));
   return bytesToHex(new Uint8Array(signature));
+}
+
+function parsePasswordAlgorithm(
+  value: string,
+): { digest: typeof PASSWORD_DIGEST; iterations: number } | undefined {
+  const match = /^pbkdf2-sha256:(\d+)$/.exec(value);
+  if (match === null) return undefined;
+  const iterations = Number.parseInt(match[1] ?? "", 10);
+  if (
+    !Number.isSafeInteger(iterations) ||
+    iterations < PASSWORD_MIN_ITERATIONS ||
+    iterations > PASSWORD_MAX_VERIFY_ITERATIONS
+  ) {
+    return undefined;
+  }
+  return { digest: PASSWORD_DIGEST, iterations };
 }
 
 function bytesToHex(value: Uint8Array): string {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
-import { createInMemoryAuthRepository } from "./auth-repository";
+import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
 import {
   createInMemoryMembershipManagementRepository,
   createMembershipRepositoryFromQuery,
@@ -194,6 +194,40 @@ describe("database repositories", () => {
     expect(stored).not.toContain(RAW_RECOVERY_TOKEN);
     expect(stored).not.toContain(RAW_PASSWORD);
     expect(repository.readStoredState().credentials[0]?.passwordSalt).toMatch(/^[0-9a-f]{32}$/);
+    expect(repository.readStoredState().credentials[0]?.passwordAlgorithm).toBe(
+      "pbkdf2-sha256:20000",
+    );
+    await expect(
+      repository.verifyPassword({
+        identifier: "person@example.invalid",
+        password: RAW_PASSWORD,
+      }),
+    ).resolves.toMatchObject({ subjectId: "subject-1", storeId: "store-1" });
+  });
+
+  it("rejects password hashes above the worker-safe cost without burning CPU", async () => {
+    const repository = createInMemoryAuthRepository({
+      memberships: createMemberships(),
+      secrets: TEST_SECRETS,
+    });
+    await repository.createInvite({ ...inviteInput(), token: RAW_INVITE_TOKEN });
+    await repository.activateAccount({
+      token: RAW_INVITE_TOKEN,
+      password: RAW_PASSWORD,
+      activatedAt: new Date("2026-06-22T10:05:00.000Z"),
+    });
+    const credential = repository.readStoredState().credentials[0] as
+      | { passwordAlgorithm: string }
+      | undefined;
+    expect(credential).toBeDefined();
+    if (credential !== undefined) credential.passwordAlgorithm = "pbkdf2-sha256:310000";
+
+    await expect(
+      repository.verifyPassword({
+        identifier: "person@example.invalid",
+        password: RAW_PASSWORD,
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("blocks session refresh after the store membership is revoked", async () => {
@@ -258,6 +292,44 @@ describe("database repositories", () => {
     expect(Object.keys(receipt.request)).not.toEqual(
       expect.arrayContaining(["binary", "base64", "deviceUri", "signedUrl", "secret"]),
     );
+  });
+
+  it("qualifies account columns when completing recovery through SQL", async () => {
+    const captured: unknown[][] = [];
+    const repository = createAuthRepositoryFromQuery(
+      {
+        query(strings: string, values?: unknown[]) {
+          captured.push([strings, ...(values ?? [])]);
+          return Promise.resolve([
+            {
+              subject_id: "subject-1",
+              store_id: "store-1",
+              identifier: "person@example.invalid",
+              display_name: "Pessoa Piloto",
+              password_hash: "00",
+              password_salt: "00",
+              password_algorithm: "pbkdf2-sha256:20000",
+              status: "active",
+              password_updated_at: "2026-06-22T10:05:00.000Z",
+              created_at: "2026-06-22T10:00:00.000Z",
+              updated_at: "2026-06-22T10:05:00.000Z",
+            },
+          ]);
+        },
+      } as never,
+      TEST_SECRETS,
+    );
+
+    await expect(
+      repository.consumeRecoveryToken({
+        token: RAW_RECOVERY_TOKEN,
+        password: RAW_PASSWORD,
+        consumedAt: new Date("2026-06-22T10:05:00.000Z"),
+      }),
+    ).resolves.toMatchObject({ subjectId: "subject-1", status: "active" });
+
+    expect(String(captured[0]?.[0])).toContain("returning");
+    expect(String(captured[0]?.[0])).toContain("a.subject_id");
   });
 });
 
