@@ -37,3 +37,14 @@ Tentativas bloqueadas por estado de conta, vínculo ou capacidade registram some
 ## Decisão sobre Neon Auth
 
 Neon Auth continua candidato por compartilhar o Postgres e oferecer integração com Better Auth, mas ainda é tratado como provider substituível. A v1 usa o adapter de piloto para não acoplar convites, sessões, estados de conta e LGPD a uma API beta. Uma migração futura deve preservar os contratos atuais e provar revogação no refresh, escopo por loja e auditoria sanitizada.
+
+## Final release controls
+
+- The Command Center is store-scoped and requires `audit.read_store`; it validates its projection at the API boundary and fails closed with `needs_review` when central task data is incomplete.
+- Invitation and membership actions remain server-authorized. Membership revocation requires a reason and records an append-only audit event.
+- The UI release scanner rejects provisional copy, missing privacy sections, normal auth-gate bypasses, unsupported Command Center BI terms, and missing Android brand assets.
+- Evidence, secret, and fictional-data scans run in the release gate. They do not prove provider configuration or physical-device behavior.
+
+## Manual residual checks
+
+The v1 release remains blocked until an approved Android emulator or device runs the Maestro flow and an internal APK is built and installed. The organization must also configure the real LGPD channel/encarregado and provider-side storage/auth policies outside this repository. These are release gates, not accepted security residual risks.
