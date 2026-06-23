@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-23 - Polished mobile/web release UI, validated database schema/account, and passed full check plus mobile/web E2E
+**Last activity:** 2026-06-23 - Published Cloudflare staging API, configured EAS staging, and generated Android APK for real-device testing
 
 ## Project Reference
 
@@ -68,6 +68,7 @@ Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
 | 260623-aif | Adaptar a autenticacao web para desktop sem perder a usabilidade mobile | 2026-06-23 | 457ab7c | Verified | [260623-aif-adaptar-a-autenticacao-web-para-desktop-](./quick/260623-aif-adaptar-a-autenticacao-web-para-desktop-/) |
 | 260623-b5m | Ligar API e web locais ao Neon staging e autenticacao persistente, mantendo segredos fora do Git | 2026-06-23 | 81605af | Verified | [260623-b5m-ligar-api-e-web-locais-ao-neon-staging-e](./quick/260623-b5m-ligar-api-e-web-locais-ao-neon-staging-e/) |
 | 260623-h7v | Polir UI/UX mobile e preparar APK staging | 2026-06-23 | local | Verified | [260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho](./quick/260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho/) |
+| 260623-r8m | Configurar o APK Android staging para usar a API Cloudflare publicada e gerar build EAS interno | 2026-06-23 | 4854228 | Verified | [260623-r8m-configurar-o-apk-android-staging-para-us](./quick/260623-r8m-configurar-o-apk-android-staging-para-us/) |
 
 ## Performance Metrics
 
