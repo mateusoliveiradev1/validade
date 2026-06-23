@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const RuntimeEnvironmentSchema = z.enum(["local", "preview", "production"]);
+export const RuntimeEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
 
 export const RuntimeEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

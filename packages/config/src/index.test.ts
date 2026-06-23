@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseEnvExample } from "./index";
+import { parseEnvExample, parseRuntimeEnv } from "./index";
 
 function readEnvExample() {
   const envPath = fileURLToPath(new URL("../../../.env.example", import.meta.url));
@@ -19,6 +19,17 @@ function readEnvExample() {
 }
 
 describe("public repo env example", () => {
+  it("accepts staging as a runtime environment for pre-production builds", () => {
+    const parsed = parseRuntimeEnv({
+      NODE_ENV: "production",
+      VALIDADE_ZERO_APP_ENV: "staging",
+      API_BASE_URL: "https://validade-zero-api-staging.validadezero.workers.dev",
+    });
+
+    expect(parsed.VALIDADE_ZERO_APP_ENV).toBe("staging");
+    expect(parsed.API_BASE_URL).toBe("https://validade-zero-api-staging.validadezero.workers.dev");
+  });
+
   it("parses the committed .env.example as safe fake config", () => {
     const parsed = parseEnvExample(readEnvExample());
 

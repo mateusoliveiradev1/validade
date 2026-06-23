@@ -13,7 +13,10 @@
       "backgroundColor": "#166534"
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url"
+      "EXPO_PUBLIC_API_URL": "local-placeholder-not-a-real-url",
+      "eas": {
+        "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
+      }
     },
     "plugins": [
       "expo-sqlite",
@@ -32,6 +35,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#166534"
       }
-    }
+    },
+    "owner": "liiiraak1ng"
   }
 }

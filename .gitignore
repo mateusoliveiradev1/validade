@@ -36,3 +36,5 @@ uploads/
 *.png
 *.heic
 *.webp
+!apps/mobile/assets/
+!apps/mobile/assets/*.png
