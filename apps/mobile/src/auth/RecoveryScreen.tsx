@@ -8,7 +8,7 @@ import {
   SecondaryAction,
   StatusNotice,
 } from "../capture/capture-ui";
-import { MobileAuthError } from "./AuthGate";
+import { MobileAuthError } from "./auth-errors";
 
 export function RecoveryScreen({
   onBack,

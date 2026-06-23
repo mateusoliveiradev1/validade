@@ -9,7 +9,7 @@ import {
   SecondaryAction,
   StatusNotice,
 } from "../capture/capture-ui";
-import { MobileAuthError } from "./AuthGate";
+import { MobileAuthError } from "./auth-errors";
 
 export function FirstAccessScreen({
   onActivate,
@@ -27,7 +27,7 @@ export function FirstAccessScreen({
   const [submitting, setSubmitting] = useState(false);
   const tokenError = token.trim().length === 0 ? "Informe o codigo do convite." : undefined;
   const passwordError =
-    password.length < 12 ? "Crie uma senha com pelo menos 12 caracteres." : undefined;
+    password.length < 10 ? "Crie uma senha com pelo menos 10 caracteres." : undefined;
 
   async function validate(): Promise<void> {
     if (token.trim().length < 32) {
@@ -103,7 +103,7 @@ export function FirstAccessScreen({
             label="Crie sua senha"
             value={password}
             onChangeText={setPassword}
-            placeholder="Minimo de 12 caracteres"
+            placeholder="Minimo de 10 caracteres"
             error={error === undefined ? undefined : passwordError}
             secureTextEntry
             editable={!submitting}

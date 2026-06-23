@@ -1,7 +1,8 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionContextResponse } from "@validade-zero/contracts";
-import { AuthGate, MobileAuthError, type MobileAuthClient } from "./AuthGate";
+import { AuthGate, type MobileAuthClient } from "./AuthGate";
+import { MobileAuthError } from "./auth-errors";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
