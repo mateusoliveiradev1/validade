@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-23 - Published Cloudflare staging API, configured EAS staging, and generated Android APK for real-device testing
+**Last activity:** 2026-06-23 - Fixed Cloudflare staging auth login, redeployed API, and validated admin/lead account for APK testing
 
 ## Project Reference
 
@@ -69,6 +69,7 @@ Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
 | 260623-b5m | Ligar API e web locais ao Neon staging e autenticacao persistente, mantendo segredos fora do Git | 2026-06-23 | 81605af | Verified | [260623-b5m-ligar-api-e-web-locais-ao-neon-staging-e](./quick/260623-b5m-ligar-api-e-web-locais-ao-neon-staging-e/) |
 | 260623-h7v | Polir UI/UX mobile e preparar APK staging | 2026-06-23 | local | Verified | [260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho](./quick/260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho/) |
 | 260623-r8m | Configurar o APK Android staging para usar a API Cloudflare publicada e gerar build EAS interno | 2026-06-23 | 4854228 | Verified | [260623-r8m-configurar-o-apk-android-staging-para-us](./quick/260623-r8m-configurar-o-apk-android-staging-para-us/) |
+| 260623-rq1 | Corrigir login da API staging no Cloudflare ajustando hash de senha para o limite do Worker e validar conta admin lider | 2026-06-23 | e795458 | Verified | [260623-rq1-corrigir-login-da-api-staging-no-cloudfl](./quick/260623-rq1-corrigir-login-da-api-staging-no-cloudfl/) |
 
 ## Performance Metrics
 
