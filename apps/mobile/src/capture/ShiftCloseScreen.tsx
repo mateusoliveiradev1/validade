@@ -24,12 +24,14 @@ export function ShiftCloseScreen({
   canCloseShift,
   onBack,
   onSafeClose,
+  storeId = "loja-local",
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
   canCloseShift: boolean;
   onBack: () => void;
   onSafeClose?: ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>) | undefined;
+  storeId?: string | undefined;
   now?: () => Date;
 }) {
   const [evaluation, setEvaluation] = useState<ShiftCloseEvaluation | undefined>();
@@ -117,7 +119,7 @@ export function ShiftCloseScreen({
     }
     const timestamp = now().toISOString();
     const request = createUnsafeShiftCloseRequest({
-      storeId: "loja-piloto",
+      storeId,
       verdict: "unsafe",
       reason: reason.trim(),
       continuityOwner: owner.trim(),
@@ -142,7 +144,7 @@ export function ShiftCloseScreen({
       const timestamp = now().toISOString();
       const closure = await onSafeClose(
         createSafeShiftCloseRequest({
-          storeId: "loja-piloto",
+          storeId,
           verdict: "safe",
           checklist: [...SHIFT_CLOSE_CHECKLIST_KEYS],
           occurredAt: timestamp,
@@ -275,9 +277,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
   },
   checkRow: {
     alignItems: "center",
@@ -295,8 +297,8 @@ const styles = StyleSheet.create({
   },
   checkMark: {
     color: captureColors.ink,
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
   },
   checkText: {
     color: captureColors.ink,
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
   blockerLabel: {
     color: captureColors.critical,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 22,
   },
   blockerAction: {

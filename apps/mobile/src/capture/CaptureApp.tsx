@@ -18,6 +18,7 @@ import type { TodayTaskRecord } from "@validade-zero/contracts";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
+import { captureColors } from "./capture-theme";
 
 type CaptureScreen =
   | "today"
@@ -37,11 +38,15 @@ export function CaptureApp({
   alertChannel,
   syncEngine,
   activeRole = "lead",
+  actorLabel = todayCopy.fallbackActor,
+  storeId = "loja-local",
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
+  actorLabel?: string | undefined;
+  storeId?: string | undefined;
 }) {
   const [screen, setScreen] = useState<CaptureScreen>("today");
   const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
@@ -151,7 +156,7 @@ export function CaptureApp({
 
     await repository.requestMarkdown({
       lotId: detail.id,
-      actorLabel: "Colaborador local",
+      actorLabel,
       occurredAt,
       reason: request.reason,
       ...(request.earlyJustification === undefined
@@ -205,6 +210,7 @@ export function CaptureApp({
             setScreen("task-resolution");
           }}
           canCloseShift={activeRole === "lead"}
+          actorLabel={actorLabel}
           onOpenShiftClose={() => setScreen("shift-close")}
         />
       </>
@@ -216,6 +222,7 @@ export function CaptureApp({
       <TaskResolutionPanel
         repository={repository}
         task={selectedTask}
+        actorLabel={actorLabel}
         onBack={() => setScreen("today")}
         onDone={() => setScreen("today")}
         onLocalSave={() => {
@@ -232,6 +239,7 @@ export function CaptureApp({
       <ShiftCloseScreen
         repository={repository}
         canCloseShift={activeRole === "lead"}
+        storeId={storeId}
         onBack={() => setScreen("today")}
       />
     );
@@ -351,19 +359,19 @@ export function CaptureApp({
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
+    backgroundColor: captureColors.background,
     flexGrow: 1,
     gap: 16,
     padding: 16,
   },
   productName: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 25,
   },
   metadata: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
   },

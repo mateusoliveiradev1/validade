@@ -83,7 +83,7 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       throw new MobileAuthError("network", "Nao foi possivel falar com o acesso seguro agora.");
     }
 
-    const body = await response.json().catch(() => undefined);
+    const body: unknown = await response.json().catch(() => undefined);
     if (!response.ok) throw toMobileAuthError(body);
     return body;
   }
@@ -392,10 +392,16 @@ function GateMessage({
 }
 
 function configuredApiBaseUrl(): string {
-  const env = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } })
-    .process?.env;
-  const value = env?.EXPO_PUBLIC_API_URL?.trim();
-  return value !== undefined && /^https?:\/\//.test(value) ? value.replace(/\/$/, "") : "";
+  const processValue: unknown = (globalThis as { process?: unknown }).process;
+  if (!isRecord(processValue) || !isRecord(processValue.env)) return "";
+  const value = processValue.env.EXPO_PUBLIC_API_URL;
+  if (typeof value !== "string") return "";
+  const baseUrl = value.trim();
+  return /^https?:\/\//.test(baseUrl) ? baseUrl.replace(/\/$/, "") : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function toMobileAuthError(payload: unknown): MobileAuthError {

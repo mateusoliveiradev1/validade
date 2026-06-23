@@ -50,6 +50,7 @@ export function TodayScreen({
   onOpenTask,
   onOpenShiftClose,
   canCloseShift = false,
+  actorLabel = todayCopy.fallbackActor,
   alertChannel,
   syncEngine,
   pushFallbackNotice,
@@ -62,6 +63,7 @@ export function TodayScreen({
   onOpenTask?: (task: TodayTaskRecord) => void;
   onOpenShiftClose?: (() => void) | undefined;
   canCloseShift?: boolean | undefined;
+  actorLabel?: string | undefined;
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   pushFallbackNotice?: string | undefined;
@@ -82,6 +84,7 @@ export function TodayScreen({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRequestingAlerts, setIsRequestingAlerts] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   async function refreshAlertChannelState(): Promise<void> {
     const registration = await repository.loadAlertChannelState();
@@ -140,6 +143,7 @@ export function TodayScreen({
       setRefreshError(todayCopy.refreshError);
     } finally {
       setIsRefreshing(false);
+      setIsInitialLoading(false);
     }
   }
 
@@ -264,7 +268,7 @@ export function TodayScreen({
     const acknowledged = await repository.acknowledgeEscalation({
       taskId: task.id,
       taskActiveKey: task.activeKey,
-      actorLabel: "Lideranca local",
+      actorLabel,
       acknowledgedAt,
     });
 
@@ -279,7 +283,11 @@ export function TodayScreen({
   const overdueTasks = tasks.filter((task) => isOverdueTask(task, renderedAt));
   const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
   const verdict =
-    salesAreaRiskCount > 0
+    isInitialLoading
+      ? "Carregando riscos da area de venda"
+      : refreshError !== undefined
+        ? "Riscos precisam ser atualizados"
+      : salesAreaRiskCount > 0
       ? todayCopy.criticalHeader(salesAreaRiskCount)
       : tasks.length > 0
         ? todayCopy.safeWithWorkHeader
@@ -298,7 +306,11 @@ export function TodayScreen({
         <Text style={styles.safetyBody}>
           {salesAreaRiskCount > 0
             ? "Comece pelo primeiro risco da area de venda."
-            : "Continue conferindo os lotes do turno sem esconder pendencias."}
+            : isInitialLoading
+              ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
+              : refreshError !== undefined
+                ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
+                : "Continue conferindo os lotes do turno sem esconder pendencias."}
         </Text>
         <SecondaryAction
           label={isRefreshing ? "Atualizando tarefas" : todayCopy.refresh}
@@ -361,7 +373,9 @@ export function TodayScreen({
         onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
       />
 
-      {tasks.length === 0 ? (
+      {isInitialLoading ? (
+        <TodayLoadingState />
+      ) : tasks.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>{todayCopy.emptyHeading}</Text>
           <Text style={styles.emptyBody}>{todayCopy.emptyBody}</Text>
@@ -563,6 +577,19 @@ function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
   );
 }
 
+function TodayLoadingState() {
+  return (
+    <View accessibilityLabel="Carregando tarefas operacionais" style={styles.loadingState}>
+      <Text style={styles.loadingTitle}>Carregando tarefas do turno</Text>
+      <Text style={styles.loadingBody}>
+        A seguranca da area de venda ainda esta sendo conferida. Nenhuma confirmacao foi concluida.
+      </Text>
+      <View style={styles.loadingLine} />
+      <View style={styles.loadingLine} />
+    </View>
+  );
+}
+
 function AlertChannelSurface({
   channelState,
   feedback,
@@ -750,7 +777,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: captureSpacing.medium,
     minHeight: 156,
-    padding: 18,
+    padding: captureSpacing.large,
   },
   safetyHeaderCritical: {
     backgroundColor: captureColors.criticalSurface,
@@ -758,9 +785,9 @@ const styles = StyleSheet.create({
   },
   safetyVerdict: {
     color: captureColors.ink,
-    fontSize: 26,
-    fontWeight: "700",
-    lineHeight: 32,
+    fontSize: 28,
+    fontWeight: "600",
+    lineHeight: 34,
   },
   safetyBody: {
     color: captureColors.mutedInk,
@@ -773,7 +800,7 @@ const styles = StyleSheet.create({
     borderRadius: captureRadii.medium,
     borderWidth: 1,
     gap: captureSpacing.large,
-    padding: 20,
+    padding: captureSpacing.large,
   },
   emptyTitle: {
     color: captureColors.ink,
@@ -838,9 +865,9 @@ const styles = StyleSheet.create({
   taskAction: {
     color: captureColors.ink,
     flexShrink: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 23,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
   },
   taskTitle: {
     color: captureColors.ink,
@@ -870,9 +897,9 @@ const styles = StyleSheet.create({
   },
   taskReason: {
     color: captureColors.mutedInk,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
   taskReasonCritical: {
     color: captureColors.critical,
@@ -898,9 +925,9 @@ const styles = StyleSheet.create({
   },
   pushPermissionTitle: {
     color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 23,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
   },
   pushPermissionBody: {
     color: captureColors.warningInk,
@@ -947,7 +974,7 @@ const styles = StyleSheet.create({
   },
   alertStatusCriticalText: {
     color: captureColors.critical,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   syncMarker: {
     backgroundColor: captureColors.warningSurface,
@@ -981,14 +1008,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: captureColors.ink,
     flexShrink: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 23,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
   },
   sectionCount: {
     color: captureColors.mutedInk,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
   },
   shiftCloseEntry: {
     backgroundColor: captureColors.surfaceMuted,
@@ -1000,18 +1027,43 @@ const styles = StyleSheet.create({
   },
   shiftCloseTitle: {
     color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     lineHeight: 24,
   },
   shiftCloseBody: {
     color: captureColors.mutedInk,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
   },
   futureItem: {
     color: captureColors.warningInk,
     fontSize: 14,
     lineHeight: 20,
+  },
+  loadingState: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  loadingTitle: {
+    color: captureColors.ink,
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 25,
+  },
+  loadingBody: {
+    color: captureColors.mutedInk,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  loadingLine: {
+    backgroundColor: captureColors.surfacePressed,
+    borderRadius: captureRadii.small,
+    height: 16,
+    width: "100%",
   },
 });

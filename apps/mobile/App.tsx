@@ -28,6 +28,8 @@ export default function App({
             <CaptureApp
               repository={repository}
               activeRole={session.activeRole}
+              actorLabel={session.actor.displayName ?? "Pessoa da operacao"}
+              storeId={session.store.storeId}
               {...(alertChannel === undefined ? {} : { alertChannel })}
             />
           )}

@@ -21,7 +21,7 @@ export const todayCopy = {
     primary: "Sincronizar pendencias",
     offlineReady: "Pronto para operar sem internet",
     offlineMode: "Sem internet agora. Usando tarefas salvas neste aparelho.",
-    localSaved: "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+    localSaved: "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     pending: "Pendente de sincronizacao",
     syncing: "Sincronizando pendencias",
     syncedAt: (label: string) => `Sincronizado as ${label}.`,
@@ -84,7 +84,7 @@ export const todayCopy = {
   incompatibleAction:
     "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",
   expiredAction: "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
-  localActor: "Colaborador local",
+  fallbackActor: "Pessoa da operacao",
   destinationLoss: "Destino: Retirada/perda",
   confirmationTitle: "Confirme antes de registrar",
   recheckConsequence: "A area de venda continuara bloqueada ate a reconferencia ser concluida.",

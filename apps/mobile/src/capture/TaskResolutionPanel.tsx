@@ -23,6 +23,7 @@ import {
 import type { CaptureRepository } from "./repository";
 import type { EvidenceUploadQueueRecord } from "./repository";
 import { todayActionLabel, todayCopy } from "./today-copy";
+import { captureColors, captureSpacing } from "./capture-theme";
 
 const STANDARD_RESOLUTION_ACTIONS = [
   "withdraw",
@@ -55,6 +56,7 @@ export function TaskResolutionPanel({
   auditEvents = [],
   evidenceUploads = [],
   onRetryEvidenceUpload,
+  actorLabel = todayCopy.fallbackActor,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -65,6 +67,7 @@ export function TaskResolutionPanel({
   auditEvents?: readonly AuditTimelineItem[] | undefined;
   evidenceUploads?: readonly EvidenceUploadQueueRecord[] | undefined;
   onRetryEvidenceUpload?: ((localEvidenceId: string) => void) | undefined;
+  actorLabel?: string | undefined;
   now?: () => Date;
 }) {
   const [selectedAction, setSelectedAction] = useState<TaskResolutionAction | undefined>();
@@ -174,7 +177,7 @@ export function TaskResolutionPanel({
         const command = {
           workflowId,
           taskId: task.id,
-          actorLabel: todayCopy.localActor,
+          actorLabel,
           occurredAt: now().toISOString(),
           decision: markdownDecision,
           ...(markdownDecision === "rejected" ? { rejectionReason: trimmedReason } : {}),
@@ -202,7 +205,7 @@ export function TaskResolutionPanel({
         const command = {
           workflowId,
           taskId: task.id,
-          actorLabel: todayCopy.localActor,
+          actorLabel,
           occurredAt: now().toISOString(),
           evidence,
         };
@@ -221,7 +224,7 @@ export function TaskResolutionPanel({
         const command = {
           workflowId,
           taskId: task.id,
-          actorLabel: todayCopy.localActor,
+          actorLabel,
           occurredAt: now().toISOString(),
           evidence,
         };
@@ -266,7 +269,7 @@ export function TaskResolutionPanel({
         const command = {
           lotId: task.lotId,
           sourceTaskId: task.id,
-          actorLabel: todayCopy.localActor,
+          actorLabel,
           occurredAt: now().toISOString(),
           reason: "rule_window",
         } satisfies OfflineActionCommand["payload"];
@@ -293,7 +296,7 @@ export function TaskResolutionPanel({
     const command = {
       taskId: task.id,
       action: selectedAction,
-      actorLabel: todayCopy.localActor,
+      actorLabel,
       occurredAt: now().toISOString(),
       ...(selectedAction === "withdraw" || selectedAction === "record_loss"
         ? { destination: { kind: "retirada_perda" as const } }
@@ -758,18 +761,18 @@ function confirmationSummary(
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
+    backgroundColor: captureColors.background,
     flexGrow: 1,
-    gap: 16,
-    padding: 16,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
   },
   summary: {
-    backgroundColor: "#E6EEE4",
-    gap: 8,
-    padding: 16,
+    backgroundColor: captureColors.surfaceMuted,
+    gap: captureSpacing.small,
+    padding: captureSpacing.large,
   },
   summaryLine: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -777,7 +780,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   groupTitle: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,

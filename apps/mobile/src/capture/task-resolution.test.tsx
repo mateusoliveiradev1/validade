@@ -230,6 +230,7 @@ async function renderPanel(
       <TaskResolutionPanel
         repository={repository}
         task={task}
+        actorLabel="Colaborador FICTICIO"
         onDone={() => undefined}
         onBack={() => undefined}
         now={() => new Date("2030-01-10T12:00:00.000Z")}
@@ -312,6 +313,7 @@ describe("TaskResolutionPanel", () => {
         <TaskResolutionPanel
           repository={createRepository({ resolveTodayTask })}
           task={expiredTask()}
+          actorLabel="Colaborador FICTICIO"
           onDone={onDone}
           onBack={() => undefined}
           now={() => new Date("2030-01-10T12:00:00.000Z")}
@@ -355,7 +357,7 @@ describe("TaskResolutionPanel", () => {
       expect.objectContaining({
         taskId: "tarefa-vencida-ficticia",
         action: "withdraw",
-        actorLabel: "Colaborador local",
+        actorLabel: "Colaborador FICTICIO",
         destination: { kind: "retirada_perda" },
       }),
     );
@@ -412,7 +414,7 @@ describe("TaskResolutionPanel", () => {
     });
     expect(resolveTodayTask).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).toContain(
-      "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+      "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
   });
@@ -934,7 +936,7 @@ describe("TaskResolutionPanel", () => {
     });
     expect(recordMarkdownApplication).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).toContain(
-      "Acao salva no aparelho. Vamos sincronizar quando a conexao voltar.",
+      "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
   });
