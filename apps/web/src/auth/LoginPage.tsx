@@ -94,15 +94,53 @@ export function AuthFrame({
   children: React.ReactNode;
 }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-background p-4">
-      <section className="grid w-full max-w-md gap-5 rounded-lg border bg-card p-6">
-        <div className="grid gap-2">
-          <p className="text-sm font-semibold text-primary">Operacao de risco zero</p>
-          <h1 className="text-[28px] font-semibold leading-[34px]">{title}</h1>
-          <p className="text-base leading-6 text-muted-foreground">{body}</p>
-        </div>
-        {children}
-      </section>
+    <main className="grid min-h-screen place-items-center bg-background p-4 sm:p-6 lg:p-10">
+      <div className="grid w-full max-w-md overflow-hidden rounded-xl border bg-card lg:max-w-6xl lg:grid-cols-[minmax(0,1.15fr)_minmax(23rem,0.85fr)]">
+        <aside className="hidden bg-secondary/70 p-10 lg:grid lg:content-between lg:gap-12">
+          <div className="grid max-w-lg gap-5">
+            <p className="text-sm font-semibold text-primary">Operacao de risco zero</p>
+            <h2 className="max-w-md text-3xl font-semibold tracking-[-0.03em] text-balance">
+              Acesso operacional para confirmar o que esta na area de venda.
+            </h2>
+            <p className="max-w-prose text-base leading-7 text-muted-foreground">
+              Use sua conta para abrir as tarefas, conferencias e registros autorizados para a sua
+              loja. Nenhuma confirmacao depende apenas desta tela.
+            </p>
+          </div>
+
+          <dl className="grid max-w-lg divide-y border-y border-border text-sm">
+            <div className="grid gap-1 py-4">
+              <dt className="font-semibold">Loja e permissoes</dt>
+              <dd className="leading-6 text-muted-foreground">
+                O convite e a sessao definem o que voce pode visualizar e confirmar.
+              </dd>
+            </div>
+            <div className="grid gap-1 py-4">
+              <dt className="font-semibold">Registro confiavel</dt>
+              <dd className="leading-6 text-muted-foreground">
+                Uma tarefa so fica resolvida apos a acao e a confirmacao fisica exigidas.
+              </dd>
+            </div>
+          </dl>
+        </aside>
+
+        <section
+          className="grid w-full gap-5 p-6 sm:p-8 lg:content-center lg:p-10"
+          aria-labelledby="auth-title"
+        >
+          <header className="grid gap-2">
+            <p className="text-sm font-semibold text-primary lg:hidden">Operacao de risco zero</p>
+            <h1
+              id="auth-title"
+              className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]"
+            >
+              {title}
+            </h1>
+            <p className="text-base leading-6 text-muted-foreground">{body}</p>
+          </header>
+          {children}
+        </section>
+      </div>
     </main>
   );
 }

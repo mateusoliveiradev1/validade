@@ -25,6 +25,24 @@ describe("web authentication flows", () => {
     expect(screen.getByText("Informe sua senha.")).toBeTruthy();
   });
 
+  it("adds desktop operational context without changing the access form", () => {
+    render(
+      <LoginPage
+        onFirstAccess={vi.fn()}
+        onLogin={vi.fn()}
+        onPrivacy={vi.fn()}
+        onRecovery={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Acesso operacional para confirmar o que esta na area de venda.",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Entrar no Validade Zero" })).toBeTruthy();
+  });
+
   it("keeps recovery neutral about account existence", async () => {
     const onRequest = vi.fn().mockResolvedValue(undefined);
     render(<RecoveryPage onBack={vi.fn()} onRequest={onRequest} />);
