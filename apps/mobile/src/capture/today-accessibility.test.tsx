@@ -238,7 +238,8 @@ describe("Today accessibility and copy hardening", () => {
     expect(rendered.indexOf("Area de venda segura")).toBeLessThan(
       rendered.indexOf("Pronto para operar sem internet"),
     );
-    expect(rendered).toContain("Sincronizar pendencias");
+    expect(rendered).toContain("Tudo sincronizado neste aparelho");
+    expect(rendered).not.toContain("Sincronizar pendencias");
   });
 
   it("protects 48dp touch targets and accessible names in local primitives", () => {

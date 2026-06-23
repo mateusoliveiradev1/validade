@@ -53,11 +53,13 @@ export function OfflineStatusBand({
       ) : (
         <Text style={styles.bandMeta}>{todayCopy.sync.allSynced}</Text>
       )}
-      <SecondaryAction
-        disabled={disabled || queue?.state === "syncing"}
-        label={queue?.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.primary}
-        onPress={onRetry}
-      />
+      {hasPending ? (
+        <SecondaryAction
+          disabled={disabled || queue?.state === "syncing"}
+          label={queue?.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.primary}
+          onPress={onRetry}
+        />
+      ) : null}
     </View>
   );
 }
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
     borderRadius: captureRadii.medium,
     borderWidth: 1,
     gap: captureSpacing.small,
-    padding: captureSpacing.large,
+    padding: captureSpacing.medium,
   },
   bandWarning: {
     backgroundColor: captureColors.warningSurface,
@@ -322,14 +324,14 @@ const styles = StyleSheet.create({
   },
   bandTitle: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "600",
-    lineHeight: 25,
+    lineHeight: 24,
   },
   bandBody: {
     color: captureColors.mutedInk,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
   bandMeta: {
     color: captureColors.ink,
@@ -342,17 +344,17 @@ const styles = StyleSheet.create({
     borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: captureSpacing.medium,
-    padding: captureSpacing.large,
+    gap: captureSpacing.small,
+    padding: captureSpacing.medium,
   },
   queueHeader: {
     gap: captureSpacing.xsmall,
   },
   queueTitle: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "600",
-    lineHeight: 25,
+    lineHeight: 24,
   },
   queueMeta: {
     color: captureColors.mutedInk,
@@ -361,8 +363,8 @@ const styles = StyleSheet.create({
   },
   queueBody: {
     color: captureColors.mutedInk,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
   commandRow: {
     backgroundColor: captureColors.surfaceMuted,

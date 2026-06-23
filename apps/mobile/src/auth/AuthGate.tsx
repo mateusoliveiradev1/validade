@@ -15,8 +15,8 @@ import {
   type PrivacyRequest,
   type SessionContextResponse,
 } from "@validade-zero/contracts";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { captureColors, captureSpacing } from "../capture/capture-theme";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
 import { FirstAccessScreen } from "./FirstAccessScreen";
 import { LoginScreen } from "./LoginScreen";
@@ -244,18 +244,27 @@ export function AuthGate({
     return (
       <View style={styles.authenticatedShell}>
         <View style={styles.sessionBar}>
-          <Text style={styles.sessionLabel}>
-            {session.actor.displayName ?? "Conta da loja"} - {session.store.storeName}
-          </Text>
+          <View style={styles.sessionIdentity}>
+            <Text style={styles.sessionKicker}>Sessao ativa</Text>
+            <Text style={styles.sessionStore}>{session.store.storeName}</Text>
+            <Text style={styles.sessionLabel}>
+              {session.actor.displayName ?? "Conta da loja"} - {roleLabel(session.activeRole)}
+            </Text>
+          </View>
           <View style={styles.sessionActions}>
-            <SecondaryAction
-              label="Abrir Centro de Privacidade"
+            <SessionAction
+              accessibilityLabel="Abrir Centro de Privacidade"
+              label="Privacidade"
               onPress={() => {
                 setPrivacyReturnScreen("ready");
                 setScreen("privacy");
               }}
             />
-            <SecondaryAction label="Sair da conta" onPress={() => void logout()} />
+            <SessionAction
+              accessibilityLabel="Sair da conta"
+              label="Sair"
+              onPress={() => void logout()}
+            />
           </View>
         </View>
         {children(session)}
@@ -384,17 +393,38 @@ function GateMessage({
   );
 }
 
+function SessionAction({
+  accessibilityLabel,
+  label,
+  onPress,
+}: {
+  accessibilityLabel: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.sessionAction, pressed ? styles.sessionActionPressed : null]}
+    >
+      <Text style={styles.sessionActionLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function roleLabel(role: SessionContextResponse["activeRole"]): string {
+  if (role === "admin") return "Administracao";
+  if (role === "lead") return "Lideranca";
+  return "Operacao";
+}
+
 function configuredApiBaseUrl(): string {
-  const processValue: unknown = (globalThis as { process?: unknown }).process;
-  if (!isRecord(processValue) || !isRecord(processValue.env)) return "";
-  const value = processValue.env.EXPO_PUBLIC_API_URL;
+  const value = (process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL;
   if (typeof value !== "string") return "";
   const baseUrl = value.trim();
   return /^https?:\/\//.test(baseUrl) ? baseUrl.replace(/\/$/, "") : "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function toMobileAuthError(payload: unknown): MobileAuthError {
@@ -447,18 +477,57 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sessionBar: {
-    backgroundColor: captureColors.surfaceMuted,
-    gap: captureSpacing.small,
-    padding: captureSpacing.medium,
+    alignItems: "flex-start",
+    backgroundColor: captureColors.surface,
+    borderBottomColor: captureColors.border,
+    borderBottomWidth: 1,
+    gap: captureSpacing.medium,
+    paddingHorizontal: captureSpacing.medium,
+    paddingVertical: captureSpacing.small,
+  },
+  sessionIdentity: {
+    gap: 2,
+    width: "100%",
+  },
+  sessionKicker: {
+    color: captureColors.accent,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  sessionStore: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
   },
   sessionLabel: {
-    color: captureColors.ink,
+    color: captureColors.mutedInk,
     fontSize: 14,
-    fontWeight: "600",
     lineHeight: 20,
   },
   sessionActions: {
     flexDirection: "row",
     gap: captureSpacing.small,
+  },
+  sessionAction: {
+    alignItems: "center",
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: captureSpacing.medium,
+    paddingVertical: captureSpacing.small,
+  },
+  sessionActionPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  sessionActionLabel: {
+    color: captureColors.ink,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
 });

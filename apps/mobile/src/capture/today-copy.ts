@@ -12,7 +12,7 @@ export const todayCopy = {
       : `Atualizacao concluida. ${activeTaskCount} ${activeTaskCount === 1 ? "tarefa ativa" : "tarefas ativas"}.`,
   emptyHeading: "Area de venda segura agora",
   emptyBody:
-    "Nenhum lote exige acao neste momento. Voce pode registrar um lote novo ou conferir os recentes.",
+    "Nenhum lote exige acao neste momento. Registre um lote novo ou confira os recentes para manter a operacao atualizada.",
   registerLot: "Registrar lote",
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
@@ -47,7 +47,7 @@ export const todayCopy = {
   },
   push: {
     activate: "Ativar alertas do turno",
-    notNow: "Agora nao",
+    notNow: "Voce pode ativar depois.",
     retry: "Tentar novamente",
     openSettings: "Abrir configuracoes do aparelho",
     openTask: "Abrir tarefa",

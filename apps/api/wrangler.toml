@@ -14,3 +14,16 @@ EVIDENCE_RETENTION_DAYS = "90"
 
 [triggers]
 crons = ["*/15 * * * *"]
+
+[env.staging]
+name = "validade-zero-api-staging"
+workers_dev = true
+
+[env.staging.vars]
+VALIDADE_ZERO_APP_ENV = "staging"
+SAFE_PROBE_DEFAULT_VALUE = "sonda-segura-ficticia"
+EVIDENCE_STORE_MODE = "memory"
+EVIDENCE_RETENTION_DAYS = "90"
+
+[env.staging.triggers]
+crons = ["*/15 * * * *"]

@@ -58,8 +58,11 @@ export function PrivacyCenter({ onBack }: { onBack: () => void }) {
           <div className="grid gap-3">
             <p className="text-sm font-semibold text-primary">Centro de privacidade do piloto</p>
             <h1 className="max-w-2xl text-[30px] font-semibold leading-9 tracking-[-0.02em] sm:text-4xl sm:leading-[44px]">
-              Dados usados para manter a area de venda segura.
+              Centro de Privacidade
             </h1>
+            <p className="max-w-2xl text-xl font-semibold leading-7 text-foreground sm:text-2xl">
+              Dados usados para manter a area de venda segura.
+            </p>
             <p className="max-w-[68ch] text-base leading-7 text-muted-foreground">
               Veja quais informacoes o Validade Zero usa para operar com seguranca, registrar
               evidencias e responder solicitacoes sem expor dados desnecessarios.

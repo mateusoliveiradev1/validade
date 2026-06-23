@@ -47,17 +47,19 @@ export function PrimaryAction({
 
 export function SecondaryAction({
   label,
+  accessibilityLabel,
   onPress,
   disabled = false,
 }: {
   label: string;
+  accessibilityLabel?: string | undefined;
   onPress: () => void;
   disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -96,6 +98,8 @@ export function Field({
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
+        autoCapitalize="none"
+        autoCorrect={false}
         editable={editable}
         keyboardType={keyboardType}
         onChangeText={onChangeText}

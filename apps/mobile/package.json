@@ -6,6 +6,7 @@
   "main": "expo/AppEntry",
   "scripts": {
     "dev": "expo start",
+    "build:android:staging": "pnpm dlx eas-cli@latest build --profile staging --platform android",
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "pnpm typecheck",
