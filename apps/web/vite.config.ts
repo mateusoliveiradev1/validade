@@ -12,6 +12,38 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      "/auth": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/session": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/command-center": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/audit": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/memberships": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/sync": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/evidence": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+      "/shift-close": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
       "/health": {
         target: "http://127.0.0.1:8787",
         changeOrigin: true,

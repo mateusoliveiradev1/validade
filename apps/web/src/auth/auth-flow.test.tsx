@@ -66,10 +66,77 @@ describe("web authentication flows", () => {
       />,
     );
 
+    fireEvent.change(screen.getByRole("textbox", { name: "Codigo do convite" }), {
+      target: { value: "invite-token-with-at-least-thirty-two-characters" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Validar convite da conta" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
       "Convite invalido ou expirado",
     );
+  });
+
+  it("shows password policy before attempting account activation", async () => {
+    const onActivate = vi.fn();
+    render(
+      <FirstAccessPage
+        onActivate={onActivate}
+        onBack={vi.fn()}
+        onValidate={vi.fn().mockResolvedValue({
+          status: "valid",
+          expiresAt: "2030-01-11T12:00:00.000Z",
+          invite: {
+            identifier: "pessoa@piloto.invalid",
+            displayName: "Pessoa Piloto",
+            storeId: "loja-piloto",
+            storeName: "Loja Piloto",
+            role: "admin",
+          },
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Codigo do convite" }), {
+      target: { value: "invite-token-with-at-least-thirty-two-characters" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validar convite da conta" }));
+    fireEvent.change(await screen.findByLabelText("Crie sua senha"), {
+      target: { value: "curta" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ativar conta" }));
+
+    expect(screen.getByRole("alert").textContent).toContain("pelo menos 10 caracteres");
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it("keeps activation failures visible instead of failing silently", async () => {
+    render(
+      <FirstAccessPage
+        onActivate={vi.fn().mockRejectedValue(new Error("activation failed"))}
+        onBack={vi.fn()}
+        onValidate={vi.fn().mockResolvedValue({
+          status: "valid",
+          expiresAt: "2030-01-11T12:00:00.000Z",
+          invite: {
+            identifier: "admin.piloto@example.test",
+            displayName: "Administrador Piloto",
+            storeId: "loja-piloto",
+            storeName: "Loja Piloto",
+            role: "admin",
+          },
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Codigo do convite" }), {
+      target: { value: "invite-token-with-at-least-thirty-two-characters" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validar convite da conta" }));
+    fireEvent.change(await screen.findByLabelText("Crie sua senha"), {
+      target: { value: "Abcdef@123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ativar conta" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Nao foi possivel ativar");
   });
 });

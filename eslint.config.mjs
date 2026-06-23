@@ -50,6 +50,7 @@ export default tseslint.config(
             "apps/api/src/memberships.test.ts",
             "apps/api/src/sync.test.ts",
             "apps/api/src/shift-close.test.ts",
+            "apps/api/src/worker-runtime.test.ts",
             "apps/mobile/src/App.test.tsx",
             "apps/mobile/src/auth/auth-flow.test.tsx",
             "apps/mobile/src/capture/alert-state.test.ts",

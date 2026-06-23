@@ -104,6 +104,14 @@ export interface InMemorySyncCommandService extends SyncCommandService {
   readResults(): readonly SyncTransportResult[];
 }
 
+export interface WorkerEnvironment {
+  NEON_DATABASE_URL?: string;
+  AUTH_TOKEN_PEPPER?: string;
+  AUTH_PASSWORD_PEPPER?: string;
+  AUTH_SESSION_TTL_SECONDS?: string;
+  AUTH_RECOVERY_TTL_SECONDS?: string;
+}
+
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
   authRepository?: AuthRepository;
@@ -161,7 +169,7 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryAuthRepository({
           memberships: membershipRepository,
-          secrets: createEphemeralAuthSecrets(),
+          secrets: createLocalAuthSecrets(),
         })
       : createConfiguredNeonAuthRepository(input.databaseUrl, input.authSecrets));
   const sessionProvider = new PilotAuthProvider(authRepository, now);
@@ -944,10 +952,10 @@ export function createApiApp(input?: {
 
 export const app = createApiApp();
 
-function createEphemeralAuthSecrets(): AuthRepositorySecrets {
+function createLocalAuthSecrets(): AuthRepositorySecrets {
   return {
-    tokenPepper: `${crypto.randomUUID()}:${crypto.randomUUID()}`,
-    passwordPepper: `${crypto.randomUUID()}:${crypto.randomUUID()}`,
+    tokenPepper: "validade-zero-local-token-pepper-not-for-deployment",
+    passwordPepper: "validade-zero-local-password-pepper-not-for-deployment",
   };
 }
 
@@ -1217,14 +1225,49 @@ export function createScheduledAlertHandler(
 
 export const scheduled = createScheduledAlertHandler();
 
+export function createWorkerApp(
+  env: WorkerEnvironment,
+): ReturnType<typeof createApiApp> | undefined {
+  const databaseUrl = env.NEON_DATABASE_URL?.trim();
+  const tokenPepper = env.AUTH_TOKEN_PEPPER;
+  const passwordPepper = env.AUTH_PASSWORD_PEPPER;
+  if (
+    databaseUrl === undefined ||
+    databaseUrl.length === 0 ||
+    tokenPepper === undefined ||
+    tokenPepper.length === 0 ||
+    passwordPepper === undefined ||
+    passwordPepper.length === 0
+  ) {
+    return undefined;
+  }
+
+  return createApiApp({
+    databaseUrl,
+    authSecrets: { tokenPepper, passwordPepper },
+    sessionTtlSeconds: parsePositiveSeconds(env.AUTH_SESSION_TTL_SECONDS, 28_800),
+    recoveryTtlSeconds: parsePositiveSeconds(env.AUTH_RECOVERY_TTL_SECONDS, 1_800),
+  });
+}
+
 const worker = {
-  fetch(request: Request, env: unknown, context: ExecutionContext) {
-    return app.fetch(request, env, context);
+  fetch(request: Request, env: WorkerEnvironment, context: ExecutionContext) {
+    const configuredApp = createWorkerApp(env);
+    if (configuredApp === undefined) {
+      return Response.json({ error: "service_not_configured" }, { status: 503 });
+    }
+    return configuredApp.fetch(request, env, context);
   },
   scheduled,
 };
 
 export default worker;
+
+function parsePositiveSeconds(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 async function authorizeRequest(input: {
   request: Request;

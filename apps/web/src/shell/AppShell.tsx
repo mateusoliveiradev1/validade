@@ -49,7 +49,12 @@ export function AppShell({
               <Button className="hidden md:inline-flex" variant="outline" onClick={onLogout}>
                 Sair da conta
               </Button>
-              <MobileNavigation route={route} onRouteChange={onRouteChange} />
+              <MobileNavigation
+                route={route}
+                onLogout={onLogout}
+                onOpenPrivacy={onOpenPrivacy}
+                onRouteChange={onRouteChange}
+              />
             </div>
           </div>
         </header>
@@ -96,9 +101,13 @@ function ShellNavigation({
 }
 
 function MobileNavigation({
+  onLogout,
+  onOpenPrivacy,
   route,
   onRouteChange,
 }: {
+  onLogout: () => void;
+  onOpenPrivacy: () => void;
   route: AppRoute;
   onRouteChange: (route: AppRoute) => void;
 }) {
@@ -116,13 +125,37 @@ function MobileNavigation({
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="p-4">
-          <ShellNavigation
-            route={route}
-            onRouteChange={(nextRoute) => {
-              onRouteChange(nextRoute);
-              setOpen(false);
-            }}
-          />
+          <div className="grid min-h-full content-between gap-6">
+            <ShellNavigation
+              route={route}
+              onRouteChange={(nextRoute) => {
+                onRouteChange(nextRoute);
+                setOpen(false);
+              }}
+            />
+            <div className="grid gap-2 border-t pt-4">
+              <Button
+                className="justify-start"
+                variant="ghost"
+                onClick={() => {
+                  onOpenPrivacy();
+                  setOpen(false);
+                }}
+              >
+                Privacidade
+              </Button>
+              <Button
+                className="justify-start"
+                variant="outline"
+                onClick={() => {
+                  onLogout();
+                  setOpen(false);
+                }}
+              >
+                Sair da conta
+              </Button>
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
     </>

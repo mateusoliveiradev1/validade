@@ -10,7 +10,7 @@ const RequiredIdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const OpaqueTokenSchema = z.string().trim().min(32).max(512);
-const PasswordSchema = z.string().min(12).max(128);
+const PasswordSchema = z.string().min(10).max(128);
 const IdempotencyKeySchema = z.string().trim().min(8).max(160);
 
 export const InviteStatusSchema = z.enum(["valid", "invalid", "expired", "revoked", "activated"]);

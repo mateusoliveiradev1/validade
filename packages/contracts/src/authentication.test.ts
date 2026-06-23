@@ -36,6 +36,15 @@ describe("authentication contracts", () => {
     ).toBe(false);
   });
 
+  it("accepts a 10-character password without relaxing authority fields", () => {
+    expect(
+      LoginRequestSchema.parse({
+        identifier: "admin.piloto@example.test",
+        password: "Abcdef@123",
+      }),
+    ).toMatchObject({ identifier: "admin.piloto@example.test" });
+  });
+
   it("keeps activation input limited to the invite token and password", () => {
     expect(
       FirstAccessActivationRequestSchema.safeParse({
