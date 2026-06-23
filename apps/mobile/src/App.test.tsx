@@ -1,5 +1,6 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
+import type { MobileAuthClient } from "./auth/AuthGate";
 import type {
   MarkdownWorkflowRecord,
   OfflineCacheStatus,
@@ -107,6 +108,32 @@ function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSum
     ...overrides,
   };
 }
+
+const authenticatedMobileClient: MobileAuthClient = {
+  readSession: () =>
+    Promise.resolve({
+      actor: { subjectId: "collaborator-local", displayName: "Colaborador FICTICIO" },
+      store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+      activeRole: "collaborator",
+      capabilities: ["task.act"],
+      sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+      accountStatus: "active",
+      canRequestRecovery: true,
+      privacyCenterUrl: "/privacy",
+      actions: {
+        canActOnTask: true,
+        canCloseShift: false,
+        canReadStoreAudit: false,
+        canManageUsers: false,
+      },
+    }),
+  login: () => Promise.reject(new Error("not used")),
+  validateInvite: () => Promise.resolve({ status: "invalid" }),
+  activateInvite: () => Promise.reject(new Error("not used")),
+  requestRecovery: () => Promise.resolve(),
+  submitPrivacyRequest: () => Promise.resolve(),
+  logout: () => Promise.resolve(),
+};
 
 function lotDetailFixture(): CaptureLotDetail {
   const currentObservation = {
@@ -317,7 +344,9 @@ describe("Validade Zero mobile smoke", () => {
     let tree: ReactTestRenderer | undefined;
 
     await act(async () => {
-      tree = create(<App alertChannel={createFakePushAlertChannel()} />);
+      tree = create(
+        <App alertChannel={createFakePushAlertChannel()} authClient={authenticatedMobileClient} />,
+      );
       await Promise.resolve();
     });
 

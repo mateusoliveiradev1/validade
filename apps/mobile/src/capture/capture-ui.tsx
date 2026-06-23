@@ -80,6 +80,7 @@ export function Field({
   error,
   keyboardType,
   editable = true,
+  secureTextEntry = false,
 }: {
   label: string;
   value: string;
@@ -88,6 +89,7 @@ export function Field({
   error?: string | undefined;
   keyboardType?: KeyboardTypeOptions | undefined;
   editable?: boolean | undefined;
+  secureTextEntry?: boolean | undefined;
 }) {
   return (
     <View style={styles.fieldGroup}>
@@ -99,6 +101,7 @@ export function Field({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={captureColors.mutedInk}
+        secureTextEntry={secureTextEntry}
         style={[styles.field, error === undefined ? undefined : styles.fieldError]}
         value={value}
       />

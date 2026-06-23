@@ -3,21 +3,35 @@ import { CaptureApp } from "./src/capture/CaptureApp";
 import type { PushAlertChannel } from "./src/capture/alert-channel";
 import { captureColors } from "./src/capture/capture-theme";
 import { createSQLiteCaptureRepository } from "./src/capture/sqlite-repository";
+import { AuthGate, createMobileAuthClient, type MobileAuthClient } from "./src/auth/AuthGate";
 
 const repository = createSQLiteCaptureRepository({
   clock: () => new Date().toISOString(),
   createId: () => `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
 });
 
-export default function App({ alertChannel }: { alertChannel?: PushAlertChannel } = {}) {
+const defaultAuthClient = createMobileAuthClient();
+
+export default function App({
+  alertChannel,
+  authClient = defaultAuthClient,
+}: {
+  alertChannel?: PushAlertChannel;
+  authClient?: MobileAuthClient;
+} = {}) {
   return (
     <>
       <StatusBar backgroundColor={captureColors.background} barStyle="dark-content" />
       <View style={styles.safeArea}>
-        <CaptureApp
-          repository={repository}
-          {...(alertChannel === undefined ? {} : { alertChannel })}
-        />
+        <AuthGate authClient={authClient}>
+          {(session) => (
+            <CaptureApp
+              repository={repository}
+              activeRole={session.activeRole}
+              {...(alertChannel === undefined ? {} : { alertChannel })}
+            />
+          )}
+        </AuthGate>
       </View>
     </>
   );
