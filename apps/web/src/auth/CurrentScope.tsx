@@ -59,12 +59,24 @@ export function CurrentScope() {
   }, []);
 
   if (scope.status === "loading") {
-    return <section aria-label="Escopo atual" className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4"><Skeleton className="h-5 w-32" /><Skeleton className="h-5 w-full" /></section>;
+    return (
+      <section
+        aria-label="Escopo atual"
+        className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4"
+      >
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-5 w-full" />
+      </section>
+    );
   }
 
   if (scope.status === "blocked" || scope.status === "error") {
     return (
-      <section aria-label="Escopo atual" className="grid max-w-2xl gap-1 rounded-lg border border-critical-border bg-critical-surface p-4" role="alert">
+      <section
+        aria-label="Escopo atual"
+        className="grid max-w-2xl gap-1 rounded-lg border border-critical-border bg-critical-surface p-4"
+        role="alert"
+      >
         <p className="font-semibold text-destructive">Escopo operacional indisponivel</p>
         <p className="text-sm leading-5 text-foreground">{scope.message}</p>
       </section>
@@ -74,7 +86,10 @@ export function CurrentScope() {
   const { context } = scope;
 
   return (
-    <section aria-label="Escopo atual" className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4">
+    <section
+      aria-label="Escopo atual"
+      className="grid max-w-2xl gap-3 rounded-lg border border-border bg-card p-4"
+    >
       <p className="font-semibold">Escopo atual</p>
       <p className="text-base leading-6">
         {context.actor.displayName ?? context.actor.subjectId} atua como{" "}

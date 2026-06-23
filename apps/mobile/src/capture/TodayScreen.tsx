@@ -282,16 +282,15 @@ export function TodayScreen({
   const renderedAt = now();
   const overdueTasks = tasks.filter((task) => isOverdueTask(task, renderedAt));
   const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
-  const verdict =
-    isInitialLoading
-      ? "Carregando riscos da area de venda"
-      : refreshError !== undefined
-        ? "Riscos precisam ser atualizados"
+  const verdict = isInitialLoading
+    ? "Carregando riscos da area de venda"
+    : refreshError !== undefined
+      ? "Riscos precisam ser atualizados"
       : salesAreaRiskCount > 0
-      ? todayCopy.criticalHeader(salesAreaRiskCount)
-      : tasks.length > 0
-        ? todayCopy.safeWithWorkHeader
-        : todayCopy.safeHeader;
+        ? todayCopy.criticalHeader(salesAreaRiskCount)
+        : tasks.length > 0
+          ? todayCopy.safeWithWorkHeader
+          : todayCopy.safeHeader;
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>

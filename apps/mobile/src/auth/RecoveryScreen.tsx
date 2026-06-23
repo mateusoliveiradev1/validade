@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { captureColors, captureSpacing } from "../capture/capture-theme";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  StatusNotice,
+} from "../capture/capture-ui";
 import { MobileAuthError } from "./AuthGate";
 
 export function RecoveryScreen({
@@ -14,7 +20,10 @@ export function RecoveryScreen({
   const [identifier, setIdentifier] = useState("");
   const [feedback, setFeedback] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
-  const identifierError = identifier.trim().length === 0 ? "Informe o e-mail ou identificador usado no convite." : undefined;
+  const identifierError =
+    identifier.trim().length === 0
+      ? "Informe o e-mail ou identificador usado no convite."
+      : undefined;
 
   async function request(): Promise<void> {
     if (identifierError !== undefined) {
@@ -24,7 +33,9 @@ export function RecoveryScreen({
     setSubmitting(true);
     try {
       await onRequestRecovery(identifier.trim());
-      setFeedback("Se houver uma conta elegivel, a lideranca recebera a proxima etapa de recuperacao.");
+      setFeedback(
+        "Se houver uma conta elegivel, a lideranca recebera a proxima etapa de recuperacao.",
+      );
     } catch (reason) {
       setFeedback(
         reason instanceof MobileAuthError && reason.code === "network"

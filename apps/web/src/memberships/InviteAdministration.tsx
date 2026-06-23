@@ -72,7 +72,9 @@ export function InviteAdministration({
       );
       onInviteCreated();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel criar o convite agora.");
+      setMessage(
+        error instanceof Error ? error.message : "Nao foi possivel criar o convite agora.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -99,7 +101,9 @@ export function InviteAdministration({
       setMessage("Convite revogado. Esta conta nao podera ser ativada por este token.");
       onInviteCreated();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel revogar o convite agora.");
+      setMessage(
+        error instanceof Error ? error.message : "Nao foi possivel revogar o convite agora.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -109,53 +113,113 @@ export function InviteAdministration({
     identifier.trim().length > 0 && displayName.trim().length > 0 && expiresAt.trim().length > 0;
 
   return (
-    <section className="grid gap-4 rounded-lg border border-border bg-card p-5" aria-labelledby="invite-administration-title">
+    <section
+      className="grid gap-4 rounded-lg border border-border bg-card p-5"
+      aria-labelledby="invite-administration-title"
+    >
       <div className="grid gap-1">
         <h2 id="invite-administration-title" className="text-xl font-semibold leading-6">
           Convites de acesso fechado
         </h2>
         <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-          A administracao cria o acesso da loja. Nao existe cadastro publico nem convite para outra unidade.
+          A administracao cria o acesso da loja. Nao existe cadastro publico nem convite para outra
+          unidade.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <label className="grid gap-1 text-sm font-semibold">Identificador de acesso
+        <label className="grid gap-1 text-sm font-semibold">
+          Identificador de acesso
           <Input value={identifier} onChange={(event) => setIdentifier(event.target.value)} />
         </label>
-        <label className="grid gap-1 text-sm font-semibold">Nome exibido
+        <label className="grid gap-1 text-sm font-semibold">
+          Nome exibido
           <Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
         </label>
-        <label className="grid gap-1 text-sm font-semibold">Papel no primeiro acesso
-          <Select value={role} onChange={(event) => setRole(event.target.value as AuthorizationRole)}>
+        <label className="grid gap-1 text-sm font-semibold">
+          Papel no primeiro acesso
+          <Select
+            value={role}
+            onChange={(event) => setRole(event.target.value as AuthorizationRole)}
+          >
             <option value="collaborator">Colaborador</option>
             <option value="lead">Lideranca</option>
             <option value="admin">Administracao</option>
           </Select>
         </label>
-        <label className="grid gap-1 text-sm font-semibold">Expira em
-          <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+        <label className="grid gap-1 text-sm font-semibold">
+          Expira em
+          <Input
+            type="datetime-local"
+            value={expiresAt}
+            onChange={(event) => setExpiresAt(event.target.value)}
+          />
         </label>
       </div>
-      <p className="text-sm leading-5 text-muted-foreground">Loja vinculada: {storeName}. Emissor: {issuerLabel}.</p>
-      <Button className="min-h-12 w-fit" disabled={!canCreate || submitting} onClick={() => void createInvite("create")}>Criar convite de acesso</Button>
+      <p className="text-sm leading-5 text-muted-foreground">
+        Loja vinculada: {storeName}. Emissor: {issuerLabel}.
+      </p>
+      <Button
+        className="min-h-12 w-fit"
+        disabled={!canCreate || submitting}
+        onClick={() => void createInvite("create")}
+      >
+        Criar convite de acesso
+      </Button>
 
       {invite === undefined ? null : (
         <section className="grid gap-3 border-t pt-4" aria-label="Convite criado">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="grid gap-1">
               <h3 className="text-base font-semibold">{invite.displayName}</h3>
-              <p className="text-sm text-muted-foreground">{invite.identifier} - {roleLabel(invite.role)} - {invite.storeName}</p>
-              <p className="text-sm text-muted-foreground">Expira em {formatDateTime(invite.expiresAt)}.</p>
+              <p className="text-sm text-muted-foreground">
+                {invite.identifier} - {roleLabel(invite.role)} - {invite.storeName}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Expira em {formatDateTime(invite.expiresAt)}.
+              </p>
             </div>
-            <span className={invite.status === "revoked" ? "text-sm text-destructive" : "text-sm text-primary"}>{invite.status === "revoked" ? "Convite revogado" : "Aguardando primeiro acesso"}</span>
+            <span
+              className={
+                invite.status === "revoked" ? "text-sm text-destructive" : "text-sm text-primary"
+              }
+            >
+              {invite.status === "revoked" ? "Convite revogado" : "Aguardando primeiro acesso"}
+            </span>
           </div>
-          {invite.status === "revoked" ? <p className="text-sm text-muted-foreground">O token foi invalidado e nao fica mais disponivel nesta tela.</p> : invite.token === undefined ? <p className="text-sm text-warning-foreground">O token nao esta mais disponivel nesta sessao. Crie um novo convite para reenviar.</p> : <label className="grid gap-1 text-sm font-semibold">Token do convite
-            <Input aria-label="Token do convite" readOnly value={invite.token} />
-          </label>}
-          {invite.status === "revoked" ? null : <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => void createInvite("resend")}>Gerar novo convite para reenviar</Button>
-            <Button type="button" variant="destructive" disabled={submitting} onClick={() => setConfirmingRevoke(true)}>Revogar convite</Button>
-          </div>}
+          {invite.status === "revoked" ? (
+            <p className="text-sm text-muted-foreground">
+              O token foi invalidado e nao fica mais disponivel nesta tela.
+            </p>
+          ) : invite.token === undefined ? (
+            <p className="text-sm text-warning-foreground">
+              O token nao esta mais disponivel nesta sessao. Crie um novo convite para reenviar.
+            </p>
+          ) : (
+            <label className="grid gap-1 text-sm font-semibold">
+              Token do convite
+              <Input aria-label="Token do convite" readOnly value={invite.token} />
+            </label>
+          )}
+          {invite.status === "revoked" ? null : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={() => void createInvite("resend")}
+              >
+                Gerar novo convite para reenviar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={submitting}
+                onClick={() => setConfirmingRevoke(true)}
+              >
+                Revogar convite
+              </Button>
+            </div>
+          )}
         </section>
       )}
 
@@ -163,15 +227,35 @@ export function InviteAdministration({
         <AlertDialog>
           <AlertDialogTitle>Revogar convite de acesso</AlertDialogTitle>
           <AlertDialogDescription>
-            {invite.displayName} nao podera ativar a conta de {roleLabel(invite.role)} em {invite.storeName} com este token. O convite expira em {formatDateTime(invite.expiresAt)} e foi emitido por {invite.issuerLabel}.
+            {invite.displayName} nao podera ativar a conta de {roleLabel(invite.role)} em{" "}
+            {invite.storeName} com este token. O convite expira em{" "}
+            {formatDateTime(invite.expiresAt)} e foi emitido por {invite.issuerLabel}.
           </AlertDialogDescription>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="destructive" disabled={submitting} onClick={() => void revokeInvite()}>Confirmar revogacao do convite</Button>
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => setConfirmingRevoke(false)}>Manter convite ativo</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={submitting}
+              onClick={() => void revokeInvite()}
+            >
+              Confirmar revogacao do convite
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={() => setConfirmingRevoke(false)}
+            >
+              Manter convite ativo
+            </Button>
           </div>
         </AlertDialog>
       ) : null}
-      {message === undefined ? null : <p role="status" className="text-sm">{message}</p>}
+      {message === undefined ? null : (
+        <p role="status" className="text-sm">
+          {message}
+        </p>
+      )}
     </section>
   );
 }
@@ -183,5 +267,9 @@ function roleLabel(role: AuthorizationRole): string {
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
 }

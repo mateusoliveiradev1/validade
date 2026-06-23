@@ -80,10 +80,7 @@ import {
   type LoginAttemptLimiter,
   type RecoveryDeliveryProvider,
 } from "./authentication";
-import {
-  createInMemoryCommandCenterService,
-  type CommandCenterService,
-} from "./command-center";
+import { createInMemoryCommandCenterService, type CommandCenterService } from "./command-center";
 import {
   createDatabaseEvidenceRepository,
   createEvidenceService,
@@ -137,7 +134,8 @@ export function createApiApp(input?: {
   const providers = createLocalProviderRegistry();
   const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
-  const commandCenterService = input?.commandCenterService ?? createInMemoryCommandCenterService({ now });
+  const commandCenterService =
+    input?.commandCenterService ?? createInMemoryCommandCenterService({ now });
   const membershipManagementRepository =
     input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined

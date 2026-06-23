@@ -2,7 +2,13 @@ import { useState } from "react";
 import type { InviteValidationResponse } from "@validade-zero/contracts";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { captureColors, captureSpacing } from "../capture/capture-theme";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  StatusNotice,
+} from "../capture/capture-ui";
 import { MobileAuthError } from "./AuthGate";
 
 export function FirstAccessScreen({
@@ -20,7 +26,8 @@ export function FirstAccessScreen({
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const tokenError = token.trim().length === 0 ? "Informe o codigo do convite." : undefined;
-  const passwordError = password.length < 12 ? "Crie uma senha com pelo menos 12 caracteres." : undefined;
+  const passwordError =
+    password.length < 12 ? "Crie uma senha com pelo menos 12 caracteres." : undefined;
 
   async function validate(): Promise<void> {
     if (token.trim().length < 32) {
@@ -31,7 +38,11 @@ export function FirstAccessScreen({
     try {
       const result = await onValidateInvite(token.trim());
       setInvite(result);
-      setError(result.status === "valid" ? undefined : "Convite invalido ou expirado. Peca um novo convite a lideranca.");
+      setError(
+        result.status === "valid"
+          ? undefined
+          : "Convite invalido ou expirado. Peca um novo convite a lideranca.",
+      );
     } catch {
       setError("Nao foi possivel validar o convite agora. Confira a conexao e tente novamente.");
     } finally {
@@ -85,7 +96,9 @@ export function FirstAccessScreen({
       {invite?.status !== "valid" || invite.invite === undefined ? null : (
         <View style={styles.inviteSummary}>
           <Text style={styles.inviteTitle}>Conta vinculada a esta operacao</Text>
-          <Text style={styles.inviteCopy}>{invite.invite.storeName} - {invite.invite.role}</Text>
+          <Text style={styles.inviteCopy}>
+            {invite.invite.storeName} - {invite.invite.role}
+          </Text>
           <Field
             label="Crie sua senha"
             value={password}

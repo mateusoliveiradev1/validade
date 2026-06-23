@@ -17,14 +17,16 @@
     "test": "vitest run --config vitest.config.ts",
     "test:smoke": "vitest run --config vitest.config.ts --project api --project web --project mobile",
     "test:e2e:web": "playwright test --config playwright.config.ts",
-    "test:e2e:mobile": "maestro test .maestro/smoke.yaml",
+    "test:e2e:mobile": "maestro test .maestro/v1-readiness.yaml",
     "test:mutation": "stryker run stryker.config.json",
-    "security": "pnpm security:env && pnpm security:secrets && pnpm security:data && pnpm security:evidence && turbo run security",
+    "security": "pnpm security:env && pnpm security:secrets && pnpm security:data && pnpm security:evidence && pnpm security:ui-release && turbo run security",
     "security:env": "node scripts/check-env-example.mjs",
     "security:secrets": "secretlint \"apps/**/*\" \"packages/**/*\" \"scripts/**/*\" \"docs/**/*\" \".github/**/*\" \"*.json\" \"*.yaml\" \"*.yml\" \"*.md\" \".env.example\" --secretlintrc .secretlintrc.json",
     "security:data": "node scripts/check-no-real-data.mjs",
     "security:evidence": "node scripts/check-no-sensitive-evidence.mjs",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security"
+    "security:ui-release": "node scripts/check-ui-release-readiness.mjs",
+    "performance:budgets": "node scripts/check-performance-budgets.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security && pnpm performance:budgets"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",

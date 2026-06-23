@@ -36,7 +36,9 @@ describe("PrivacyCenterScreen", () => {
     const submit = vi.fn(() => Promise.resolve());
     let tree: ReactTestRenderer | undefined;
     await act(async () => {
-      tree = create(<PrivacyCenterScreen onBack={() => undefined} onSubmitRightsRequest={submit} />);
+      tree = create(
+        <PrivacyCenterScreen onBack={() => undefined} onSubmitRightsRequest={submit} />,
+      );
       await Promise.resolve();
     });
     if (tree === undefined) throw new Error("Privacy center did not render.");
@@ -55,7 +57,9 @@ describe("PrivacyCenterScreen", () => {
     }
 
     await act(async () => {
-      input(tree, "Canal para responder ao pedido").props.onChangeText("worker-ficticio@example.test");
+      input(tree, "Canal para responder ao pedido").props.onChangeText(
+        "worker-ficticio@example.test",
+      );
       input(tree, "Descreva seu pedido de direitos").props.onChangeText(
         "Quero acesso aos meus dados operacionais usados pela loja piloto.",
       );
@@ -63,7 +67,9 @@ describe("PrivacyCenterScreen", () => {
     });
     const action = tree.root
       .findAllByType("Pressable")
-      .find((candidate) => candidate.props.accessibilityLabel === "Enviar solicitacao de direitos LGPD");
+      .find(
+        (candidate) => candidate.props.accessibilityLabel === "Enviar solicitacao de direitos LGPD",
+      );
     if (action === undefined || typeof action.props.onPress !== "function") {
       throw new Error("Expected LGPD request action.");
     }

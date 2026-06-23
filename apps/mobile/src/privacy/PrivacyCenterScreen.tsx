@@ -2,16 +2,40 @@ import { useState } from "react";
 import type { PrivacyRequest } from "@validade-zero/contracts";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { captureColors, captureSpacing } from "../capture/capture-theme";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  StatusNotice,
+} from "../capture/capture-ui";
 
 const sections = [
-  ["Politica de Privacidade", "Explica como o piloto usa dados para operar com seguranca e responder a direitos."],
+  [
+    "Politica de Privacidade",
+    "Explica como o piloto usa dados para operar com seguranca e responder a direitos.",
+  ],
   ["Termos de Uso", "Define o uso responsavel do aplicativo durante a operacao da loja piloto."],
-  ["Seguranca da conta", "Sua senha, sessao e vinculo de loja protegem o acesso as tarefas operacionais."],
-  ["Permissoes do aparelho", "Camera, notificacoes e evidencias explicam a finalidade, o impacto da recusa e o caminho manual quando existir."],
-  ["Dados usados pelo app", "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao."],
-  ["Canal/encarregado", "Use a lideranca ou administracao da loja como canal inicial para duvidas e solicitacoes de dados."],
-  ["Solicitacao de direitos LGPD", "Peca acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento dos seus dados."],
+  [
+    "Seguranca da conta",
+    "Sua senha, sessao e vinculo de loja protegem o acesso as tarefas operacionais.",
+  ],
+  [
+    "Permissoes do aparelho",
+    "Camera, notificacoes e evidencias explicam a finalidade, o impacto da recusa e o caminho manual quando existir.",
+  ],
+  [
+    "Dados usados pelo app",
+    "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao.",
+  ],
+  [
+    "Canal/encarregado",
+    "Use a lideranca ou administracao da loja como canal inicial para duvidas e solicitacoes de dados.",
+  ],
+  [
+    "Solicitacao de direitos LGPD",
+    "Peca acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento dos seus dados.",
+  ],
 ] as const;
 
 export function PrivacyCenterScreen({
@@ -25,12 +49,16 @@ export function PrivacyCenterScreen({
   const [body, setBody] = useState("");
   const [feedback, setFeedback] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
-  const contactError = contact.trim().length === 0 ? "Informe um canal para responder ao pedido." : undefined;
-  const bodyError = body.trim().length < 20 ? "Descreva o pedido com pelo menos 20 caracteres." : undefined;
+  const contactError =
+    contact.trim().length === 0 ? "Informe um canal para responder ao pedido." : undefined;
+  const bodyError =
+    body.trim().length < 20 ? "Descreva o pedido com pelo menos 20 caracteres." : undefined;
 
   async function submit(): Promise<void> {
     if (contactError !== undefined || bodyError !== undefined) {
-      setFeedback("Informe um canal de resposta e descreva seu pedido com pelo menos 20 caracteres.");
+      setFeedback(
+        "Informe um canal de resposta e descreva seu pedido com pelo menos 20 caracteres.",
+      );
       return;
     }
     setSubmitting(true);
@@ -53,7 +81,9 @@ export function PrivacyCenterScreen({
       });
       setFeedback("Solicitacao recebida. O canal informado sera usado para o retorno do pedido.");
     } catch {
-      setFeedback("Nao foi possivel enviar a solicitacao agora. Confira a sessao e tente novamente.");
+      setFeedback(
+        "Nao foi possivel enviar a solicitacao agora. Confira a sessao e tente novamente.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +121,11 @@ export function PrivacyCenterScreen({
           editable={!submitting}
         />
         <PrimaryAction
-          label={submitting ? "Enviando solicitacao de direitos..." : "Enviar solicitacao de direitos LGPD"}
+          label={
+            submitting
+              ? "Enviando solicitacao de direitos..."
+              : "Enviar solicitacao de direitos LGPD"
+          }
           onPress={() => void submit()}
           disabled={submitting}
         />

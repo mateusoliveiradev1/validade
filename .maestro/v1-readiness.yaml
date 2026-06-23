@@ -1,0 +1,15 @@
+appId: com.validadezero.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Entrar no Validade Zero"
+    timeout: 60000
+- assertVisible: "Ativar conta por convite"
+- assertVisible: "Recuperar acesso da conta"
+- assertVisible: "Abrir Centro de Privacidade"
+- tapOn: "Abrir Centro de Privacidade"
+- assertVisible: "Centro de Privacidade"
+- assertVisible: "Solicitacao de direitos LGPD"
+# Authenticated Hoje, offline/sync, evidence, and shift-close continuation needs a pilot-safe
+# authenticated device fixture. Component journeys cover it until an emulator or internal APK exists.

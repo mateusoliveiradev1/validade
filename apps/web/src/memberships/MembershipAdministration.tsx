@@ -14,7 +14,11 @@ type MembershipState =
   | { status: "ready"; context: SessionContextResponse; items: readonly ManagedStoreMembership[] }
   | { status: "error"; message: string };
 
-export function MembershipAdministration({ session: providedSession }: { session?: SessionContextResponse }) {
+export function MembershipAdministration({
+  session: providedSession,
+}: {
+  session?: SessionContextResponse;
+}) {
   const [state, setState] = useState<MembershipState>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -27,7 +31,8 @@ export function MembershipAdministration({ session: providedSession }: { session
           context = providedSession;
         } else {
           const contextResponse = await fetch("/session/context?storeId=loja-piloto");
-          if (!contextResponse.ok) throw new Error("Nao foi possivel carregar seu escopo administrativo.");
+          if (!contextResponse.ok)
+            throw new Error("Nao foi possivel carregar seu escopo administrativo.");
           const contextPayload: unknown = await contextResponse.json();
           context = SessionContextResponseSchema.parse(contextPayload);
         }

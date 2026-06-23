@@ -10,12 +10,14 @@ Validade Zero starts with smoke-level confidence in Phase 1. The goal is to prov
 - `pnpm lint` runs ESLint plus dependency-boundary validation.
 - `pnpm format:check` checks code style.
 - `pnpm security` runs env, secret, data-safety, sensitive-evidence, and package security gates.
+- `pnpm security:ui-release` rejects provisional product copy, missing privacy sections, auth-gate composition regressions, unsupported Command Center metrics, and missing launch assets.
+- `pnpm performance:budgets` measures the built web asset budget; run it after `pnpm build`.
 - `pnpm check` combines the CI-safe quality gates.
 
 ## Local Setup Commands
 
-- `pnpm test:e2e:web` runs Playwright against the Vite web smoke surface. It starts the Vite dev server automatically and requires Playwright browsers installed locally.
-- `pnpm test:e2e:mobile` runs the Maestro smoke flow against a locally available mobile app build or emulator target.
+- `pnpm test:e2e:web` runs Playwright against authenticated Command Center, privacy, responsive navigation, audit fallback, and membership-revocation fixtures. It starts Vite automatically and requires Playwright browsers installed locally.
+- `pnpm test:e2e:mobile` runs the Maestro v1 auth/privacy flow against a locally available mobile app build or emulator target. Authenticated operational continuation needs a pilot-safe fixture on that device.
 - `pnpm test:mutation` runs Stryker. Phase 1 keeps thresholds at zero because critical domain rules begin in Phase 2.
 
 ## Phase 2 Domain Rules
@@ -54,3 +56,10 @@ Future phases should extend this matrix with real flows as they are implemented:
 - `pnpm security:evidence` scans tracked source, fixtures, docs, snapshots, and generated text artifacts for device URIs, embedded binaries, signed object queries, raw bearer material, and private production-like object references.
 
 The remaining release checks are intentionally manual: real auth issuer claims, private R2 policy and 90-day lifecycle, disposable Neon migration verification, and a device/offline handoff walkthrough. Do not mark these as automated based on a local component or browser fixture.
+
+## Phase 9 release sequence
+
+1. Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+2. Run `pnpm test:e2e:web`, `pnpm security`, and `pnpm performance:budgets`.
+3. Run `pnpm test:e2e:mobile` only with an available emulator or internal APK, then record the exact result.
+4. Run `pnpm check` before a release decision. Provider and physical-device checks remain blocked until their evidence is recorded.

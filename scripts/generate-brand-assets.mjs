@@ -98,7 +98,16 @@ function drawLine(pixels, width, height, startX, startY, endX, endY, thickness, 
 function drawSeal(pixels, width, height, centerX, centerY, radius) {
   const ringThickness = Math.max(10, Math.round(radius * 0.055));
   drawRing(pixels, width, height, centerX, centerY, radius, ringThickness, colors.mark);
-  drawRing(pixels, width, height, centerX, centerY, Math.round(radius * 0.78), ringThickness, colors.mark);
+  drawRing(
+    pixels,
+    width,
+    height,
+    centerX,
+    centerY,
+    Math.round(radius * 0.78),
+    ringThickness,
+    colors.mark,
+  );
 
   const dotDistance = Math.round(radius * 0.9);
   const dotRadius = Math.max(8, Math.round(radius * 0.045));
@@ -227,7 +236,8 @@ function renderAsset({ width, height, variant }) {
 function readPngInfo(path) {
   const content = readFileSync(path);
   const signature = "89504e470d0a1a0a";
-  if (content.subarray(0, 8).toString("hex") !== signature) throw new Error(`${path} is not a PNG.`);
+  if (content.subarray(0, 8).toString("hex") !== signature)
+    throw new Error(`${path} is not a PNG.`);
 
   const types = [];
   let offset = 8;

@@ -132,17 +132,30 @@ export function MembershipTable(input: {
           <AlertDialogTitle>Revogar vinculo operacional</AlertDialogTitle>
           <AlertDialogDescription>
             {pendingRevoke.displayName} perdera o papel de {pendingRevoke.role} em{" "}
-            {pendingRevoke.storeName}. Capacidades atuais deixam de valer no proximo refresh de sessao. Esta acao nao encerra nem resolve tarefas abertas.
+            {pendingRevoke.storeName}. Capacidades atuais deixam de valer no proximo refresh de
+            sessao. Esta acao nao encerra nem resolve tarefas abertas.
           </AlertDialogDescription>
           <label className="grid gap-1 text-sm font-semibold text-foreground">
             Motivo da revogacao
             <Input value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} />
           </label>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="destructive" disabled={revokeReason.trim().length === 0} onClick={() => void confirmRevoke()}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={revokeReason.trim().length === 0}
+              onClick={() => void confirmRevoke()}
+            >
               Confirmar revogacao
             </Button>
-            <Button type="button" variant="outline" onClick={() => { setPendingRevoke(undefined); setRevokeReason(""); }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPendingRevoke(undefined);
+                setRevokeReason("");
+              }}
+            >
               Cancelar
             </Button>
           </div>

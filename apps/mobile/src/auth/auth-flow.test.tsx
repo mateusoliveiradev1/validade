@@ -148,7 +148,9 @@ describe("mobile auth flow", () => {
   });
 
   it("shows invalid invite, recovery, expired session, blocked account, and no-permission states", async () => {
-    const expiredInviteTree = await renderGate(client({ validateInvite: () => Promise.resolve({ status: "expired" }) }));
+    const expiredInviteTree = await renderGate(
+      client({ validateInvite: () => Promise.resolve({ status: "expired" }) }),
+    );
     await press(expiredInviteTree, "Ativar conta por convite");
     await enter(expiredInviteTree, "Codigo do convite", "a".repeat(32));
     await press(expiredInviteTree, "Validar convite da conta");
@@ -167,7 +169,9 @@ describe("mobile auth flow", () => {
     await enter(expiredTree, "Identificador de acesso", "worker-ficticio@example.test");
     await enter(expiredTree, "Senha", "senha-segura-123");
     await press(expiredTree, "Entrar no Validade Zero");
-    expect(JSON.stringify(expiredTree.toJSON())).toContain("Sua sessao expirou. Entre novamente para continuar.");
+    expect(JSON.stringify(expiredTree.toJSON())).toContain(
+      "Sua sessao expirou. Entre novamente para continuar.",
+    );
 
     const blockedTree = await renderGate(
       client({ readSession: () => Promise.reject(new MobileAuthError("account_blocked")) }),
@@ -194,6 +198,8 @@ describe("mobile auth flow", () => {
           ),
       }),
     );
-    expect(JSON.stringify(noPermissionTree.toJSON())).toContain("Voce nao tem permissao para esta area nesta loja.");
+    expect(JSON.stringify(noPermissionTree.toJSON())).toContain(
+      "Voce nao tem permissao para esta area nesta loja.",
+    );
   });
 });

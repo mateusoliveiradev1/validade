@@ -45,8 +45,12 @@ describe("InviteAdministration", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Identificador de acesso"), { target: { value: "pessoa@ficticia.local" } });
-    fireEvent.change(screen.getByLabelText("Nome exibido"), { target: { value: "Pessoa FICTICIA" } });
+    fireEvent.change(screen.getByLabelText("Identificador de acesso"), {
+      target: { value: "pessoa@ficticia.local" },
+    });
+    fireEvent.change(screen.getByLabelText("Nome exibido"), {
+      target: { value: "Pessoa FICTICIA" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
 
     expect(await screen.findByLabelText("Token do convite")).toBeTruthy();

@@ -88,7 +88,10 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
     return body;
   }
 
-  async function readAuthenticatedSession(path: string, init?: RequestInit): Promise<SessionContextResponse> {
+  async function readAuthenticatedSession(
+    path: string,
+    init?: RequestInit,
+  ): Promise<SessionContextResponse> {
     const response = AuthenticatedSessionResponseSchema.parse(await request(path, init));
     sessionToken = response.sessionToken;
     return SessionStatusResponseSchema.parse(response.session);
@@ -98,7 +101,10 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
     readSession: () => readAuthenticatedSession("/auth/session"),
     login(input) {
       const body = LoginRequestSchema.parse(input);
-      return readAuthenticatedSession("/auth/login", { method: "POST", body: JSON.stringify(body) });
+      return readAuthenticatedSession("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     },
     async validateInvite(token) {
       const response = await fetch(`${baseUrl}/auth/invites/${encodeURIComponent(token)}`, {
@@ -106,7 +112,9 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       }).catch(() => {
         throw new MobileAuthError("network", "Nao foi possivel validar o convite agora.");
       });
-      return InviteValidationResponseSchema.parse(await response.json().catch(() => ({ status: "invalid" })));
+      return InviteValidationResponseSchema.parse(
+        await response.json().catch(() => ({ status: "invalid" })),
+      );
     },
     activateInvite(input) {
       const body = FirstAccessActivationRequestSchema.parse(input);
@@ -192,7 +200,11 @@ export function AuthGate({
       setScreen("login");
       return;
     }
-    if (failure.code === "account_blocked" || failure.code === "account_revoked" || failure.code === "recovery_required") {
+    if (
+      failure.code === "account_blocked" ||
+      failure.code === "account_revoked" ||
+      failure.code === "recovery_required"
+    ) {
       setBlockedStatus(
         failure.code === "account_revoked"
           ? "revoked"
@@ -355,11 +367,10 @@ function SessionLoadingScreen() {
       <View style={styles.seal} accessibilityLabel="Validade Zero - Operacao de risco zero">
         <Text style={styles.sealMark}>VZ</Text>
       </View>
-      <ScreenHeader
-        title="Operacao de risco zero"
-        body="Verificando sua sessao com seguranca..."
-      />
-      <StatusNotice>O acesso operacional so abre depois da confirmacao da sua conta e loja.</StatusNotice>
+      <ScreenHeader title="Operacao de risco zero" body="Verificando sua sessao com seguranca..." />
+      <StatusNotice>
+        O acesso operacional so abre depois da confirmacao da sua conta e loja.
+      </StatusNotice>
     </ScrollView>
   );
 }
@@ -406,7 +417,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toMobileAuthError(payload: unknown): MobileAuthError {
   const invite = InviteValidationResponseSchema.safeParse(payload);
-  if (invite.success && invite.data.status !== "valid") return new MobileAuthError("invalid_invite");
+  if (invite.success && invite.data.status !== "valid")
+    return new MobileAuthError("invalid_invite");
   const account = AccountAccessErrorResponseSchema.safeParse(payload);
   if (account.success) return new MobileAuthError(account.data.error);
   const credentials = InvalidCredentialsResponseSchema.safeParse(payload);
@@ -418,7 +430,8 @@ function toMobileAuthError(payload: unknown): MobileAuthError {
 
 function loginErrorMessage(code: MobileAuthErrorCode): string {
   if (code === "invalid_credentials") return "Confira o identificador e a senha antes de entrar.";
-  if (code === "network") return "Nao foi possivel abrir o acesso seguro agora. Confira a conexao e tente novamente.";
+  if (code === "network")
+    return "Nao foi possivel abrir o acesso seguro agora. Confira a conexao e tente novamente.";
   return "Nao foi possivel concluir o acesso agora. Tente novamente.";
 }
 

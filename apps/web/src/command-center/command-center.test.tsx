@@ -14,14 +14,48 @@ const projection = {
     detail: "Ha riscos que precisam de acao fisica antes de confirmar seguranca.",
   },
   criticalLots: [
-    { lotId: "lot-001", label: "Folhas FICTICIAS - lote FOL-001", locationLabel: "Area de venda", reason: "Validade vencida exige retirada." },
+    {
+      lotId: "lot-001",
+      label: "Folhas FICTICIAS - lote FOL-001",
+      locationLabel: "Area de venda",
+      reason: "Validade vencida exige retirada.",
+    },
   ],
-  overdueTasks: [{ taskId: "task-001", label: "Retirar FOL-001", ownerLabel: "Colaborador FICTICIO", dueLabel: "Atrasada" }],
-  pendingMarkdowns: [{ markdownId: "markdown-001", label: "Preco de FOL-001", stage: "Aguardando aplicacao" }],
-  pendingEvidence: [{ assetId: "evidence-001", label: "Retirada FOL-001", state: "failed", detail: "Evidencia aguardando novo envio." }],
-  syncConflicts: [{ conflictId: "conflict-001", label: "Acao offline FOL-001", detail: "Revise antes de reenviar." }],
+  overdueTasks: [
+    {
+      taskId: "task-001",
+      label: "Retirar FOL-001",
+      ownerLabel: "Colaborador FICTICIO",
+      dueLabel: "Atrasada",
+    },
+  ],
+  pendingMarkdowns: [
+    { markdownId: "markdown-001", label: "Preco de FOL-001", stage: "Aguardando aplicacao" },
+  ],
+  pendingEvidence: [
+    {
+      assetId: "evidence-001",
+      label: "Retirada FOL-001",
+      state: "failed",
+      detail: "Evidencia aguardando novo envio.",
+    },
+  ],
+  syncConflicts: [
+    {
+      conflictId: "conflict-001",
+      label: "Acao offline FOL-001",
+      detail: "Revise antes de reenviar.",
+    },
+  ],
   pendingShiftCloses: [{ closureId: "shift-001", label: "Fechamento atual", blockerCount: 2 }],
-  shiftHistory: [{ closureId: "shift-history-001", label: "Fechamento anterior", verdict: "unsafe", occurredAt: "2030-01-10T08:00:00.000Z" }],
+  shiftHistory: [
+    {
+      closureId: "shift-history-001",
+      label: "Fechamento anterior",
+      verdict: "unsafe",
+      occurredAt: "2030-01-10T08:00:00.000Z",
+    },
+  ],
 } as const;
 
 describe("CommandCenter", () => {
@@ -37,10 +71,18 @@ describe("CommandCenter", () => {
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));
-    expect(text.indexOf("Rebaixas pendentes")).toBeLessThan(text.indexOf("Evidencias pendentes ou com falha"));
-    expect(text.indexOf("Evidencias pendentes ou com falha")).toBeLessThan(text.indexOf("Conflitos de sincronizacao"));
-    expect(text.indexOf("Conflitos de sincronizacao")).toBeLessThan(text.indexOf("Fechamentos com pendencias"));
-    expect(text.indexOf("Fechamentos com pendencias")).toBeLessThan(text.indexOf("Historico de fechamentos"));
+    expect(text.indexOf("Rebaixas pendentes")).toBeLessThan(
+      text.indexOf("Evidencias pendentes ou com falha"),
+    );
+    expect(text.indexOf("Evidencias pendentes ou com falha")).toBeLessThan(
+      text.indexOf("Conflitos de sincronizacao"),
+    );
+    expect(text.indexOf("Conflitos de sincronizacao")).toBeLessThan(
+      text.indexOf("Fechamentos com pendencias"),
+    );
+    expect(text.indexOf("Fechamentos com pendencias")).toBeLessThan(
+      text.indexOf("Historico de fechamentos"),
+    );
     expect(text).not.toMatch(/sales|revenue|forecast|supplier/i);
   });
 

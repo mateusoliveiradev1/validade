@@ -1,3 +1,52 @@
 import { Button } from "../components/ui/button";
-const sections = [["Politica de Privacidade", "Explica como o piloto usa dados para operar com seguranca e responder aos seus direitos."], ["Termos de Uso", "Define o uso responsavel do aplicativo durante a operacao da loja piloto."], ["Seguranca da conta", "Senha, sessao e vinculo de loja protegem o acesso as tarefas operacionais."], ["Permissoes do aparelho", "Camera, notificacoes e evidencias explicam finalidade, impacto da recusa e caminho manual quando existir."], ["Dados usados pelo app", "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao."], ["Canal/encarregado", "Use a lideranca ou administracao como canal inicial para duvidas e solicitacoes de dados."], ["Solicitacao de direitos LGPD", "Peca acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento dos seus dados."]] as const;
-export function PrivacyCenter({ onBack }: { onBack: () => void }) { return <section className="mx-auto grid max-w-3xl gap-6"><div><h1 className="text-[28px] font-semibold leading-[34px]">Centro de Privacidade</h1><p className="mt-2 max-w-[75ch] text-base leading-6 text-muted-foreground">Veja quais dados o app usa para operar com seguranca, registrar evidencias e proteger a area de venda.</p></div><div className="grid gap-5">{sections.map(([title, body]) => <section key={title} className="grid gap-1"><h2 className="text-xl font-semibold leading-6">{title}</h2><p className="max-w-[75ch] text-base leading-6 text-muted-foreground">{body}</p></section>)}</div><Button className="w-fit" variant="outline" onClick={onBack}>Voltar ao produto</Button></section>; }
+const sections = [
+  [
+    "Politica de Privacidade",
+    "Explica como o piloto usa dados para operar com seguranca e responder aos seus direitos.",
+  ],
+  ["Termos de Uso", "Define o uso responsavel do aplicativo durante a operacao da loja piloto."],
+  [
+    "Seguranca da conta",
+    "Senha, sessao e vinculo de loja protegem o acesso as tarefas operacionais.",
+  ],
+  [
+    "Permissoes do aparelho",
+    "Camera, notificacoes e evidencias explicam finalidade, impacto da recusa e caminho manual quando existir.",
+  ],
+  [
+    "Dados usados pelo app",
+    "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao.",
+  ],
+  [
+    "Canal/encarregado",
+    "Use a lideranca ou administracao como canal inicial para duvidas e solicitacoes de dados.",
+  ],
+  [
+    "Solicitacao de direitos LGPD",
+    "Peca acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento dos seus dados.",
+  ],
+] as const;
+export function PrivacyCenter({ onBack }: { onBack: () => void }) {
+  return (
+    <section className="mx-auto grid max-w-3xl gap-6">
+      <div>
+        <h1 className="text-[28px] font-semibold leading-[34px]">Centro de Privacidade</h1>
+        <p className="mt-2 max-w-[75ch] text-base leading-6 text-muted-foreground">
+          Veja quais dados o app usa para operar com seguranca, registrar evidencias e proteger a
+          area de venda.
+        </p>
+      </div>
+      <div className="grid gap-5">
+        {sections.map(([title, body]) => (
+          <section key={title} className="grid gap-1">
+            <h2 className="text-xl font-semibold leading-6">{title}</h2>
+            <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">{body}</p>
+          </section>
+        ))}
+      </div>
+      <Button className="w-fit" variant="outline" onClick={onBack}>
+        Voltar ao produto
+      </Button>
+    </section>
+  );
+}

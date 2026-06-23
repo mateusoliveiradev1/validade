@@ -38,7 +38,8 @@ export function AppShell({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{session.store.storeName}</p>
               <p className="truncate text-sm text-muted-foreground">
-                {session.actor.displayName ?? session.actor.subjectId} - {roleLabel(session.activeRole)}
+                {session.actor.displayName ?? session.actor.subjectId} -{" "}
+                {roleLabel(session.activeRole)}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -58,11 +59,20 @@ export function AppShell({
   );
 }
 
-function ShellNavigation({ route, onRouteChange }: { route: AppRoute; onRouteChange: (route: AppRoute) => void }) {
+function ShellNavigation({
+  route,
+  onRouteChange,
+}: {
+  route: AppRoute;
+  onRouteChange: (route: AppRoute) => void;
+}) {
   return (
     <nav aria-label="Navegacao principal" className="grid gap-2">
       <div className="mb-5 flex items-center gap-3">
-        <div className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground" aria-hidden="true">
+        <div
+          className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground"
+          aria-hidden="true"
+        >
           <ShieldCheck className="size-5" />
         </div>
         <div>
@@ -85,11 +95,23 @@ function ShellNavigation({ route, onRouteChange }: { route: AppRoute; onRouteCha
   );
 }
 
-function MobileNavigation({ route, onRouteChange }: { route: AppRoute; onRouteChange: (route: AppRoute) => void }) {
+function MobileNavigation({
+  route,
+  onRouteChange,
+}: {
+  route: AppRoute;
+  onRouteChange: (route: AppRoute) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button className="md:hidden" size="icon" variant="outline" aria-label="Abrir navegacao" onClick={() => setOpen(true)}>
+      <Button
+        className="md:hidden"
+        size="icon"
+        variant="outline"
+        aria-label="Abrir navegacao"
+        onClick={() => setOpen(true)}
+      >
         <Menu />
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>

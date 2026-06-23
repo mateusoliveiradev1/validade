@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { captureColors, captureSpacing } from "../capture/capture-theme";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  StatusNotice,
+} from "../capture/capture-ui";
 
 export function LoginScreen({
   error,
@@ -20,7 +26,8 @@ export function LoginScreen({
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [attempted, setAttempted] = useState(false);
-  const identifierError = identifier.trim().length === 0 ? "Informe seu identificador de acesso." : undefined;
+  const identifierError =
+    identifier.trim().length === 0 ? "Informe seu identificador de acesso." : undefined;
   const passwordError = password.length === 0 ? "Informe sua senha." : undefined;
 
   async function submit(): Promise<void> {
@@ -59,9 +66,21 @@ export function LoginScreen({
         onPress={() => void submit()}
         disabled={submitting}
       />
-      <SecondaryAction label="Ativar conta por convite" onPress={onFirstAccess} disabled={submitting} />
-      <SecondaryAction label="Recuperar acesso da conta" onPress={onRecovery} disabled={submitting} />
-      <SecondaryAction label="Abrir Centro de Privacidade" onPress={onOpenPrivacy} disabled={submitting} />
+      <SecondaryAction
+        label="Ativar conta por convite"
+        onPress={onFirstAccess}
+        disabled={submitting}
+      />
+      <SecondaryAction
+        label="Recuperar acesso da conta"
+        onPress={onRecovery}
+        disabled={submitting}
+      />
+      <SecondaryAction
+        label="Abrir Centro de Privacidade"
+        onPress={onOpenPrivacy}
+        disabled={submitting}
+      />
     </ScrollView>
   );
 }

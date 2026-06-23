@@ -103,7 +103,10 @@ export function registerAuthenticationRoutes(
   api.get("/auth/invites/:token", async (context) => {
     const parsed = InviteValidationRequestSchema.safeParse({ token: context.req.param("token") });
     if (!parsed.success) return context.json({ status: "invalid" as const }, 400);
-    const result = await input.repository.validateInvite({ token: parsed.data.token, now: input.now() });
+    const result = await input.repository.validateInvite({
+      token: parsed.data.token,
+      now: input.now(),
+    });
     return context.json(
       InviteValidationResponseSchema.parse(
         result.status === "valid"
@@ -150,10 +153,17 @@ export function registerAuthenticationRoutes(
 
   api.post("/auth/login", async (context) => {
     const parsed = LoginRequestSchema.safeParse(await parseJsonBody(context));
-    if (!parsed.success) return context.json(InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }), 401);
+    if (!parsed.success)
+      return context.json(
+        InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }),
+        401,
+      );
     const now = input.now();
     if (!input.loginAttemptLimiter.isAllowed(parsed.data.identifier, now)) {
-      return context.json(InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }), 429);
+      return context.json(
+        InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }),
+        429,
+      );
     }
     const account = await input.repository.verifyPassword(parsed.data);
     if (account === undefined) {
@@ -164,7 +174,10 @@ export function registerAuthenticationRoutes(
         reason: "invalid_credentials",
         occurredAt: now.toISOString(),
       });
-      return context.json(InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }), 401);
+      return context.json(
+        InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }),
+        401,
+      );
     }
     if (account.status !== "active") {
       input.loginAttemptLimiter.recordFailure(parsed.data.identifier, now);
@@ -262,7 +275,10 @@ export function registerAuthenticationRoutes(
         expiresAt,
       });
     }
-    return context.json(RecoveryRequestedResponseSchema.parse({ status: "recovery_requested" }), 202);
+    return context.json(
+      RecoveryRequestedResponseSchema.parse({ status: "recovery_requested" }),
+      202,
+    );
   });
 
   api.post("/auth/recovery/complete", async (context) => {
@@ -287,7 +303,10 @@ export function registerAuthenticationRoutes(
         occurredAt: input.now().toISOString(),
       });
       return context.json(
-        AccountAccessErrorResponseSchema.parse({ error: "session_expired", canRequestRecovery: true }),
+        AccountAccessErrorResponseSchema.parse({
+          error: "session_expired",
+          canRequestRecovery: true,
+        }),
         401,
       );
     }
@@ -452,7 +471,9 @@ export function createInMemoryLoginAttemptLimiter(input?: {
   const failures = new Map<string, Date[]>();
   const key = (identifier: string) => identifier.trim().toLocaleLowerCase("pt-BR");
   const active = (identifier: string, now: Date) =>
-    (failures.get(key(identifier)) ?? []).filter((attempt) => now.getTime() - attempt.getTime() < windowMs);
+    (failures.get(key(identifier)) ?? []).filter(
+      (attempt) => now.getTime() - attempt.getTime() < windowMs,
+    );
   return {
     isAllowed(identifier, now) {
       const attempts = active(identifier, now);
@@ -504,7 +525,10 @@ async function authorizeAdmin(
     });
     return context.json(
       AuthorizationContract.denial.parse(
-        toClientSafeDenial({ reason: decision.reason ?? "capability_not_allowed", denialId: eventId }),
+        toClientSafeDenial({
+          reason: decision.reason ?? "capability_not_allowed",
+          denialId: eventId,
+        }),
       ),
       403,
     );
@@ -551,7 +575,8 @@ async function sessionResponse(
       break;
     }
   }
-  if (allowedDecision === undefined) throw new Error("Account has no active operational capability.");
+  if (allowedDecision === undefined)
+    throw new Error("Account has no active operational capability.");
   const base = createSessionContext(allowedDecision);
   if (base === undefined) throw new Error("Session context could not be created.");
 

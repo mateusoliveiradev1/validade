@@ -10,7 +10,9 @@ export interface CommandCenterClient {
 export function createFetchCommandCenterClient(fetcher: typeof fetch = fetch): CommandCenterClient {
   return {
     async read(input) {
-      const response = await fetcher(`/command-center?storeId=${encodeURIComponent(input.storeId)}`);
+      const response = await fetcher(
+        `/command-center?storeId=${encodeURIComponent(input.storeId)}`,
+      );
       const payload: unknown = await response.json().catch(() => undefined);
 
       if (!response.ok) {

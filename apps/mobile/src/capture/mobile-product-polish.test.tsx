@@ -33,10 +33,12 @@ describe("mobile product polish", () => {
     expect(app).toContain("actorLabel={session.actor.displayName");
     expect(capture).toContain("actorLabel = todayCopy.fallbackActor");
     expect(today).toContain("Carregando riscos da area de venda");
-    expect(today).toContain("Aguarde a leitura das tarefas antes de concluir que a area esta segura.");
+    expect(today).toContain(
+      "Aguarde a leitura das tarefas antes de concluir que a area esta segura.",
+    );
     expect(task).toContain("actorLabel = todayCopy.fallbackActor");
     expect(copy).toContain("Ainda falta sincronizar para confirmacao central.");
-    expect(task).toContain("evidence.kind === \"photo_pending\"");
+    expect(task).toContain('evidence.kind === "photo_pending"');
     expect(shiftClose).toContain("Bloqueios atuais");
     expect(shiftClose).toContain("O horário de saída não transforma pendências em área segura.");
   });

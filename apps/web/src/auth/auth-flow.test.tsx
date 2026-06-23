@@ -10,7 +10,14 @@ describe("web authentication flows", () => {
   });
 
   it("validates required credentials before login", () => {
-    render(<LoginPage onFirstAccess={vi.fn()} onLogin={vi.fn()} onPrivacy={vi.fn()} onRecovery={vi.fn()} />);
+    render(
+      <LoginPage
+        onFirstAccess={vi.fn()}
+        onLogin={vi.fn()}
+        onPrivacy={vi.fn()}
+        onRecovery={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Entrar no Validade Zero" }));
 
@@ -22,10 +29,14 @@ describe("web authentication flows", () => {
     const onRequest = vi.fn().mockResolvedValue(undefined);
     render(<RecoveryPage onBack={vi.fn()} onRequest={onRequest} />);
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "colaborador@ficticio.local" } });
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "colaborador@ficticio.local" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Solicitar recuperacao da conta" }));
 
-    expect((await screen.findByRole("status")).textContent).toContain("Se houver uma conta elegivel");
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Se houver uma conta elegivel",
+    );
   });
 
   it("shows an actionable message for an invalid invitation", async () => {
@@ -39,6 +50,8 @@ describe("web authentication flows", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Validar convite da conta" }));
 
-    expect((await screen.findByRole("alert")).textContent).toContain("Convite invalido ou expirado");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Convite invalido ou expirado",
+    );
   });
 });
