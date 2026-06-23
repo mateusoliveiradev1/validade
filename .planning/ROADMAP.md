@@ -275,7 +275,7 @@ Plans:
 3. Security and public-repo checks pass with no known critical issues.
 4. v1 release criteria are documented with remaining risks.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 Plans:
 **Wave 1**
 
@@ -292,7 +292,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 09-05-PLAN.md - Impeccable audit, APK readiness, UAT, and release go/no-go
+- [x] 09-05-PLAN.md - Impeccable audit, APK readiness, UAT, and release go/no-go
 
 ## Coverage
 
