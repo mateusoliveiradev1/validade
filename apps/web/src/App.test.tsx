@@ -1,99 +1,47 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
-describe("Validade Zero web smoke", () => {
+const activeSession = {
+  status: "refreshed",
+  sessionToken: "a".repeat(32),
+  session: {
+    actor: { subjectId: "collaborator-ficticio", displayName: "Colaborador FICTICIO" },
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    activeRole: "collaborator",
+    capabilities: ["task.act"],
+    sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+    accountStatus: "active",
+    canRequestRecovery: true,
+    privacyCenterUrl: "/privacy",
+    actions: {
+      canActOnTask: true,
+      canCloseShift: false,
+      canReadStoreAudit: false,
+      canManageUsers: false,
+    },
+  },
+};
+
+describe("authenticated web shell", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("renders safe smoke copy and updates API status after click", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: string | URL | Request) => {
-        const url = input instanceof Request ? input.url : String(input);
-
-        if (url.includes("/session/context")) {
-          return Promise.resolve(
-            Response.json({
-              actor: { subjectId: "collaborator-local", displayName: "Colaborador local" },
-              store: { storeId: "loja-piloto", storeName: "Loja Ficticia Piloto" },
-              activeRole: "collaborator",
-              capabilities: ["task.act", "evidence.attach", "markdown.request"],
-              sessionExpiresAt: "2030-01-11T12:00:00.000Z",
-              accountStatus: "active",
-              canRequestRecovery: true,
-              privacyCenterUrl: "/privacidade",
-              actions: {
-                canActOnTask: true,
-                canCloseShift: false,
-                canReadStoreAudit: false,
-                canManageUsers: false,
-              },
-            }),
-          );
-        }
-
-        if (url.includes("/audit/events")) {
-          return Promise.resolve(
-            Response.json({
-              items: [
-                {
-                  eventId: "audit-event-app-001",
-                  type: "task.changed",
-                  store: {
-                    storeId: "loja-piloto",
-                    storeName: "Loja Ficticia Piloto",
-                  },
-                  actor: {
-                    actorId: "lead-local",
-                    displayName: "Lideranca local",
-                    roleSnapshot: "lead",
-                  },
-                  target: {
-                    type: "task",
-                    id: "task-app-001",
-                    label: "Ovos FICTICIOS - lote APP-001",
-                  },
-                  occurredAt: "2030-01-10T12:00:00.000Z",
-                  receivedAt: "2030-01-10T12:00:02.000Z",
-                  summary: "Retirada registrada na area de venda.",
-                  status: "received",
-                  metadata: {
-                    action: "withdraw",
-                  },
-                },
-              ],
-            }),
-          );
-        }
-
-        return Promise.resolve(
-          Response.json({
-            status: "ok",
-            service: "validade-zero-api",
-            checkedAt: "2026-06-19T03:00:00.000Z",
-          }),
-        );
-      }),
-    );
+  it("shows the operational shell for an active session", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json(activeSession))));
 
     render(<App />);
 
-    expect(screen.getByText("Validade Zero")).toBeTruthy();
-    expect(screen.getByText("Ambiente seguro para desenvolvimento")).toBeTruthy();
-    expect(screen.getByText("Auditoria operacional")).toBeTruthy();
     await waitFor(() => {
-      expect(screen.getByText(/Colaborador local atua como/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Area de venda segura agora?" })).toBeTruthy();
     });
-    await waitFor(() => {
-      expect(screen.getByText("Retirada registrada na area de venda.")).toBeTruthy();
-    });
+    expect(screen.getByText("Loja Ficticia Piloto")).toBeTruthy();
+    expect(screen.queryByText("Ambiente seguro para desenvolvimento")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Verificar API" }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("api-status").textContent).toContain("validade-zero-api: ok");
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir navegacao" }));
+    const navigationDialog = screen.getByRole("dialog");
+    expect(navigationDialog).toBeTruthy();
+    expect(within(navigationDialog).getByRole("button", { name: "Acessos da loja" })).toBeTruthy();
   });
 });
