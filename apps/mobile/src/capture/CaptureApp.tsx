@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { CaptureProductRecord, CaptureRepository, MarkdownEntryState } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
@@ -19,6 +19,7 @@ import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-chann
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
 import { captureColors } from "./capture-theme";
+import { addHardwareBackPressListener } from "../system/hardware-back";
 
 type CaptureScreen =
   | "today"
@@ -63,11 +64,53 @@ export function CaptureApp({
     [alertChannel],
   );
 
+  const goBack = useCallback((): void => {
+    setPushFallbackNotice(undefined);
+
+    if (screen === "today") {
+      setPushFallbackNotice(todayCopy.navigation.alreadyHome);
+      return;
+    }
+
+    if (screen === "product-form" || screen === "barcode" || screen === "confirmed") {
+      setScreen("discovery");
+      return;
+    }
+
+    if (screen === "lot-registration") {
+      setScreen(selectedProduct === undefined ? "discovery" : "confirmed");
+      return;
+    }
+
+    if (screen === "detail") {
+      setScreen("recent");
+      return;
+    }
+
+    if (screen === "observation") {
+      setScreen(detail === undefined ? "recent" : "detail");
+      return;
+    }
+
+    setScreen("today");
+  }, [detail, screen, selectedProduct]);
+
   useEffect(() => {
     void repository.initialize().catch(() => {
       setInitializationError("Não foi possível preparar o registro local neste aparelho.");
     });
   }, [repository]);
+
+  useEffect(() => {
+    const subscription = addHardwareBackPressListener(() => {
+      goBack();
+      return true;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [goBack]);
 
   useEffect(() => {
     const subscription = resolvedAlertChannel.subscribeToNotificationResponses((payload) => {
@@ -283,7 +326,7 @@ export function CaptureApp({
       <LotRegistrationScreen
         repository={repository}
         product={selectedProduct}
-        onBack={() => setScreen("today")}
+        onBack={() => setScreen("confirmed")}
         onSaved={() => setScreen("today")}
       />
     );

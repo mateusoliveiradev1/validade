@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   DevicePushRegistrationCommand,
   FutureAttentionRecord,
@@ -55,6 +55,10 @@ vi.mock("@react-native-community/datetimepicker", () => ({
 }));
 
 const now = new Date("2030-01-10T09:00:00.000Z");
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function expiredTask(overrides: Partial<TodayTaskRecord> = {}): TodayTaskRecord {
   return {
@@ -246,7 +250,7 @@ describe("Hoje push alert UI", () => {
     ["denied", "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje."],
     [
       "unavailable",
-      "Nao foi possivel preparar alertas agora. Confira a conexao e tente novamente.",
+      "Alertas remotos ainda nao estao prontos neste aparelho. As tarefas continuam ativas em Hoje.",
     ],
   ] as const)("renders %s channel state without hiding tasks", async (permissionStatus, copy) => {
     const { repository } = createRepository({ channel: registration(permissionStatus) });
@@ -292,6 +296,39 @@ describe("Hoje push alert UI", () => {
     expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
   });
 
+  it("keeps native Firebase setup errors out of the operator UI", async () => {
+    const { repository } = createRepository({ channel: null });
+    const firebaseFailure: PushAlertChannel = {
+      getPermissionState: () => Promise.resolve({ state: "not_requested" }),
+      requestPermission: () => Promise.resolve({ state: "active" }),
+      getExpoPushToken: () =>
+        Promise.resolve({
+          state: "failed",
+          reason:
+            "Unable to get Firebase Messaging instance. Did you configure googleServicesFile?",
+        }),
+      scheduleTaskNotification: () => Promise.resolve({ attemptState: "retry_pending" }),
+      cancelTaskNotification: () => Promise.resolve(),
+      subscribeToNotificationResponses: () => ({ remove: () => undefined }),
+    };
+    const tree = await renderToday({ repository, alertChannel: firebaseFailure });
+    const activate = tree.root.findByProps({ accessibilityLabel: "Ativar alertas do turno" });
+
+    await act(async () => {
+      activate.props.onPress();
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain(
+      "Alertas remotos precisam da configuracao Android do Firebase neste APK.",
+    );
+    expect(rendered).not.toContain("Unable to get Firebase Messaging");
+    expect(rendered).not.toContain("googleServicesFile");
+    expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+  });
+
   it("shows escalation acknowledgement while keeping the task visible", async () => {
     const task = expiredTask();
     const { repository, resolveTodayTask, acknowledgeEscalation } = createRepository({
@@ -326,6 +363,53 @@ describe("Hoje push alert UI", () => {
 });
 
 describe("push notification routing", () => {
+  it("uses the Android back gesture to return from task resolution to Hoje", async () => {
+    let backHandler: (() => boolean) | undefined;
+    vi.stubGlobal("require", (moduleName: string) => {
+      if (moduleName !== "react-native") throw new Error(`Unexpected module ${moduleName}.`);
+      return {
+        BackHandler: {
+          addEventListener: (_eventName: string, handler: () => boolean) => {
+            backHandler = handler;
+            return { remove: () => undefined };
+          },
+        },
+      };
+    });
+    const task = expiredTask();
+    const { repository } = createRepository({ tasks: [task] });
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp repository={repository} alertChannel={createFakePushAlertChannel()} />,
+      );
+      await Promise.resolve();
+    });
+
+    const taskButton = tree?.root.findByProps({
+      accessibilityLabel: "Retirar agora: Ovos FICTICIOS, lote OVOS-FICTICIOS-001",
+    });
+
+    await act(async () => {
+      taskButton?.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree?.toJSON())).toContain("Acao exigida:");
+
+    await act(async () => {
+      expect(backHandler?.()).toBe(true);
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree?.toJSON());
+
+    expect(rendered).toContain("Hoje");
+    expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+    expect(rendered).not.toContain("Acao exigida:");
+  });
+
   it("opens only a current matching active task", async () => {
     const task = expiredTask();
     const channel = createFakePushAlertChannel({

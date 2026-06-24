@@ -23,6 +23,7 @@ import { LoginScreen } from "./LoginScreen";
 import { RecoveryScreen } from "./RecoveryScreen";
 import { PrivacyCenterScreen } from "../privacy/PrivacyCenterScreen";
 import { MobileAuthError, type MobileAuthErrorCode } from "./auth-errors";
+import { addHardwareBackPressListener } from "../system/hardware-back";
 
 declare const require: (moduleName: string) => unknown;
 
@@ -152,6 +153,32 @@ export function AuthGate({
     "blocked",
   );
   const [privacyReturnScreen, setPrivacyReturnScreen] = useState<"login" | "ready">("login");
+
+  useEffect(() => {
+    const subscription = addHardwareBackPressListener(() => {
+      if (screen === "first_access" || screen === "recovery" || screen === "expired") {
+        setScreen("login");
+        return true;
+      }
+      if (screen === "privacy") {
+        setScreen(privacyReturnScreen);
+        return true;
+      }
+      if (screen === "blocked") {
+        setScreen("login");
+        return true;
+      }
+      if (screen === "ready") {
+        return false;
+      }
+      if (screen === "checking" || screen === "no_permission") {
+        return true;
+      }
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [privacyReturnScreen, screen]);
 
   useEffect(() => {
     let current = true;

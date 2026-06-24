@@ -8,6 +8,12 @@ node_modules/
 .dev.vars
 *.local
 
+# Private push/Firebase service credentials. Android google-services.json is public app config;
+# service account keys are private and must be uploaded to EAS, not committed.
+apps/mobile/*service-account*.json
+apps/mobile/*firebase-admin*.json
+apps/mobile/fcm*.json
+
 # Build outputs and caches
 dist/
 build/

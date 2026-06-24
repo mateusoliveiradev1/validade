@@ -228,7 +228,7 @@ export function TodayScreen({
 
       if (token.state !== "active" || token.expoPushToken === undefined) {
         setAlertChannelState(token.state);
-        setAlertChannelFeedback(token.reason ?? todayCopy.push.unavailable);
+        setAlertChannelFeedback(operatorSafePushFeedback(token.reason));
         await repository.registerAlertDevice({
           deviceId: "local-alert-device",
           deviceLabel: "Celular do turno",
@@ -734,7 +734,7 @@ function TaskAlertStatus({
 
 function channelNoticeFor(channelState: AlertChannelState, feedback: string | undefined): string {
   if (feedback !== undefined) {
-    return feedback;
+    return operatorSafePushFeedback(feedback);
   }
 
   if (channelState === "active") {
@@ -747,6 +747,41 @@ function channelNoticeFor(channelState: AlertChannelState, feedback: string | un
 
   if (channelState === "failed") {
     return todayCopy.push.failed;
+  }
+
+  return todayCopy.push.unavailable;
+}
+
+function operatorSafePushFeedback(reason: string | undefined): string {
+  if (reason === undefined || reason.trim().length === 0) {
+    return todayCopy.push.unavailable;
+  }
+
+  const approvedOperationalMessages: readonly string[] = [
+    todayCopy.push.active,
+    todayCopy.push.denied,
+    todayCopy.push.unavailable,
+    todayCopy.push.nativeSetupRequired,
+    todayCopy.push.failed,
+  ];
+
+  if (approvedOperationalMessages.includes(reason)) {
+    return reason;
+  }
+
+  const technicalMarkers = [
+    "firebase",
+    "fcm",
+    "google-services",
+    "googleservicesfile",
+    "default firebaseapp",
+    "expopushtokenmanager",
+    "native push token",
+  ];
+  const normalized = reason.toLocaleLowerCase("en-US");
+
+  if (technicalMarkers.some((marker) => normalized.includes(marker))) {
+    return todayCopy.push.nativeSetupRequired;
   }
 
   return todayCopy.push.unavailable;

@@ -17,6 +17,9 @@ export const todayCopy = {
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
+  navigation: {
+    alreadyHome: "Voce ja esta em Hoje. Use Sair para encerrar a sessao com seguranca.",
+  },
   sync: {
     primary: "Sincronizar pendencias",
     offlineReady: "Pronto para operar sem internet",
@@ -56,7 +59,10 @@ export const todayCopy = {
       "Ative alertas para receber lembretes de tarefas criticas. Nenhuma tarefa sera resolvida pela notificacao; a confirmacao fisica continua no app.",
     active: "Alertas do turno ativos neste aparelho.",
     denied: "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje.",
-    unavailable: "Nao foi possivel preparar alertas agora. Confira a conexao e tente novamente.",
+    unavailable:
+      "Alertas remotos ainda nao estao prontos neste aparelho. As tarefas continuam ativas em Hoje.",
+    nativeSetupRequired:
+      "Alertas remotos precisam da configuracao Android do Firebase neste APK. Hoje continua sendo a fonte da verdade ate o novo build.",
     failed:
       "Alerta falhou. A tarefa continua ativa em Hoje e precisa ser cobrada manualmente se necessario.",
     retryPending: "Alerta pendente. Vamos tentar novamente sem esconder a tarefa.",
