@@ -25,3 +25,16 @@ The app uses identity, store, role, physical actions, lots, tasks, evidence meta
 ## Device Permissions
 
 Camera and notification permissions explain their operational purpose. When a manual path exists, denying a permission does not silently claim completion; the operator sees the required next step or justification.
+
+## Encarregado Contact (outside Git)
+
+Configure the responsible channel without committing real contact data to the public repository:
+
+| Surface | Variable | When unset |
+|---------|----------|------------|
+| Mobile APK / Expo | `EXPO_PUBLIC_PRIVACY_CONTACT` | Shows fallback copy directing operators to store leadership |
+| Web Command Center | `VITE_PRIVACY_CONTACT` | Same fallback in the Canal/encarregado detail view |
+
+Set these in EAS build environment variables (mobile staging/pilot profiles) and in the web deploy environment. Example values: `privacidade@loja-piloto.example` or `Fale com a administracao da loja piloto`.
+
+The shared copy lives in `packages/contracts/src/privacy-content.ts`. Mobile and web detail screens replace `{{contact}}` in the encarregado topic at runtime.

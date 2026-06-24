@@ -14,6 +14,7 @@ import {
   SessionStatusResponseSchema,
   type PrivacyRequest,
   type SessionContextResponse,
+  type PrivacyTopicId,
 } from "@validade-zero/contracts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
@@ -153,6 +154,7 @@ export function AuthGate({
     "blocked",
   );
   const [privacyReturnScreen, setPrivacyReturnScreen] = useState<"login" | "ready">("login");
+  const [privacyActiveTopic, setPrivacyActiveTopic] = useState<PrivacyTopicId | null>(null);
 
   useEffect(() => {
     const subscription = addHardwareBackPressListener(() => {
@@ -161,6 +163,10 @@ export function AuthGate({
         return true;
       }
       if (screen === "privacy") {
+        if (privacyActiveTopic !== null) {
+          setPrivacyActiveTopic(null);
+          return true;
+        }
         setScreen(privacyReturnScreen);
         return true;
       }
@@ -178,7 +184,7 @@ export function AuthGate({
     });
 
     return () => subscription.remove();
-  }, [privacyReturnScreen, screen]);
+  }, [privacyActiveTopic, privacyReturnScreen, screen]);
 
   useEffect(() => {
     let current = true;
@@ -296,6 +302,7 @@ export function AuthGate({
               label="Privacidade"
               onPress={() => {
                 setPrivacyReturnScreen("ready");
+                setPrivacyActiveTopic(null);
                 setScreen("privacy");
               }}
             />
@@ -330,6 +337,8 @@ export function AuthGate({
   if (screen === "privacy") {
     return (
       <PrivacyCenterScreen
+        activeTopic={privacyActiveTopic}
+        onSelectTopic={setPrivacyActiveTopic}
         onBack={() => setScreen(privacyReturnScreen)}
         onSubmitRightsRequest={(request) => authClient.submitPrivacyRequest(request)}
       />
@@ -384,6 +393,7 @@ export function AuthGate({
       onLogin={login}
       onOpenPrivacy={() => {
         setPrivacyReturnScreen("login");
+        setPrivacyActiveTopic(null);
         setScreen("privacy");
       }}
       onRecovery={() => setScreen("recovery")}

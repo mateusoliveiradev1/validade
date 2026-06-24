@@ -32,7 +32,8 @@ Official Expo references checked on 2026-06-23:
 
 1. Use an approved Expo session on the local machine. Do not place a token, account identifier, project URL, or build URL in this repository.
 2. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`.
-3. Run the staging APK build from `apps/mobile`:
+3. Configure the privacy officer contact for the pilot build with `EXPO_PUBLIC_PRIVACY_CONTACT` in the same EAS environment (not committed to Git). When unset, the app shows a generic leadership/administration fallback.
+4. Run the staging APK build from `apps/mobile`:
    ```powershell
    pnpm.cmd build:android:staging
    ```
@@ -50,7 +51,7 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 1. Download the controlled APK only on a pilot-safe Android device or emulator.
 2. Confirm Android permits installation from the approved source for that device.
 3. Install with the Android package installer, or use `adb install path-to-pilot.apk` for an emulator/local device workflow.
-4. Open the app and confirm the VZ splash, login, invitation path, Privacy Center, and session loading appear before operational work.
+4. Open the app and confirm the VZ splash, login, invitation path, Privacy Center (cards open detail screens), and session loading appear before operational work.
 5. Run the Maestro script with `pnpm test:e2e:mobile` when the device is connected.
 
 ## Update And Removal

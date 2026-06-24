@@ -11,6 +11,7 @@ export * from "./audit";
 export * from "./evidence";
 export * from "./shift-close";
 export * from "./command-center";
+export * from "./privacy-content";
 
 export const HEALTH_SERVICE_NAME = "validade-zero-api" as const;
 

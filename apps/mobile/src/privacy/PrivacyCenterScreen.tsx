@@ -1,62 +1,40 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PrivacyRequest } from "@validade-zero/contracts";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  privacyLgpdHubSection,
+  privacyTopics,
+  privacyTopicsById,
+  type PrivacyTopicId,
+} from "@validade-zero/contracts";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import { Field, PrimaryAction, SecondaryAction, StatusNotice } from "../capture/capture-ui";
+import { PrivacyTopicDetailScreen } from "./PrivacyTopicDetailScreen";
 
-const sections = [
-  {
-    title: "Politica de Privacidade",
-    tag: "Dados do piloto",
-    detail: "Explica como o piloto usa dados para operar com seguranca e responder a direitos.",
-  },
-  {
-    title: "Termos de Uso",
-    tag: "Uso responsavel",
-    detail: "Define o uso responsavel do aplicativo durante a operacao da loja piloto.",
-  },
-  {
-    title: "Seguranca da conta",
-    tag: "Acesso",
-    detail: "Senha, sessao e vinculo de loja protegem o acesso as tarefas operacionais.",
-  },
-  {
-    title: "Permissoes do aparelho",
-    tag: "Celular da operacao",
-    detail:
-      "Camera, notificacoes e evidencias explicam finalidade, impacto da recusa e caminho manual quando existir.",
-  },
-  {
-    title: "Dados usados pelo app",
-    tag: "Registro operacional",
-    detail:
-      "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao.",
-  },
-  {
-    title: "Canal/encarregado",
-    tag: "Atendimento",
-    detail:
-      "Use a lideranca ou administracao da loja como canal inicial para duvidas e solicitacoes de dados.",
-  },
-  {
-    title: "Solicitacao de direitos LGPD",
-    tag: "Direitos",
-    detail:
-      "Peca acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento dos seus dados.",
-  },
-] as const;
+function configuredPrivacyContact(): string | undefined {
+  const value = (
+    process.env as { EXPO_PUBLIC_PRIVACY_CONTACT?: string | undefined }
+  ).EXPO_PUBLIC_PRIVACY_CONTACT?.trim();
+  return value !== undefined && value.length > 0 ? value : undefined;
+}
 
 export function PrivacyCenterScreen({
+  activeTopic,
+  onSelectTopic,
   onBack,
   onSubmitRightsRequest,
 }: {
+  activeTopic: PrivacyTopicId | null;
+  onSelectTopic: (topicId: PrivacyTopicId | null) => void;
   onBack: () => void;
   onSubmitRightsRequest: (request: PrivacyRequest) => Promise<void>;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
   const [contact, setContact] = useState("");
   const [body, setBody] = useState("");
   const [feedback, setFeedback] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
+  const privacyContact = configuredPrivacyContact();
   const contactError =
     contact.trim().length === 0 ? "Informe um canal para responder ao pedido." : undefined;
   const bodyError =
@@ -97,8 +75,22 @@ export function PrivacyCenterScreen({
     }
   }
 
+  function scrollToRightsForm(): void {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }
+
+  if (activeTopic !== null) {
+    return (
+      <PrivacyTopicDetailScreen
+        topic={privacyTopicsById[activeTopic]}
+        {...(privacyContact === undefined ? {} : { privacyContact })}
+        onBack={() => onSelectTopic(null)}
+      />
+    );
+  }
+
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.screen}>
       <View style={styles.hero}>
         <View style={styles.heroSeal}>
           <Text style={styles.heroSealText}>LGPD</Text>
@@ -118,13 +110,44 @@ export function PrivacyCenterScreen({
       </View>
 
       <View style={styles.sectionList}>
-        {sections.map(({ title, tag, detail }) => (
-          <View key={title} style={styles.section}>
-            <Text style={styles.sectionTag}>{tag}</Text>
-            <Text style={styles.sectionTitle}>{title}</Text>
-            <Text style={styles.sectionBody}>{detail}</Text>
-          </View>
+        {privacyTopics.map((topic) => (
+          <Pressable
+            key={topic.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Abrir ${topic.title}`}
+            onPress={() => onSelectTopic(topic.id)}
+            style={({ pressed }) => [styles.section, pressed ? styles.sectionPressed : undefined]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionCopy}>
+                <Text style={styles.sectionTag}>{topic.tag}</Text>
+                <Text style={styles.sectionTitle}>{topic.title}</Text>
+                <Text style={styles.sectionBody}>{topic.summary}</Text>
+              </View>
+              <Text style={styles.sectionChevron} accessibilityElementsHidden importantForAccessibility="no">
+                ›
+              </Text>
+            </View>
+          </Pressable>
         ))}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ir para solicitacao de direitos LGPD"
+          onPress={scrollToRightsForm}
+          style={({ pressed }) => [styles.section, pressed ? styles.sectionPressed : undefined]}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTag}>{privacyLgpdHubSection.tag}</Text>
+              <Text style={styles.sectionTitle}>{privacyLgpdHubSection.title}</Text>
+              <Text style={styles.sectionBody}>{privacyLgpdHubSection.summary}</Text>
+            </View>
+            <Text style={styles.sectionChevron} accessibilityElementsHidden importantForAccessibility="no">
+              ↓
+            </Text>
+          </View>
+        </Pressable>
       </View>
 
       <View style={styles.request}>
@@ -248,8 +271,27 @@ const styles = StyleSheet.create({
     borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: 6,
     padding: captureSpacing.medium,
+  },
+  sectionPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  sectionHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: captureSpacing.small,
+    justifyContent: "space-between",
+  },
+  sectionCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  sectionChevron: {
+    color: captureColors.mutedInk,
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 24,
+    marginTop: 2,
   },
   sectionTag: {
     color: captureColors.accent,
