@@ -18,12 +18,23 @@ import { AppShell, type AppRoute } from "./shell/AppShell";
 
 export function App() {
   const [session, setSession] = useState<SessionContextResponse>();
+  const [inviteToken, setInviteToken] = useState<string>();
   const [screen, setScreen] = useState<
     "loading" | "login" | "first" | "recovery" | "privacy" | "blocked"
   >("loading");
   const [route, setRoute] = useState<AppRoute>("command");
   const [error, setError] = useState<string>();
   useEffect(() => {
+    const urlInviteToken =
+      typeof window === "undefined"
+        ? undefined
+        : new URLSearchParams(window.location.search).get("invite")?.trim();
+    if (urlInviteToken !== undefined && urlInviteToken.length >= 32) {
+      setInviteToken(urlInviteToken);
+      setScreen("first");
+      return;
+    }
+
     void fetch("/auth/session")
       .then(async (response) => {
         const payload: unknown = await response.json().catch(() => undefined);
@@ -71,7 +82,12 @@ export function App() {
   if (screen === "first")
     return (
       <FirstAccessPage
-        onBack={() => setScreen("login")}
+        {...(inviteToken === undefined ? {} : { initialToken: inviteToken })}
+        onBack={() => {
+          setInviteToken(undefined);
+          clearInviteUrlParam();
+          setScreen("login");
+        }}
         onValidate={async (token) =>
           InviteValidationResponseSchema.parse(
             await (await fetch(`/auth/invites/${encodeURIComponent(token)}`)).json(),
@@ -86,6 +102,8 @@ export function App() {
           const payload: unknown = await response.json();
           if (!response.ok) throw new Error("invite");
           setSession(AuthenticatedSessionResponseSchema.parse(payload).session);
+          setInviteToken(undefined);
+          clearInviteUrlParam();
           setScreen("login");
         }}
       />
@@ -143,7 +161,14 @@ export function App() {
       {route === "command" ? (
         <CommandCenter storeId={session.store.storeId} onOpenAudit={() => setRoute("audit")} />
       ) : route === "access" ? (
-        <MembershipAdministration session={session} />
+        <MembershipAdministration
+          session={session}
+          onOpenInviteActivation={(token) => {
+            setInviteToken(token);
+            writeInviteUrlParam(token);
+            setScreen("first");
+          }}
+        />
       ) : (
         <AuditWorkbench
           initialStoreId={session.store.storeId}
@@ -152,4 +177,18 @@ export function App() {
       )}
     </AppShell>
   );
+}
+
+function writeInviteUrlParam(token: string): void {
+  if (typeof window === "undefined") return;
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("invite", token);
+  window.history.pushState({}, "", nextUrl);
+}
+
+function clearInviteUrlParam(): void {
+  if (typeof window === "undefined") return;
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete("invite");
+  window.history.replaceState({}, "", nextUrl);
 }

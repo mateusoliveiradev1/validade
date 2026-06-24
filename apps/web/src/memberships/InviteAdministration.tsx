@@ -24,11 +24,13 @@ type CreatedInvite = InviteMutationResponse & {
 
 export function InviteAdministration({
   issuerLabel,
+  onOpenActivation,
   onInviteCreated,
   storeId,
   storeName,
 }: {
   issuerLabel: string;
+  onOpenActivation?: ((token: string) => void) | undefined;
   onInviteCreated: () => void;
   storeId: string;
   storeName: string;
@@ -41,6 +43,7 @@ export function InviteAdministration({
   );
   const [invite, setInvite] = useState<CreatedInvite>();
   const [message, setMessage] = useState<string>();
+  const [copyMessage, setCopyMessage] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
@@ -65,6 +68,7 @@ export function InviteAdministration({
       if (!response.ok) throw new Error("Nao foi possivel criar o convite agora.");
       const receipt = InviteMutationResponseSchema.parse(payload);
       setInvite({ ...receipt, identifier, displayName, role, storeId, storeName, issuerLabel });
+      setCopyMessage(undefined);
       setMessage(
         receipt.replayed
           ? "O convite existente foi recuperado. Gere outro se o token precisar ser reenviado."
@@ -111,20 +115,44 @@ export function InviteAdministration({
 
   const canCreate =
     identifier.trim().length > 0 && displayName.trim().length > 0 && expiresAt.trim().length > 0;
+  const activationUrl =
+    invite?.token === undefined ? undefined : createActivationUrl(invite.token);
+
+  async function copy(value: string, label: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyMessage(`${label} copiado.`);
+    } catch {
+      setCopyMessage(`Nao foi possivel copiar automaticamente. Selecione e copie o ${label}.`);
+    }
+  }
+
+  function openActivation(token: string, url: string): void {
+    if (onOpenActivation !== undefined) {
+      onOpenActivation(token);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <section
-      className="grid gap-4 rounded-lg border border-border bg-card p-5"
+      className="grid gap-5 rounded-xl border border-border bg-card p-5 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground),transparent_92%)]"
       aria-labelledby="invite-administration-title"
     >
-      <div className="grid gap-1">
-        <h2 id="invite-administration-title" className="text-xl font-semibold leading-6">
-          Convites de acesso fechado
-        </h2>
-        <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-          A administracao cria o acesso da loja. Nao existe cadastro publico nem convite para outra
-          unidade.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-1">
+          <h2 id="invite-administration-title" className="text-xl font-semibold leading-6">
+            Convites de acesso fechado
+          </h2>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            Nao existe cadastro publico. Crie um convite para uma pessoa da loja; o link abre o
+            primeiro acesso ja com o codigo preenchido.
+          </p>
+        </div>
+        <span className="rounded-full border border-primary/20 bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
+          Sem cadastro publico
+        </span>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm font-semibold">
@@ -167,7 +195,10 @@ export function InviteAdministration({
       </Button>
 
       {invite === undefined ? null : (
-        <section className="grid gap-3 border-t pt-4" aria-label="Convite criado">
+        <section
+          className="grid gap-4 rounded-xl border border-primary/20 bg-accent/70 p-4"
+          aria-label="Convite criado"
+        >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="grid gap-1">
               <h3 className="text-base font-semibold">{invite.displayName}</h3>
@@ -195,10 +226,51 @@ export function InviteAdministration({
               O token nao esta mais disponivel nesta sessao. Crie um novo convite para reenviar.
             </p>
           ) : (
-            <label className="grid gap-1 text-sm font-semibold">
-              Token do convite
-              <Input aria-label="Token do convite" readOnly value={invite.token} />
-            </label>
+            <div className="grid gap-3">
+              <label className="grid gap-1 text-sm font-semibold">
+                Token do convite
+                <Input aria-label="Token do convite" readOnly value={invite.token} />
+              </label>
+              <label className="grid gap-1 text-sm font-semibold">
+                Link de ativacao
+                <Input
+                  aria-label="Link de ativacao do convite"
+                  readOnly
+                  value={activationUrl ?? ""}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void copy(invite.token!, "token")}
+                >
+                  Copiar token
+                </Button>
+                {activationUrl === undefined ? null : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void copy(activationUrl, "link")}
+                  >
+                    Copiar link
+                  </Button>
+                )}
+                {activationUrl === undefined ? null : (
+                  <Button
+                    type="button"
+                    onClick={() => openActivation(invite.token!, activationUrl)}
+                  >
+                    Abrir ativacao preenchida
+                  </Button>
+                )}
+              </div>
+              {copyMessage === undefined ? null : (
+                <p role="status" className="text-sm text-foreground">
+                  {copyMessage}
+                </p>
+              )}
+            </div>
           )}
           {invite.status === "revoked" ? null : (
             <div className="flex flex-wrap gap-2">
@@ -252,12 +324,21 @@ export function InviteAdministration({
         </AlertDialog>
       ) : null}
       {message === undefined ? null : (
-        <p role="status" className="text-sm">
+        <p role="status" className="text-sm text-foreground">
           {message}
         </p>
       )}
     </section>
   );
+}
+
+function createActivationUrl(token: string): string {
+  if (typeof window === "undefined") return `/?invite=${encodeURIComponent(token)}`;
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("invite", token);
+  return url.toString();
 }
 
 function roleLabel(role: AuthorizationRole): string {

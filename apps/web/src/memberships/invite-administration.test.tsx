@@ -39,6 +39,7 @@ describe("InviteAdministration", () => {
     render(
       <InviteAdministration
         issuerLabel="Administracao FICTICIA"
+        onOpenActivation={vi.fn()}
         onInviteCreated={vi.fn()}
         storeId="loja-ficticia"
         storeName="Loja Ficticia"
@@ -54,6 +55,7 @@ describe("InviteAdministration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
 
     expect(await screen.findByLabelText("Token do convite")).toBeTruthy();
+    expect(screen.getByLabelText("Link de ativacao do convite")).toBeTruthy();
     expect(screen.getAllByText("Loja Ficticia", { exact: false })).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Revogar convite" }));
@@ -63,5 +65,51 @@ describe("InviteAdministration", () => {
     expect(await screen.findByText("Convite revogado")).toBeTruthy();
     expect(revoked).toBe(true);
     expect(screen.queryByLabelText("Token do convite")).toBeNull();
+  });
+
+  it("opens first access with the freshly generated invitation token", async () => {
+    const onOpenActivation = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            inviteId: "invite-ficticio-002",
+            token: "invite-token-para-abrir-primeiro-acesso-preenchido",
+            status: "created",
+            expiresAt: "2030-01-17T12:00:00.000Z",
+            replayed: false,
+          }),
+        ),
+      ),
+    );
+    render(
+      <InviteAdministration
+        issuerLabel="Administracao FICTICIA"
+        onInviteCreated={vi.fn()}
+        onOpenActivation={onOpenActivation}
+        storeId="loja-ficticia"
+        storeName="Loja Ficticia"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Identificador de acesso"), {
+      target: { value: "lider@ficticia.local" },
+    });
+    fireEvent.change(screen.getByLabelText("Nome exibido"), {
+      target: { value: "Lider FICTICIO" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
+
+    const linkInput = (await screen.findByLabelText(
+      "Link de ativacao do convite",
+    )) as HTMLInputElement;
+    expect(linkInput.value).toContain("?invite=invite-token-para-abrir-primeiro-acesso");
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir ativacao preenchida" }));
+
+    expect(onOpenActivation).toHaveBeenCalledWith(
+      "invite-token-para-abrir-primeiro-acesso-preenchido",
+    );
   });
 });

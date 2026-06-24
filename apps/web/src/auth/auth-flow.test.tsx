@@ -76,6 +76,23 @@ describe("web authentication flows", () => {
     );
   });
 
+  it("prefills the invitation token opened from a link", () => {
+    const token = "invite-token-with-at-least-thirty-two-characters";
+    render(
+      <FirstAccessPage
+        initialToken={token}
+        onActivate={vi.fn()}
+        onBack={vi.fn()}
+        onValidate={vi.fn()}
+      />,
+    );
+
+    const tokenInput = screen.getByRole("textbox", {
+      name: "Codigo do convite",
+    }) as HTMLInputElement;
+    expect(tokenInput.value).toBe(token);
+  });
+
   it("shows password policy before attempting account activation", async () => {
     const onActivate = vi.fn();
     render(

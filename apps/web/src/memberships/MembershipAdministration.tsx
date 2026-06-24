@@ -5,6 +5,7 @@ import {
   type ManagedStoreMembership,
   type SessionContextResponse,
 } from "@validade-zero/contracts";
+import { Badge } from "../components/ui/badge";
 import { MembershipTable } from "./MembershipTable";
 import { InviteAdministration } from "./InviteAdministration";
 
@@ -15,8 +16,10 @@ type MembershipState =
   | { status: "error"; message: string };
 
 export function MembershipAdministration({
+  onOpenInviteActivation,
   session: providedSession,
 }: {
+  onOpenInviteActivation?: ((token: string) => void) | undefined;
   session?: SessionContextResponse;
 }) {
   const [state, setState] = useState<MembershipState>({ status: "loading" });
@@ -81,14 +84,37 @@ export function MembershipAdministration({
   };
 
   return (
-    <section aria-label="Administracao de vinculos" className="grid gap-4">
+    <section aria-label="Administracao de vinculos" className="grid gap-5">
+      <header className="grid gap-4 rounded-xl border border-border bg-card p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid gap-2">
+          <p className="text-sm font-semibold text-primary">Administracao de acessos</p>
+          <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]">
+            Convites e vinculos da loja
+          </h1>
+          <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
+            Crie o primeiro acesso, acompanhe quem ja esta ativo e ajuste papeis sem abrir cadastro
+            publico fora da loja piloto.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <Badge tone="success">{activeMembershipCount(state.items)} ativo(s)</Badge>
+          <Badge>{state.context.store.storeName}</Badge>
+        </div>
+      </header>
       <InviteAdministration
         storeId={state.context.store.storeId}
         storeName={state.context.store.storeName}
         issuerLabel={state.context.actor.displayName ?? state.context.actor.subjectId}
         onInviteCreated={() => setReloadKey((value) => value + 1)}
+        {...(onOpenInviteActivation === undefined
+          ? {}
+          : { onOpenActivation: onOpenInviteActivation })}
       />
       <MembershipTable items={state.items} onChanged={update} />
     </section>
   );
+}
+
+function activeMembershipCount(items: readonly ManagedStoreMembership[]): number {
+  return items.filter((item) => item.status === "active").length;
 }

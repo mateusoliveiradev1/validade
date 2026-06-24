@@ -1,0 +1,66 @@
+{
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @validade-zero/web build",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    {
+      "source": "/auth/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/auth/:path*"
+    },
+    {
+      "source": "/session/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/session/:path*"
+    },
+    {
+      "source": "/command-center/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/command-center/:path*"
+    },
+    {
+      "source": "/audit/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/audit/:path*"
+    },
+    {
+      "source": "/memberships/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/memberships/:path*"
+    },
+    {
+      "source": "/sync/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/sync/:path*"
+    },
+    {
+      "source": "/evidence/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/evidence/:path*"
+    },
+    {
+      "source": "/shift-close/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/shift-close/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/health"
+    },
+    {
+      "source": "/probe/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/probe/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
+}

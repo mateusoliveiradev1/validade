@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -25,7 +25,25 @@ const activeSession = {
 
 describe("authenticated web shell", () => {
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("opens first access directly from an invitation URL", () => {
+    const token = "invite-token-with-at-least-thirty-two-characters";
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    window.history.pushState({}, "", `/?invite=${token}`);
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Ativar conta da loja piloto" })).toBeTruthy();
+    const tokenInput = screen.getByRole("textbox", {
+      name: "Codigo do convite",
+    }) as HTMLInputElement;
+    expect(tokenInput.value).toBe(token);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("shows the operational shell for an active session", async () => {

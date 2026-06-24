@@ -5,15 +5,17 @@ import { Input } from "../components/ui/input";
 import { AuthFrame } from "./LoginPage";
 
 export function FirstAccessPage({
+  initialToken,
   onActivate,
   onBack,
   onValidate,
 }: {
+  initialToken?: string | undefined;
   onActivate: (input: { token: string; password: string }) => Promise<void>;
   onBack: () => void;
   onValidate: (token: string) => Promise<InviteValidationResponse>;
 }) {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(initialToken ?? "");
   const [password, setPassword] = useState("");
   const [invite, setInvite] = useState<InviteValidationResponse>();
   const [error, setError] = useState<string>();
