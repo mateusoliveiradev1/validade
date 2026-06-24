@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InviteAdministration } from "./InviteAdministration";
+import { formatDateTimeLocal, INVITE_MAX_TTL_MS } from "./invite-expiry";
 
 describe("InviteAdministration", () => {
   afterEach(() => {
@@ -111,5 +112,70 @@ describe("InviteAdministration", () => {
     expect(onOpenActivation).toHaveBeenCalledWith(
       "invite-token-para-abrir-primeiro-acesso-preenchido",
     );
+  });
+
+  it("blocks invite creation when expiry exceeds 30 days", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <InviteAdministration
+        issuerLabel="Administracao FICTICIA"
+        onInviteCreated={vi.fn()}
+        storeId="loja-ficticia"
+        storeName="Loja Ficticia"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Identificador de acesso"), {
+      target: { value: "pessoa@ficticia.local" },
+    });
+    fireEvent.change(screen.getByLabelText("Nome exibido"), {
+      target: { value: "Pessoa FICTICIA" },
+    });
+    fireEvent.change(screen.getByLabelText("Expira em"), {
+      target: {
+        value: formatDateTimeLocal(new Date(Date.now() + INVITE_MAX_TTL_MS + 86_400_000)),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
+
+    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain(
+      "O convite pode valer no maximo 30 dias. Escolha uma data mais proxima.",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a specific message when the API rejects invite expiry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({ error: "invalid_invite_expiry" }, { status: 400, statusText: "Bad Request" }),
+        ),
+      ),
+    );
+    render(
+      <InviteAdministration
+        issuerLabel="Administracao FICTICIA"
+        onInviteCreated={vi.fn()}
+        storeId="loja-ficticia"
+        storeName="Loja Ficticia"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Identificador de acesso"), {
+      target: { value: "pessoa@ficticia.local" },
+    });
+    fireEvent.change(screen.getByLabelText("Nome exibido"), {
+      target: { value: "Pessoa FICTICIA" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toContain(
+        "O convite pode valer no maximo 30 dias. Escolha uma data mais proxima.",
+      );
+    });
   });
 });

@@ -12,6 +12,13 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
+import { inviteCreateErrorMessage } from "./invite-errors";
+import {
+  defaultInviteExpiryLocal,
+  inviteExpiryBoundsLocal,
+  parseInviteExpiryLocal,
+  validateInviteExpiryLocal,
+} from "./invite-expiry";
 
 type CreatedInvite = InviteMutationResponse & {
   displayName: string;
@@ -38,9 +45,8 @@ export function InviteAdministration({
   const [identifier, setIdentifier] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<AuthorizationRole>("collaborator");
-  const [expiresAt, setExpiresAt] = useState(() =>
-    new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
-  );
+  const [expiresAt, setExpiresAt] = useState(defaultInviteExpiryLocal);
+  const expiryBounds = inviteExpiryBoundsLocal();
   const [invite, setInvite] = useState<CreatedInvite>();
   const [message, setMessage] = useState<string>();
   const [copyMessage, setCopyMessage] = useState<string>();
@@ -51,6 +57,16 @@ export function InviteAdministration({
     setSubmitting(true);
     setMessage(undefined);
     try {
+      const expiryError = validateInviteExpiryLocal(expiresAt);
+      if (expiryError !== undefined) {
+        setMessage(expiryError);
+        return;
+      }
+      const parsedExpiry = parseInviteExpiryLocal(expiresAt);
+      if (parsedExpiry === undefined) {
+        setMessage("Escolha uma data e hora validas para o convite.");
+        return;
+      }
       const response = await fetch("/auth/invites", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -60,12 +76,12 @@ export function InviteAdministration({
           role,
           storeId,
           storeName,
-          expiresAt: new Date(expiresAt).toISOString(),
+          expiresAt: parsedExpiry.toISOString(),
           idempotencyKey: `invite:${mode}:${storeId}:${Date.now()}:${identifier}`,
         }),
       });
       const payload: unknown = await response.json();
-      if (!response.ok) throw new Error("Nao foi possivel criar o convite agora.");
+      if (!response.ok) throw new Error(inviteCreateErrorMessage(payload, response.status));
       const receipt = InviteMutationResponseSchema.parse(payload);
       setInvite({ ...receipt, identifier, displayName, role, storeId, storeName, issuerLabel });
       setCopyMessage(undefined);
@@ -174,14 +190,23 @@ export function InviteAdministration({
             <option value="admin">Administracao</option>
           </Select>
         </label>
-        <label className="grid gap-1 text-sm font-semibold">
-          Expira em
+        <div className="grid gap-1">
+          <label htmlFor="invite-expiry" className="text-sm font-semibold">
+            Expira em
+          </label>
           <Input
+            id="invite-expiry"
             type="datetime-local"
+            aria-describedby="invite-expiry-help"
+            min={expiryBounds.min}
+            max={expiryBounds.max}
             value={expiresAt}
             onChange={(event) => setExpiresAt(event.target.value)}
           />
-        </label>
+          <span id="invite-expiry-help" className="text-xs font-normal text-muted-foreground">
+            Validade do link e do token do convite para o primeiro acesso. Maximo de 30 dias.
+          </span>
+        </div>
       </div>
       <p className="text-sm leading-5 text-muted-foreground">
         Loja vinculada: {storeName}. Emissor: {issuerLabel}.
