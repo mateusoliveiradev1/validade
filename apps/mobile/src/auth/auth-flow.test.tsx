@@ -153,6 +153,54 @@ describe("mobile auth flow", () => {
     );
   });
 
+  it("falls back to the staging API URL when env and Expo config are unavailable", async () => {
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "");
+    vi.stubGlobal("require", () => {
+      throw new Error("Expo config unavailable in this runtime.");
+    });
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            status: "authenticated",
+            sessionToken: "sessao-ficticia-com-tamanho-valido-0001",
+            session: activeSession(),
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        ),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createMobileAuthClient().readSession();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://validade-zero-api-staging.validadezero.workers.dev/auth/session",
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }),
+    );
+  });
+
+  it("treats an empty 401 session response as an expired initial session", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(undefined, { status: 401 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession())
+      .rejects.toMatchObject({ code: "session_expired" });
+  });
+
+  it("does not show a pre-login warning when the initial session check cannot connect", async () => {
+    const tree = await renderGate(
+      client({ readSession: () => Promise.reject(new MobileAuthError("network")) }),
+    );
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered).toContain("Entrar no Validade Zero");
+    expect(rendered).not.toContain("Nao foi possivel abrir o acesso seguro agora");
+  });
+
   it("opens Hoje only after a valid active session and supports logout", async () => {
     const login = vi.fn(() => Promise.resolve(activeSession()));
     const logout = vi.fn(() => Promise.resolve());

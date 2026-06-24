@@ -34,6 +34,8 @@ interface ExpoConstantsConfigPort {
   };
 }
 
+const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
+
 type GateScreen =
   | "checking"
   | "login"
@@ -76,7 +78,7 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
     }
 
     const body: unknown = await response.json().catch(() => undefined);
-    if (!response.ok) throw toMobileAuthError(body);
+    if (!response.ok) throw toMobileAuthError(body, { path, status: response.status });
     return body;
   }
 
@@ -188,7 +190,7 @@ export function AuthGate({
 
   function showFailure(reason: unknown, initial = false): void {
     const failure = reason instanceof MobileAuthError ? reason : new MobileAuthError("network");
-    if (failure.code === "session_expired" && initial) {
+    if ((failure.code === "session_expired" || failure.code === "network") && initial) {
       setScreen("login");
       return;
     }
@@ -433,7 +435,8 @@ function roleLabel(role: SessionContextResponse["activeRole"]): string {
 function configuredApiBaseUrl(): string {
   const value =
     normalizeApiBaseUrl((process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL) ||
-    normalizeApiBaseUrl(apiUrlFromExpoConfig());
+    normalizeApiBaseUrl(apiUrlFromExpoConfig()) ||
+    STAGING_API_BASE_URL;
   return value;
 }
 
@@ -465,7 +468,14 @@ function normalizeApiBaseUrl(value: string | undefined): string {
   return /^https?:\/\//.test(baseUrl) ? baseUrl.replace(/\/$/, "") : "";
 }
 
-function toMobileAuthError(payload: unknown): MobileAuthError {
+function toMobileAuthError(
+  payload: unknown,
+  response?: { path: string; status: number },
+): MobileAuthError {
+  if (response?.path === "/auth/session" && response.status === 401)
+    return new MobileAuthError("session_expired");
+  if (response?.path === "/auth/login" && (response.status === 401 || response.status === 429))
+    return new MobileAuthError("invalid_credentials");
   const invite = InviteValidationResponseSchema.safeParse(payload);
   if (invite.success && invite.data.status !== "valid")
     return new MobileAuthError("invalid_invite");
