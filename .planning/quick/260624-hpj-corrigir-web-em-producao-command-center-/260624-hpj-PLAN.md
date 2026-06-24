@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 created: 2026-06-24
 ---
 
@@ -32,3 +32,15 @@ Corrigir o erro do Command Center no Vercel e o menu hamburguer quebrado no web 
 - Deploy Vercel em producao.
 - Validar `/command-center?storeId=loja-piloto` via Vercel retornando API protegida em vez de erro de rota.
 - Validar menu mobile em viewport estreito.
+
+## Resultado
+
+- `pnpm.cmd --filter @validade-zero/web typecheck`: passou.
+- `pnpm.cmd --filter @validade-zero/web test`: 27/27 passou.
+- `pnpm.cmd --filter @validade-zero/web build`: passou.
+- Deploy Vercel: `https://validade-five.vercel.app`.
+- Sem sessao, `/command-center?storeId=loja-piloto` agora retorna 403 JSON da API, nao erro de rota.
+- Com sessao real, `/command-center?storeId=loja-piloto` retorna 200.
+- Browser mobile publicado validado em 390x760:
+  - Command Center carrega sem alerta de erro.
+  - Drawer do menu fica `fixed`, fundo solido, altura total, scroll do body bloqueado e botao `Fechar navegacao` presente.
