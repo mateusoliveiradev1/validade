@@ -44,3 +44,5 @@ uploads/
 *.webp
 !apps/mobile/assets/
 !apps/mobile/assets/*.png
+
+.vercel
