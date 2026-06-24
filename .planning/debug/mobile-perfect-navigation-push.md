@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: fixing
 trigger: "Usuario quer fechamento automatico do push real Android e navegacao mobile perfeita, nao apenas handler minimo de voltar."
 created: 2026-06-24
 updated: 2026-06-24
@@ -17,10 +17,10 @@ updated: 2026-06-24
 
 ## Current Focus
 
-- hypothesis: A navegacao fica confiavel se o app operacional usar uma pilha de rotas explicita em vez de telas soltas; push real so pode ser fechado automaticamente se houver acesso/criacao das credenciais Firebase e upload FCM V1 no EAS.
-- test: Refatorar `CaptureApp` para stack router com push/replace/reset/pop, cobrir back Android e fluxos criticos em testes, verificar config Firebase/EAS disponivel.
-- expecting: Back nativo sempre navega pela pilha; notificacoes e conclusoes resetam/abrem a rota correta; ausencia de credenciais Firebase fica como bloqueio externo objetivo.
-- next_action: implement stack router and probe Firebase automation options
+- hypothesis: O crash do APK instalado vem de carregamento dinamico de `react-native` no helper de voltar Android; push real continua dependendo de credenciais Firebase/FCM externas.
+- test: Remover o carregamento dinamico de `react-native`, usar `BackHandler` importado estaticamente, atualizar mocks/testes de navegacao e validar o novo APK no emulador antes de entregar.
+- expecting: O APK release abre sem erro "Requiring unknown module react-native"; back Android continua navegando pela pilha; ausencia de credenciais Firebase continua bloqueio externo para push real.
+- next_action: build staging apk and verify startup on Android emulator
 - reasoning_checkpoint:
 - tdd_checkpoint:
 
@@ -38,12 +38,21 @@ updated: 2026-06-24
 - timestamp: 2026-06-24
   observation: `pnpm dlx firebase-tools@latest projects:list --json` falhou com "Failed to authenticate, have you run firebase login?".
   implication: Fechar push Android real automaticamente exige login/credenciais Firebase externas antes de criar app Android, baixar `google-services.json` e gerar chave FCM V1.
+- timestamp: 2026-06-24
+  observation: APK staging `0db35bb8-1486-440d-b5b6-9cacd87d89bd` instalado no Android crashou no boot com `ReactNativeJS: [Error: Requiring unknown module "react-native".]` em `addHardwareBackPressListener`.
+  implication: O helper `apps/mobile/src/system/hardware-back.ts` usava carregamento dinamico de `react-native`, que o bundle release do Metro nao consegue resolver como dependencia estatica.
+- timestamp: 2026-06-24
+  observation: `hardware-back.ts` agora importa `BackHandler` estaticamente; os testes de AuthGate/CaptureApp mockam `BackHandler` diretamente; `rg` nao encontrou `moduleLoader(...)` no codigo mobile.
+  implication: O caminho que derrubava o APK foi removido e os testes agora exercitam a mesma forma de carregamento usada no app release.
+- timestamp: 2026-06-24
+  observation: `pnpm.cmd --filter @validade-zero/mobile test` passou com 29 arquivos e 148 testes; `pnpm.cmd --filter @validade-zero/mobile typecheck` passou; `git diff --check` passou.
+  implication: A correcao do crash manteve contrato de tipos e regressao mobile limpa antes de rebuildar o APK.
 
 ## Eliminated
 
 ## Resolution
 
-- root_cause: Navegacao operacional ainda estava acoplada a estado local por tela; push Android real depende de credenciais Firebase/FCM nativas que nao existem localmente e nao ha sessao Firebase CLI autenticada.
-- fix: Refatorar `CaptureApp` para stack router explicito com `navigate`, `replace`, `resetToToday` e `goBack`; manter handlers nativos Android usando essa pilha; preparar o app para receber `google-services.json` e EAS FCM V1.
-- verification: `pnpm.cmd --filter @validade-zero/mobile test`; `pnpm.cmd --filter @validade-zero/mobile typecheck`; `git diff --check`; `pnpm.cmd dlx firebase-tools@latest projects:list --json` para confirmar bloqueio de auth Firebase.
-- files_changed: apps/mobile/src/capture/CaptureApp.tsx; apps/mobile/src/App.test.tsx; .planning/debug/mobile-perfect-navigation-push.md
+- root_cause: Navegacao operacional ainda estava acoplada a estado local por tela; o APK crashou depois porque `hardware-back.ts` tentava carregar `react-native` via loader dinamico; push Android real depende de credenciais Firebase/FCM nativas que nao existem localmente e nao ha sessao Firebase CLI autenticada.
+- fix: Refatorar `CaptureApp` para stack router explicito com `navigate`, `replace`, `resetToToday` e `goBack`; trocar o helper de voltar Android para `BackHandler` importado estaticamente; atualizar testes para mockarem `BackHandler`; preparar o app para receber `google-services.json` e EAS FCM V1.
+- verification: `pnpm.cmd --filter @validade-zero/mobile test`; `pnpm.cmd --filter @validade-zero/mobile typecheck`; `git diff --check`; proximo passo e rebuildar APK staging e abrir no emulador com logcat limpo.
+- files_changed: apps/mobile/src/capture/CaptureApp.tsx; apps/mobile/src/App.test.tsx; apps/mobile/src/system/hardware-back.ts; apps/mobile/src/auth/AuthGate.tsx; apps/mobile/src/auth/auth-flow.test.tsx; apps/mobile/src/capture/alert-channel.ts; apps/mobile/src/capture/mobile-release-journeys.test.tsx; apps/mobile/src/capture/push-alerts.test.tsx; apps/mobile/src/capture/push-channel.test.ts; .planning/debug/mobile-perfect-navigation-push.md

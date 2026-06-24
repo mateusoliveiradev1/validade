@@ -15,6 +15,8 @@ import { TodayScreen } from "./TodayScreen";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
+const hardwareBackHandlers = vi.hoisted(() => new Set<() => boolean>());
+
 vi.mock("react-native", async () => {
   const React = await import("react");
 
@@ -32,6 +34,16 @@ vi.mock("react-native", async () => {
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
     StatusBar: (props: Record<string, unknown>) => React.createElement("StatusBar", props),
+    BackHandler: {
+      addEventListener: (_eventName: "hardwareBackPress", handler: () => boolean) => {
+        hardwareBackHandlers.add(handler);
+        return {
+          remove: () => {
+            hardwareBackHandlers.delete(handler);
+          },
+        };
+      },
+    },
   };
 });
 
@@ -53,12 +65,37 @@ vi.mock("@react-native-community/datetimepicker", () => ({
   default: () => null,
   DateTimePickerAndroid: { open: () => undefined },
 }));
+vi.mock("expo-notifications", () => ({
+  addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
+  cancelScheduledNotificationAsync: () => Promise.resolve(undefined),
+  getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-PUSH" }),
+  getPermissionsAsync: () => Promise.resolve({ status: "undetermined" }),
+  requestPermissionsAsync: () => Promise.resolve({ status: "granted" }),
+  scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-push"),
+}));
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => ({}),
+}));
+vi.mock("expo-constants", () => ({
+  default: {
+    easConfig: { projectId: "projeto-ficticio-push" },
+    expoConfig: { extra: { eas: { projectId: "projeto-ficticio-push" } } },
+  },
+}));
 
 const now = new Date("2030-01-10T09:00:00.000Z");
 
 afterEach(() => {
+  hardwareBackHandlers.clear();
   vi.unstubAllGlobals();
 });
+
+function latestHardwareBackHandler(): () => boolean {
+  const handlers = Array.from(hardwareBackHandlers);
+  const handler = handlers[handlers.length - 1];
+  if (handler === undefined) throw new Error("Expected a registered Android back handler.");
+  return handler;
+}
 
 function expiredTask(overrides: Partial<TodayTaskRecord> = {}): TodayTaskRecord {
   return {
@@ -364,18 +401,6 @@ describe("Hoje push alert UI", () => {
 
 describe("push notification routing", () => {
   it("uses the Android back gesture to return from task resolution to Hoje", async () => {
-    let backHandler: (() => boolean) | undefined;
-    vi.stubGlobal("require", (moduleName: string) => {
-      if (moduleName !== "react-native") throw new Error(`Unexpected module ${moduleName}.`);
-      return {
-        BackHandler: {
-          addEventListener: (_eventName: string, handler: () => boolean) => {
-            backHandler = handler;
-            return { remove: () => undefined };
-          },
-        },
-      };
-    });
     const task = expiredTask();
     const { repository } = createRepository({ tasks: [task] });
     let tree: ReactTestRenderer | undefined;
@@ -399,6 +424,7 @@ describe("push notification routing", () => {
     expect(JSON.stringify(tree?.toJSON())).toContain("Acao exigida:");
 
     await act(async () => {
+      const backHandler = latestHardwareBackHandler();
       expect(backHandler?.()).toBe(true);
       await Promise.resolve();
     });

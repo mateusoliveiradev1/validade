@@ -13,6 +13,8 @@ import type { CaptureLotDetail, CaptureRepository, MarkdownEntryState } from "./
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
+const hardwareBackHandlers = vi.hoisted(() => new Set<() => boolean>());
+
 vi.mock("react-native", async () => {
   const React = await import("react");
 
@@ -30,6 +32,16 @@ vi.mock("react-native", async () => {
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
     StatusBar: (props: Record<string, unknown>) => React.createElement("StatusBar", props),
+    BackHandler: {
+      addEventListener: (_eventName: "hardwareBackPress", handler: () => boolean) => {
+        hardwareBackHandlers.add(handler);
+        return {
+          remove: () => {
+            hardwareBackHandlers.delete(handler);
+          },
+        };
+      },
+    },
   };
 });
 
@@ -55,6 +67,9 @@ vi.mock("expo-notifications", () => ({
   requestPermissionsAsync: () => Promise.resolve({ status: "granted" }),
   scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-smoke"),
 }));
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => ({}),
+}));
 vi.mock("expo-constants", () => ({
   default: {
     easConfig: { projectId: "projeto-ficticio-smoke" },
@@ -67,8 +82,16 @@ vi.mock("@react-native-community/datetimepicker", () => ({
 }));
 
 afterEach(() => {
+  hardwareBackHandlers.clear();
   vi.unstubAllGlobals();
 });
+
+function latestHardwareBackHandler(): () => boolean {
+  const handlers = Array.from(hardwareBackHandlers);
+  const handler = handlers[handlers.length - 1];
+  if (handler === undefined) throw new Error("Expected a registered Android back handler.");
+  return handler;
+}
 
 function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
   return {
@@ -514,18 +537,6 @@ describe("Validade Zero mobile smoke", () => {
   });
 
   it("uses the Android back gesture to return from observation to lot detail", async () => {
-    let backHandler: (() => boolean) | undefined;
-    vi.stubGlobal("require", (moduleName: string) => {
-      if (moduleName !== "react-native") throw new Error(`Unexpected module ${moduleName}.`);
-      return {
-        BackHandler: {
-          addEventListener: (_eventName: string, handler: () => boolean) => {
-            backHandler = handler;
-            return { remove: () => undefined };
-          },
-        },
-      };
-    });
     const tree = await renderCaptureApp(
       createRepositoryForDetail({
         status: "eligible_rule_window",
@@ -539,6 +550,7 @@ describe("Validade Zero mobile smoke", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Registrar observa");
 
     await act(async () => {
+      const backHandler = latestHardwareBackHandler();
       expect(backHandler?.()).toBe(true);
       await Promise.resolve();
     });

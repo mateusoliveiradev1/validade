@@ -7,6 +7,14 @@ import { MobileAuthError } from "./auth-errors";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
+const expoConstantsMock = vi.hoisted(() => ({
+  expoConfig: {
+    extra: {
+      EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
+    },
+  } as { extra?: Record<string, unknown> | null } | null,
+}));
+
 vi.mock("react-native", async () => {
   const React = await import("react");
   return {
@@ -20,20 +28,22 @@ vi.mock("react-native", async () => {
     TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
+    BackHandler: {
+      addEventListener: () => ({ remove: () => undefined }),
+    },
   };
 });
 
 vi.mock("expo-constants", () => ({
-  default: {
-    expoConfig: {
-      extra: {
-        EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
-      },
-    },
-  },
+  default: expoConstantsMock,
 }));
 
 afterEach(() => {
+  expoConstantsMock.expoConfig = {
+    extra: {
+      EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
+    },
+  };
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -116,18 +126,6 @@ async function enter(tree: ReactTestRenderer, label: string, value: string): Pro
 describe("mobile auth flow", () => {
   it("uses the Expo config API URL when the public env is not bundled", async () => {
     vi.stubEnv("EXPO_PUBLIC_API_URL", "");
-    vi.stubGlobal("require", (moduleName: string) => {
-      if (moduleName !== "expo-constants") throw new Error("Unexpected module.");
-      return {
-        default: {
-          expoConfig: {
-            extra: {
-              EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
-            },
-          },
-        },
-      };
-    });
     const fetchMock = vi.fn(() =>
       Promise.resolve(
         new Response(
@@ -155,9 +153,7 @@ describe("mobile auth flow", () => {
 
   it("falls back to the staging API URL when env and Expo config are unavailable", async () => {
     vi.stubEnv("EXPO_PUBLIC_API_URL", "");
-    vi.stubGlobal("require", () => {
-      throw new Error("Expo config unavailable in this runtime.");
-    });
+    expoConstantsMock.expoConfig = null;
     const fetchMock = vi.fn(() =>
       Promise.resolve(
         new Response(

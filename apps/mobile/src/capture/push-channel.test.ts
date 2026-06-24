@@ -1,10 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createExpoPushAlertChannel,
   createFakePushAlertChannel,
   parsePushNotificationResponseData,
   type ScheduleTaskNotificationInput,
 } from "./alert-channel";
+
+vi.mock("expo-notifications", () => ({
+  addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
+  cancelScheduledNotificationAsync: () => Promise.resolve(undefined),
+  getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-UNIT" }),
+  getPermissionsAsync: () => Promise.resolve({ status: "undetermined" }),
+  requestPermissionsAsync: () => Promise.resolve({ status: "granted" }),
+  scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-unit"),
+}));
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => ({}),
+}));
+vi.mock("expo-constants", () => ({
+  default: {
+    easConfig: { projectId: "projeto-ficticio-unit" },
+    expoConfig: { extra: { eas: { projectId: "projeto-ficticio-unit" } } },
+  },
+}));
 
 const taskId = "tarefa-ficticia-001";
 const taskActiveKey = "active-key-ficticia-001";
