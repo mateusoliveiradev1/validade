@@ -12,12 +12,20 @@
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/session/:path*"
     },
     {
+      "source": "/command-center",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/command-center"
+    },
+    {
       "source": "/command-center/:path*",
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/command-center/:path*"
     },
     {
       "source": "/audit/:path*",
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/audit/:path*"
+    },
+    {
+      "source": "/memberships",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/memberships"
     },
     {
       "source": "/memberships/:path*",
@@ -32,12 +40,28 @@
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/evidence/:path*"
     },
     {
-      "source": "/shift-close/:path*",
-      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/shift-close/:path*"
+      "source": "/shift-closes",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/shift-closes"
+    },
+    {
+      "source": "/shift-closes/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/shift-closes/:path*"
+    },
+    {
+      "source": "/tasks/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/tasks/:path*"
+    },
+    {
+      "source": "/privacy/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/privacy/:path*"
     },
     {
       "source": "/health",
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/health"
+    },
+    {
+      "source": "/probe",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/probe"
     },
     {
       "source": "/probe/:path*",

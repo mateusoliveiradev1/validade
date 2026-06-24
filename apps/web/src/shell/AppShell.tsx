@@ -1,4 +1,4 @@
-import { ClipboardCheck, KeyRound, Menu, ScrollText, ShieldCheck } from "lucide-react";
+import { ClipboardCheck, KeyRound, Menu, ScrollText, ShieldCheck, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { SessionContextResponse } from "@validade-zero/contracts";
 import { Button } from "../components/ui/button";
@@ -145,13 +145,29 @@ function MobileNavigation({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="p-4">
           <div className="grid min-h-full content-between gap-6">
-            <ShellNavigation
-              route={route}
-              onRouteChange={(nextRoute) => {
-                onRouteChange(nextRoute);
-                setOpen(false);
-              }}
-            />
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-muted-foreground">
+                  Menu do Validade Zero
+                </p>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Fechar navegacao"
+                  onClick={() => setOpen(false)}
+                >
+                  <X />
+                </Button>
+              </div>
+              <ShellNavigation
+                route={route}
+                onRouteChange={(nextRoute) => {
+                  onRouteChange(nextRoute);
+                  setOpen(false);
+                }}
+              />
+            </div>
             <div className="grid gap-2 border-t pt-4">
               <Button
                 className="justify-start"
