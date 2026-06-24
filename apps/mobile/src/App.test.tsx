@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MobileAuthClient } from "./auth/AuthGate";
 import type {
   MarkdownWorkflowRecord,
@@ -65,6 +65,10 @@ vi.mock("@react-native-community/datetimepicker", () => ({
   default: () => null,
   DateTimePickerAndroid: { open: () => undefined },
 }));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
   return {
@@ -507,6 +511,43 @@ describe("Validade Zero mobile smoke", () => {
 
     expect(requestMarkdown).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).toContain("Registrar observa");
+  });
+
+  it("uses the Android back gesture to return from observation to lot detail", async () => {
+    let backHandler: (() => boolean) | undefined;
+    vi.stubGlobal("require", (moduleName: string) => {
+      if (moduleName !== "react-native") throw new Error(`Unexpected module ${moduleName}.`);
+      return {
+        BackHandler: {
+          addEventListener: (_eventName: string, handler: () => boolean) => {
+            backHandler = handler;
+            return { remove: () => undefined };
+          },
+        },
+      };
+    });
+    const tree = await renderCaptureApp(
+      createRepositoryForDetail({
+        status: "eligible_rule_window",
+        label: "Solicitar rebaixa",
+        lotId: "lote-rebaixa",
+      }),
+    );
+
+    await openLotDetail(tree);
+    await press(tree, "Registrar observacao");
+    expect(JSON.stringify(tree.toJSON())).toContain("Registrar observa");
+
+    await act(async () => {
+      expect(backHandler?.()).toBe(true);
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Produto Rebaixa FICTICIO");
+    expect(rendered).toContain("Estado fisico atual disponivel");
+    expect(rendered).not.toContain("Quantidade confirmada");
   });
 
   it("opens the active markdown stage from lot detail without creating a duplicate request", async () => {

@@ -21,18 +21,20 @@ import { todayCopy } from "./today-copy";
 import { captureColors } from "./capture-theme";
 import { addHardwareBackPressListener } from "../system/hardware-back";
 
-type CaptureScreen =
-  | "today"
-  | "discovery"
-  | "product-form"
-  | "confirmed"
-  | "lot-registration"
-  | "recent"
-  | "detail"
-  | "task-resolution"
-  | "shift-close"
-  | "observation"
-  | "barcode";
+type CaptureRoute =
+  | { name: "today" }
+  | { name: "discovery"; initialLookup?: string | undefined }
+  | { name: "product-form"; initialGtin?: string | undefined }
+  | { name: "confirmed"; product: CaptureProductRecord }
+  | { name: "lot-registration"; product: CaptureProductRecord }
+  | { name: "recent" }
+  | { name: "detail"; detail: CaptureLotDetail; markdownEntryState?: MarkdownEntryState | undefined }
+  | { name: "task-resolution"; task: TodayTaskRecord }
+  | { name: "shift-close" }
+  | { name: "observation"; detail: CaptureLotDetail }
+  | { name: "barcode" };
+
+const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
 
 export function CaptureApp({
   repository,
@@ -49,51 +51,42 @@ export function CaptureApp({
   actorLabel?: string | undefined;
   storeId?: string | undefined;
 }) {
-  const [screen, setScreen] = useState<CaptureScreen>("today");
-  const [selectedProduct, setSelectedProduct] = useState<CaptureProductRecord | undefined>();
-  const [initialGtin, setInitialGtin] = useState<string | undefined>();
+  const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(initialRouteStack);
   const [initializationError, setInitializationError] = useState<string | undefined>();
-  const [detail, setDetail] = useState<CaptureLotDetail | undefined>();
-  const [markdownEntryState, setMarkdownEntryState] = useState<MarkdownEntryState | undefined>();
-  const [scannedLookup, setScannedLookup] = useState<string | undefined>();
-  const [selectedTask, setSelectedTask] = useState<TodayTaskRecord | undefined>();
   const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>();
   const resolvedAlertChannel = useMemo(
     () => alertChannel ?? createExpoPushAlertChannel(),
     [alertChannel],
   );
+  const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+
+  const navigate = useCallback((route: CaptureRoute): void => {
+    setRouteStack((current) => [...current, route]);
+  }, []);
+
+  const replace = useCallback((route: CaptureRoute): void => {
+    setRouteStack((current) => [...current.slice(0, -1), route]);
+  }, []);
+
+  const resetToToday = useCallback(
+    (input?: { notice?: string | undefined; highlightedTaskId?: string | undefined }): void => {
+      setPushFallbackNotice(input?.notice);
+      setHighlightedTaskId(input?.highlightedTaskId);
+      setRouteStack(initialRouteStack);
+    },
+    [],
+  );
 
   const goBack = useCallback((): void => {
-    setPushFallbackNotice(undefined);
-
-    if (screen === "today") {
+    if (routeStack.length <= 1) {
       setPushFallbackNotice(todayCopy.navigation.alreadyHome);
       return;
     }
 
-    if (screen === "product-form" || screen === "barcode" || screen === "confirmed") {
-      setScreen("discovery");
-      return;
-    }
-
-    if (screen === "lot-registration") {
-      setScreen(selectedProduct === undefined ? "discovery" : "confirmed");
-      return;
-    }
-
-    if (screen === "detail") {
-      setScreen("recent");
-      return;
-    }
-
-    if (screen === "observation") {
-      setScreen(detail === undefined ? "recent" : "detail");
-      return;
-    }
-
-    setScreen("today");
-  }, [detail, screen, selectedProduct]);
+    setPushFallbackNotice(undefined);
+    setRouteStack((current) => current.slice(0, -1));
+  }, [routeStack.length]);
 
   useEffect(() => {
     void repository.initialize().catch(() => {
@@ -126,9 +119,8 @@ export function CaptureApp({
             task.status === "active" &&
             task.activeKey === intent.taskActiveKey
           ) {
-            setSelectedTask(task);
             setHighlightedTaskId(task.id);
-            setScreen("task-resolution");
+            setRouteStack([{ name: "today" }, { name: "task-resolution", task }]);
           }
 
           return;
@@ -146,7 +138,7 @@ export function CaptureApp({
           );
         }
 
-        setScreen("today");
+        setRouteStack(initialRouteStack);
       });
     });
 
@@ -171,30 +163,35 @@ export function CaptureApp({
   }
 
   async function openLotDetail(lotId: string): Promise<void> {
-    setMarkdownEntryState(undefined);
     const loaded = await repository.loadLotDetail(lotId);
 
     if (loaded !== null) {
-      setDetail(loaded);
-      setMarkdownEntryState(await loadMarkdownEntryStateFor(loaded.id));
-      setScreen("detail");
+      navigate({
+        name: "detail",
+        detail: loaded,
+        markdownEntryState: await loadMarkdownEntryStateFor(loaded.id),
+      });
     }
   }
 
-  async function refreshCurrentDetail(lotId: string): Promise<void> {
+  async function refreshCurrentDetail(lotId: string): Promise<CaptureRoute | undefined> {
     const refreshed = await repository.loadLotDetail(lotId);
 
     if (refreshed !== null) {
-      setDetail(refreshed);
-      setMarkdownEntryState(await loadMarkdownEntryStateFor(refreshed.id));
+      return {
+        name: "detail",
+        detail: refreshed,
+        markdownEntryState: await loadMarkdownEntryStateFor(refreshed.id),
+      };
     }
+
+    return undefined;
   }
 
-  async function requestMarkdownFromDetail(request: LotDetailMarkdownRequest): Promise<void> {
-    if (detail === undefined) {
-      return;
-    }
-
+  async function requestMarkdownFromDetail(
+    detail: CaptureLotDetail,
+    request: LotDetailMarkdownRequest,
+  ): Promise<void> {
     const occurredAt = new Date().toISOString();
 
     await repository.requestMarkdown({
@@ -206,13 +203,15 @@ export function CaptureApp({
         ? {}
         : { earlyJustification: request.earlyJustification }),
     });
-    setMarkdownEntryState(undefined);
-    setScreen("today");
+    resetToToday();
   }
 
-  async function openActiveMarkdownTask(): Promise<void> {
-    if (markdownEntryState?.status !== "already_active") {
-      setScreen("today");
+  async function openActiveMarkdownTask(
+    route: Extract<CaptureRoute, { name: "detail" }>,
+  ): Promise<void> {
+    const entryState = route.markdownEntryState;
+    if (entryState?.status !== "already_active") {
+      resetToToday();
       return;
     }
 
@@ -220,20 +219,19 @@ export function CaptureApp({
     const task = activeTasks.find(
       (candidate) =>
         candidate.status === "active" &&
-        candidate.markdownWorkflowId === markdownEntryState.workflowId,
+        candidate.markdownWorkflowId === entryState.workflowId,
     );
 
     if (task === undefined) {
-      setScreen("today");
+      resetToToday();
       return;
     }
 
-    setSelectedTask(task);
     setHighlightedTaskId(task.id);
-    setScreen("task-resolution");
+    navigate({ name: "task-resolution", task });
   }
 
-  if (screen === "today") {
+  if (currentRoute.name === "today") {
     return (
       <>
         {initializationError === undefined ? null : (
@@ -245,134 +243,137 @@ export function CaptureApp({
           pushFallbackNotice={pushFallbackNotice}
           repository={repository}
           syncEngine={syncEngine}
-          onRegisterLot={() => setScreen("discovery")}
-          onOpenRecentLots={() => setScreen("recent")}
+          onRegisterLot={() => navigate({ name: "discovery" })}
+          onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
             setPushFallbackNotice(undefined);
-            setSelectedTask(task);
-            setScreen("task-resolution");
+            navigate({ name: "task-resolution", task });
           }}
           canCloseShift={activeRole === "lead"}
           actorLabel={actorLabel}
-          onOpenShiftClose={() => setScreen("shift-close")}
+          onOpenShiftClose={() => navigate({ name: "shift-close" })}
         />
       </>
     );
   }
 
-  if (screen === "task-resolution" && selectedTask !== undefined) {
+  if (currentRoute.name === "task-resolution") {
     return (
       <TaskResolutionPanel
         repository={repository}
-        task={selectedTask}
+        task={currentRoute.task}
         actorLabel={actorLabel}
-        onBack={() => setScreen("today")}
-        onDone={() => setScreen("today")}
+        onBack={goBack}
+        onDone={() => resetToToday()}
         onLocalSave={() => {
-          setPushFallbackNotice(todayCopy.sync.localSaved);
-          setHighlightedTaskId(selectedTask.id);
-          setScreen("today");
+          resetToToday({
+            notice: todayCopy.sync.localSaved,
+            highlightedTaskId: currentRoute.task.id,
+          });
         }}
       />
     );
   }
 
-  if (screen === "shift-close") {
+  if (currentRoute.name === "shift-close") {
     return (
       <ShiftCloseScreen
         repository={repository}
         canCloseShift={activeRole === "lead"}
         storeId={storeId}
-        onBack={() => setScreen("today")}
+        onBack={goBack}
       />
     );
   }
 
-  if (screen === "product-form") {
+  if (currentRoute.name === "product-form") {
     return (
       <ProductFormScreen
         repository={repository}
-        {...(initialGtin === undefined ? {} : { initialGtin })}
-        onBack={() => setScreen("discovery")}
+        {...(currentRoute.initialGtin === undefined ? {} : { initialGtin: currentRoute.initialGtin })}
+        onBack={goBack}
         onCreated={(product) => {
-          setSelectedProduct(product);
-          setScreen("confirmed");
+          replace({ name: "confirmed", product });
         }}
       />
     );
   }
 
-  if (screen === "confirmed" && selectedProduct !== undefined) {
+  if (currentRoute.name === "confirmed") {
     const mode =
-      selectedProduct.productRuleOverride?.mode ?? selectedProduct.categoryRuleProfile.mode;
+      currentRoute.product.productRuleOverride?.mode ?? currentRoute.product.categoryRuleProfile.mode;
 
     return (
       <ScrollView contentContainerStyle={styles.screen}>
         <ScreenHeader title="Produto confirmado" body="Revise o perfil antes de informar o lote." />
-        <Text style={styles.productName}>{selectedProduct.displayName}</Text>
-        <Text style={styles.metadata}>Categoria: {selectedProduct.categoryId}</Text>
+        <Text style={styles.productName}>{currentRoute.product.displayName}</Text>
+        <Text style={styles.metadata}>Categoria: {currentRoute.product.categoryId}</Text>
         <Text style={styles.metadata}>Perfil operacional: {productModeLabels[mode]}</Text>
         <PrimaryAction
           label={captureCopy.confirmProduct}
-          onPress={() => setScreen("lot-registration")}
+          onPress={() => navigate({ name: "lot-registration", product: currentRoute.product })}
         />
-        <SecondaryAction label={captureCopy.backAndReview} onPress={() => setScreen("discovery")} />
+        <SecondaryAction label={captureCopy.backAndReview} onPress={goBack} />
       </ScrollView>
     );
   }
 
-  if (screen === "lot-registration" && selectedProduct !== undefined) {
+  if (currentRoute.name === "lot-registration") {
     return (
       <LotRegistrationScreen
         repository={repository}
-        product={selectedProduct}
-        onBack={() => setScreen("confirmed")}
-        onSaved={() => setScreen("today")}
+        product={currentRoute.product}
+        onBack={goBack}
+        onSaved={() => resetToToday()}
       />
     );
   }
 
-  if (screen === "detail" && detail !== undefined)
+  if (currentRoute.name === "detail")
     return (
       <LotDetailScreen
-        detail={detail}
-        markdownEntryState={markdownEntryState}
-        onObserve={() => setScreen("observation")}
-        onOpenActiveMarkdown={() => void openActiveMarkdownTask()}
-        onRequestMarkdown={(request) => requestMarkdownFromDetail(request)}
-        onBack={() => setScreen("recent")}
+        detail={currentRoute.detail}
+        markdownEntryState={currentRoute.markdownEntryState}
+        onObserve={() => navigate({ name: "observation", detail: currentRoute.detail })}
+        onOpenActiveMarkdown={() => void openActiveMarkdownTask(currentRoute)}
+        onRequestMarkdown={(request) => requestMarkdownFromDetail(currentRoute.detail, request)}
+        onBack={goBack}
       />
     );
-  if (screen === "observation" && detail !== undefined)
+  if (currentRoute.name === "observation")
     return (
       <ObservationComposer
         repository={repository}
-        detail={detail}
-        onBack={() => setScreen("detail")}
+        detail={currentRoute.detail}
+        onBack={goBack}
         onDone={() => {
-          void refreshCurrentDetail(detail.id).then(() => {
-            setScreen("detail");
+          void refreshCurrentDetail(currentRoute.detail.id).then((route) => {
+            if (route === undefined) {
+              resetToToday();
+              return;
+            }
+
+            setRouteStack((current) => [...current.slice(0, -2), route]);
           });
         }}
       />
     );
-  if (screen === "recent")
+  if (currentRoute.name === "recent")
     return (
       <RecentLotList
         repository={repository}
-        onRegister={() => setScreen("discovery")}
+        onRegister={() => navigate({ name: "discovery" })}
         onOpen={(lot) => {
           void openLotDetail(lot.id);
         }}
       />
     );
-  if (screen === "barcode")
+  if (currentRoute.name === "barcode")
     return (
       <BarcodeLookupAssistant
-        onBack={() => setScreen("discovery")}
+        onBack={goBack}
         onLookup={(value) => {
-          setScannedLookup(value);
-          setScreen("discovery");
+          replace({ name: "discovery", initialLookup: value });
         }}
       />
     );
@@ -385,16 +386,16 @@ export function CaptureApp({
       <ProductDiscoveryScreen
         repository={repository}
         onConfirmProduct={(product) => {
-          setSelectedProduct(product);
-          setScreen("confirmed");
+          navigate({ name: "confirmed", product });
         }}
         onCreateProduct={(gtin) => {
-          setInitialGtin(gtin);
-          setScreen("product-form");
+          navigate({ name: "product-form", initialGtin: gtin });
         }}
-        onScanCode={() => setScreen("barcode")}
-        onOpenRecent={() => setScreen("recent")}
-        {...(scannedLookup === undefined ? {} : { initialLookup: scannedLookup })}
+        onScanCode={() => navigate({ name: "barcode" })}
+        onOpenRecent={() => navigate({ name: "recent" })}
+        {...(currentRoute.name !== "discovery" || currentRoute.initialLookup === undefined
+          ? {}
+          : { initialLookup: currentRoute.initialLookup })}
       />
     </>
   );
