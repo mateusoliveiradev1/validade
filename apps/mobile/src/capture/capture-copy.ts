@@ -59,6 +59,10 @@ export const reinforcedObservationActions = [
 ] as const;
 export const cameraFallbackCopy =
   "Não foi possível usar a câmera. Você pode buscar o produto por nome ou código.";
+export const cameraPermissionCopy =
+  "Permita a câmera para ler o código. A busca manual continua disponível.";
+export const cameraBlockedCopy =
+  "A câmera está bloqueada para este app. Abra as configurações do Android ou use a busca manual.";
 
 export function requiredFieldError(field: string): string {
   return `Informe ${field} para registrar este lote.`;
