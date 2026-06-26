@@ -553,8 +553,11 @@ export function createSQLiteCaptureRepository(
         lot.identity.identitySource,
         lot.identity.value,
         lot.mode,
-        lot.mode === "formal_validity" ? lot.expiresAt : null,
+        lot.mode === "formal_validity" || lot.mode === "processed_repack_loss"
+          ? lot.expiresAt
+          : null,
         lot.mode === "formal_validity" ||
+          lot.mode === "processed_repack_loss" ||
           lot.mode === "flv_inspection" ||
           lot.mode === "receiving_monitored"
           ? (lot.receivedAt ?? null)
@@ -3211,6 +3214,15 @@ function parseStoredLot(row: LotRow, initialLocation: OperationalLocation): Capt
   };
 
   if (row.mode === "formal_validity") {
+    return CaptureLotInputSchema.parse({
+      ...base,
+      mode: row.mode,
+      expiresAt: row.expires_at,
+      ...(row.received_at === null ? {} : { receivedAt: row.received_at }),
+    });
+  }
+
+  if (row.mode === "processed_repack_loss") {
     return CaptureLotInputSchema.parse({
       ...base,
       mode: row.mode,

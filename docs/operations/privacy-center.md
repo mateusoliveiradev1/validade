@@ -30,10 +30,10 @@ Camera and notification permissions explain their operational purpose. When a ma
 
 Configure the responsible channel without committing real contact data to the public repository:
 
-| Surface | Variable | When unset |
-|---------|----------|------------|
-| Mobile APK / Expo | `EXPO_PUBLIC_PRIVACY_CONTACT` | Shows fallback copy directing operators to store leadership |
-| Web Command Center | `VITE_PRIVACY_CONTACT` | Same fallback in the Canal/encarregado detail view |
+| Surface            | Variable                      | When unset                                                  |
+| ------------------ | ----------------------------- | ----------------------------------------------------------- |
+| Mobile APK / Expo  | `EXPO_PUBLIC_PRIVACY_CONTACT` | Shows fallback copy directing operators to store leadership |
+| Web Command Center | `VITE_PRIVACY_CONTACT`        | Same fallback in the Canal/encarregado detail view          |
 
 Set these in EAS build environment variables (mobile staging/pilot profiles) and in the web deploy environment. Example values: `privacidade@loja-piloto.example` or `Fale com a administracao da loja piloto`.
 

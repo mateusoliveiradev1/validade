@@ -32,7 +32,9 @@ export function PrivacyCenter({ onBack }: { onBack: () => void }) {
               Centro de Privacidade
             </h1>
             <h2 className="text-2xl font-semibold leading-8">{topic.title}</h2>
-            <p className="max-w-[68ch] text-base leading-7 text-muted-foreground">{topic.summary}</p>
+            <p className="max-w-[68ch] text-base leading-7 text-muted-foreground">
+              {topic.summary}
+            </p>
             <Button
               className="w-full sm:w-fit"
               variant="outline"

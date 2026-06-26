@@ -58,6 +58,8 @@ export const todayCopy = {
     educationBody:
       "Ative alertas para receber lembretes de tarefas criticas. Nenhuma tarefa sera resolvida pela notificacao; a confirmacao fisica continua no app.",
     active: "Alertas do turno ativos neste aparelho.",
+    localOnly:
+      "Lembretes locais do turno ativos neste aparelho. O push remoto ainda precisa do Firebase no APK.",
     denied: "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje.",
     unavailable:
       "Alertas remotos ainda nao estao prontos neste aparelho. As tarefas continuam ativas em Hoje.",
@@ -90,6 +92,8 @@ export const todayCopy = {
   incompatibleAction:
     "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",
   expiredAction: "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
+  processedExpiredAction:
+    "Este processado esta vencido. Reembale com nova identificacao ou registre avaria/perda.",
   fallbackActor: "Pessoa da operacao",
   destinationLoss: "Destino: Retirada/perda",
   confirmationTitle: "Confirme antes de registrar",
@@ -138,6 +142,7 @@ export const todayCopy = {
   customNoPhotoReason: "Descreva o motivo sem foto",
   confirmLabels: {
     withdraw: "Confirmar retirada",
+    repack: "Confirmar reembalagem",
     record_loss: "Confirmar perda",
     confirm_presence: "Confirmar presenca",
     request_markdown: "Solicitar rebaixa",
@@ -152,6 +157,7 @@ export const todayCopy = {
   },
   resolutionOptions: {
     withdraw: "Retirar agora",
+    repack: "Reembalar lote",
     record_loss: "Registrar perda",
     confirm_presence: "Conferir presenca",
     request_markdown: "Solicitar rebaixa",
@@ -169,6 +175,10 @@ export const todayCopy = {
 export function todayActionLabel(task: TodayTaskRecord): string {
   if (task.requiredResolution === "withdraw_or_loss") {
     return "Retirar agora";
+  }
+
+  if (task.requiredResolution === "repack_or_loss") {
+    return "Reembalar ou avariar";
   }
 
   if (task.requiredResolution === "check_presence") {

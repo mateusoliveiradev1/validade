@@ -51,12 +51,20 @@ const mobilePrivacy = readFileSync(
   path.join(root, "apps/mobile/src/privacy/PrivacyCenterScreen.tsx"),
   "utf8",
 );
+const privacyContent = readFileSync(
+  path.join(root, "packages/contracts/src/privacy-content.ts"),
+  "utf8",
+);
 for (const section of requiredPrivacySections) {
-  if (!webPrivacy.includes(section))
-    violations.push(`apps/web/src/privacy/PrivacyCenter.tsx: missing '${section}'`);
-  if (!mobilePrivacy.includes(section))
-    violations.push(`apps/mobile/src/privacy/PrivacyCenterScreen.tsx: missing '${section}'`);
+  if (!privacyContent.includes(section))
+    violations.push(`packages/contracts/src/privacy-content.ts: missing '${section}'`);
 }
+if (!webPrivacy.includes("privacyTopics") || !webPrivacy.includes("privacyLgpdHubSection"))
+  violations.push("apps/web/src/privacy/PrivacyCenter.tsx: not wired to shared privacy content");
+if (!mobilePrivacy.includes("privacyTopics") || !mobilePrivacy.includes("privacyLgpdHubSection"))
+  violations.push(
+    "apps/mobile/src/privacy/PrivacyCenterScreen.tsx: not wired to shared privacy content",
+  );
 
 const mobileApp = readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8");
 const webApp = readFileSync(path.join(root, "apps/web/src/App.tsx"), "utf8");

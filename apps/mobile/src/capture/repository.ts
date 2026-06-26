@@ -722,6 +722,10 @@ export function alertChannelStateForRegistration(
     return "active";
   }
 
+  if (registration.permissionStatus === "local_only") {
+    return "local_only";
+  }
+
   if (registration.permissionStatus === "denied") {
     return "denied";
   }
@@ -778,7 +782,10 @@ export function shouldCreateSalesAreaRecheck(
   task: TodayTaskRecord,
   command: TaskResolutionCommand,
 ): boolean {
-  const resolvesByRemoval = command.action === "withdraw" || command.action === "record_loss";
+  const resolvesByRemoval =
+    command.action === "withdraw" ||
+    command.action === "repack" ||
+    command.action === "record_loss";
 
   return (
     resolvesByRemoval &&
@@ -1000,6 +1007,15 @@ function toRiskCalculationLot(lot: CaptureLotDetail): RiskCalculationLot {
   if (lot.mode === "formal_validity") {
     return {
       mode: "formal_validity",
+      productId: lot.productId,
+      lotCode: lot.identity.value,
+      expiresAt: lot.expiresAt,
+    };
+  }
+
+  if (lot.mode === "processed_repack_loss") {
+    return {
+      mode: "processed_repack_loss",
       productId: lot.productId,
       lotCode: lot.identity.value,
       expiresAt: lot.expiresAt,

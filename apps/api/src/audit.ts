@@ -456,6 +456,10 @@ function taskActionSummary(action: ProtectedTaskActionRequest["action"]): string
     return "Retirada registrada na area de venda.";
   }
 
+  if (action === "repack") {
+    return "Reembalagem registrada para o processado.";
+  }
+
   if (action === "record_loss") {
     return "Perda registrada para o lote.";
   }

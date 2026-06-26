@@ -5,6 +5,7 @@ import {
   type SyncTransportBatch,
 } from "@validade-zero/contracts";
 import { describe, expect, it } from "vitest";
+import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import { createApiApp, createInMemorySyncCommandService } from "./index";
 
 const NOW = "2030-01-10T12:30:00.000Z";
@@ -65,8 +66,13 @@ function createBatch(command = createSyncCommand()): SyncTransportBatch {
   });
 }
 
-async function postSync(app: ReturnType<typeof createApiApp>, payload: unknown) {
-  return app.request("/sync/commands", {
+async function postSync(app: ReturnType<typeof createApiApp>, payload: unknown, storeId?: string) {
+  const path =
+    storeId === undefined
+      ? "/sync/commands"
+      : `/sync/commands?storeId=${encodeURIComponent(storeId)}&storeName=${encodeURIComponent("Loja Piloto - Staging")}`;
+
+  return app.request(path, {
     method: "POST",
     body: JSON.stringify(payload),
     headers: {
@@ -220,4 +226,93 @@ describe("sync command API seam", () => {
     expect(probe.status).toBe(200);
     await expect(probe.json()).resolves.toMatchObject({ value: "probe-sync-ficticio" });
   });
+
+  it("feeds mobile sync acknowledgements into the web Command Center projection", async () => {
+    const app = createAuthorizedSyncApp({
+      syncCommandService: createInMemorySyncCommandService({ now: () => NOW }),
+    });
+
+    const sync = await postSync(
+      app,
+      createBatch(createSyncCommand({ id: "command-mobile-web-001" })),
+      "loja-piloto",
+    );
+    const commandCenter = await readCommandCenter(app);
+    const projection = (await commandCenter.json()) as {
+      freshness?: string;
+      verdict?: { title?: string };
+    };
+
+    expect(sync.status).toBe(200);
+    expect(commandCenter.status).toBe(200);
+    expect(projection).toMatchObject({
+      freshness: "current",
+      verdict: { title: "Mobile e Command Center sincronizados" },
+    });
+  });
+
+  it("projects mobile sync conflicts in the web Command Center", async () => {
+    const command = createSyncCommand({
+      id: "command-mobile-conflict-001",
+      idempotencyKey: "conflict-key-ficticia",
+    });
+    const app = createAuthorizedSyncApp({
+      syncCommandService: createInMemorySyncCommandService({
+        now: () => NOW,
+        conflictIdempotencyKeys: ["conflict-key-ficticia"],
+      }),
+    });
+
+    await postSync(app, createBatch(command), "loja-piloto");
+    const commandCenter = await readCommandCenter(app);
+    const projection = (await commandCenter.json()) as {
+      verdict?: { state?: string };
+      criticalLots?: unknown[];
+      syncConflicts?: unknown[];
+    };
+
+    expect(commandCenter.status).toBe(200);
+    expect(projection).toMatchObject({
+      verdict: { state: "blocked" },
+      criticalLots: [
+        {
+          lotId: command.lotId,
+          cause: {
+            code: "sync_conflict",
+            riskState: "expired",
+            responsibleLabel: "Ana FICTICIA",
+            sourceEventId: `audit:sync:loja-piloto:${command.id}:conflict`,
+          },
+        },
+      ],
+      syncConflicts: [{ conflictId: `conflict:${command.id}` }],
+    });
+  });
 });
+
+function createAuthorizedSyncApp(input?: {
+  syncCommandService?: ReturnType<typeof createInMemorySyncCommandService>;
+}) {
+  return createApiApp({
+    authProvider: new FakeAuthProvider(),
+    membershipRepository: createInMemoryMembershipRepository([
+      {
+        subjectId: "lead-local",
+        role: "lead",
+        storeId: "loja-piloto",
+        storeName: "Loja Piloto - Staging",
+        status: "active",
+      },
+    ]),
+    ...(input?.syncCommandService === undefined
+      ? {}
+      : { syncCommandService: input.syncCommandService }),
+    now: () => new Date(NOW),
+  });
+}
+
+function readCommandCenter(app: ReturnType<typeof createApiApp>) {
+  return app.request("/command-center?storeId=loja-piloto", {
+    headers: { authorization: "Bearer fake:lead-local" },
+  });
+}

@@ -62,7 +62,7 @@ export function LotRegistrationScreen({
   const approximateQuantity = parseNonNegativeQuantity(quantity);
   const identityValue = generatedIdentity ?? printedIdentity.trim();
   const hasRequiredDates =
-    (mode === "formal_validity" && isIsoDate(expiresAt)) ||
+    ((mode === "formal_validity" || mode === "processed_repack_loss") && isIsoDate(expiresAt)) ||
     (mode === "flv_inspection" && isIsoDate(receivedAt) && isPositiveInteger(qualityWindowDays)) ||
     (mode === "receiving_monitored" && isIsoDate(receivedAt));
   const canSave =
@@ -204,10 +204,12 @@ export function LotRegistrationScreen({
       {resolvedLocation === undefined ? (
         <Text style={styles.errorText}>{requiredFieldError("o local inicial")}</Text>
       ) : null}
-      {mode === "formal_validity" ? (
+      {mode === "formal_validity" || mode === "processed_repack_loss" ? (
         <DateField label="Data de validade" value={expiresAt} onChangeText={setExpiresAt} />
       ) : null}
-      {mode === "flv_inspection" || mode === "receiving_monitored" ? (
+      {mode === "processed_repack_loss" ||
+      mode === "flv_inspection" ||
+      mode === "receiving_monitored" ? (
         <DateField label="Data de recebimento" value={receivedAt} onChangeText={setReceivedAt} />
       ) : null}
       {mode === "flv_inspection" ? (
@@ -407,7 +409,7 @@ function calculatePreview(
         };
   const lotCode = identityValue.length === 0 ? "IDENTIFICACAO-PENDENTE" : identityValue;
   const lot: RiskCalculationLot =
-    mode === "formal_validity"
+    mode === "formal_validity" || mode === "processed_repack_loss"
       ? { mode, productId: product.id, lotCode, ...(isIsoDate(expiresAt) ? { expiresAt } : {}) }
       : mode === "flv_inspection"
         ? {
@@ -484,8 +486,13 @@ function buildLotInput({
     initialLocation: location,
   };
 
-  if (mode === "formal_validity") {
-    return { ...base, mode, expiresAt };
+  if (mode === "formal_validity" || mode === "processed_repack_loss") {
+    return {
+      ...base,
+      mode,
+      expiresAt,
+      ...(isIsoDate(receivedAt) ? { receivedAt } : {}),
+    };
   }
 
   if (mode === "flv_inspection") {

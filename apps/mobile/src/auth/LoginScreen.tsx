@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import brandLogo from "../../assets/brand-horizontal.png";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import {
   Field,
@@ -40,13 +41,13 @@ export function LoginScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
       <View style={styles.brandBlock}>
-        <View style={styles.brandSeal} accessibilityLabel="Validade Zero - Operacao de risco zero">
-          <Text style={styles.brandSealText}>VZ</Text>
-        </View>
-        <View style={styles.brandCopy}>
-          <Text style={styles.brandKicker}>Operacao de risco zero</Text>
-          <Text style={styles.brandLine}>Nada vencido fica invisivel.</Text>
-        </View>
+        <Image
+          accessibilityLabel="Validade Zero - Operacao de risco zero"
+          resizeMode="contain"
+          source={brandLogo}
+          style={styles.brandLogo}
+        />
+        <Text style={styles.brandLine}>Nada vencido fica invisivel.</Text>
       </View>
 
       <View style={styles.loginPanel}>
@@ -120,39 +121,18 @@ const styles = StyleSheet.create({
   },
   brandBlock: {
     alignItems: "center",
-    gap: captureSpacing.medium,
+    gap: captureSpacing.small,
   },
-  brandSeal: {
-    alignItems: "center",
-    backgroundColor: captureColors.accent,
-    borderColor: captureColors.accentPressed,
-    borderRadius: 32,
-    borderWidth: 2,
-    height: 64,
-    justifyContent: "center",
-    width: 64,
-  },
-  brandSealText: {
-    color: captureColors.onAccent,
-    fontSize: 20,
-    fontWeight: "600",
-    lineHeight: 25,
-  },
-  brandCopy: {
-    alignItems: "center",
-    gap: captureSpacing.xsmall,
-  },
-  brandKicker: {
-    color: captureColors.accent,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
+  brandLogo: {
+    height: 90,
+    maxWidth: 360,
+    width: "100%",
   },
   brandLine: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
-    lineHeight: 25,
+    lineHeight: 24,
     textAlign: "center",
   },
   loginPanel: {

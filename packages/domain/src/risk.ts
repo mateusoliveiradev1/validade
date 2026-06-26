@@ -28,6 +28,13 @@ export interface FormalValidityRiskLot {
   expiresAt?: string;
 }
 
+export interface ProcessedRepackLossRiskLot {
+  mode: "processed_repack_loss";
+  productId: string;
+  lotCode: string;
+  expiresAt?: string;
+}
+
 export interface FlvInspectionRiskLot {
   mode: "flv_inspection";
   productId: string;
@@ -46,6 +53,7 @@ export interface ReceivingMonitoredRiskLot {
 
 export type RiskCalculationLot =
   | FormalValidityRiskLot
+  | ProcessedRepackLossRiskLot
   | FlvInspectionRiskLot
   | ReceivingMonitoredRiskLot;
 
@@ -79,12 +87,16 @@ function calculateDateRisk(
     qualityWindowDays?: number;
   },
 ): RiskAssessment {
-  if (input.lot.mode === "formal_validity") {
+  if (input.lot.mode === "formal_validity" || input.lot.mode === "processed_repack_loss") {
     if (!input.lot.expiresAt) {
       return uncertainty("missing_required_date", "expiresAt");
     }
 
-    return calculateWindowRisk(input.currentDate, input.lot.expiresAt, "expiresAt", windows);
+    return calculateWindowRisk(input.currentDate, input.lot.expiresAt, "expiresAt", windows, {
+      allowMarkdown: input.lot.mode === "formal_validity",
+      expiredCommand:
+        input.lot.mode === "processed_repack_loss" ? "repack_or_loss" : "withdraw_now",
+    });
   }
 
   if (input.lot.mode === "flv_inspection") {
@@ -182,13 +194,19 @@ function calculateWindowRisk(
     criticalDays: number;
     expiredDays: number;
   },
+  options: {
+    allowMarkdown?: boolean;
+    expiredCommand?: RiskAssessment["command"];
+  } = {},
 ): RiskAssessment {
   const daysUntilTarget = daysBetween(currentDate, targetDate);
+  const allowMarkdown = options.allowMarkdown ?? true;
+  const expiredCommand = options.expiredCommand ?? "withdraw_now";
 
   if (daysUntilTarget < windows.expiredDays) {
     return {
       state: "expired",
-      command: "withdraw_now",
+      command: expiredCommand,
       reasons: [reason("expired", field)],
     };
   }
@@ -201,7 +219,7 @@ function calculateWindowRisk(
     };
   }
 
-  if (daysUntilTarget <= windows.markdownDays) {
+  if (allowMarkdown && daysUntilTarget <= windows.markdownDays) {
     return {
       state: "markdown_due",
       command: "request_markdown",

@@ -41,8 +41,8 @@ describe("authenticated web shell", () => {
     expect(screen.getByRole("heading", { name: "Ativar conta da loja piloto" })).toBeTruthy();
     const tokenInput = screen.getByRole("textbox", {
       name: "Codigo do convite",
-    }) as HTMLInputElement;
-    expect(tokenInput.value).toBe(token);
+    });
+    expect(tokenInput).toHaveProperty("value", token);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

@@ -40,6 +40,7 @@ export interface ShiftCloseTaskState {
   severity: TodayTaskSeverity;
   requiredResolution:
     | "withdraw_or_loss"
+    | "repack_or_loss"
     | "check_presence"
     | "request_markdown"
     | "approve_markdown"

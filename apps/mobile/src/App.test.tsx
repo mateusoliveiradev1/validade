@@ -28,6 +28,7 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", props, children),
+    Image: (props: Record<string, unknown>) => React.createElement("Image", props),
     TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
@@ -57,6 +58,11 @@ vi.mock("expo-sqlite", () => ({
 }));
 vi.mock("expo-camera", () => ({
   CameraView: () => null,
+  PermissionStatus: {
+    DENIED: "denied",
+    GRANTED: "granted",
+    UNDETERMINED: "undetermined",
+  },
   useCameraPermissions: () => [{ granted: false }, () => Promise.resolve(false)],
 }));
 vi.mock("expo-notifications", () => ({

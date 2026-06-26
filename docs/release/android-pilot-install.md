@@ -37,7 +37,7 @@ Official Expo references checked on 2026-06-23:
    ```powershell
    pnpm.cmd build:android:staging
    ```
-4. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
+5. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
 
 For a local-only emulator build during development, run Metro with:
 

@@ -17,6 +17,7 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", props, children),
+    Image: (props: Record<string, unknown>) => React.createElement("Image", props),
     TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),

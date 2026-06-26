@@ -89,8 +89,8 @@ describe("web authentication flows", () => {
 
     const tokenInput = screen.getByRole("textbox", {
       name: "Codigo do convite",
-    }) as HTMLInputElement;
-    expect(tokenInput.value).toBe(token);
+    });
+    expect(tokenInput).toHaveProperty("value", token);
   });
 
   it("shows password policy before attempting account activation", async () => {

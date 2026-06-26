@@ -131,8 +131,7 @@ export function InviteAdministration({
 
   const canCreate =
     identifier.trim().length > 0 && displayName.trim().length > 0 && expiresAt.trim().length > 0;
-  const activationUrl =
-    invite?.token === undefined ? undefined : createActivationUrl(invite.token);
+  const activationUrl = invite?.token === undefined ? undefined : createActivationUrl(invite.token);
 
   async function copy(value: string, label: string): Promise<void> {
     try {

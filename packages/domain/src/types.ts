@@ -1,4 +1,9 @@
-export const PRODUCT_MODES = ["formal_validity", "flv_inspection", "receiving_monitored"] as const;
+export const PRODUCT_MODES = [
+  "formal_validity",
+  "flv_inspection",
+  "processed_repack_loss",
+  "receiving_monitored",
+] as const;
 
 export type ProductMode = (typeof PRODUCT_MODES)[number];
 
@@ -15,6 +20,7 @@ export type RiskState = (typeof RISK_STATES)[number];
 
 export const OPERATIONAL_COMMANDS = [
   "check_presence",
+  "repack_or_loss",
   "request_markdown",
   "withdraw_now",
   "monitor",
@@ -80,6 +86,14 @@ export interface FormalValidityProduct extends ProductBase {
   };
 }
 
+export interface ProcessedRepackLossProduct extends ProductBase {
+  mode: "processed_repack_loss";
+  lotRequirements: {
+    expiresAt: true;
+    receivedAt?: boolean;
+  };
+}
+
 export interface FlvInspectionProduct extends ProductBase {
   mode: "flv_inspection";
   lotRequirements: {
@@ -98,6 +112,7 @@ export interface ReceivingMonitoredProduct extends ProductBase {
 
 export type ProductDefinition =
   | FormalValidityProduct
+  | ProcessedRepackLossProduct
   | FlvInspectionProduct
   | ReceivingMonitoredProduct;
 
@@ -109,6 +124,12 @@ export interface LotBase {
 
 export interface FormalValidityLotInput extends LotBase {
   mode: "formal_validity";
+  expiresAt: string;
+  receivedAt?: string;
+}
+
+export interface ProcessedRepackLossLotInput extends LotBase {
+  mode: "processed_repack_loss";
   expiresAt: string;
   receivedAt?: string;
 }
@@ -125,7 +146,11 @@ export interface ReceivingMonitoredLotInput extends LotBase {
   receivedAt: string;
 }
 
-export type LotInput = FormalValidityLotInput | FlvInspectionLotInput | ReceivingMonitoredLotInput;
+export type LotInput =
+  | FormalValidityLotInput
+  | ProcessedRepackLossLotInput
+  | FlvInspectionLotInput
+  | ReceivingMonitoredLotInput;
 
 export interface RiskReason {
   code: RiskReasonCode;

@@ -124,7 +124,11 @@ export function PrivacyCenterScreen({
                 <Text style={styles.sectionTitle}>{topic.title}</Text>
                 <Text style={styles.sectionBody}>{topic.summary}</Text>
               </View>
-              <Text style={styles.sectionChevron} accessibilityElementsHidden importantForAccessibility="no">
+              <Text
+                style={styles.sectionChevron}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              >
                 ›
               </Text>
             </View>
@@ -143,7 +147,11 @@ export function PrivacyCenterScreen({
               <Text style={styles.sectionTitle}>{privacyLgpdHubSection.title}</Text>
               <Text style={styles.sectionBody}>{privacyLgpdHubSection.summary}</Text>
             </View>
-            <Text style={styles.sectionChevron} accessibilityElementsHidden importantForAccessibility="no">
+            <Text
+              style={styles.sectionChevron}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
               ↓
             </Text>
           </View>

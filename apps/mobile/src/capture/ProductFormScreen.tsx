@@ -23,6 +23,7 @@ const categoryWindows: Record<
   }
 > = {
   formal_validity: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+  processed_repack_loss: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
   flv_inspection: {
     radarDays: 7,
     markdownDays: 3,
@@ -165,6 +166,10 @@ const styles = StyleSheet.create({
 function firstAlternativeMode(mode: ProductMode): ProductMode {
   if (mode === "formal_validity") {
     return "flv_inspection";
+  }
+
+  if (mode === "flv_inspection") {
+    return "processed_repack_loss";
   }
 
   return "formal_validity";

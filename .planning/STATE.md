@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 09
-status: Executing Phase 09
-stopped_at: Phase 09 planned with 5 executable plans
-last_updated: "2026-06-23T15:04:31.496Z"
-last_activity: 2026-06-23
+status: Phase 09 complete - release blocked on external validation
+stopped_at: Phase 09 plans complete; release remains blocked on Android/provider validation
+last_updated: "2026-06-26T16:09:12.446Z"
+last_activity: 2026-06-26
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 39
-  completed_plans: 36
-  percent: 89
+  completed_plans: 39
+  percent: 100
 ---
 
 # Project State: Validade Zero
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-23 - Fixed Cloudflare staging auth login, redeployed API, and validated admin/lead account for APK testing
+**Last activity:** 2026-06-26 - Completed quick task 260626-i4v: Command Center now carries structured cause data for critical lots
 
 ## Project Reference
 
@@ -43,7 +43,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
-| 9 | Planned | Impeccable Hardening and v1 Readiness - 5/5 plans ready |
+| 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 
 ## Active Constraints
 
@@ -55,7 +55,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
+Verify external release blockers: Android device/emulator coverage and provider-side checks.
 
 ### Quick Tasks Completed
 
@@ -70,6 +70,8 @@ Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
 | 260623-h7v | Polir UI/UX mobile e preparar APK staging | 2026-06-23 | local | Verified | [260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho](./quick/260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho/) |
 | 260623-r8m | Configurar o APK Android staging para usar a API Cloudflare publicada e gerar build EAS interno | 2026-06-23 | 4854228 | Verified | [260623-r8m-configurar-o-apk-android-staging-para-us](./quick/260623-r8m-configurar-o-apk-android-staging-para-us/) |
 | 260623-rq1 | Corrigir login da API staging no Cloudflare ajustando hash de senha para o limite do Worker e validar conta admin lider | 2026-06-23 | e795458 | Verified | [260623-rq1-corrigir-login-da-api-staging-no-cloudfl](./quick/260623-rq1-corrigir-login-da-api-staging-no-cloudfl/) |
+| 260626-hte | Melhorar painel admin Command Center para explicar vencidos, causas do vencimento, gargalos e proximas acoes com graficos operacionais | 2026-06-26 | local | Verified | [260626-hte-melhorar-painel-admin-command-center-par](./quick/260626-hte-melhorar-painel-admin-command-center-par/) |
+| 260626-i4v | Enriquecer Command Center com causa estruturada de vencimento, trilha de auditoria e dados suficientes para explicar por que venceu | 2026-06-26 | pending-final-batch | Verified | [260626-i4v-enriquecer-command-center-com-causa-estr](./quick/260626-i4v-enriquecer-command-center-com-causa-estr/) |
 
 ## Performance Metrics
 
@@ -113,8 +115,8 @@ Run the Phase 9 execution flow: `$gsd-execute-phase 9`.
 ## Session
 
 **Last session:** 2026-06-22T22:31:05.042Z
-**Stopped at:** Phase 09 planned with 5 executable plans
-**Resume file:** .planning/phases/09-impeccable-hardening-and-v1-readiness/09-01-PLAN.md
+**Stopped at:** Phase 09 plans complete; release blocked on external validation
+**Resume file:** docs/release/v1-readiness.md
 
 ## Decisions
 

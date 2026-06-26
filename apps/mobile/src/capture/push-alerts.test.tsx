@@ -8,7 +8,11 @@ import type {
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import { createFakePushAlertChannel, type PushAlertChannel } from "./alert-channel";
-import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
+import {
+  applyAlertDeliveryResult,
+  type CaptureRepository,
+  type TodayTaskRefreshResult,
+} from "./repository";
 import { CaptureApp } from "./CaptureApp";
 import { TodayScreen } from "./TodayScreen";
 
@@ -59,6 +63,11 @@ vi.mock("expo-sqlite", () => ({
 }));
 vi.mock("expo-camera", () => ({
   CameraView: () => null,
+  PermissionStatus: {
+    DENIED: "denied",
+    GRANTED: "granted",
+    UNDETERMINED: "undetermined",
+  },
   useCameraPermissions: () => [{ granted: false }, () => Promise.resolve(false)],
 }));
 vi.mock("@react-native-community/datetimepicker", () => ({
@@ -186,6 +195,23 @@ function createRepository(
   let channel = input.channel ?? null;
   let states = [...(input.alertStates ?? [])];
   const resolveTodayTask = vi.fn();
+  const recordAlertAttempt = vi.fn((command) => {
+    const existing =
+      states.find((state) => state.taskId === command.taskId) ??
+      alertState(tasks.find((task) => task.id === command.taskId) ?? tasks[0]);
+    const recorded = applyAlertDeliveryResult({
+      existing,
+      attemptId: command.attemptId,
+      attemptedAt: command.attemptedAt,
+      result: command.result,
+    });
+
+    states = states.some((state) => state.taskId === recorded.taskId)
+      ? states.map((state) => (state.taskId === recorded.taskId ? recorded : state))
+      : [...states, recorded];
+
+    return Promise.resolve(recorded);
+  });
   const acknowledgeEscalation = vi.fn((command) => {
     const existing =
       states.find((state) => state.taskId === command.taskId) ?? alertState(tasks[0]);
@@ -219,7 +245,7 @@ function createRepository(
     loadAlertChannelState: () => Promise.resolve(channel),
     refreshTaskAlertStates: () => Promise.resolve(states),
     listTaskAlertStates: () => Promise.resolve(states),
-    recordAlertAttempt: () => Promise.reject(new Error("not used")),
+    recordAlertAttempt,
     acknowledgeEscalation,
     resolvePushOpenIntent: (payload) =>
       Promise.resolve(
@@ -230,7 +256,7 @@ function createRepository(
       ),
   };
 
-  return { repository, resolveTodayTask, acknowledgeEscalation };
+  return { repository, resolveTodayTask, recordAlertAttempt, acknowledgeEscalation };
 }
 
 async function renderToday(input: {
@@ -359,11 +385,64 @@ describe("Hoje push alert UI", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain(
-      "Alertas remotos precisam da configuracao Android do Firebase neste APK.",
+      "Lembretes locais do turno ativos neste aparelho. O push remoto ainda precisa do Firebase no APK.",
     );
     expect(rendered).not.toContain("Unable to get Firebase Messaging");
     expect(rendered).not.toContain("googleServicesFile");
     expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+  });
+
+  it("falls back to local-only reminders when the native build has no Firebase token", async () => {
+    const task = expiredTask();
+    const localChannel = createFakePushAlertChannel({
+      permissionState: "active",
+      tokenResult: {
+        state: "failed",
+        reason: "Unable to get Firebase Messaging instance. Did you configure googleServicesFile?",
+      },
+      clock: () => "2030-01-10T09:00:00.000Z",
+    });
+    const { repository, recordAlertAttempt } = createRepository({
+      channel: null,
+      tasks: [task],
+      alertStates: [
+        alertState(task, {
+          attemptState: "pending",
+          channelState: "active",
+          lastReminderAt: undefined,
+        }),
+      ],
+    });
+    const tree = await renderToday({ repository, alertChannel: localChannel });
+    const activate = tree.root.findByProps({ accessibilityLabel: "Ativar alertas do turno" });
+
+    await act(async () => {
+      activate.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const registrationState = await repository.loadAlertChannelState();
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(registrationState).toMatchObject({ permissionStatus: "local_only" });
+    expect(localChannel.scheduledNotifications).toHaveLength(1);
+    expect(localChannel.scheduledNotifications[0]?.command.data).toEqual({
+      taskId: task.id,
+      taskActiveKey: task.activeKey,
+    });
+    expect(recordAlertAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: task.id,
+        taskActiveKey: task.activeKey,
+        result: { status: "ok" },
+      }),
+    );
+    expect(rendered).toContain(
+      "Lembretes locais do turno ativos neste aparelho. O push remoto ainda precisa do Firebase no APK.",
+    );
+    expect(rendered).not.toContain("Unable to get Firebase Messaging");
+    expect(rendered).not.toContain("googleServicesFile");
   });
 
   it("shows escalation acknowledgement while keeping the task visible", async () => {

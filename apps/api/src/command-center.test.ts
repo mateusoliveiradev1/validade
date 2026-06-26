@@ -19,6 +19,20 @@ const projection = {
       label: "Folhas FICTICIAS - lote FOL-001",
       locationLabel: "Area de venda",
       reason: "Validade vencida exige retirada.",
+      cause: {
+        code: "formal_expiry_passed",
+        label: "Prazo formal ja passou",
+        detail: "Validade vencida exige retirada.",
+        actionLabel: "Retirar, registrar destino e reconferir a gondola",
+        riskState: "expired",
+        requiredResolution: "withdraw_or_loss",
+        responsibleLabel: "Colaborador FICTICIO",
+        sourceEventId: "audit-ficticio-001",
+        sourceEventSummary: "Lote vencido detectado.",
+        firstDetectedAt: "2030-01-10T10:00:00.000Z",
+        lastObservedAt: "2030-01-10T10:05:00.000Z",
+        lastAttemptedAt: "2030-01-10T10:10:00.000Z",
+      },
     },
   ],
   overdueTasks: [
@@ -93,7 +107,7 @@ describe("Command Center API", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       verdict: { state: "blocked" },
-      criticalLots: [{ lotId: "lot-critico-001" }],
+      criticalLots: [{ lotId: "lot-critico-001", cause: { code: "formal_expiry_passed" } }],
       pendingEvidence: [{ state: "failed" }],
       syncConflicts: [{ conflictId: "conflict-001" }],
     });

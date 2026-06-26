@@ -102,10 +102,11 @@ describe("InviteAdministration", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Criar convite de acesso" }));
 
-    const linkInput = (await screen.findByLabelText(
-      "Link de ativacao do convite",
-    )) as HTMLInputElement;
-    expect(linkInput.value).toContain("?invite=invite-token-para-abrir-primeiro-acesso");
+    const linkInput = await screen.findByLabelText("Link de ativacao do convite");
+    expect(linkInput).toHaveProperty(
+      "value",
+      expect.stringContaining("?invite=invite-token-para-abrir-primeiro-acesso"),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir ativacao preenchida" }));
 
@@ -151,7 +152,10 @@ describe("InviteAdministration", () => {
       "fetch",
       vi.fn(() =>
         Promise.resolve(
-          Response.json({ error: "invalid_invite_expiry" }, { status: 400, statusText: "Bad Request" }),
+          Response.json(
+            { error: "invalid_invite_expiry" },
+            { status: 400, statusText: "Bad Request" },
+          ),
         ),
       ),
     );

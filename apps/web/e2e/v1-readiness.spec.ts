@@ -9,7 +9,9 @@ test("Command Center answers safety first and keeps the operational funnel in or
 
   await expect(page.getByRole("heading", { name: "Area de venda segura agora?" })).toBeVisible();
   await expect(page.getByText("Area de venda com bloqueios")).toBeVisible();
-  await expect(page.getByText("Folhas FICTICIAS - lote FOL-001")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Folhas FICTICIAS - lote FOL-001" }),
+  ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navegacao principal" })).toBeVisible();
   await expect(page.getByText("Ambiente seguro para desenvolvimento")).toHaveCount(0);
   await page.keyboard.press("Tab");

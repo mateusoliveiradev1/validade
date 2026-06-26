@@ -80,7 +80,7 @@ import {
   type LoginAttemptLimiter,
   type RecoveryDeliveryProvider,
 } from "./authentication";
-import { createInMemoryCommandCenterService, type CommandCenterService } from "./command-center";
+import { createAuditBackedCommandCenterService, type CommandCenterService } from "./command-center";
 import {
   createDatabaseEvidenceRepository,
   createEvidenceService,
@@ -142,8 +142,6 @@ export function createApiApp(input?: {
   const providers = createLocalProviderRegistry();
   const now = input?.now ?? (() => new Date());
   const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
-  const commandCenterService =
-    input?.commandCenterService ?? createInMemoryCommandCenterService({ now });
   const membershipManagementRepository =
     input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined
@@ -182,6 +180,12 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryAuditRepository()
       : createDatabaseAuditRepository(input.databaseUrl));
+  const commandCenterService =
+    input?.commandCenterService ??
+    createAuditBackedCommandCenterService({
+      auditRepository,
+      now,
+    });
   const auditService = createAuditService({ repository: auditRepository, now });
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
@@ -283,6 +287,8 @@ export function createApiApp(input?: {
   });
 
   api.post("/sync/commands", async (context) => {
+    const storeId = context.req.query("storeId") ?? "loja-piloto";
+    const storeName = normalizeStoreName(context.req.query("storeName"), storeId);
     let rawPayload: unknown;
 
     try {
@@ -298,6 +304,19 @@ export function createApiApp(input?: {
     }
 
     const results = await syncCommandService.handleBatch(parsed.data);
+
+    try {
+      await recordSyncAuditEvents({
+        auditRepository,
+        batch: parsed.data,
+        results,
+        storeId,
+        storeName,
+        receivedAt: now().toISOString(),
+      });
+    } catch {
+      return context.json({ error: "sync_audit_failed" }, 503);
+    }
 
     return context.json({
       results: results.map((result) => SyncTransportResultSchema.parse(result)),
@@ -969,6 +988,79 @@ function createConfiguredNeonAuthRepository(
   return createNeonAuthRepository({ connectionString: databaseUrl, secrets });
 }
 
+async function recordSyncAuditEvents(input: {
+  auditRepository: AuditEventRepository;
+  batch: SyncTransportBatch;
+  results: readonly SyncTransportResult[];
+  storeId: string;
+  storeName: string;
+  receivedAt: string;
+}): Promise<void> {
+  const resultByCommandId = new Map(input.results.map((result) => [result.commandId, result]));
+
+  for (const command of input.batch.commands) {
+    const result = resultByCommandId.get(command.id);
+    if (result === undefined) continue;
+
+    const idempotencyKey = safeAuditIdentifier(
+      `sync:${input.storeId}:${command.id}:${result.status}`,
+    );
+
+    await input.auditRepository.append(
+      AuditEventRecordSchema.parse({
+        eventId: safeAuditIdentifier(`audit:${idempotencyKey}`),
+        idempotencyKey,
+        type: "sync.changed",
+        store: {
+          storeId: input.storeId,
+          storeName: input.storeName,
+        },
+        actor: {
+          actorId: safeAuditIdentifier(`device:${input.batch.deviceId}`),
+          displayName: command.payload.payload.actorLabel,
+          roleSnapshot: "collaborator",
+        },
+        target: {
+          type: "sync_command",
+          id: command.id,
+          label: syncTargetLabel(command),
+        },
+        occurredAt: command.payload.payload.occurredAt,
+        receivedAt: input.receivedAt,
+        summary: syncAuditSummary(command, result),
+        ...(result.status === "conflict" ? { reason: result.conflict.reason } : {}),
+        status:
+          result.status === "conflict"
+            ? "conflict"
+            : result.status === "retry"
+              ? "pending_ack"
+              : "received",
+        metadata: compactMetadata({
+          commandKind: command.kind,
+          resultStatus: result.status,
+          taskId: command.taskId,
+          lotId: command.lotId,
+          productDisplayName: command.productDisplayName,
+          lotIdentityValue: "value" in command.lotIdentity ? command.lotIdentity.value : undefined,
+          locationKind: command.currentLocation.kind,
+          riskState: command.riskState,
+          requiredResolution: command.requiredResolution,
+          commandCreatedAt: command.createdAt,
+          commandSavedAt: command.savedAt,
+          commandUpdatedAt: command.updatedAt,
+          lastAttemptedAt: command.lastAttemptedAt,
+          action:
+            command.payload.kind === "resolve_task" ? command.payload.payload.action : undefined,
+          actorLabel: command.payload.payload.actorLabel,
+          deviceId: input.batch.deviceId,
+          ...(result.status === "conflict" ? { conflictId: result.conflict.id } : {}),
+          ...(result.status === "retry" ? { retryLabel: result.error } : {}),
+        }),
+      }),
+    );
+  }
+}
+
 export function createInMemorySyncCommandService(input?: {
   now?: () => string;
   retryIdempotencyKeys?: readonly string[];
@@ -1011,6 +1103,63 @@ export function createInMemorySyncCommandService(input?: {
       return results;
     },
   };
+}
+
+function syncTargetLabel(command: SyncCommandRecord): string {
+  const lotCode = "value" in command.lotIdentity ? command.lotIdentity.value : command.lotId;
+  return `${command.productDisplayName} - lote ${lotCode}`;
+}
+
+function syncAuditSummary(command: SyncCommandRecord, result: SyncTransportResult): string {
+  if (result.status === "conflict") {
+    return "Acao mobile sincronizada com conflito para revisao.";
+  }
+
+  if (result.status === "retry") {
+    return "Acao mobile aguardando nova tentativa de sincronizacao.";
+  }
+
+  if (command.kind === "request_markdown") {
+    return "Solicitacao de rebaixa sincronizada pelo mobile.";
+  }
+
+  if (command.kind === "decide_markdown") {
+    return "Decisao de rebaixa sincronizada pelo mobile.";
+  }
+
+  if (command.kind === "record_markdown_application") {
+    return "Aplicacao de rebaixa sincronizada pelo mobile.";
+  }
+
+  if (command.kind === "confirm_markdown_on_shelf") {
+    return "Conferencia de etiqueta sincronizada pelo mobile.";
+  }
+
+  return "Acao operacional sincronizada pelo mobile.";
+}
+
+function normalizeStoreName(value: string | undefined, storeId: string): string {
+  const trimmed = value?.trim();
+  if (trimmed !== undefined && trimmed.length > 0) return trimmed.slice(0, 240);
+  if (storeId === "loja-piloto") return "Loja Piloto - Staging";
+  return storeId.slice(0, 240);
+}
+
+function safeAuditIdentifier(value: string): string {
+  const safe = value.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 160);
+  return safe.length === 0 ? "sync-event" : safe;
+}
+
+function compactMetadata(
+  value: Record<string, string | number | boolean | null | undefined>,
+): Record<string, string | number | boolean | null> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        (entry): entry is [string, string | number | boolean | null] => entry[1] !== undefined,
+      )
+      .map(([key, item]) => [key, typeof item === "string" ? item.slice(0, 240) : item]),
+  );
 }
 
 function buildSyncResult(

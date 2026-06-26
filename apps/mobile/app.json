@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#166534"
+      "backgroundColor": "#F7F9F8"
     },
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
@@ -33,7 +33,7 @@
       "package": "com.validadezero.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#166534"
+        "backgroundColor": "#F7F9F8"
       }
     },
     "owner": "liiiraak1ng"

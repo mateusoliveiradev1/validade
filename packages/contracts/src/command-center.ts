@@ -12,12 +12,36 @@ export const CommandCenterVerdictSchema = z
   })
   .strict();
 
+export const CommandCenterCriticalLotCauseSchema = z
+  .object({
+    code: z.enum([
+      "formal_expiry_passed",
+      "quality_window_expired",
+      "sync_conflict",
+      "sync_retry",
+      "critical_unresolved",
+    ]),
+    label: RequiredTextSchema,
+    detail: RequiredTextSchema,
+    actionLabel: RequiredTextSchema,
+    riskState: z.enum(["expired", "critical"]).optional(),
+    requiredResolution: RequiredTextSchema.optional(),
+    responsibleLabel: RequiredTextSchema.optional(),
+    sourceEventId: IdentifierSchema.optional(),
+    sourceEventSummary: RequiredTextSchema.optional(),
+    firstDetectedAt: IsoDateTimeSchema.optional(),
+    lastObservedAt: IsoDateTimeSchema.optional(),
+    lastAttemptedAt: IsoDateTimeSchema.optional(),
+  })
+  .strict();
+
 export const CommandCenterCriticalLotSchema = z
   .object({
     lotId: IdentifierSchema,
     label: RequiredTextSchema,
     locationLabel: RequiredTextSchema,
     reason: RequiredTextSchema,
+    cause: CommandCenterCriticalLotCauseSchema,
   })
   .strict();
 

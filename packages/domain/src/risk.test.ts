@@ -157,6 +157,40 @@ describe("FLV quality-window and missing-data uncertainty", () => {
 });
 
 describe("risk severity precedence and product overrides", () => {
+  it("keeps processed items out of markdown and requires repack or loss when expired", () => {
+    const markdownWindow = calculateLotRisk({
+      currentDate,
+      categoryProfile: {
+        categoryId: "categoria-ficticia-processados",
+        mode: "processed_repack_loss",
+      },
+      lot: {
+        mode: "processed_repack_loss",
+        productId: "produto-ficticio-melancia-processada-001",
+        lotCode: "LOTE-FICTICIO-MELANCIA-001",
+        expiresAt: "2026-07-04",
+      },
+    });
+    const expired = calculateLotRisk({
+      currentDate,
+      categoryProfile: {
+        categoryId: "categoria-ficticia-processados",
+        mode: "processed_repack_loss",
+      },
+      lot: {
+        mode: "processed_repack_loss",
+        productId: "produto-ficticio-melancia-processada-001",
+        lotCode: "LOTE-FICTICIO-MELANCIA-001",
+        expiresAt: "2026-06-18",
+      },
+    });
+
+    expect(markdownWindow.state).toBe("radar");
+    expect(markdownWindow.command).toBe("monitor");
+    expect(expired.state).toBe("expired");
+    expect(expired.command).toBe("repack_or_loss");
+  });
+
   it("keeps expired dominating markdown_due and lower states", () => {
     const result = calculateLotRisk(formalValidityInput("2026-06-18"));
 

@@ -1,4 +1,4 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, PermissionStatus, useCameraPermissions } from "expo-camera";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -22,7 +22,8 @@ export function BarcodeLookupAssistant({
     );
 
   if (!permission.granted) {
-    const blocked = permission.status === "denied" && permission.canAskAgain === false;
+    const blocked =
+      permission.status === PermissionStatus.DENIED && permission.canAskAgain === false;
 
     return (
       <View style={styles.screen}>

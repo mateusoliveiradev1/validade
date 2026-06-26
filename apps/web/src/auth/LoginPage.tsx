@@ -98,7 +98,11 @@ export function AuthFrame({
       <div className="grid w-full max-w-md overflow-hidden rounded-xl border bg-card lg:max-w-6xl lg:grid-cols-[minmax(0,1.15fr)_minmax(23rem,0.85fr)]">
         <aside className="hidden bg-secondary/70 p-10 lg:grid lg:content-between lg:gap-12">
           <div className="grid max-w-lg gap-5">
-            <p className="text-sm font-semibold text-primary">Operacao de risco zero</p>
+            <img
+              src="/brand-horizontal.png"
+              alt="Validade Zero - Operacao de risco zero"
+              className="h-auto w-full max-w-sm"
+            />
             <h2 className="max-w-md text-3xl font-semibold tracking-[-0.03em] text-balance">
               Acesso operacional para confirmar o que esta na area de venda.
             </h2>
@@ -129,7 +133,11 @@ export function AuthFrame({
           aria-labelledby="auth-title"
         >
           <header className="grid gap-2">
-            <p className="text-sm font-semibold text-primary lg:hidden">Operacao de risco zero</p>
+            <img
+              src="/brand-horizontal.png"
+              alt="Validade Zero - Operacao de risco zero"
+              className="mb-1 h-auto w-full max-w-[18rem] lg:hidden"
+            />
             <h1
               id="auth-title"
               className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]"

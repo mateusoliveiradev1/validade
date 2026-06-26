@@ -4,6 +4,15 @@ import { AlertDispatchCommandSchema, type AlertDispatchCommand } from "@validade
 declare const require: (moduleName: string) => unknown;
 
 interface ExpoNotificationsPort {
+  setNotificationHandler?(handler: {
+    handleNotification(): Promise<{
+      shouldShowBanner: boolean;
+      shouldShowList: boolean;
+      shouldPlaySound: boolean;
+      shouldSetBadge: boolean;
+      priority?: "min" | "low" | "default" | "high" | "max";
+    }>;
+  }): void;
   getPermissionsAsync(): Promise<{ status: string }>;
   requestPermissionsAsync(): Promise<{ status: string }>;
   getExpoPushTokenAsync(input: { projectId: string }): Promise<{ data: string }>;
@@ -106,6 +115,7 @@ export function createExpoPushAlertChannel(
   const clock = dependencies.clock ?? (() => new Date().toISOString());
   const responseHandlers = new Set<(payload: PushNotificationResponsePayload) => void>();
   let responseSubscription: { remove(): void } | undefined;
+  let notificationHandlerConfigured = false;
 
   return {
     async getPermissionState() {
@@ -233,6 +243,7 @@ export function createExpoPushAlertChannel(
       return;
     }
 
+    configureNotificationPresentation(notifications);
     responseSubscription = notifications.addNotificationResponseReceivedListener((response) => {
       const payload = parsePushNotificationResponseData(
         response.notification.request.content.data,
@@ -247,6 +258,24 @@ export function createExpoPushAlertChannel(
         handler(payload);
       }
     });
+  }
+
+  function configureNotificationPresentation(notifications: ExpoNotificationsPort): void {
+    if (notificationHandlerConfigured || notifications.setNotificationHandler === undefined) {
+      return;
+    }
+
+    notifications.setNotificationHandler({
+      handleNotification: () =>
+        Promise.resolve({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          priority: "high",
+        }),
+    });
+    notificationHandlerConfigured = true;
   }
 }
 

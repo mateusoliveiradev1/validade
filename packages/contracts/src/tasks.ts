@@ -165,11 +165,15 @@ export const TodayTaskRecordSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.section === "withdraw_now" && value.requiredResolution !== "withdraw_or_loss") {
+    if (
+      value.section === "withdraw_now" &&
+      value.requiredResolution !== "withdraw_or_loss" &&
+      value.requiredResolution !== "repack_or_loss"
+    ) {
       context.addIssue({
         code: "custom",
         path: ["requiredResolution"],
-        message: "Withdraw-now tasks must require withdrawal or loss.",
+        message: "Withdraw-now tasks must require immediate removal, repack, or loss.",
       });
     }
   });

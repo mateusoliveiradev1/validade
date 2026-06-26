@@ -16,7 +16,8 @@ import {
   type SessionContextResponse,
   type PrivacyTopicId,
 } from "@validade-zero/contracts";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import brandSymbol from "../../assets/brand-symbol.png";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
 import { FirstAccessScreen } from "./FirstAccessScreen";
@@ -404,9 +405,12 @@ export function AuthGate({
 function SessionLoadingScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <View style={styles.seal} accessibilityLabel="Validade Zero - Operacao de risco zero">
-        <Text style={styles.sealMark}>VZ</Text>
-      </View>
+      <Image
+        accessibilityLabel="Validade Zero - Operacao de risco zero"
+        resizeMode="contain"
+        source={brandSymbol}
+        style={styles.brandSymbol}
+      />
       <ScreenHeader title="Operacao de risco zero" body="Verificando sua sessao com seguranca..." />
       <StatusNotice>
         O acesso operacional so abre depois da confirmacao da sua conta e loja.
@@ -469,7 +473,7 @@ function roleLabel(role: SessionContextResponse["activeRole"]): string {
   return "Operacao";
 }
 
-function configuredApiBaseUrl(): string {
+export function configuredApiBaseUrl(): string {
   const value =
     normalizeApiBaseUrl((process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL) ||
     normalizeApiBaseUrl(apiUrlFromExpoConfig()) ||
@@ -552,6 +556,11 @@ const styles = StyleSheet.create({
     height: 144,
     justifyContent: "center",
     width: 144,
+  },
+  brandSymbol: {
+    alignSelf: "center",
+    height: 96,
+    width: 96,
   },
   sealMark: {
     color: captureColors.onAccent,

@@ -94,6 +94,11 @@ export const CaptureLotInputSchema = z.discriminatedUnion("mode", [
     receivedAt: IsoDateSchema.optional(),
   }).strict(),
   CaptureLotBaseSchema.extend({
+    mode: z.literal("processed_repack_loss"),
+    expiresAt: IsoDateSchema,
+    receivedAt: IsoDateSchema.optional(),
+  }).strict(),
+  CaptureLotBaseSchema.extend({
     mode: z.literal("flv_inspection"),
     receivedAt: IsoDateSchema,
     qualityInspectionDueAt: IsoDateSchema.optional(),

@@ -7,6 +7,7 @@ import {
   type FlvInspectionLotInput,
   type FormalValidityLotInput,
   type LotInput,
+  type ProcessedRepackLossLotInput,
   type ProductDefinition,
 } from "./types";
 
@@ -16,7 +17,12 @@ function modeForLot(lot: LotInput) {
 
 describe("domain product and risk vocabulary", () => {
   it("exports the locked product modes, risk states, commands, and reason codes", () => {
-    expect(PRODUCT_MODES).toEqual(["formal_validity", "flv_inspection", "receiving_monitored"]);
+    expect(PRODUCT_MODES).toEqual([
+      "formal_validity",
+      "flv_inspection",
+      "processed_repack_loss",
+      "receiving_monitored",
+    ]);
     expect(RISK_STATES).toEqual([
       "safe",
       "radar",
@@ -27,6 +33,7 @@ describe("domain product and risk vocabulary", () => {
     ]);
     expect(OPERATIONAL_COMMANDS).toEqual([
       "check_presence",
+      "repack_or_loss",
       "request_markdown",
       "withdraw_now",
       "monitor",
@@ -60,9 +67,16 @@ describe("domain product and risk vocabulary", () => {
       receivedAt: "2030-01-10",
       qualityWindowDays: 4,
     };
+    const processedLot: ProcessedRepackLossLotInput = {
+      mode: "processed_repack_loss",
+      productId: "produto-ficticio-melancia-processada-001",
+      lotCode: "LOTE-FICTICIO-MELANCIA-001",
+      expiresAt: "2030-01-11",
+    };
 
     expect(modeForLot(formalValidityLot)).toBe("formal_validity");
     expect(modeForLot(flvInspectionLot)).toBe("flv_inspection");
+    expect(modeForLot(processedLot)).toBe("processed_repack_loss");
     expect(formalValidityLot).toHaveProperty("expiresAt");
     expect(flvInspectionLot).not.toHaveProperty("expiresAt");
     expect(flvInspectionLot).toHaveProperty("qualityWindowDays");
@@ -80,6 +94,15 @@ describe("domain product and risk vocabulary", () => {
         },
       },
       {
+        mode: "processed_repack_loss",
+        productId: "produto-ficticio-melancia-processada-001",
+        categoryId: "categoria-ficticia-processados",
+        displayName: "Melancia Processada Ficticia",
+        lotRequirements: {
+          expiresAt: true,
+        },
+      },
+      {
         mode: "flv_inspection",
         productId: "produto-ficticio-maca-001",
         categoryId: "categoria-ficticia-flv",
@@ -91,9 +114,14 @@ describe("domain product and risk vocabulary", () => {
       },
     ];
 
-    expect(products.map((product) => product.mode)).toEqual(["formal_validity", "flv_inspection"]);
+    expect(products.map((product) => product.mode)).toEqual([
+      "formal_validity",
+      "processed_repack_loss",
+      "flv_inspection",
+    ]);
     expect(products[0]?.lotRequirements).toEqual({ expiresAt: true });
-    expect(products[1]?.lotRequirements).toEqual({
+    expect(products[1]?.lotRequirements).toEqual({ expiresAt: true });
+    expect(products[2]?.lotRequirements).toEqual({
       receivedAt: true,
       qualityWindowDays: true,
     });

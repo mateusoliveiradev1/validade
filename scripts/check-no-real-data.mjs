@@ -14,6 +14,7 @@ const ignoredSegments = new Set([
   "coverage",
   ".turbo",
   ".expo",
+  ".wrangler",
   "playwright-report",
   "test-results",
 ]);

@@ -7,12 +7,14 @@ import { MobileAuthError } from "./auth-errors";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
-const expoConstantsMock = vi.hoisted(() => ({
+const expoConstantsMock = vi.hoisted<{
+  expoConfig: { extra?: Record<string, unknown> | null } | null;
+}>(() => ({
   expoConfig: {
     extra: {
       EXPO_PUBLIC_API_URL: "https://validade-zero-api-staging.validadezero.workers.dev/",
     },
-  } as { extra?: Record<string, unknown> | null } | null,
+  },
 }));
 
 vi.mock("react-native", async () => {
@@ -25,6 +27,7 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", props, children),
+    Image: (props: Record<string, unknown>) => React.createElement("Image", props),
     TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
@@ -183,8 +186,9 @@ describe("mobile auth flow", () => {
     const fetchMock = vi.fn(() => Promise.resolve(new Response(undefined, { status: 401 })));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession())
-      .rejects.toMatchObject({ code: "session_expired" });
+    await expect(
+      createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession(),
+    ).rejects.toMatchObject({ code: "session_expired" });
   });
 
   it("does not show a pre-login warning when the initial session check cannot connect", async () => {

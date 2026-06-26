@@ -11,10 +11,27 @@ export default function appConfig() {
   const googleServicesPath = isAbsolute(googleServicesFile)
     ? googleServicesFile
     : join(configDirectory, googleServicesFile);
+  const buildProfile = process.env.EAS_BUILD_PROFILE;
   const android = { ...expo.android };
 
-  if (existsSync(googleServicesPath) || process.env.GOOGLE_SERVICES_FILE !== undefined) {
+  if (existsSync(googleServicesPath)) {
     android.googleServicesFile = googleServicesFile;
+  } else if (process.env.GOOGLE_SERVICES_FILE !== undefined) {
+    throw new Error(
+      [
+        "GOOGLE_SERVICES_FILE points to a missing file.",
+        `Checked ${googleServicesPath}.`,
+        "Point it to the Firebase Android google-services.json before running the build.",
+      ].join(" "),
+    );
+  } else if (buildProfile === "staging" || buildProfile === "pilot") {
+    throw new Error(
+      [
+        "Android push is required for this EAS profile.",
+        `Place Firebase google-services.json at ${join(configDirectory, "google-services.json")}`,
+        "or set GOOGLE_SERVICES_FILE to an existing file before running the build.",
+      ].join(" "),
+    );
   }
 
   return {

@@ -44,7 +44,7 @@ export const DevicePushRegistrationCommandSchema = z
     deviceId: IdentifierSchema,
     deviceLabel: RequiredTextSchema,
     audienceRole: z.enum(["collaborator", "shift_team", "leadership"]),
-    permissionStatus: z.enum(["not_requested", "granted", "denied", "unavailable"]),
+    permissionStatus: z.enum(["not_requested", "granted", "local_only", "denied", "unavailable"]),
     expoPushToken: RequiredTextSchema.max(240).optional(),
     registeredAt: IsoDateTimeSchema,
   })

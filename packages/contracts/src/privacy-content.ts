@@ -31,13 +31,12 @@ const privacyTopicsSource: readonly PrivacyTopicContent[] = [
     id: "privacy_policy",
     title: "Politica de Privacidade",
     tag: "Dados do piloto",
-    summary:
-      "Explica como o piloto usa dados para operar com seguranca e responder a direitos.",
+    summary: "Explica como o piloto usa dados para operar com seguranca e responder a direitos.",
     detail:
       "Nada aqui substitui a confirmacao fisica: os dados servem para registrar a rotina e manter riscos visiveis.",
     paragraphs: [
       "O Validade Zero no piloto usa dados operacionais para registrar evidencias, orientar tarefas e manter a area de venda segura.",
-      "Nao coletamos dados de venda, estoque interno da rede ou previsoes comerciais. O foco e o que foi observado e confirmado na loja piloto.",
+      "Nao coletamos dados de venda, estoque interno ou previsoes comerciais. O foco e o que foi observado e confirmado na loja piloto.",
       "Identidade, loja, papel, acoes fisicas, lotes, tarefas, evidencias, horarios, auditoria e sincronizacao sao tratados apenas para operar o piloto e responder solicitacoes de direitos.",
       "As informacoes ficam vinculadas a conta e a loja autorizada. Quando o acesso deixa de ser valido, a organizacao deve revisar vinculos e retencao conforme sua politica interna.",
       "Voce pode pedir acesso, correcao, exclusao, portabilidade ou informacoes sobre o tratamento pelo formulario LGPD deste centro ou pelo canal da loja.",

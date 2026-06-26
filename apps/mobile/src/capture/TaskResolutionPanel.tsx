@@ -27,6 +27,7 @@ import { captureColors, captureSpacing } from "./capture-theme";
 
 const STANDARD_RESOLUTION_ACTIONS = [
   "withdraw",
+  "repack",
   "record_loss",
   "confirm_presence",
   "request_markdown",
@@ -36,6 +37,10 @@ const STANDARD_RESOLUTION_ACTIONS = [
 ] as const satisfies readonly TaskResolutionAction[];
 
 const RECHECK_ACTIONS = ["complete_recheck"] as const satisfies readonly TaskResolutionAction[];
+const REPACK_OR_LOSS_ACTIONS = [
+  "repack",
+  "record_loss",
+] as const satisfies readonly TaskResolutionAction[];
 const MARKDOWN_STAGE_RESOLUTIONS = [
   "approve_markdown",
   "apply_markdown",
@@ -94,7 +99,9 @@ export function TaskResolutionPanel({
       setBlockingNotice(
         task.requiredResolution === "withdraw_or_loss"
           ? todayCopy.expiredAction
-          : todayCopy.incompatibleAction,
+          : task.requiredResolution === "repack_or_loss"
+            ? todayCopy.processedExpiredAction
+            : todayCopy.incompatibleAction,
       );
       return;
     }
@@ -128,7 +135,9 @@ export function TaskResolutionPanel({
       setBlockingNotice(
         task.requiredResolution === "withdraw_or_loss"
           ? todayCopy.expiredAction
-          : todayCopy.incompatibleAction,
+          : task.requiredResolution === "repack_or_loss"
+            ? todayCopy.processedExpiredAction
+            : todayCopy.incompatibleAction,
       );
       return;
     }
@@ -646,6 +655,10 @@ function actionsForTask(task: TodayTaskRecord): readonly TaskResolutionAction[] 
     return RECHECK_ACTIONS;
   }
 
+  if (task.requiredResolution === "repack_or_loss") {
+    return REPACK_OR_LOSS_ACTIONS;
+  }
+
   return STANDARD_RESOLUTION_ACTIONS;
 }
 
@@ -711,6 +724,7 @@ function markdownEvidenceRequiredCopy(task: TodayTaskRecord): string {
 function actionNeedsConfirmation(action: TaskResolutionAction): boolean {
   return (
     action === "withdraw" ||
+    action === "repack" ||
     action === "record_loss" ||
     action === "mark_not_found" ||
     action === "mark_probably_sold_out" ||
@@ -723,7 +737,7 @@ function createsSalesAreaRecheck(task: TodayTaskRecord, action: TaskResolutionAc
   return (
     task.currentLocation.kind === "area_de_venda" &&
     (task.riskState === "expired" || task.riskState === "critical") &&
-    (action === "withdraw" || action === "record_loss")
+    (action === "withdraw" || action === "repack" || action === "record_loss")
   );
 }
 
@@ -742,6 +756,10 @@ function confirmationSummary(
 
   if (action === "withdraw" || action === "record_loss") {
     lines.push(todayCopy.destinationLoss);
+  }
+
+  if (action === "repack") {
+    lines.push("Destino: reembalagem com nova identificacao do processado.");
   }
 
   if (evidence !== undefined) {

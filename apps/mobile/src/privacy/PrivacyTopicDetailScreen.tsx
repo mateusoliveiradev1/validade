@@ -1,8 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import {
-  privacyTopicParagraphs,
-  type PrivacyTopicContent,
-} from "@validade-zero/contracts";
+import { privacyTopicParagraphs, type PrivacyTopicContent } from "@validade-zero/contracts";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import { ScreenHeader, SecondaryAction } from "../capture/capture-ui";
 

@@ -19,6 +19,20 @@ const projection = {
       label: "Folhas FICTICIAS - lote FOL-001",
       locationLabel: "Area de venda",
       reason: "Validade vencida exige retirada.",
+      cause: {
+        code: "formal_expiry_passed",
+        label: "Prazo formal ja passou",
+        detail: "Lote vencido ainda nao tem confirmacao central de retirada.",
+        actionLabel: "Retirar, registrar destino e reconferir a gondola",
+        riskState: "expired",
+        requiredResolution: "withdraw_or_loss",
+        responsibleLabel: "Colaborador FICTICIO",
+        sourceEventId: "audit-sync-ficticio-001",
+        sourceEventSummary: "Sync da retirada ainda nao foi confirmado.",
+        firstDetectedAt: "2030-01-10T10:00:00.000Z",
+        lastObservedAt: "2030-01-10T10:05:00.000Z",
+        lastAttemptedAt: "2030-01-10T10:10:00.000Z",
+      },
     },
   ],
   overdueTasks: [
@@ -68,7 +82,14 @@ describe("CommandCenter", () => {
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
+    expect(screen.getByText("Por que venceu")).toBeTruthy();
+    expect(screen.getByText("Grafico de gargalos")).toBeTruthy();
+    expect(screen.getByText("Prazo formal ja passou")).toBeTruthy();
+    expect(screen.getByText("Colaborador FICTICIO")).toBeTruthy();
+    expect(screen.getByText("Sync da retirada ainda nao foi confirmado.")).toBeTruthy();
+    expect(screen.getByText("Retirar, registrar destino e reconferir a gondola")).toBeTruthy();
     const text = document.body.textContent ?? "";
+    expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Lotes criticos"));
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));
     expect(text.indexOf("Rebaixas pendentes")).toBeLessThan(

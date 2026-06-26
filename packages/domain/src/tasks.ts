@@ -29,6 +29,7 @@ export type TodayDueBucket = (typeof TODAY_DUE_BUCKETS)[number];
 
 export const REQUIRED_RESOLUTIONS = [
   "withdraw_or_loss",
+  "repack_or_loss",
   "check_presence",
   "request_markdown",
   "approve_markdown",
@@ -41,6 +42,7 @@ export type RequiredResolution = (typeof REQUIRED_RESOLUTIONS)[number];
 
 export const TASK_RESOLUTION_ACTIONS = [
   "withdraw",
+  "repack",
   "record_loss",
   "confirm_presence",
   "request_markdown",
@@ -132,7 +134,7 @@ export function deriveTodayTaskCandidate(
     return null;
   }
 
-  const requiredResolution = requiredResolutionForRisk(input.assessment.state);
+  const requiredResolution = requiredResolutionForAssessment(input.assessment);
   const candidate: TodayTaskCandidate = {
     activeKey: createTodayTaskActiveKey({
       lotId: input.lotId,
@@ -220,6 +222,10 @@ export function compatibleActionsFor(
     return ["withdraw", "record_loss"];
   }
 
+  if (requiredResolution === "repack_or_loss") {
+    return ["repack", "record_loss"];
+  }
+
   if (requiredResolution === "check_presence") {
     return ["confirm_presence", "mark_not_found", "mark_probably_sold_out", "move_lot"];
   }
@@ -257,6 +263,14 @@ function requiredResolutionForRisk(state: TodayActionableRiskState): RequiredRes
   }
 
   return "check_presence";
+}
+
+function requiredResolutionForAssessment(assessment: RiskAssessment): RequiredResolution {
+  if (assessment.state === "expired" && assessment.command === "repack_or_loss") {
+    return "repack_or_loss";
+  }
+
+  return requiredResolutionForRisk(assessment.state as TodayActionableRiskState);
 }
 
 function severityForRisk(state: TodayActionableRiskState): TodayTaskSeverity {

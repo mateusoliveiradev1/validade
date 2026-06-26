@@ -29,6 +29,7 @@ export const ALERT_CHANNEL_STATES = [
   "not_requested",
   "requesting",
   "active",
+  "local_only",
   "denied",
   "unavailable",
   "failed",
@@ -310,6 +311,10 @@ export function formatTaskLocation(location: TodayTaskLocation): string {
 function actionLabelForResolution(requiredResolution: RequiredResolution): string {
   if (requiredResolution === "withdraw_or_loss") {
     return "Retirar agora";
+  }
+
+  if (requiredResolution === "repack_or_loss") {
+    return "Reembalar ou avariar";
   }
 
   if (requiredResolution === "request_markdown") {

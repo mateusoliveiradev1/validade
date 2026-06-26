@@ -117,6 +117,9 @@ describe("Today task derivation", () => {
     expect(isResolutionCompatible("withdraw_or_loss", "confirm_presence")).toBe(false);
     expect(isResolutionCompatible("withdraw_or_loss", "withdraw")).toBe(true);
     expect(isResolutionCompatible("withdraw_or_loss", "record_loss")).toBe(true);
+    expect(isResolutionCompatible("repack_or_loss", "repack")).toBe(true);
+    expect(isResolutionCompatible("repack_or_loss", "record_loss")).toBe(true);
+    expect(isResolutionCompatible("repack_or_loss", "request_markdown")).toBe(false);
     expect(isResolutionCompatible("request_markdown", "request_markdown")).toBe(true);
     expect(isResolutionCompatible("check_presence", "confirm_presence")).toBe(true);
     expect(isResolutionCompatible("approve_markdown", "approve_markdown")).toBe(true);
@@ -128,5 +131,24 @@ describe("Today task derivation", () => {
       true,
     );
     expect(isResolutionCompatible("confirm_markdown_on_shelf", "complete_recheck")).toBe(false);
+  });
+
+  it("turns processed expired risk into a reembalar/avaria task instead of rebaixa", () => {
+    expect(
+      deriveTodayTaskCandidate(
+        input("expired", {
+          assessment: {
+            state: "expired",
+            command: "repack_or_loss",
+            reasons: [{ code: "expired", field: "expiresAt" }],
+          },
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        requiredResolution: "repack_or_loss",
+        section: "withdraw_now",
+      }),
+    );
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type {
+  AlertDeliveryResult,
   FutureAttentionRecord,
   OfflineCacheStatus,
   SyncConflictRecord,
@@ -8,7 +9,10 @@ import type {
   TaskAlertStateRecord,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
-import type { AlertChannelState } from "@validade-zero/domain";
+import {
+  createPrivacySafeNotificationContent,
+  type AlertChannelState,
+} from "@validade-zero/domain";
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
@@ -124,15 +128,15 @@ export function TodayScreen({
       setTasks(result.tasks);
       setFutureAttention(result.futureAttention);
       await refreshAlertChannelState();
-      setAlertStates(
-        await repository.refreshTaskAlertStates({
-          referenceTime: current.toISOString(),
-          isWithinShift: true,
-          overdueTaskIds: result.tasks
-            .filter((task) => isOverdueTask(task, current))
-            .map((task) => task.id),
-        }),
-      );
+      const refreshedAlertStates = await repository.refreshTaskAlertStates({
+        referenceTime: current.toISOString(),
+        isWithinShift: true,
+        overdueTaskIds: result.tasks
+          .filter((task) => isOverdueTask(task, current))
+          .map((task) => task.id),
+      });
+      setAlertStates(refreshedAlertStates);
+      await schedulePendingAlerts(result.tasks, refreshedAlertStates, current);
       await refreshSyncState();
 
       if (source === "manual_refresh") {
@@ -227,15 +231,16 @@ export function TodayScreen({
       const token = await alertChannel.getExpoPushToken();
 
       if (token.state !== "active" || token.expoPushToken === undefined) {
-        setAlertChannelState(token.state);
-        setAlertChannelFeedback(operatorSafePushFeedback(token.reason));
+        setAlertChannelState("local_only");
+        setAlertChannelFeedback(todayCopy.push.localOnly);
         await repository.registerAlertDevice({
           deviceId: "local-alert-device",
           deviceLabel: "Celular do turno",
           audienceRole: "shift_team",
-          permissionStatus: "unavailable",
+          permissionStatus: "local_only",
           registeredAt: now().toISOString(),
         });
+        await refreshTasks("manual_refresh");
         return;
       }
 
@@ -249,12 +254,90 @@ export function TodayScreen({
       });
       setAlertChannelState("active");
       setAlertChannelFeedback(todayCopy.push.active);
+      await refreshTasks("manual_refresh");
     } catch {
       setAlertChannelState("failed");
       setAlertChannelFeedback(todayCopy.push.failed);
     } finally {
       setIsRequestingAlerts(false);
     }
+  }
+
+  async function schedulePendingAlerts(
+    activeTasks: readonly TodayTaskRecord[],
+    states: readonly TaskAlertStateRecord[],
+    referenceTime: Date,
+  ): Promise<void> {
+    if (alertChannel === undefined) {
+      return;
+    }
+
+    const registration = await repository.loadAlertChannelState();
+
+    if (
+      registration?.permissionStatus !== "granted" &&
+      registration?.permissionStatus !== "local_only"
+    ) {
+      return;
+    }
+
+    const activeTaskById = new Map(activeTasks.map((task) => [task.id, task]));
+    const updatedStates: TaskAlertStateRecord[] = [];
+
+    for (const state of states) {
+      if (state.attemptState !== "pending") {
+        continue;
+      }
+
+      const task = activeTaskById.get(state.taskId);
+
+      if (task === undefined || task.status !== "active") {
+        continue;
+      }
+
+      const content = createPrivacySafeNotificationContent(task);
+      const attemptedAt = referenceTime.toISOString();
+      const attemptId = `local-alert-${referenceTime.getTime()}-${state.taskId.slice(0, 48)}`;
+      const scheduleResult = await alertChannel.scheduleTaskNotification({
+        command: {
+          attemptId,
+          taskId: state.taskId,
+          taskActiveKey: state.taskActiveKey,
+          audience: state.audience,
+          title: content.title,
+          body: content.body,
+          data: {
+            taskId: state.taskId,
+            taskActiveKey: state.taskActiveKey,
+          },
+          createdAt: attemptedAt,
+        },
+      });
+      const deliveryResult: AlertDeliveryResult =
+        scheduleResult.attemptState === "pending"
+          ? { status: "ok" }
+          : {
+              status: "retryable_error",
+              failureReason: scheduleResult.failureReason ?? todayCopy.push.failed,
+            };
+
+      updatedStates.push(
+        await repository.recordAlertAttempt({
+          attemptId,
+          taskId: state.taskId,
+          taskActiveKey: state.taskActiveKey,
+          attemptedAt,
+          result: deliveryResult,
+        }),
+      );
+    }
+
+    if (updatedStates.length === 0) {
+      return;
+    }
+
+    const updatedByTaskId = new Map(updatedStates.map((state) => [state.taskId, state]));
+    setAlertStates((current) => current.map((state) => updatedByTaskId.get(state.taskId) ?? state));
   }
 
   async function acknowledgeEscalation(task: TodayTaskRecord): Promise<void> {
@@ -741,6 +824,10 @@ function channelNoticeFor(channelState: AlertChannelState, feedback: string | un
     return todayCopy.push.active;
   }
 
+  if (channelState === "local_only") {
+    return todayCopy.push.localOnly;
+  }
+
   if (channelState === "denied") {
     return todayCopy.push.denied;
   }
@@ -761,6 +848,7 @@ function operatorSafePushFeedback(reason: string | undefined): string {
     todayCopy.push.active,
     todayCopy.push.denied,
     todayCopy.push.unavailable,
+    todayCopy.push.localOnly,
     todayCopy.push.nativeSetupRequired,
     todayCopy.push.failed,
   ];

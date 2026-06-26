@@ -28,7 +28,11 @@ type CaptureRoute =
   | { name: "confirmed"; product: CaptureProductRecord }
   | { name: "lot-registration"; product: CaptureProductRecord }
   | { name: "recent" }
-  | { name: "detail"; detail: CaptureLotDetail; markdownEntryState?: MarkdownEntryState | undefined }
+  | {
+      name: "detail";
+      detail: CaptureLotDetail;
+      markdownEntryState?: MarkdownEntryState | undefined;
+    }
   | { name: "task-resolution"; task: TodayTaskRecord }
   | { name: "shift-close" }
   | { name: "observation"; detail: CaptureLotDetail }
@@ -218,8 +222,7 @@ export function CaptureApp({
     const activeTasks = await repository.listActiveTodayTasks();
     const task = activeTasks.find(
       (candidate) =>
-        candidate.status === "active" &&
-        candidate.markdownWorkflowId === entryState.workflowId,
+        candidate.status === "active" && candidate.markdownWorkflowId === entryState.workflowId,
     );
 
     if (task === undefined) {
@@ -290,7 +293,9 @@ export function CaptureApp({
     return (
       <ProductFormScreen
         repository={repository}
-        {...(currentRoute.initialGtin === undefined ? {} : { initialGtin: currentRoute.initialGtin })}
+        {...(currentRoute.initialGtin === undefined
+          ? {}
+          : { initialGtin: currentRoute.initialGtin })}
         onBack={goBack}
         onCreated={(product) => {
           replace({ name: "confirmed", product });
@@ -301,7 +306,8 @@ export function CaptureApp({
 
   if (currentRoute.name === "confirmed") {
     const mode =
-      currentRoute.product.productRuleOverride?.mode ?? currentRoute.product.categoryRuleProfile.mode;
+      currentRoute.product.productRuleOverride?.mode ??
+      currentRoute.product.categoryRuleProfile.mode;
 
     return (
       <ScrollView contentContainerStyle={styles.screen}>

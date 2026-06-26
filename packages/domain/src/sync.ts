@@ -117,6 +117,7 @@ export function classifySyncCommandUrgency(input: SyncCommandUrgencyInput): Sync
 
   if (
     input.requiredResolution === "withdraw_or_loss" ||
+    input.requiredResolution === "repack_or_loss" ||
     input.requiredResolution === "sales_area_recheck" ||
     input.requiredResolution === "apply_markdown" ||
     input.requiredResolution === "confirm_markdown_on_shelf"

@@ -12,12 +12,15 @@ type CameraPermissionFixture = {
   canAskAgain: boolean;
 };
 
-const cameraMock = vi.hoisted(() => ({
+const cameraMock = vi.hoisted<{
+  permission: CameraPermissionFixture | null;
+  requestPermission: ReturnType<typeof vi.fn>;
+}>(() => ({
   permission: {
     granted: false,
     status: "undetermined",
     canAskAgain: true,
-  } as CameraPermissionFixture | null,
+  },
   requestPermission: vi.fn(() =>
     Promise.resolve({ granted: true, status: "granted", canAskAgain: true }),
   ),
@@ -50,8 +53,12 @@ vi.mock("expo-camera", async () => {
 
   return {
     CameraView: (props: Record<string, unknown>) => React.createElement("CameraView", props),
-    useCameraPermissions: () =>
-      [cameraMock.permission, cameraMock.requestPermission] as const,
+    PermissionStatus: {
+      DENIED: "denied",
+      GRANTED: "granted",
+      UNDETERMINED: "undetermined",
+    },
+    useCameraPermissions: () => [cameraMock.permission, cameraMock.requestPermission] as const,
   };
 });
 
@@ -62,9 +69,7 @@ afterEach(() => {
 });
 
 function renderAssistant(): ReactTestRenderer {
-  return create(
-    <BarcodeLookupAssistant onBack={() => undefined} onLookup={() => undefined} />,
-  );
+  return create(<BarcodeLookupAssistant onBack={() => undefined} onLookup={() => undefined} />);
 }
 
 function press(tree: ReactTestRenderer, label: string): void {
@@ -125,7 +130,10 @@ describe("barcode lookup assistant", () => {
 
     act(() => {
       tree = create(
-        <BarcodeLookupAssistant onBack={() => undefined} onLookup={(value) => scanned.push(value)} />,
+        <BarcodeLookupAssistant
+          onBack={() => undefined}
+          onLookup={(value) => scanned.push(value)}
+        />,
       );
     });
 

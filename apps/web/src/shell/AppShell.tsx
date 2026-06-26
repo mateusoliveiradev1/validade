@@ -1,4 +1,4 @@
-import { ClipboardCheck, KeyRound, Menu, ScrollText, ShieldCheck, X } from "lucide-react";
+import { ClipboardCheck, KeyRound, Menu, ScrollText, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { SessionContextResponse } from "@validade-zero/contracts";
 import { Button } from "../components/ui/button";
@@ -10,7 +10,7 @@ const navItems: Array<{
   id: AppRoute;
   label: string;
   description: string;
-  icon: typeof ShieldCheck;
+  icon: typeof ClipboardCheck;
 }> = [
   {
     id: "command",
@@ -86,12 +86,7 @@ function ShellNavigation({
   return (
     <nav aria-label="Navegacao principal" className="grid gap-3">
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-sidebar-border bg-card/70 p-3">
-        <div
-          className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground"
-          aria-hidden="true"
-        >
-          <ShieldCheck className="size-5" />
-        </div>
+        <img src="/brand-symbol.png" alt="" className="size-11 shrink-0 object-contain" />
         <div>
           <p className="text-base font-semibold leading-5">Validade Zero</p>
           <p className="text-sm text-muted-foreground">Nada vencido invisivel</p>
@@ -147,9 +142,7 @@ function MobileNavigation({
           <div className="grid min-h-full content-between gap-6">
             <div className="grid gap-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-muted-foreground">
-                  Menu do Validade Zero
-                </p>
+                <p className="text-sm font-semibold text-muted-foreground">Menu do Validade Zero</p>
                 <Button
                   type="button"
                   size="icon-sm"

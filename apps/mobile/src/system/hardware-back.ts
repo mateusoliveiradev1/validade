@@ -4,8 +4,6 @@ export interface HardwareBackSubscription {
   remove(): void;
 }
 
-export function addHardwareBackPressListener(
-  handler: () => boolean,
-): HardwareBackSubscription {
+export function addHardwareBackPressListener(handler: () => boolean): HardwareBackSubscription {
   return BackHandler.addEventListener("hardwareBackPress", handler);
 }

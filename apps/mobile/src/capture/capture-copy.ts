@@ -31,6 +31,7 @@ export const captureCopy = {
 export const productModeLabels = {
   formal_validity: "Validade formal",
   flv_inspection: "Inspeção de FLV",
+  processed_repack_loss: "Processado: reembalar/avaria",
   receiving_monitored: "Recebimento monitorado",
 } as const;
 

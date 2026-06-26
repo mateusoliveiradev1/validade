@@ -7,9 +7,16 @@ node_modules/
 !.env.example
 .dev.vars
 *.local
+/app.json
+
+# Local agent/tooling state
+.agents/
+.codex/
+.planning/debug/
 
 # Private push/Firebase service credentials. Android google-services.json is public app config;
 # service account keys are private and must be uploaded to EAS, not committed.
+apps/mobile/google-services.json
 apps/mobile/*service-account*.json
 apps/mobile/*firebase-admin*.json
 apps/mobile/fcm*.json
@@ -44,5 +51,7 @@ uploads/
 *.webp
 !apps/mobile/assets/
 !apps/mobile/assets/*.png
+!apps/web/public/
+!apps/web/public/*.png
 
 .vercel
