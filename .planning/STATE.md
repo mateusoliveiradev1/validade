@@ -2,34 +2,34 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 09
-status: Phase 09 complete - release blocked on external validation
-stopped_at: Phase 09 plans complete; release remains blocked on Android/provider validation
-last_updated: "2026-06-26T16:09:12.446Z"
-last_activity: 2026-06-26
+current_phase: 10
+status: Phase 10 added - ready for discussion and planning
+stopped_at: Phase 10 context gathered
+last_updated: "2026-06-26T22:24:51.843Z"
+last_activity: "2026-06-26 - Created Phase 10: Real Pilot Flow Rebuild for lot, product, access, sync, and resolution truth repairs"
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 9
   total_plans: 39
   completed_plans: 39
-  percent: 100
+  percent: 90
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 09
+**Current phase:** 10
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-26 - Completed quick task 260626-i4v: Command Center now carries structured cause data for critical lots
+**Last activity:** 2026-06-26 - Created Phase 10: Real Pilot Flow Rebuild for lot, product, access, sync, and resolution truth repairs
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 09 — impeccable-hardening-and-v1-readiness
+**Current focus:** Phase 10 - real-pilot-flow-rebuild
 
 ## Roadmap Progress
 
@@ -44,6 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
+| 10 | Not planned | Real Pilot Flow Rebuild - lot/product/access/sync pilot flow repair |
 
 ## Active Constraints
 
@@ -55,7 +56,15 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Verify external release blockers: Android device/emulator coverage and provider-side checks.
+Discuss Phase 10 scope from real-device pilot findings, then run UI and plan gates before implementation.
+
+`$gsd-discuss-phase 10`
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 10 added: Real Pilot Flow Rebuild for lot/product/access/sync pilot flow repair.
 
 ### Quick Tasks Completed
 
@@ -114,9 +123,9 @@ Verify external release blockers: Android device/emulator coverage and provider-
 
 ## Session
 
-**Last session:** 2026-06-22T22:31:05.042Z
-**Stopped at:** Phase 09 plans complete; release blocked on external validation
-**Resume file:** docs/release/v1-readiness.md
+**Last session:** 2026-06-26T22:24:51.834Z
+**Stopped at:** Phase 10 context gathered
+**Resume file:** .planning/phases/10-real-pilot-flow-rebuild/10-CONTEXT.md
 
 ## Decisions
 
