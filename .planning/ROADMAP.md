@@ -294,6 +294,31 @@ Plans:
 
 - [x] 09-05-PLAN.md - Impeccable audit, APK readiness, UAT, and release go/no-go
 
+### Phase 10: Real Pilot Flow Rebuild
+
+**Goal:** Rebuild the real pilot flows around product creation, lot lifecycle, central sync, access, and resolution truth so a fresh Android install, another phone, and the web Command Center all show the same operational facts.
+**Mode:** mvp
+**UI hint:** yes
+**Requirements:** CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, LOC-03, RSK-03, RSK-04, MRK-01, MRK-02, SYN-01, SYN-02, SYN-03, AUD-01, AUD-02, UI-01, UI-02, UI-03, UI-04
+**Depends on:** Phase 9
+**Success Criteria**:
+
+1. A lot resolved as perda, retirada, rebaixa completed, or no longer in the sales area stops appearing as active risk/task after central acknowledgement, while remaining visible in history/audit with the reason.
+2. Product discovery and product creation are a single clear operational path: operators can create or reuse products without accidental duplicates, confusing shortcuts, or forced extra lot creation.
+3. A newly installed Android app on another phone, using the same invited store access, loads the same central products, lots, tasks, and resolution status instead of local-only data.
+4. Mobile and web use one truth model for pending, synced, conflict, discarded, and resolved states; offline actions never pretend they reached the central store before acknowledgement.
+5. End-to-end UAT covers first access, product creation, lot creation, loss/withdrawal resolution, second-device visibility, and Command Center consistency with real staging data.
+
+**Plans:** 6 plans
+
+Plans:
+- [ ] 10-01-PLAN.md - Central prepare-turn package, store authorization, SQLite hydration, and first-device readiness
+- [ ] 10-02-PLAN.md - Central product search, duplicate prevention, draft review, and unified create/reuse flow
+- [ ] 10-03-PLAN.md - Central lot lifecycle, observation persistence, task projection, and second-device visibility
+- [ ] 10-04-PLAN.md - Terminal resolution, central sync application, conflict/discard taxonomy, and resolved history
+- [ ] 10-05-PLAN.md - Capture-backed Command Center, role/store controls, and central push/escalation audience
+- [ ] 10-06-PLAN.md - Central shift-close revalidation, full pilot UAT, release evidence, and blocked-state record
+
 ## Coverage
 
 | Requirement | Phase |

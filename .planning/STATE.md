@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 added - ready for discussion and planning
-stopped_at: Phase 10 UI-SPEC approved
-last_updated: "2026-06-26T22:32:19.211Z"
-last_activity: "2026-06-26 - Created Phase 10: Real Pilot Flow Rebuild for lot, product, access, sync, and resolution truth repairs"
+status: Phase 10 planned - ready for execution
+stopped_at: Phase 10 planned with 6 execution plans
+last_updated: "2026-06-26T22:48:31.171Z"
+last_activity: "2026-06-26 - Planned Phase 10 Real Pilot Flow Rebuild with central truth, product, lot, resolution, Command Center, and UAT waves"
 progress:
   total_phases: 10
   completed_phases: 9
-  total_plans: 39
+  total_plans: 45
   completed_plans: 39
-  percent: 90
+  percent: 87
 ---
 
 # Project State: Validade Zero
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-26 - Created Phase 10: Real Pilot Flow Rebuild for lot, product, access, sync, and resolution truth repairs
+**Last activity:** 2026-06-26 - Planned Phase 10 Real Pilot Flow Rebuild with central truth, product, lot, resolution, Command Center, and UAT waves
 
 ## Project Reference
 
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | Not planned | Real Pilot Flow Rebuild - lot/product/access/sync pilot flow repair |
+| 10 | Planned | Real Pilot Flow Rebuild - 6/6 plans ready for execution |
 
 ## Active Constraints
 
@@ -56,9 +56,9 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Discuss Phase 10 scope from real-device pilot findings, then run UI and plan gates before implementation.
+Execute Phase 10 Real Pilot Flow Rebuild.
 
-`$gsd-discuss-phase 10`
+`$gsd-execute-phase 10`
 
 ## Accumulated Context
 
@@ -124,8 +124,8 @@ Discuss Phase 10 scope from real-device pilot findings, then run UI and plan gat
 ## Session
 
 **Last session:** 2026-06-26T22:32:19.206Z
-**Stopped at:** Phase 10 UI-SPEC approved
-**Resume file:** .planning/phases/10-real-pilot-flow-rebuild/10-UI-SPEC.md
+**Stopped at:** Phase 10 planned with 6 execution plans
+**Resume file:** .planning/phases/10-real-pilot-flow-rebuild/10-01-PLAN.md
 
 ## Decisions
 
