@@ -32,12 +32,13 @@ Official Expo references checked on 2026-06-23:
 
 1. Use an approved Expo session on the local machine. Do not place a token, account identifier, project URL, or build URL in this repository.
 2. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`.
-3. Configure the privacy officer contact for the pilot build with `EXPO_PUBLIC_PRIVACY_CONTACT` in the same EAS environment (not committed to Git). When unset, the app shows a generic leadership/administration fallback.
-4. Run the staging APK build from `apps/mobile`:
+3. For remote push validation, configure the ignored Firebase Android file as an EAS `file` variable named `GOOGLE_SERVICES_JSON` in the same build environment. Do not commit the JSON file or paste its contents in logs.
+4. Configure the privacy officer contact for the pilot build with `EXPO_PUBLIC_PRIVACY_CONTACT` in the same EAS environment (not committed to Git). When unset, the app shows a generic leadership/administration fallback.
+5. Run the staging APK build from `apps/mobile`:
    ```powershell
    pnpm.cmd build:android:staging
    ```
-5. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
+6. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
 
 For a local-only emulator build during development, run Metro with:
 
@@ -62,4 +63,4 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 
 ## Current Limitation
 
-The local emulator path has been verified with Metro and the Neon staging database. Cloud APK creation and public staging API deployment are still blocked until the machine is authenticated with the approved Expo and Cloudflare accounts. Physical-device notification behavior, camera permissions, and offline behavior still require an approved real Android device.
+The local emulator path has been verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the current release code and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder. Physical-device notification delivery, camera permissions, installation, and offline behavior still require an approved real Android device.

@@ -39,9 +39,13 @@ Remote Expo push delivery needs environment setup outside the normal repo checks
 - Device or emulator support for notifications.
 - Valid Expo project id and platform credentials for real remote delivery.
 - A backend store for real task and device-token fan-out.
-- Firebase Android credentials included in the native build. For staging/pilot EAS profiles,
-  `apps/mobile/app.config.js` fails the build unless `apps/mobile/google-services.json` exists
-  or `GOOGLE_SERVICES_FILE` points to an existing Firebase `google-services.json`.
+- Firebase Android credentials included in the native build when remote push is being validated.
+  For staging/pilot EAS profiles, `apps/mobile/app.config.js` only includes
+  `googleServicesFile` when `GOOGLE_SERVICES_JSON` or `GOOGLE_SERVICES_FILE` explicitly points to
+  an existing Firebase `google-services.json`. A sync-only APK may build without that file, but
+  remote push remains blocked until Firebase credentials are provided through a non-committed EAS
+  file variable. Local native experiments may opt into the ignored
+  `apps/mobile/google-services.json` with `VALIDADE_ZERO_USE_LOCAL_FIREBASE=1`.
 
 Phase 5 does not claim production multi-device remote fan-out. The current API/provider seam is fakeable and contract-tested, but durable remote dispatch is blocked until future auth, task sync, roles, and server-side storage work exists.
 

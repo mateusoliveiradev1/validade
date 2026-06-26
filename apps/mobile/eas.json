@@ -8,6 +8,7 @@
     },
     "staging": {
       "distribution": "internal",
+      "environment": "preview",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
         "VALIDADE_ZERO_APP_ENV": "staging"
