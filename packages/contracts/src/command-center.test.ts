@@ -40,6 +40,17 @@ describe("Command Center contracts", () => {
       pendingProductDrafts: [],
       pendingEvidence: [],
       syncConflicts: [],
+      discardedActions: [],
+      resolvedHistory: [
+        {
+          taskId: "task-resolvida-001",
+          label: "Folhas FICTICIAS - lote FOL-001",
+          actionLabel: "withdraw",
+          actorLabel: "Colaborador FICTICIO",
+          resolvedAt: "2030-01-10T11:00:00.000Z",
+          detail: "Resolvido com confirmacao central.",
+        },
+      ],
       pendingShiftCloses: [],
       shiftHistory: [],
     });
@@ -49,5 +60,6 @@ describe("Command Center contracts", () => {
       riskState: "expired",
       sourceEventId: "audit-sync-ficticio-001",
     });
+    expect(parsed.resolvedHistory[0]?.taskId).toBe("task-resolvida-001");
   });
 });

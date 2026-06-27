@@ -102,7 +102,10 @@ import {
   type LoginAttemptLimiter,
   type RecoveryDeliveryProvider,
 } from "./authentication";
-import { createAuditBackedCommandCenterService, type CommandCenterService } from "./command-center";
+import {
+  createCaptureBackedCommandCenterService,
+  type CommandCenterService,
+} from "./command-center";
 import {
   createDatabaseEvidenceRepository,
   createEvidenceService,
@@ -215,12 +218,6 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryAuditRepository()
       : createDatabaseAuditRepository(input.databaseUrl));
-  const commandCenterService =
-    input?.commandCenterService ??
-    createAuditBackedCommandCenterService({
-      auditRepository,
-      now,
-    });
   const auditService = createAuditService({ repository: auditRepository, now });
   const accessDeniedAuditRecorder =
     input?.accessDeniedAuditRecorder ??
@@ -257,6 +254,12 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryCaptureRepository()
       : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
+  const commandCenterService =
+    input?.commandCenterService ??
+    createCaptureBackedCommandCenterService({
+      captureRepository,
+      now,
+    });
   const syncCommandService =
     input?.syncCommandService ?? createCentralCaptureSyncCommandService({ captureRepository, now });
   const shiftCloseRepository =

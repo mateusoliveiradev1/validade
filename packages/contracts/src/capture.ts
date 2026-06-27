@@ -733,7 +733,7 @@ export const CentralConflictSnippetSchema = z
     currentLocation: OperationalLocationSchema,
     reason: RequiredTextSchema,
     createdAt: IsoDateTimeSchema,
-    state: z.literal("conflict"),
+    state: z.enum(["conflict", "discarded"]),
     source: z.enum(["central", "pending_central"]),
   })
   .strict();

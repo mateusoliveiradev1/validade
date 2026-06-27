@@ -91,6 +91,26 @@ export const CommandCenterSyncConflictSchema = z
   })
   .strict();
 
+export const CommandCenterDiscardedActionSchema = z
+  .object({
+    commandId: IdentifierSchema,
+    label: RequiredTextSchema,
+    reason: RequiredTextSchema,
+    discardedAt: IsoDateTimeSchema.optional(),
+  })
+  .strict();
+
+export const CommandCenterResolvedHistorySchema = z
+  .object({
+    taskId: IdentifierSchema,
+    label: RequiredTextSchema,
+    actionLabel: RequiredTextSchema,
+    actorLabel: RequiredTextSchema,
+    resolvedAt: IsoDateTimeSchema,
+    detail: RequiredTextSchema,
+  })
+  .strict();
+
 export const CommandCenterPendingShiftSchema = z
   .object({
     closureId: IdentifierSchema,
@@ -121,6 +141,8 @@ export const CommandCenterProjectionSchema = z
     pendingProductDrafts: z.array(CommandCenterProductDraftSchema),
     pendingEvidence: z.array(CommandCenterEvidenceSchema),
     syncConflicts: z.array(CommandCenterSyncConflictSchema),
+    discardedActions: z.array(CommandCenterDiscardedActionSchema),
+    resolvedHistory: z.array(CommandCenterResolvedHistorySchema),
     pendingShiftCloses: z.array(CommandCenterPendingShiftSchema),
     shiftHistory: z.array(CommandCenterShiftHistorySchema),
   })

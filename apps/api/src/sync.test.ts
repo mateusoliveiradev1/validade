@@ -6,7 +6,9 @@ import {
 } from "@validade-zero/contracts";
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { describe, expect, it } from "vitest";
+import { createInMemoryAuditRepository } from "./audit";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
+import { createAuditBackedCommandCenterService } from "./command-center";
 import { createApiApp, createInMemorySyncCommandService } from "./index";
 
 const NOW = "2030-01-10T12:30:00.000Z";
@@ -366,6 +368,8 @@ describe("sync command API seam", () => {
 function createAuthorizedSyncApp(input?: {
   syncCommandService?: ReturnType<typeof createInMemorySyncCommandService>;
 }) {
+  const auditRepository = createInMemoryAuditRepository();
+
   return createApiApp({
     authProvider: new FakeAuthProvider(),
     membershipRepository: createInMemoryMembershipRepository([
@@ -380,6 +384,11 @@ function createAuthorizedSyncApp(input?: {
     ...(input?.syncCommandService === undefined
       ? {}
       : { syncCommandService: input.syncCommandService }),
+    auditRepository,
+    commandCenterService: createAuditBackedCommandCenterService({
+      auditRepository,
+      now: () => new Date(NOW),
+    }),
     now: () => new Date(NOW),
   });
 }

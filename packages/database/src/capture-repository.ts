@@ -248,7 +248,7 @@ interface ConflictRow {
   current_location: Record<string, unknown> | string;
   reason: string;
   created_at: string | Date;
-  state: "conflict";
+  state: "conflict" | "discarded";
 }
 
 type StoredProduct = CentralProductSnippet & { storeId: string; normalizedKey?: string };
@@ -1484,7 +1484,7 @@ export function createCaptureRepositoryFromQuery(
           `select conflict_id, command_id, product_display_name, lot_identity, current_location,
             reason, created_at, state
           from central_sync_conflicts
-          where store_id = $1 and state = 'conflict'
+          where store_id = $1 and state in ('conflict', 'discarded')
           order by created_at desc
           limit 40`,
           [input.storeId],
@@ -2638,7 +2638,7 @@ function mapConflictRow(row: ConflictRow): CentralConflictSnippet {
     currentLocation: parseJson(row.current_location),
     reason: row.reason,
     createdAt: toIso(row.created_at),
-    state: "conflict",
+    state: row.state,
     source: "central",
   } as CentralConflictSnippet;
 }

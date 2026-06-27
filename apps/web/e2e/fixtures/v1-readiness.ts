@@ -65,6 +65,8 @@ export const commandCenterProjection = {
   pendingProductDrafts: [],
   pendingEvidence: [],
   syncConflicts: [],
+  discardedActions: [],
+  resolvedHistory: [],
   pendingShiftCloses: [],
   shiftHistory: [],
 } as const;

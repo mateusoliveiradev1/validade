@@ -131,6 +131,7 @@ function CommandCenterProjectionView({
     projection.pendingProductDrafts.length === 0 &&
     projection.pendingEvidence.length === 0 &&
     projection.syncConflicts.length === 0 &&
+    projection.discardedActions.length === 0 &&
     projection.pendingShiftCloses.length === 0;
 
   return (
@@ -234,6 +235,19 @@ function CommandCenterProjectionView({
           ))}
         </FunnelSection>
         <FunnelSection
+          title="Acoes descartadas pela central"
+          count={projection.discardedActions.length}
+        >
+          {projection.discardedActions.map((item) => (
+            <FunnelRow
+              key={item.commandId}
+              title={item.label}
+              detail={`${item.reason}${item.discardedAt === undefined ? "" : ` - ${formatDateTime(item.discardedAt)}`}`}
+              tone="warning"
+            />
+          ))}
+        </FunnelSection>
+        <FunnelSection
           title="Fechamentos com pendencias"
           count={projection.pendingShiftCloses.length}
         >
@@ -243,6 +257,16 @@ function CommandCenterProjectionView({
               title={item.label}
               detail={`${item.blockerCount} bloqueio(s) para revisar`}
               tone="critical"
+            />
+          ))}
+        </FunnelSection>
+        <FunnelSection title="Historico resolvido" count={projection.resolvedHistory.length}>
+          {projection.resolvedHistory.map((item) => (
+            <FunnelRow
+              key={item.taskId}
+              title={item.label}
+              detail={`${item.actionLabel} por ${item.actorLabel} - ${formatDateTime(item.resolvedAt)}. ${item.detail}`}
+              tone="success"
             />
           ))}
         </FunnelSection>
@@ -625,8 +649,8 @@ function buildCommandCenterInsight(projection: CommandCenterProjection): Command
     {
       key: "sync",
       label: "Sync ou conflito",
-      count: syncConflictLots.length + syncRetryLots.length,
-      detail: "Acao offline precisa de revisao antes de valer como confirmacao central.",
+      count: syncConflictLots.length + syncRetryLots.length + projection.discardedActions.length,
+      detail: "Acao offline precisa de revisao ou foi descartada pela verdade central.",
       tone: "critical",
     },
     {
@@ -656,7 +680,10 @@ function buildCommandCenterInsight(projection: CommandCenterProjection): Command
       },
       {
         label: "Confirmacao central",
-        count: projection.pendingEvidence.length + projection.syncConflicts.length,
+        count:
+          projection.pendingEvidence.length +
+          projection.syncConflicts.length +
+          projection.discardedActions.length,
         detail: "Evidencia, upload ou sync que ainda nao viraram prova confiavel.",
       },
       {
@@ -687,9 +714,9 @@ function buildCommandCenterInsight(projection: CommandCenterProjection): Command
       },
       {
         label: "Bloqueios finais",
-        value: String(shiftBlockers),
-        detail: "Itens que impedem fechamento seguro do turno.",
-        tone: shiftBlockers === 0 ? "success" : "critical",
+        value: String(shiftBlockers + projection.discardedActions.length),
+        detail: "Fechamentos e descartes que impedem leitura simples de turno seguro.",
+        tone: shiftBlockers + projection.discardedActions.length === 0 ? "success" : "critical",
       },
     ],
     primaryCause:

@@ -72,6 +72,24 @@ const projection = {
       detail: "Revise antes de reenviar.",
     },
   ],
+  discardedActions: [
+    {
+      commandId: "command-discarded-001",
+      label: "Folhas FICTICIAS - lote FOL-002",
+      reason: "Acao local descartada pela central.",
+      discardedAt: "2030-01-10T11:40:00.000Z",
+    },
+  ],
+  resolvedHistory: [
+    {
+      taskId: "task-resolved-001",
+      label: "Manga FICTICIA - lote MAN-001",
+      actionLabel: "Retirada confirmada",
+      actorLabel: "Lider FICTICIO",
+      resolvedAt: "2030-01-10T11:35:00.000Z",
+      detail: "Retirada conferida na area de venda.",
+    },
+  ],
   pendingShiftCloses: [{ closureId: "shift-001", label: "Fechamento atual", blockerCount: 2 }],
   shiftHistory: [
     {
@@ -101,6 +119,9 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Retirar, registrar destino e reconferir a gondola")).toBeTruthy();
     expect(screen.getByText("Produtos em revisao")).toBeTruthy();
     expect(screen.getByText("Banana Nanica FICTICIA")).toBeTruthy();
+    expect(screen.getByText("Acoes descartadas pela central")).toBeTruthy();
+    expect(screen.getByText("Historico resolvido")).toBeTruthy();
+    expect(screen.getByText(/Retirada confirmada por Lider FICTICIO/)).toBeTruthy();
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
     expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
@@ -113,9 +134,15 @@ describe("CommandCenter", () => {
       text.indexOf("Conflitos de sincronizacao"),
     );
     expect(text.indexOf("Conflitos de sincronizacao")).toBeLessThan(
+      text.indexOf("Acoes descartadas pela central"),
+    );
+    expect(text.indexOf("Acoes descartadas pela central")).toBeLessThan(
       text.indexOf("Fechamentos com pendencias"),
     );
     expect(text.indexOf("Fechamentos com pendencias")).toBeLessThan(
+      text.indexOf("Historico resolvido"),
+    );
+    expect(text.indexOf("Historico resolvido")).toBeLessThan(
       text.indexOf("Historico de fechamentos"),
     );
     expect(text).not.toMatch(/sales|revenue|forecast|supplier/i);

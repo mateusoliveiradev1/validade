@@ -70,6 +70,8 @@ describe("authenticated web shell", () => {
               pendingProductDrafts: [],
               pendingEvidence: [],
               syncConflicts: [],
+              discardedActions: [],
+              resolvedHistory: [],
               pendingShiftCloses: [],
               shiftHistory: [],
             }),
