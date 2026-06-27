@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 planned - ready for execution
-stopped_at: Phase 10 planned with 6 execution plans
-last_updated: "2026-06-26T22:48:31.171Z"
-last_activity: "2026-06-26 - Planned Phase 10 Real Pilot Flow Rebuild with central truth, product, lot, resolution, Command Center, and UAT waves"
+status: Phase 10 in progress - 1/6 plans complete
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-06-27T00:39:50.257Z"
+last_activity: 2026-06-27
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 45
-  completed_plans: 39
-  percent: 87
+  completed_plans: 40
+  percent: 89
 ---
 
 # Project State: Validade Zero
@@ -22,14 +22,14 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-26 - Planned Phase 10 Real Pilot Flow Rebuild with central truth, product, lot, resolution, Command Center, and UAT waves
+**Last activity:** 2026-06-27
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 10 - real-pilot-flow-rebuild
+**Current focus:** Phase 10 — real-pilot-flow-rebuild
 
 ## Roadmap Progress
 
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | Planned | Real Pilot Flow Rebuild - 6/6 plans ready for execution |
+| 10 | In Progress | Real Pilot Flow Rebuild - 1/6 plans complete; 10-02 next |
 
 ## Active Constraints
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Execute Phase 10 Real Pilot Flow Rebuild.
+Continue Phase 10 Real Pilot Flow Rebuild with 10-02.
 
 `$gsd-execute-phase 10`
 
@@ -65,6 +65,7 @@ Execute Phase 10 Real Pilot Flow Rebuild.
 ### Roadmap Evolution
 
 - Phase 10 added: Real Pilot Flow Rebuild for lot/product/access/sync pilot flow repair.
+- Phase 10 Plan 01 completed: authorized central prepare-turn package, central capture repository, mobile Preparar turno gate, and SQLite hydration before Hoje.
 
 ### Quick Tasks Completed
 
@@ -120,14 +121,19 @@ Execute Phase 10 Real Pilot Flow Rebuild.
 | Phase 08 P03 | 90min | 2 tasks | 58 files |
 | Phase 08 P04 | inline | 2 tasks | truthful close, mobile flow, Neon verification |
 | Phase 08 P05 | inline | 2 tasks | memberships, E2E, security, and runbooks |
+| Phase 10 P01 | 130min | 3 tasks | 27 files |
 
 ## Session
 
-**Last session:** 2026-06-26T22:32:19.206Z
-**Stopped at:** Phase 10 planned with 6 execution plans
-**Resume file:** .planning/phases/10-real-pilot-flow-rebuild/10-01-PLAN.md
+**Last session:** 2026-06-27T00:39:50.252Z
+**Stopped at:** Completed 10-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
+
+- [Phase 10]: Prepare-turn uses session-authorized POST and never accepts client-provided store, role, or capability authority. - Keeps central read hydration scoped to server-owned membership.
+- [Phase 10]: Mobile blocks normal Hoje until a prepared central package is hydrated; cache fallback is explicitly labeled as not safe. - Prevents stale local data from looking like a current sales-area verdict.
+- [Phase 10]: Prepare-turn cache status is separate from offline command cache status. - Keeps central-read freshness independent from local command acknowledgement.
 
 - [Phase 08]: Only central private-store acknowledgement can produce `Evidência enviada`; local capture and connectivity are not proof. - Prevents offline evidence from being misread as centrally available.
 - [Phase 08]: Evidence upload uses a separate queue from command sync. - Keeps device paths and binary material out of operational command payloads.

@@ -67,7 +67,7 @@
 - [x] **UI-01**: Mobile first screen answers "Área de venda segura?" and prioritizes critical operational tasks over passive charts.
 - [x] **UI-02**: Copy uses direct operational language such as "Retirar agora", "Pedir rebaixa", "Conferir ovos", and "Rebaixa atrasada".
 - [x] **UI-03**: Interface supports one-hand use, large touch targets, high contrast, clear critical states, and reduced ambiguity in store conditions.
-- [ ] **UI-04**: Design work passes Impeccable shaping, critique, polish, hardening, accessibility, and copy review before v1 completion.
+- [x] **UI-04**: Design work passes Impeccable shaping, critique, polish, hardening, accessibility, and copy review before v1 completion.
 
 ## v2 Requirements
 
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |
 | UI-03 | Phase 4 | Complete |
-| UI-04 | Phase 9 | Pending |
+| UI-04 | Phase 9 | Complete |
 
 **Coverage:**
 
