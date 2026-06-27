@@ -6,6 +6,7 @@ import {
   deriveTodayTaskCandidate,
   isResolutionCompatible,
   projectCentralLotTask,
+  resolveCentralTerminalOutcome,
   type TodayTaskCandidate,
   type TodayTaskCandidateInput,
 } from "./tasks";
@@ -14,6 +15,15 @@ import type { RiskAssessment } from "./types";
 const observedAt = "2030-01-10T09:00:00.000Z";
 const salesArea = { kind: "area_de_venda" } as const;
 const stock = { kind: "estoque" } as const;
+const terminalResolutionInput = {
+  taskId: "tarefa-central-ficticia-001",
+  lotId: "lote-central-ficticio-001",
+  productDisplayName: "Produto Central FICTICIO",
+  lotIdentity: "LOTE-CENTRAL-FICTICIO-001",
+  currentLocation: salesArea,
+  actorLabel: "Colaboradora FICTICIA",
+  occurredAt: observedAt,
+} as const;
 
 function risk(state: RiskAssessment["state"]): RiskAssessment {
   return {
@@ -132,6 +142,76 @@ describe("Today task derivation", () => {
       true,
     );
     expect(isResolutionCompatible("confirm_markdown_on_shelf", "complete_recheck")).toBe(false);
+  });
+
+  it.each([
+    ["withdraw_or_loss", "withdraw", "withdrawn"],
+    ["withdraw_or_loss", "record_loss", "loss_recorded"],
+    ["repack_or_loss", "repack", "repack_completed"],
+    ["check_presence", "mark_not_found", "not_found"],
+    ["check_presence", "mark_probably_sold_out", "probably_sold_out"],
+    ["check_presence", "move_lot", "moved"],
+    ["sales_area_recheck", "complete_recheck", "sales_area_recheck_completed"],
+    ["approve_markdown", "approve_markdown", "markdown_approved"],
+    ["apply_markdown", "apply_markdown", "markdown_applied"],
+    ["confirm_markdown_on_shelf", "confirm_markdown_on_shelf", "markdown_shelf_confirmed"],
+  ] as const)("accepts central terminal outcome %s / %s", (requiredResolution, action, kind) => {
+    expect(
+      resolveCentralTerminalOutcome({
+        ...terminalResolutionInput,
+        requiredResolution,
+        action,
+        ...(action === "move_lot" ? { destination: stock } : {}),
+        ...(action === "complete_recheck" ||
+        action === "apply_markdown" ||
+        action === "confirm_markdown_on_shelf"
+          ? { evidenceState: "no_photo_reason" as const }
+          : {}),
+      }),
+    ).toMatchObject({
+      status: "accepted",
+      outcome: {
+        kind,
+        centralState: "resolved",
+        closesActiveTask: true,
+      },
+    });
+  });
+
+  it("keeps active risk visible for incompatible or incomplete terminal outcomes", () => {
+    expect(
+      resolveCentralTerminalOutcome({
+        ...terminalResolutionInput,
+        requiredResolution: "withdraw_or_loss",
+        action: "confirm_presence",
+      }),
+    ).toEqual({
+      status: "rejected",
+      reason: "incompatible_action",
+      keepsActiveRiskVisible: true,
+    });
+    expect(
+      resolveCentralTerminalOutcome({
+        ...terminalResolutionInput,
+        requiredResolution: "check_presence",
+        action: "move_lot",
+      }),
+    ).toEqual({
+      status: "rejected",
+      reason: "destination_required",
+      keepsActiveRiskVisible: true,
+    });
+    expect(
+      resolveCentralTerminalOutcome({
+        ...terminalResolutionInput,
+        requiredResolution: "confirm_markdown_on_shelf",
+        action: "confirm_markdown_on_shelf",
+      }),
+    ).toEqual({
+      status: "rejected",
+      reason: "evidence_or_no_photo_reason_required",
+      keepsActiveRiskVisible: true,
+    });
   });
 
   it("turns processed expired risk into a reembalar/avaria task instead of rebaixa", () => {

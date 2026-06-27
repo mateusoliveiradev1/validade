@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CentralAcknowledgementSchema,
+  CentralSyncApplicationResultSchema,
   OfflineActionCommandSchema,
   OfflineCacheStatusSchema,
   SyncCommandRecordSchema,
@@ -330,5 +331,87 @@ describe("offline sync contracts", () => {
         centralVersion: 4,
       }),
     ).toThrow();
+  });
+
+  it("carries central active, resolved, and discarded business results on sync ack", () => {
+    expect(
+      CentralSyncApplicationResultSchema.parse({
+        kind: "active_task",
+        task: taskRecord,
+      }),
+    ).toMatchObject({
+      kind: "active_task",
+      task: { status: "active" },
+    });
+    const resolvedHistory = {
+      centralTaskId: "tarefa-ficticia-001",
+      activeKey: "lote-ficticio-001:expired:withdraw_or_loss:root",
+      lotId: "lote-ficticio-001",
+      productDisplayName: "Ovos Brancos FICTICIOS",
+      lotIdentity,
+      currentLocation: { kind: "retirada_perda" },
+      action: "withdraw",
+      actorLabel: "Colaboradora FICTICIA",
+      occurredAt,
+      resolutionState: "resolved",
+      source: "central",
+      updatedAt,
+    } as const;
+
+    expect(
+      SyncTransportResultSchema.parse({
+        status: "ack",
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        syncedAt: updatedAt,
+        centralResult: {
+          kind: "resolved_history",
+          history: resolvedHistory,
+        },
+      }),
+    ).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+      },
+    });
+    expect(
+      CentralAcknowledgementSchema.parse({
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        acceptedAt: updatedAt,
+        state: "resolved",
+        centralVersion: 5,
+        resolvedTaskId: "tarefa-ficticia-001",
+        centralResult: {
+          kind: "resolved_history",
+          history: resolvedHistory,
+        },
+      }),
+    ).toMatchObject({
+      state: "resolved",
+      centralResult: {
+        kind: "resolved_history",
+      },
+    });
+    expect(
+      CentralSyncApplicationResultSchema.parse({
+        kind: "discarded",
+        record: {
+          commandId: "cmd-ficticio-001",
+          idempotencyKey: "idem-ficticio-001",
+          taskId: "tarefa-ficticia-001",
+          activeKey: "lote-ficticio-001:expired:withdraw_or_loss:root",
+          lotId: "lote-ficticio-001",
+          reason: "Conferencia refeita presencialmente.",
+          discardedAt: updatedAt,
+          actorLabel: "Lider FICTICIO",
+          state: "discarded",
+        },
+      }),
+    ).toMatchObject({
+      kind: "discarded",
+      record: { state: "discarded" },
+    });
   });
 });

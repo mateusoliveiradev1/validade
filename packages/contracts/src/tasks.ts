@@ -8,6 +8,7 @@ import {
   RISK_REASON_CODES,
   MARKDOWN_WORKFLOW_STATUSES,
   SYNC_COMMAND_STATES,
+  isResolutionCompatible,
   type RequiredResolution,
 } from "@validade-zero/domain";
 import { z } from "zod";
@@ -230,6 +231,51 @@ export const TaskResolutionCommandSchema = z
   })
   .strict();
 
+export const CentralResolvedTaskHistorySchema = z
+  .object({
+    centralTaskId: IdentifierSchema,
+    activeKey: IdentifierSchema,
+    lotId: IdentifierSchema,
+    productDisplayName: RequiredTextSchema,
+    lotIdentity: LotIdentitySchema,
+    currentLocation: OperationalLocationSchema,
+    action: TaskResolutionActionSchema,
+    actorLabel: RequiredTextSchema,
+    occurredAt: IsoDateTimeSchema,
+    evidence: EvidencePromptMetadataSchema.optional(),
+    resolutionState: z.enum(["resolved", "moved", "markdown_stage_completed"]),
+    source: z.literal("central"),
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+export const CentralTerminalResolutionRequestSchema = z
+  .object({
+    task: TodayTaskRecordSchema.refine(
+      (task) => task.status === "active",
+      "Central terminal resolution requires an active task.",
+    ),
+    command: TaskResolutionCommandSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.task.id !== value.command.taskId) {
+      context.addIssue({
+        code: "custom",
+        path: ["command", "taskId"],
+        message: "Terminal resolution command must target the active task.",
+      });
+    }
+
+    if (!isResolutionCompatible(value.task.requiredResolution, value.command.action)) {
+      context.addIssue({
+        code: "custom",
+        path: ["command", "action"],
+        message: "Terminal resolution action is not compatible with the active task.",
+      });
+    }
+  });
+
 export function parseRequiredResolution(value: RequiredResolution): RequiredResolution {
   return RequiredResolutionSchema.parse(value);
 }
@@ -238,6 +284,10 @@ export type TodayTaskStatus = z.infer<typeof TodayTaskStatusSchema>;
 export type TodayTaskRecord = z.infer<typeof TodayTaskRecordSchema>;
 export type FutureAttentionRecord = z.infer<typeof FutureAttentionRecordSchema>;
 export type CentralTaskProjection = z.infer<typeof CentralTaskProjectionSchema>;
+export type CentralResolvedTaskHistory = z.infer<typeof CentralResolvedTaskHistorySchema>;
+export type CentralTerminalResolutionRequest = z.infer<
+  typeof CentralTerminalResolutionRequestSchema
+>;
 export type TaskRefreshMetadata = z.infer<typeof TaskRefreshMetadataSchema>;
 export type TodayTaskSyncMetadata = z.infer<typeof TodayTaskSyncMetadataSchema>;
 export type TaskResolutionCommand = z.infer<typeof TaskResolutionCommandSchema>;

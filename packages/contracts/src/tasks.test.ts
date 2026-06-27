@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CentralResolvedTaskHistorySchema,
   CentralTaskProjectionSchema,
+  CentralTerminalResolutionRequestSchema,
   EvidencePromptMetadataSchema,
   FutureAttentionRecordSchema,
   TaskResolutionCommandSchema,
@@ -139,6 +141,66 @@ describe("Today task contracts", () => {
       action: "withdraw",
       destination: { kind: "retirada_perda" },
     });
+  });
+
+  it("validates central resolved history and rejects incompatible terminal requests", () => {
+    expect(
+      CentralResolvedTaskHistorySchema.parse({
+        centralTaskId: "tarefa-ficticia-001",
+        activeKey: "lote-ficticio-001:expired:withdraw_or_loss:root",
+        lotId: "lote-ficticio-001",
+        productDisplayName: "Ovos Brancos FICTICIOS",
+        lotIdentity: baseTask.lotIdentity,
+        currentLocation: { kind: "retirada_perda" },
+        action: "withdraw",
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: "2030-01-10T09:10:00.000Z",
+        evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+        resolutionState: "resolved",
+        source: "central",
+        updatedAt: "2030-01-10T09:10:00.000Z",
+      }),
+    ).toMatchObject({
+      centralTaskId: "tarefa-ficticia-001",
+      action: "withdraw",
+      source: "central",
+    });
+    expect(
+      CentralTerminalResolutionRequestSchema.parse({
+        task: baseTask,
+        command: {
+          taskId: "tarefa-ficticia-001",
+          action: "withdraw",
+          actorLabel: "Colaboradora FICTICIA",
+          occurredAt: "2030-01-10T09:10:00.000Z",
+          destination: { kind: "retirada_perda" },
+        },
+      }),
+    ).toMatchObject({
+      command: { action: "withdraw" },
+    });
+    expect(() =>
+      CentralTerminalResolutionRequestSchema.parse({
+        task: baseTask,
+        command: {
+          taskId: "tarefa-ficticia-001",
+          action: "confirm_presence",
+          actorLabel: "Colaboradora FICTICIA",
+          occurredAt: "2030-01-10T09:10:00.000Z",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      CentralTerminalResolutionRequestSchema.parse({
+        task: baseTask,
+        command: {
+          taskId: "outra-tarefa-ficticia",
+          action: "withdraw",
+          actorLabel: "Colaboradora FICTICIA",
+          occurredAt: "2030-01-10T09:10:00.000Z",
+        },
+      }),
+    ).toThrow();
   });
 
   it("requires an explicit no-photo reason and keeps photo evidence as metadata only", () => {

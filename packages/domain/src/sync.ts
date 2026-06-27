@@ -84,6 +84,20 @@ export interface SafetyVerdictSyncInput {
   commands?: readonly Pick<SyncQueueSortableItem, "state" | "urgency">[];
 }
 
+export type CentralSyncApplicationPolicyResult =
+  | {
+      status: "accepted";
+      businessState: "active_task" | "resolved_history" | "discarded";
+    }
+  | {
+      status: "conflict";
+      reason: string;
+    }
+  | {
+      status: "retry";
+      error: string;
+    };
+
 export function deriveOfflineCacheState(input: OfflineCacheStateInput): OfflineCacheState {
   const lastRefreshedAt = input.lastRefreshedAt;
   const hasPreviousRefresh = lastRefreshedAt !== undefined;
@@ -204,6 +218,20 @@ export function shouldQualifySafetyVerdict(input: SafetyVerdictSyncInput): boole
           command.state !== "discarded"),
     ) ?? false
   );
+}
+
+export function keepsActiveRiskVisibleAfterCentralSync(
+  result: CentralSyncApplicationPolicyResult,
+): boolean {
+  if (result.status !== "accepted") {
+    return true;
+  }
+
+  return result.businessState !== "resolved_history";
+}
+
+export function isCentralBusinessResolution(result: CentralSyncApplicationPolicyResult): boolean {
+  return result.status === "accepted" && result.businessState === "resolved_history";
 }
 
 function hasUsableTaskCache(input: OfflineCacheStateInput): boolean {

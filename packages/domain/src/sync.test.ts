@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   classifySyncCommandUrgency,
   deriveOfflineCacheState,
+  isCentralBusinessResolution,
+  keepsActiveRiskVisibleAfterCentralSync,
   requiresDiscardReason,
   shouldQualifySafetyVerdict,
   sortSyncQueueItems,
@@ -189,5 +191,41 @@ describe("offline sync policy", () => {
         commands: [{ state: "synced", urgency: "critical" }],
       }),
     ).toBe(false);
+  });
+
+  it("separates central business resolution from retry, conflict, and active-task ack", () => {
+    expect(keepsActiveRiskVisibleAfterCentralSync({ status: "retry", error: "timeout" })).toBe(
+      true,
+    );
+    expect(
+      keepsActiveRiskVisibleAfterCentralSync({
+        status: "conflict",
+        reason: "task changed elsewhere",
+      }),
+    ).toBe(true);
+    expect(
+      keepsActiveRiskVisibleAfterCentralSync({
+        status: "accepted",
+        businessState: "active_task",
+      }),
+    ).toBe(true);
+    expect(
+      keepsActiveRiskVisibleAfterCentralSync({
+        status: "accepted",
+        businessState: "discarded",
+      }),
+    ).toBe(true);
+    expect(
+      keepsActiveRiskVisibleAfterCentralSync({
+        status: "accepted",
+        businessState: "resolved_history",
+      }),
+    ).toBe(false);
+    expect(
+      isCentralBusinessResolution({
+        status: "accepted",
+        businessState: "resolved_history",
+      }),
+    ).toBe(true);
   });
 });

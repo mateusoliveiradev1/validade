@@ -18,7 +18,12 @@ import {
   MarkdownRequestCommandSchema,
   MarkdownShelfConfirmationCommandSchema,
 } from "./markdown";
-import { RequiredResolutionSchema, TaskResolutionCommandSchema } from "./tasks";
+import {
+  CentralResolvedTaskHistorySchema,
+  RequiredResolutionSchema,
+  TaskResolutionCommandSchema,
+  TodayTaskRecordSchema,
+} from "./tasks";
 
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IdentifierSchema = z.string().trim().min(1).max(160);
@@ -232,6 +237,44 @@ export const SyncTransportBatchSchema = z
   })
   .strict();
 
+export const CentralDiscardedSyncRecordSchema = z
+  .object({
+    commandId: IdentifierSchema,
+    idempotencyKey: IdentifierSchema,
+    taskId: IdentifierSchema,
+    activeKey: IdentifierSchema,
+    lotId: IdentifierSchema,
+    reason: RequiredTextSchema,
+    discardedAt: IsoDateTimeSchema,
+    actorLabel: RequiredTextSchema,
+    state: z.literal("discarded"),
+  })
+  .strict();
+
+export const CentralSyncApplicationResultSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("active_task"),
+      task: TodayTaskRecordSchema.refine(
+        (task) => task.status === "active",
+        "Central active-task results must keep an active task.",
+      ),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("resolved_history"),
+      history: CentralResolvedTaskHistorySchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("discarded"),
+      record: CentralDiscardedSyncRecordSchema,
+    })
+    .strict(),
+]);
+
 export const SyncTransportResultSchema = z.discriminatedUnion("status", [
   z
     .object({
@@ -239,6 +282,7 @@ export const SyncTransportResultSchema = z.discriminatedUnion("status", [
       commandId: IdentifierSchema,
       idempotencyKey: IdentifierSchema,
       syncedAt: IsoDateTimeSchema,
+      centralResult: CentralSyncApplicationResultSchema.optional(),
     })
     .strict(),
   z
@@ -269,6 +313,7 @@ export const CentralAcknowledgementSchema = z
     centralVersion: z.number().int().positive(),
     resolvedTaskId: IdentifierSchema.optional(),
     conflictId: IdentifierSchema.optional(),
+    centralResult: CentralSyncApplicationResultSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -298,6 +343,8 @@ export type SyncConflictRecord = z.infer<typeof SyncConflictRecordSchema>;
 export type SyncTransportBatch = z.infer<typeof SyncTransportBatchSchema>;
 export type SyncTransportResult = z.infer<typeof SyncTransportResultSchema>;
 export type CentralAcknowledgement = z.infer<typeof CentralAcknowledgementSchema>;
+export type CentralDiscardedSyncRecord = z.infer<typeof CentralDiscardedSyncRecordSchema>;
+export type CentralSyncApplicationResult = z.infer<typeof CentralSyncApplicationResultSchema>;
 
 function rejectForbiddenSyncPayloadFields(
   value: unknown,

@@ -68,6 +68,60 @@ export type TaskResolutionAction = (typeof TASK_RESOLUTION_ACTIONS)[number];
 
 export type TodayRiskAttention = "active_task" | "future_attention" | "none";
 
+export const CENTRAL_TERMINAL_OUTCOMES = [
+  "withdrawn",
+  "loss_recorded",
+  "repack_completed",
+  "not_found",
+  "probably_sold_out",
+  "moved",
+  "presence_confirmed",
+  "markdown_requested",
+  "sales_area_recheck_completed",
+  "markdown_approved",
+  "markdown_rejected",
+  "markdown_applied",
+  "markdown_shelf_confirmed",
+] as const;
+
+export type CentralTerminalOutcomeKind = (typeof CENTRAL_TERMINAL_OUTCOMES)[number];
+
+export interface CentralTerminalResolutionInput {
+  taskId: string;
+  lotId: string;
+  productDisplayName: string;
+  lotIdentity: string;
+  currentLocation: TodayTaskLocation;
+  requiredResolution: RequiredResolution;
+  action: TaskResolutionAction;
+  actorLabel: string;
+  occurredAt: string;
+  destination?: TodayTaskLocation;
+  evidenceState?: "photo_recorded" | "no_photo_reason" | "not_required";
+}
+
+export type CentralTerminalResolutionPolicy =
+  | {
+      status: "accepted";
+      outcome: {
+        kind: CentralTerminalOutcomeKind;
+        action: TaskResolutionAction;
+        centralState: "resolved";
+        closesActiveTask: true;
+        actorLabel: string;
+        occurredAt: string;
+        nextLocation?: TodayTaskLocation;
+      };
+    }
+  | {
+      status: "rejected";
+      reason:
+        | "incompatible_action"
+        | "destination_required"
+        | "evidence_or_no_photo_reason_required";
+      keepsActiveRiskVisible: true;
+    };
+
 export type TodayTaskLocation =
   | { kind: "area_de_venda" }
   | { kind: "estoque" }
@@ -321,6 +375,47 @@ export function isResolutionCompatible(
   return compatibleActionsFor(requiredResolution).includes(action);
 }
 
+export function resolveCentralTerminalOutcome(
+  input: CentralTerminalResolutionInput,
+): CentralTerminalResolutionPolicy {
+  if (!isResolutionCompatible(input.requiredResolution, input.action)) {
+    return {
+      status: "rejected",
+      reason: "incompatible_action",
+      keepsActiveRiskVisible: true,
+    };
+  }
+
+  if (input.action === "move_lot" && input.destination === undefined) {
+    return {
+      status: "rejected",
+      reason: "destination_required",
+      keepsActiveRiskVisible: true,
+    };
+  }
+
+  if (requiresCentralTerminalEvidence(input)) {
+    return {
+      status: "rejected",
+      reason: "evidence_or_no_photo_reason_required",
+      keepsActiveRiskVisible: true,
+    };
+  }
+
+  return {
+    status: "accepted",
+    outcome: {
+      kind: centralTerminalOutcomeKindFor(input.action),
+      action: input.action,
+      centralState: "resolved",
+      closesActiveTask: true,
+      actorLabel: input.actorLabel,
+      occurredAt: input.occurredAt,
+      ...(input.destination === undefined ? {} : { nextLocation: input.destination }),
+    },
+  };
+}
+
 export function compatibleActionsFor(
   requiredResolution: RequiredResolution,
 ): readonly TaskResolutionAction[] {
@@ -357,6 +452,34 @@ export function compatibleActionsFor(
 
 function isTodayActionableRiskState(state: RiskState): state is TodayActionableRiskState {
   return TODAY_ACTIONABLE_RISK_STATES.includes(state as TodayActionableRiskState);
+}
+
+function requiresCentralTerminalEvidence(input: CentralTerminalResolutionInput): boolean {
+  if (
+    input.action !== "complete_recheck" &&
+    input.action !== "apply_markdown" &&
+    input.action !== "confirm_markdown_on_shelf"
+  ) {
+    return false;
+  }
+
+  return input.evidenceState !== "photo_recorded" && input.evidenceState !== "no_photo_reason";
+}
+
+function centralTerminalOutcomeKindFor(action: TaskResolutionAction): CentralTerminalOutcomeKind {
+  if (action === "withdraw") return "withdrawn";
+  if (action === "record_loss") return "loss_recorded";
+  if (action === "repack") return "repack_completed";
+  if (action === "mark_not_found") return "not_found";
+  if (action === "mark_probably_sold_out") return "probably_sold_out";
+  if (action === "move_lot") return "moved";
+  if (action === "confirm_presence") return "presence_confirmed";
+  if (action === "request_markdown") return "markdown_requested";
+  if (action === "complete_recheck") return "sales_area_recheck_completed";
+  if (action === "approve_markdown") return "markdown_approved";
+  if (action === "reject_markdown") return "markdown_rejected";
+  if (action === "apply_markdown") return "markdown_applied";
+  return "markdown_shelf_confirmed";
 }
 
 function requiredResolutionForRisk(state: TodayActionableRiskState): RequiredResolution {
