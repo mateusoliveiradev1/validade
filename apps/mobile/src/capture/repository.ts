@@ -29,6 +29,8 @@ import {
   type CaptureLotInput,
   type CaptureProductInput,
   type AlertDeliveryResult,
+  type CentralCategoryCatalogItem,
+  type CentralCategoryCatalogResponse,
   type CentralLotCreateRequest,
   type CentralLotTaskProjectionSummary,
   type CentralLotWriteResponse,
@@ -92,6 +94,7 @@ import {
 export interface CaptureRepositoryDependencies {
   clock: () => string;
   createId: () => string;
+  listCentralCategories?: () => Promise<CentralCategoryCatalogResponse>;
   searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;
   createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createCentralLot?: (request: CentralLotCreateRequest) => Promise<CentralLotWriteResponse>;
@@ -119,6 +122,8 @@ export type CaptureProductRecord = CaptureProductInput & {
 
 export interface CaptureProductCategory {
   categoryId: string;
+  categoryName: string;
+  categoryRuleProfile: CaptureProductInput["categoryRuleProfile"];
   productCount: number;
 }
 
@@ -383,6 +388,18 @@ export function parseProductInput(input: CaptureProductInput): CaptureProductInp
 
 export function parseProductSearchRequest(input: ProductSearchRequest): ProductSearchRequest {
   return ProductSearchRequestSchema.parse(input);
+}
+
+export function categoryCatalogItemToLocalCategory(
+  category: CentralCategoryCatalogItem,
+  productCount = 0,
+): CaptureProductCategory {
+  return {
+    categoryId: category.categoryId,
+    categoryName: category.categoryName,
+    categoryRuleProfile: category.categoryRuleProfile,
+    productCount,
+  };
 }
 
 export function parseProductDraftCreateRequest(

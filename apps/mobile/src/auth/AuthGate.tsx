@@ -3,6 +3,7 @@ import {
   AccountAccessErrorResponseSchema,
   AuthenticatedSessionResponseSchema,
   AuthorizationContract,
+  CentralCategoryCatalogResponseSchema,
   CentralLotCreateRequestSchema,
   CentralLotWriteResponseSchema,
   FirstAccessActivationRequestSchema,
@@ -24,6 +25,7 @@ import {
   ShiftClosureSnapshotSchema,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
+  type CentralCategoryCatalogResponse,
   type CentralLotCreateRequest,
   type CentralLotWriteResponse,
   type ProductDraftCreateRequest,
@@ -79,6 +81,7 @@ export interface MobileAuthClient {
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
+  listCentralCategories?: (() => Promise<CentralCategoryCatalogResponse>) | undefined;
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateRequest): Promise<ProductDraftCreateResponse>;
   createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
@@ -169,6 +172,9 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
           body: JSON.stringify(body),
         }),
       );
+    },
+    async listCentralCategories() {
+      return CentralCategoryCatalogResponseSchema.parse(await request("/capture/categories"));
     },
     async searchCentralProducts(input) {
       const body = ProductSearchRequestSchema.parse(input);

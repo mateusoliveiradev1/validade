@@ -2,6 +2,7 @@ import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import {
   CentralResolvedTaskHistorySchema,
   CentralLotWriteResponseSchema,
+  CentralCategoryCatalogItemSchema,
   CentralProductAcknowledgementSchema,
   PrepareTurnResponseSchema,
   ProductCatalogItemSchema,
@@ -18,6 +19,7 @@ import {
   type CentralLotWriteResponse,
   type CentralObservationAppendRequest,
   type CentralPhysicalObservation,
+  type CentralCategoryCatalogItem,
   type CentralProductAcknowledgement,
   type CentralConflictSnippet,
   type CentralLotSnippet,
@@ -152,6 +154,7 @@ export interface CentralSyncCommandApplyInput {
 
 export interface CaptureRepository {
   prepareTurn(input: PrepareTurnInput): Promise<PrepareTurnResponse>;
+  listCategories(): Promise<readonly CentralCategoryCatalogItem[]>;
   searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateInput): Promise<ProductDraftCreateResponse>;
   reviewProductDraft(input: ProductDraftReviewInput): Promise<ProductDraftReviewResponse>;
@@ -174,6 +177,12 @@ interface ProductRow {
   gtin: string | null;
   category_rule_profile: Record<string, unknown> | string;
   updated_at: string | Date;
+}
+
+interface CategoryRow {
+  category_id: string;
+  category_name: string;
+  category_rule_profile: Record<string, unknown> | string;
 }
 
 interface LotRow {
@@ -252,6 +261,7 @@ interface ConflictRow {
 }
 
 type StoredProduct = CentralProductSnippet & { storeId: string; normalizedKey?: string };
+type StoredCategory = CentralCategoryCatalogItem;
 type StoredProductDraft = ProductDraftReviewState & { storeId: string };
 type StoredLot = CentralLotSnippet & { storeId: string };
 type StoredTask = ActiveTaskSnippet & {
@@ -650,6 +660,17 @@ export function createCaptureRepositoryFromQuery(
     return rows.map(mapCatalogProductRow);
   }
 
+  async function listCategories(): Promise<readonly CentralCategoryCatalogItem[]> {
+    const rows = (await sql.query(
+      `select category_id, category_name, category_rule_profile
+      from central_category_catalog
+      where status = 'active'
+      order by category_name asc, category_id asc`,
+    )) as CategoryRow[];
+
+    return rows.map(mapCategoryRow);
+  }
+
   async function searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse> {
     const normalizedKey = input.request.query && normalizeProductKey(input.request.query);
     const candidates = await selectCatalogProducts({
@@ -742,7 +763,6 @@ export function createCaptureRepositoryFromQuery(
     const categoryRuleProfile = JSON.stringify(input.request.categoryRuleProfile);
 
     await upsertCentralCategory({
-      storeId: input.storeId,
       categoryId: input.request.categoryId,
       categoryName: input.request.categoryName,
       categoryRuleProfile,
@@ -832,28 +852,21 @@ export function createCaptureRepositoryFromQuery(
   }
 
   async function upsertCentralCategory(input: {
-    storeId: string;
     categoryId: string;
     categoryName: string;
     categoryRuleProfile: string;
     occurredAt: string;
   }): Promise<void> {
     await sql.query(
-      `insert into central_categories (
-        store_id, category_id, category_name, category_rule_profile, status, created_at, updated_at
-      ) values ($1, $2, $3, $4::jsonb, 'active', $5::timestamptz, $5::timestamptz)
-      on conflict (store_id, category_id) do update set
+      `insert into central_category_catalog (
+        category_id, category_name, category_rule_profile, status, created_at, updated_at
+      ) values ($1, $2, $3::jsonb, 'active', $4::timestamptz, $4::timestamptz)
+      on conflict (category_id) do update set
         category_name = excluded.category_name,
         category_rule_profile = excluded.category_rule_profile,
         status = 'active',
         updated_at = excluded.updated_at`,
-      [
-        input.storeId,
-        input.categoryId,
-        input.categoryName,
-        input.categoryRuleProfile,
-        input.occurredAt,
-      ],
+      [input.categoryId, input.categoryName, input.categoryRuleProfile, input.occurredAt],
     );
   }
 
@@ -1548,6 +1561,7 @@ export function createCaptureRepositoryFromQuery(
 
       return response;
     },
+    listCategories,
     searchProducts,
     createProductDraft,
     reviewProductDraft,
@@ -1560,6 +1574,7 @@ export function createCaptureRepositoryFromQuery(
 }
 
 export function createInMemoryCaptureRepository(input?: {
+  categories?: readonly StoredCategory[];
   products?: readonly StoredProduct[];
   productDrafts?: readonly StoredProductDraft[];
   lots?: readonly StoredLot[];
@@ -1571,6 +1586,7 @@ export function createInMemoryCaptureRepository(input?: {
   readDeviceSnapshots(): readonly DeviceSnapshotInput[];
   readProductDrafts(): readonly StoredProductDraft[];
 } {
+  const categories = [...(input?.categories ?? [])];
   const products = [...(input?.products ?? [])];
   const productDrafts = [...(input?.productDrafts ?? [])];
   const lots = [...(input?.lots ?? [])];
@@ -1676,6 +1692,29 @@ export function createInMemoryCaptureRepository(input?: {
 
     return result;
   };
+  const currentCategories = (): readonly CentralCategoryCatalogItem[] => {
+    const merged = new Map<string, CentralCategoryCatalogItem>();
+
+    for (const category of categories) {
+      merged.set(category.categoryId, category);
+    }
+
+    for (const product of products) {
+      if (merged.has(product.categoryId)) continue;
+      merged.set(
+        product.categoryId,
+        CentralCategoryCatalogItemSchema.parse({
+          categoryId: product.categoryId,
+          categoryName: product.categoryName,
+          categoryRuleProfile: product.categoryRuleProfile,
+        }),
+      );
+    }
+
+    return [...merged.values()].sort((left, right) =>
+      left.categoryName.localeCompare(right.categoryName, "pt-BR"),
+    );
+  };
 
   return {
     async prepareTurn(prepareInput) {
@@ -1711,6 +1750,9 @@ export function createInMemoryCaptureRepository(input?: {
       });
 
       return response;
+    },
+    listCategories() {
+      return Promise.resolve(currentCategories());
     },
     searchProducts(searchInput) {
       const storeProducts = products
@@ -2604,6 +2646,14 @@ function mapCatalogProductRow(row: ProductRow): ProductCatalogItem {
     syncState: row.state,
     updatedAt: toIso(row.updated_at),
     ...(row.gtin === null ? {} : { gtin: row.gtin }),
+  });
+}
+
+function mapCategoryRow(row: CategoryRow): CentralCategoryCatalogItem {
+  return CentralCategoryCatalogItemSchema.parse({
+    categoryId: row.category_id,
+    categoryName: row.category_name,
+    categoryRuleProfile: parseJson(row.category_rule_profile),
   });
 }
 

@@ -10,6 +10,7 @@ import {
   authLoginAttempts,
   authRecoveryTokens,
   authSessions,
+  centralCategoryCatalog,
   centralCategories,
   evidenceAssets,
   evidenceAssetStateEnum,
@@ -55,6 +56,10 @@ const productionOpsMigrationSql = readFileSync(
 );
 const storeCatalogMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0010_phase_10_store_catalog.sql"),
+  "utf8",
+);
+const globalCategoryCatalogMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0011_phase_10_global_category_catalog.sql"),
   "utf8",
 );
 
@@ -221,6 +226,21 @@ describe("phase 08 database schema", () => {
     expect(productionOpsMigrationSql).toContain("INSERT INTO central_categories");
     expect(productionOpsMigrationSql).toContain("central_products_category_fkey");
     expect(productionOpsMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+  });
+
+  it("promotes categories to a shared central catalog without weakening store tenancy", () => {
+    expect(centralCategoryCatalog.categoryId.name).toBe("category_id");
+    expect(centralCategoryCatalog.categoryName.name).toBe("category_name");
+    expect(centralCategoryCatalog.categoryRuleProfile.name).toBe("category_rule_profile");
+    expect(globalCategoryCatalogMigrationSql).toContain(
+      "CREATE TABLE IF NOT EXISTS central_category_catalog",
+    );
+    expect(globalCategoryCatalogMigrationSql).toContain("central_products_category_catalog_fkey");
+    expect(globalCategoryCatalogMigrationSql).toContain("UPDATE central_categories");
+    expect(globalCategoryCatalogMigrationSql).toContain("status = 'archived'");
+    expect(globalCategoryCatalogMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
   });

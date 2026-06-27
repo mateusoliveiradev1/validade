@@ -181,8 +181,22 @@ describe("memory capture repository", () => {
 
     expect(frequentProducts).toEqual([product]);
     expect(categories).toEqual([
-      { categoryId: "categoria-ficticia-folhas", productCount: 1 },
-      { categoryId: "categoria-ficticia-ovos", productCount: 1 },
+      {
+        categoryId: "categoria-ficticia-folhas",
+        categoryName: "categoria-ficticia-folhas",
+        categoryRuleProfile,
+        productCount: 1,
+      },
+      {
+        categoryId: "categoria-ficticia-ovos",
+        categoryName: "categoria-ficticia-ovos",
+        categoryRuleProfile: {
+          categoryId: "categoria-ficticia-ovos",
+          mode: "formal_validity",
+          windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+        },
+        productCount: 1,
+      },
     ]);
     expect(productsByCategory).toEqual([product]);
     expect(productsByCategory).not.toContain(otherProduct);

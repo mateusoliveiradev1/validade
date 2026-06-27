@@ -152,8 +152,8 @@ export function ProductDiscoveryScreen({
       {categories.map((category) => (
         <SelectionRow
           key={category.categoryId}
-          label={category.categoryId}
-          detail={`${category.productCount} ${category.productCount === 1 ? "produto" : "produtos"}`}
+          label={category.categoryName}
+          detail={categoryShortcutDetail(category)}
           onPress={() => void showProductsByCategory(category.categoryId)}
         />
       ))}
@@ -246,4 +246,14 @@ function productDetail(product: CaptureProductRecord): string {
   }
 
   return category;
+}
+
+function categoryShortcutDetail(category: CaptureProductCategory): string {
+  if (category.productCount === 0) {
+    return `${productModeLabels[category.categoryRuleProfile.mode]} - catalogo geral`;
+  }
+
+  return `${productModeLabels[category.categoryRuleProfile.mode]} - ${category.productCount} ${
+    category.productCount === 1 ? "produto local" : "produtos locais"
+  }`;
 }

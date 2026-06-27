@@ -355,6 +355,23 @@ export const CentralProductSnippetSchema = z
   })
   .strict();
 
+export const CentralCategoryCatalogItemSchema = z
+  .object({
+    categoryId: IdentifierSchema,
+    categoryName: RequiredTextSchema,
+    categoryRuleProfile: CategoryRuleProfileSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    ensureCategoryProfileMatches(value.categoryId, value.categoryRuleProfile, context);
+  });
+
+export const CentralCategoryCatalogResponseSchema = z
+  .object({
+    categories: z.array(CentralCategoryCatalogItemSchema).max(80),
+  })
+  .strict();
+
 const NormalizedProductKeySchema = z
   .string()
   .trim()
@@ -808,6 +825,8 @@ export const CaptureContract = {
   centralLotSnapshot: CentralLotSnapshotSchema,
   prepareTurnRequest: PrepareTurnRequestSchema,
   prepareTurnResponse: PrepareTurnResponseSchema,
+  centralCategoryCatalogItem: CentralCategoryCatalogItemSchema,
+  centralCategoryCatalogResponse: CentralCategoryCatalogResponseSchema,
   productSearchRequest: ProductSearchRequestSchema,
   productSearchResponse: ProductSearchResponseSchema,
   productDraftCreateRequest: ProductDraftCreateRequestSchema,
@@ -835,6 +854,8 @@ export type VisibleCentralSyncState = z.infer<typeof VisibleCentralSyncStateSche
 export type PrepareTurnRequest = z.infer<typeof PrepareTurnRequestSchema>;
 export type CentralStoreSnapshot = z.infer<typeof CentralStoreSnapshotSchema>;
 export type CentralProductSnippet = z.infer<typeof CentralProductSnippetSchema>;
+export type CentralCategoryCatalogItem = z.infer<typeof CentralCategoryCatalogItemSchema>;
+export type CentralCategoryCatalogResponse = z.infer<typeof CentralCategoryCatalogResponseSchema>;
 export type CentralLotSnippet = z.infer<typeof CentralLotSnippetSchema>;
 export type ActiveTaskSnippet = z.infer<typeof ActiveTaskSnippetSchema>;
 export type ResolvedTaskHistorySnippet = z.infer<typeof ResolvedTaskHistorySnippetSchema>;

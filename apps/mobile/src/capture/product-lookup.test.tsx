@@ -145,7 +145,7 @@ describe("manual product discovery", () => {
 
     expect(openProductFormWith).toBe("7890000000001");
 
-    act(() => {
+    await act(async () => {
       tree = create(
         <ProductFormScreen
           repository={repository}
@@ -154,6 +154,8 @@ describe("manual product discovery", () => {
           onBack={() => undefined}
         />,
       );
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(getInput(tree!, "GTIN opcional").props.value).toBe("7890000000001");
@@ -177,7 +179,7 @@ describe("manual product discovery", () => {
     const created: CaptureProductRecord[] = [];
     let tree: ReactTestRenderer | undefined;
 
-    act(() => {
+    await act(async () => {
       tree = create(
         <ProductFormScreen
           repository={repository}
@@ -185,11 +187,13 @@ describe("manual product discovery", () => {
           onBack={() => undefined}
         />,
       );
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     act(() => {
       getInput(tree!, "Nome do produto").props.onChangeText("Banana Nanica Exemplo FICTICIA");
-      getInput(tree!, "Categoria").props.onChangeText("categoria-ficticia-frutas");
+      press(tree!, "categoria-ficticia-frutas");
     });
 
     await act(async () => {

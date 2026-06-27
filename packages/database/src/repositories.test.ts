@@ -392,7 +392,7 @@ describe("database repositories", () => {
     });
     expect(captured.some(([query]) => String(query).includes("normalized_key"))).toBe(true);
     expect(
-      captured.some(([query]) => String(query).includes("insert into central_categories")),
+      captured.some(([query]) => String(query).includes("insert into central_category_catalog")),
     ).toBe(true);
     expect(captured.some(([query]) => String(query).includes("insert into central_products"))).toBe(
       true,

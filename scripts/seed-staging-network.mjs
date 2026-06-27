@@ -203,7 +203,7 @@ try {
             storeId: pilotStore.storeId,
             storeName: pilotStore.storeName,
           },
-          categoryCountPerStore: CATEGORY_CATALOG.length,
+          globalCategoryCount: CATEGORY_CATALOG.length,
           sourceStoreId: args.sourceStoreId,
           membershipCopy,
           authPromotion,
@@ -220,7 +220,7 @@ try {
 
   const now = new Date().toISOString();
   await upsertStores(sql, stores, now);
-  await upsertCategories(sql, stores, now);
+  await upsertCategories(sql, now);
   await archiveLegacyStoreCatalog(sql, stores, now);
   const membershipCopy = args.copyMemberships
     ? await copyMembershipsToPilot(sql, {
@@ -251,7 +251,7 @@ try {
           storeId: pilotStore.storeId,
           storeName: pilotStore.storeName,
         },
-        categoryCountPerStore: CATEGORY_CATALOG.length,
+        globalCategoryCount: CATEGORY_CATALOG.length,
         sourceStoreId: args.sourceStoreId,
         membershipCopy,
         authPromotion,
@@ -420,29 +420,36 @@ async function upsertStores(db, storeRows, now) {
   }
 }
 
-async function upsertCategories(db, storeRows, now) {
-  for (const store of storeRows) {
-    for (const category of CATEGORY_CATALOG) {
-      const profile = {
-        categoryId: category.id,
-        mode: category.mode,
-        windows: category.windows,
-        maxPhysicalConfirmationAgeHours: category.maxPhysicalConfirmationAgeHours,
-      };
-      await db.query(
-        `insert into central_categories (
-           store_id, category_id, category_name, category_rule_profile, status, created_at, updated_at
-         )
-         values ($1, $2, $3, $4::jsonb, 'active', $5::timestamptz, $5::timestamptz)
-         on conflict (store_id, category_id) do update set
-           category_name = excluded.category_name,
-           category_rule_profile = excluded.category_rule_profile,
-           status = 'active',
-           updated_at = excluded.updated_at`,
-        [store.storeId, category.id, category.name, JSON.stringify(profile), now],
-      );
-    }
+async function upsertCategories(db, now) {
+  const activeCategoryIds = CATEGORY_CATALOG.map((category) => category.id);
+
+  for (const category of CATEGORY_CATALOG) {
+    const profile = {
+      categoryId: category.id,
+      mode: category.mode,
+      windows: category.windows,
+      maxPhysicalConfirmationAgeHours: category.maxPhysicalConfirmationAgeHours,
+    };
+    await db.query(
+      `insert into central_category_catalog (
+         category_id, category_name, category_rule_profile, status, created_at, updated_at
+       )
+       values ($1, $2, $3::jsonb, 'active', $4::timestamptz, $4::timestamptz)
+       on conflict (category_id) do update set
+         category_name = excluded.category_name,
+         category_rule_profile = excluded.category_rule_profile,
+         status = 'active',
+         updated_at = excluded.updated_at`,
+      [category.id, category.name, JSON.stringify(profile), now],
+    );
   }
+
+  await db.query(
+    `update central_category_catalog
+        set status = 'archived', updated_at = $1::timestamptz
+      where not (category_id = any($2::text[])) and status = 'active'`,
+    [now, activeCategoryIds],
+  );
 }
 
 async function archiveLegacyStoreCatalog(db, storeRows, now) {
@@ -450,8 +457,8 @@ async function archiveLegacyStoreCatalog(db, storeRows, now) {
   await db.query(
     `update central_categories
         set status = 'archived', updated_at = $1::timestamptz
-      where not (store_id = any($2::text[])) and status = 'active'`,
-    [now, activeStoreIds],
+      where status = 'active'`,
+    [now],
   );
   await db.query(
     `update stores
@@ -726,8 +733,8 @@ async function readCounts(db, sourceStoreId, pilotStoreId, storeRows) {
        (select count(*)::int from stores) as stores,
        (select count(*)::int from stores where status = 'active') as active_stores,
        (select count(*)::int from stores where store_id = any($3::text[])) as network_stores,
-       (select count(*)::int from central_categories where status = 'active') as active_categories,
-       (select count(*)::int from central_categories where store_id = $2 and status = 'active') as pilot_categories,
+       (select count(*)::int from central_category_catalog where status = 'active') as global_categories,
+       (select count(*)::int from central_categories where status = 'active') as active_legacy_store_categories,
        (select count(*)::int from central_products where store_id = $2) as pilot_products,
        (select count(*)::int from central_lots where store_id = $2) as pilot_lots,
        (select count(*)::int from store_memberships where store_id = $1 and status = 'active') as source_memberships,
@@ -746,8 +753,8 @@ function projectDryRunCounts(before, membershipCopy, authPromotion, storeCount) 
     stores: Number(before.stores ?? 0) + missingNetworkStores,
     active_stores: storeCount,
     network_stores: storeCount,
-    active_categories: storeCount * CATEGORY_CATALOG.length,
-    pilot_categories: CATEGORY_CATALOG.length,
+    global_categories: CATEGORY_CATALOG.length,
+    active_legacy_store_categories: 0,
     pilot_memberships: Number(before.pilot_memberships ?? 0) + membershipCopy.copied,
     source_credentials: Number(before.source_credentials ?? 0) - authPromotion.promotedCredentials,
     pilot_credentials: Number(before.pilot_credentials ?? 0) + authPromotion.promotedCredentials,

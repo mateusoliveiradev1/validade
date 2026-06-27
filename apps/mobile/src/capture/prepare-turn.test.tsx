@@ -107,7 +107,7 @@ describe("prepare-turn gate", () => {
     await press(tree, "Buscar manualmente");
     await press(tree, "Criar rascunho operacional");
     await changeText(tree, "Nome do produto", "Banana Prata");
-    await changeText(tree, "Categoria", "frutas");
+    await press(tree, "Frutas");
     await press(tree, "Criar rascunho operacional");
 
     expect(textContent(tree)).toContain("Produto salvo na central");
@@ -141,6 +141,25 @@ function createRepository() {
   return createMemoryCaptureRepository({
     clock: () => "2030-01-10T12:30:00.000Z",
     createId: () => `prepare-turn-local-${nextIdentifier++}`,
+    listCentralCategories: () =>
+      Promise.resolve({
+        categories: [
+          {
+            categoryId: "frutas",
+            categoryName: "Frutas",
+            categoryRuleProfile: {
+              categoryId: "frutas",
+              mode: "formal_validity",
+              windows: {
+                radarDays: 60,
+                markdownDays: 15,
+                criticalDays: 3,
+                expiredDays: 0,
+              },
+            },
+          },
+        ],
+      }),
   });
 }
 

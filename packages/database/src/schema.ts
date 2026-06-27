@@ -124,6 +124,21 @@ export const centralCategories = pgTable(
   ],
 );
 
+export const centralCategoryCatalog = pgTable(
+  "central_category_catalog",
+  {
+    categoryId: text("category_id").primaryKey(),
+    categoryName: text("category_name").notNull(),
+    categoryRuleProfile: jsonb("category_rule_profile").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("central_category_catalog_status_name_idx").on(table.status, table.categoryName),
+  ],
+);
+
 export const storeMemberships = pgTable(
   "store_memberships",
   {

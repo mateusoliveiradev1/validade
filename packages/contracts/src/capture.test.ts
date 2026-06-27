@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  CentralCategoryCatalogResponseSchema,
   CentralLotCreateRequestSchema,
   CentralLotSnapshotSchema,
   CentralObservationAppendRequestSchema,
@@ -335,6 +336,32 @@ describe("capture runtime contracts", () => {
     ).toThrow();
   });
 
+  it("exposes global categories with matching operational profiles", () => {
+    expect(
+      CentralCategoryCatalogResponseSchema.parse({
+        categories: [
+          {
+            categoryId: "frutas",
+            categoryName: "Frutas",
+            categoryRuleProfile: categoryRuleProfile("frutas"),
+          },
+        ],
+      }),
+    ).toMatchObject({ categories: [{ categoryId: "frutas" }] });
+
+    expect(() =>
+      CentralCategoryCatalogResponseSchema.parse({
+        categories: [
+          {
+            categoryId: "frutas",
+            categoryName: "Frutas",
+            categoryRuleProfile: categoryRuleProfile("ovos"),
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
   it("returns duplicate GTIN and normalized-name cases as explicit reuse outcomes", () => {
     const product = centralProduct();
 
@@ -548,9 +575,9 @@ describe("capture runtime contracts", () => {
   });
 });
 
-function categoryRuleProfile() {
+function categoryRuleProfile(categoryId = "categoria-ficticia-ovos") {
   return {
-    categoryId: "categoria-ficticia-ovos",
+    categoryId,
     mode: "formal_validity" as const,
     windows: {
       radarDays: 10,

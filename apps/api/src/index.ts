@@ -12,6 +12,7 @@ import {
   AuditEventRecordSchema,
   AuthorizationContract,
   ChangeMembershipRoleRequestSchema,
+  CentralCategoryCatalogResponseSchema,
   CentralLotCreateRequestSchema,
   CentralLotWriteResponseSchema,
   CentralObservationAppendRequestSchema,
@@ -506,6 +507,41 @@ export function createApiApp(input?: {
       return context.json(PrepareTurnResponseSchema.parse(response));
     } catch {
       return context.json({ error: "prepare_turn_unavailable" }, 503);
+    }
+  });
+
+  api.get("/capture/categories", async (context) => {
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "category_catalog",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const categories = await captureRepository.listCategories();
+
+      return context.json(CentralCategoryCatalogResponseSchema.parse({ categories }));
+    } catch {
+      return context.json({ error: "category_catalog_unavailable" }, 503);
     }
   });
 

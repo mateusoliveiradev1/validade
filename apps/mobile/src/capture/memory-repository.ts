@@ -87,6 +87,7 @@ import {
   parseMarkdownWorkflowRecord,
   parseAlertDeliveryResult,
   parseAlertDeviceRegistration,
+  categoryCatalogItemToLocalCategory,
   parseCentralLotCreateRequest,
   parseCentralLotWriteResponse,
   parseLotId,
@@ -119,6 +120,7 @@ export function createMemoryCaptureRepository(
   dependencies: CaptureRepositoryDependencies,
 ): CaptureRepository {
   const products = new Map<string, CaptureProductRecord>();
+  const categoryCatalog = new Map<string, CaptureProductCategory>();
   const lots = new Map<string, CaptureLotSnapshot>();
   const observations = new Map<string, CaptureObservationRecord[]>();
   const todayTasks = new Map<string, TodayTaskRecord>();
@@ -436,17 +438,46 @@ export function createMemoryCaptureRepository(
     );
   }
 
-  function listProductCategories(): Promise<readonly CaptureProductCategory[]> {
+  async function listProductCategories(): Promise<readonly CaptureProductCategory[]> {
+    if (dependencies.listCentralCategories !== undefined) {
+      try {
+        const response = await dependencies.listCentralCategories();
+
+        for (const category of response.categories) {
+          categoryCatalog.set(category.categoryId, categoryCatalogItemToLocalCategory(category));
+        }
+      } catch {
+        // Keep the cached local catalog available during unstable store connectivity.
+      }
+    }
+
     const counts = new Map<string, number>();
 
     for (const product of products.values()) {
       counts.set(product.categoryId, (counts.get(product.categoryId) ?? 0) + 1);
     }
 
-    return Promise.resolve(
-      [...counts.entries()]
-        .map(([categoryId, productCount]) => ({ categoryId, productCount }))
-        .sort((left, right) => left.categoryId.localeCompare(right.categoryId, "pt-BR")),
+    const categories = new Map<string, CaptureProductCategory>();
+
+    for (const category of categoryCatalog.values()) {
+      categories.set(category.categoryId, {
+        ...category,
+        productCount: counts.get(category.categoryId) ?? 0,
+      });
+    }
+
+    for (const product of products.values()) {
+      if (categories.has(product.categoryId)) continue;
+      categories.set(product.categoryId, {
+        categoryId: product.categoryId,
+        categoryName: product.categoryName ?? product.categoryId,
+        categoryRuleProfile: product.categoryRuleProfile,
+        productCount: counts.get(product.categoryId) ?? 0,
+      });
+    }
+
+    return [...categories.values()].sort((left, right) =>
+      left.categoryName.localeCompare(right.categoryName, "pt-BR"),
     );
   }
 

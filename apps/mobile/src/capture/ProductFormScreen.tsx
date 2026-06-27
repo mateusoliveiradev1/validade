@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { ProductMode } from "@validade-zero/domain";
 import type { ProductSearchCandidate } from "@validade-zero/contracts";
 import {
   productCatalogItemToLocalRecord,
   productDraftToLocalRecord,
+  type CaptureProductCategory,
   type CaptureProductRecord,
   type CaptureRepository,
 } from "./repository";
@@ -18,28 +19,6 @@ import {
   StatusNotice,
 } from "./capture-ui";
 
-const categoryWindows: Record<
-  ProductMode,
-  {
-    radarDays: number;
-    markdownDays: number;
-    criticalDays: number;
-    expiredDays: number;
-    qualityWindowDays?: number;
-  }
-> = {
-  formal_validity: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
-  processed_repack_loss: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
-  flv_inspection: {
-    radarDays: 7,
-    markdownDays: 3,
-    criticalDays: 1,
-    expiredDays: 0,
-    qualityWindowDays: 2,
-  },
-  receiving_monitored: { radarDays: 2, markdownDays: 1, criticalDays: 1, expiredDays: 0 },
-};
-
 export function ProductFormScreen({
   repository,
   initialGtin,
@@ -52,35 +31,86 @@ export function ProductFormScreen({
   onBack: () => void;
 }) {
   const [displayName, setDisplayName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<readonly CaptureProductCategory[]>([]);
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>();
   const [supplierName, setSupplierName] = useState("");
   const [gtin, setGtin] = useState(initialGtin ?? "");
-  const [categoryMode, setCategoryMode] = useState<ProductMode>("formal_validity");
+  const [categoryLoadState, setCategoryLoadState] = useState<"loading" | "ready" | "error">(
+    repository.listProductCategories === undefined ? "error" : "loading",
+  );
   const [overrideMode, setOverrideMode] = useState<ProductMode | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [similarCandidates, setSimilarCandidates] = useState<readonly ProductSearchCandidate[]>([]);
 
-  const canCreate = displayName.trim().length > 0 && categoryId.trim().length > 0;
+  useEffect(() => {
+    let active = true;
+
+    async function loadCategories(): Promise<void> {
+      if (repository.listProductCategories === undefined) {
+        setCategoryLoadState("error");
+        return;
+      }
+
+      try {
+        const nextCategories = await repository.listProductCategories();
+        if (!active) return;
+        setCategories(nextCategories);
+        setSelectedCategoryId((current) =>
+          current === undefined ||
+          nextCategories.some((category) => category.categoryId === current)
+            ? current
+            : undefined,
+        );
+        setCategoryLoadState("ready");
+      } catch {
+        if (active) setCategoryLoadState("error");
+      }
+    }
+
+    void loadCategories();
+
+    return () => {
+      active = false;
+    };
+  }, [repository]);
+
+  const selectedCategory = categories.find(
+    (category) => category.categoryId === selectedCategoryId,
+  );
+  const filteredCategories = useMemo(() => {
+    const query = normalizeCategoryLookup(categoryQuery);
+
+    if (query.length === 0) return categories;
+
+    return categories.filter(
+      (category) =>
+        normalizeCategoryLookup(category.categoryName).includes(query) ||
+        normalizeCategoryLookup(category.categoryId).includes(query),
+    );
+  }, [categories, categoryQuery]);
+  const canCreate = displayName.trim().length > 0 && selectedCategory !== undefined;
 
   async function createProduct(): Promise<void> {
+    if (selectedCategory === undefined) {
+      setError("Escolha uma categoria do catalogo geral antes de criar o produto.");
+      return;
+    }
+
     if (!canCreate) {
-      setError("Informe nome e categoria para cadastrar o produto.");
+      setError("Informe nome do produto e categoria para cadastrar o rascunho.");
       return;
     }
 
     try {
-      const categoryRuleProfile = {
-        categoryId,
-        mode: categoryMode,
-        windows: categoryWindows[categoryMode],
-      };
+      const categoryRuleProfile = selectedCategory.categoryRuleProfile;
 
       if (repository.createProductDraft !== undefined) {
         const response = await repository.createProductDraft({
           displayName,
-          categoryId,
-          categoryName: categoryId,
+          categoryId: selectedCategory.categoryId,
+          categoryName: selectedCategory.categoryName,
           categoryRuleProfile,
           requestedAt: new Date().toISOString(),
           ...(supplierName.trim().length === 0 ? {} : { supplierName }),
@@ -113,7 +143,7 @@ export function ProductFormScreen({
 
       const product = await repository.createProduct({
         displayName,
-        categoryId,
+        categoryId: selectedCategory.categoryId,
         categoryRuleProfile,
         ...(supplierName.trim().length === 0 ? {} : { supplierName }),
         ...(gtin.trim().length === 0 ? {} : { gtin }),
@@ -123,7 +153,7 @@ export function ProductFormScreen({
       onCreated(product);
     } catch {
       setError(
-        "Não foi possível cadastrar este produto neste aparelho. Revise os campos e tente novamente.",
+        "Nao foi possivel cadastrar este produto neste aparelho. Revise os campos e tente novamente.",
       );
     }
   }
@@ -132,37 +162,71 @@ export function ProductFormScreen({
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
         title="Criar rascunho operacional"
-        body="Crie o rascunho sem abrir lote automaticamente. A lideranca valida depois."
+        body="Escolha a categoria do catalogo geral antes de abrir lote para este produto."
       />
       <Field label="Nome do produto" value={displayName} onChangeText={setDisplayName} />
-      <Field label="Categoria" value={categoryId} onChangeText={setCategoryId} />
-      <Text style={styles.sectionLabel}>Perfil da categoria</Text>
-      {Object.entries(productModeLabels).map(([mode, label]) => (
+      <Text style={styles.sectionLabel}>Categoria</Text>
+      {categories.length > 8 ? (
+        <Field
+          label="Filtrar categorias"
+          value={categoryQuery}
+          onChangeText={setCategoryQuery}
+          placeholder="Ex.: frutas, ovos, folhosos"
+        />
+      ) : null}
+      {categoryLoadState === "loading" ? (
+        <StatusNotice>Carregando catalogo geral de categorias.</StatusNotice>
+      ) : null}
+      {categoryLoadState === "error" ? (
+        <StatusNotice tone="error">
+          Nao foi possivel carregar o catalogo geral de categorias neste aparelho.
+        </StatusNotice>
+      ) : null}
+      {categoryLoadState === "ready" && categories.length === 0 ? (
+        <StatusNotice tone="error">
+          Catalogo geral de categorias vazio. Prepare o turno online antes de criar produtos.
+        </StatusNotice>
+      ) : null}
+      {filteredCategories.map((category) => (
         <SelectionRow
-          key={mode}
-          label={label}
-          selected={categoryMode === mode}
-          onPress={() => setCategoryMode(mode as ProductMode)}
+          key={category.categoryId}
+          label={category.categoryName}
+          detail={categoryDetail(category)}
+          selected={selectedCategoryId === category.categoryId}
+          onPress={() => {
+            setSelectedCategoryId(category.categoryId);
+            setOverrideMode(undefined);
+            setError(undefined);
+          }}
         />
       ))}
-      <SecondaryAction
-        label="Definir exceção de perfil"
-        onPress={() =>
-          setOverrideMode(
-            overrideMode === undefined ? firstAlternativeMode(categoryMode) : undefined,
-          )
-        }
-      />
+      {selectedCategory === undefined ? null : (
+        <>
+          <StatusNotice>
+            Perfil operacional: {productModeLabels[selectedCategory.categoryRuleProfile.mode]}.
+          </StatusNotice>
+          <SecondaryAction
+            label="Definir excecao de perfil"
+            onPress={() =>
+              setOverrideMode(
+                overrideMode === undefined
+                  ? firstAlternativeMode(selectedCategory.categoryRuleProfile.mode)
+                  : undefined,
+              )
+            }
+          />
+        </>
+      )}
       {overrideMode === undefined ? null : (
         <>
           <StatusNotice>
-            Exceção explícita do produto: {productModeLabels[overrideMode]}.
+            Excecao explicita do produto: {productModeLabels[overrideMode]}.
           </StatusNotice>
-          <Text style={styles.sectionLabel}>Perfil específico deste produto</Text>
+          <Text style={styles.sectionLabel}>Perfil especifico deste produto</Text>
           {Object.entries(productModeLabels).map(([mode, label]) => (
             <SelectionRow
               key={`override-${mode}`}
-              label={`Usar ${label} como exceção`}
+              label={`Usar ${label} como excecao`}
               selected={overrideMode === mode}
               onPress={() => setOverrideMode(mode as ProductMode)}
             />
@@ -216,6 +280,24 @@ const styles = StyleSheet.create({
     marginTop: -12,
   },
 });
+
+function categoryDetail(category: CaptureProductCategory): string {
+  const productCountCopy =
+    category.productCount === 0
+      ? "catalogo geral"
+      : `${category.productCount} ${category.productCount === 1 ? "produto local" : "produtos locais"}`;
+
+  return `${productModeLabels[category.categoryRuleProfile.mode]} - ${productCountCopy}`;
+}
+
+function normalizeCategoryLookup(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR");
+}
 
 function firstAlternativeMode(mode: ProductMode): ProductMode {
   if (mode === "formal_validity") {

@@ -87,6 +87,7 @@ import {
   maxPhysicalConfirmationAgeHoursForLot,
   nextGeneratedId,
   normalizeProductLookup,
+  categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
   parseMarkdownRequestCommand,
@@ -154,6 +155,8 @@ interface ProductRow {
 
 interface ProductCategoryRow {
   category_id: string;
+  category_name: string;
+  category_profile_json: string;
   product_count: number;
 }
 
@@ -832,16 +835,58 @@ export function createSQLiteCaptureRepository(
   async function listProductCategories(): Promise<readonly CaptureProductCategory[]> {
     await initialize();
     const db = await getDatabase();
-    const rows = await db.getAllAsync<ProductCategoryRow>(
-      `SELECT category_id, COUNT(*) AS product_count FROM capture_products
-       GROUP BY category_id
-       ORDER BY category_id COLLATE NOCASE ASC`,
-    );
 
-    return rows.map((row) => ({
-      categoryId: row.category_id,
-      productCount: row.product_count,
-    }));
+    if (dependencies.listCentralCategories !== undefined) {
+      try {
+        const response = await dependencies.listCentralCategories();
+        const fetchedAt = dependencies.clock();
+
+        await db.withTransactionAsync(async () => {
+          for (const category of response.categories) {
+            await upsertCategoryRecord(db, categoryCatalogItemToLocalCategory(category), fetchedAt);
+          }
+        });
+      } catch {
+        // Keep the local catalog cache available during unstable store connectivity.
+      }
+    }
+
+    const catalogRows = await db.getAllAsync<ProductCategoryRow>(
+      `SELECT
+         c.category_id,
+         c.category_name,
+         c.category_profile_json,
+         COUNT(p.id) AS product_count
+       FROM capture_categories c
+       LEFT JOIN capture_products p ON p.category_id = c.category_id
+       GROUP BY c.category_id, c.category_name, c.category_profile_json
+       ORDER BY c.category_name COLLATE NOCASE ASC`,
+    );
+    const productRows = await db.getAllAsync<ProductCategoryRow>(
+      `SELECT
+         category_id,
+         COALESCE(MAX(category_name), category_id) AS category_name,
+         MAX(category_profile_json) AS category_profile_json,
+         COUNT(*) AS product_count
+       FROM capture_products
+       GROUP BY category_id
+       ORDER BY category_name COLLATE NOCASE ASC`,
+    );
+    const categories = new Map<string, CaptureProductCategory>();
+
+    for (const row of catalogRows) {
+      categories.set(row.category_id, mapCategory(row));
+    }
+
+    for (const row of productRows) {
+      if (!categories.has(row.category_id)) {
+        categories.set(row.category_id, mapCategory(row));
+      }
+    }
+
+    return [...categories.values()].sort((left, right) =>
+      left.categoryName.localeCompare(right.categoryName, "pt-BR"),
+    );
   }
 
   async function findProductsByCategory(
@@ -2815,6 +2860,12 @@ async function initializeDatabase(
       similar_candidate_count INTEGER,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS capture_categories (
+      category_id TEXT PRIMARY KEY NOT NULL,
+      category_name TEXT NOT NULL,
+      category_profile_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS capture_lots (
       id TEXT PRIMARY KEY NOT NULL,
       product_id TEXT NOT NULL,
@@ -3341,7 +3392,37 @@ async function upsertCentralProduct(
   db: SQLite.SQLiteDatabase,
   product: CentralProductSnippet,
 ): Promise<void> {
+  await upsertCategoryRecord(
+    db,
+    {
+      categoryId: product.categoryId,
+      categoryName: product.categoryName,
+      categoryRuleProfile: product.categoryRuleProfile,
+      productCount: 0,
+    },
+    product.updatedAt,
+  );
   await upsertProductRecord(db, centralProductToRecord(product));
+}
+
+async function upsertCategoryRecord(
+  db: SQLite.SQLiteDatabase,
+  category: CaptureProductCategory,
+  updatedAt: string,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO capture_categories (
+      category_id, category_name, category_profile_json, updated_at
+    ) VALUES (?, ?, ?, ?)
+    ON CONFLICT(category_id) DO UPDATE SET
+      category_name = excluded.category_name,
+      category_profile_json = excluded.category_profile_json,
+      updated_at = excluded.updated_at`,
+    category.categoryId,
+    category.categoryName,
+    JSON.stringify(category.categoryRuleProfile),
+    updatedAt,
+  );
 }
 
 async function upsertProductRecord(
@@ -4105,6 +4186,21 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
     ...(row.similar_candidate_count === null
       ? {}
       : { similarCandidateCount: row.similar_candidate_count }),
+  };
+}
+
+function mapCategory(row: ProductCategoryRow): CaptureProductCategory {
+  const product = CaptureProductInputSchema.parse({
+    displayName: row.category_name,
+    categoryId: row.category_id,
+    categoryRuleProfile: parseJson(row.category_profile_json),
+  });
+
+  return {
+    categoryId: row.category_id,
+    categoryName: row.category_name,
+    categoryRuleProfile: product.categoryRuleProfile,
+    productCount: row.product_count,
   };
 }
 

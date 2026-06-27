@@ -143,6 +143,46 @@ describe("capture prepare-turn API", () => {
 });
 
 describe("capture product catalog API", () => {
+  it("serves the shared category catalog without store-scoped category copies", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      categories: [
+        {
+          categoryId: "frutas",
+          categoryName: "Frutas",
+          categoryRuleProfile: {
+            categoryId: "frutas",
+            mode: "formal_validity",
+            windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+          },
+        },
+      ],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/categories", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as { categories?: Array<{ categoryId?: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.categories).toEqual([expect.objectContaining({ categoryId: "frutas" })]);
+
+    const denied = await app.request("/capture/categories?storeId=loja-outra", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      error: "access_denied",
+      reason: "outside_store_scope",
+    });
+  });
+
   it("searches products only inside the store resolved from the session", async () => {
     const captureRepository = createInMemoryCaptureRepository({
       products: [centralProduct("loja-piloto"), centralProduct("loja-outra")],
