@@ -32,6 +32,10 @@
       "types": "./src/health-repository.ts",
       "import": "./src/health-repository.ts"
     },
+    "./maintenance-repository": {
+      "types": "./src/maintenance-repository.ts",
+      "import": "./src/maintenance-repository.ts"
+    },
     "./shift-close-repository": {
       "types": "./src/shift-close-repository.ts",
       "import": "./src/shift-close-repository.ts"

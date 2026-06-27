@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import worker, { createWorkerApp } from "./index";
+import worker, { createWorkerApp, createWorkerScheduledHandler } from "./index";
 
 describe("Worker runtime configuration", () => {
   it("refuses to serve the API when persistent auth configuration is missing", async () => {
@@ -53,6 +53,39 @@ describe("Worker runtime configuration", () => {
         EVIDENCE_STORE_MODE: "disabled",
       }),
     ).toBeDefined();
+  });
+
+  it("runs technical database maintenance from the Worker cron when configured", async () => {
+    const runs: string[] = [];
+    const handler = createWorkerScheduledHandler({
+      alertHandler: () => Promise.resolve(),
+      maintenanceRepositoryFactory: (connectionString) => ({
+        run(input) {
+          runs.push(`${connectionString}|${input.now.toISOString()}`);
+          return Promise.resolve({
+            checkedAt: input.now.toISOString(),
+            deleted: {
+              authLoginAttempts: 0,
+              authSessions: 0,
+              authRecoveryTokens: 0,
+              authInvites: 0,
+            },
+          });
+        },
+      }),
+    });
+
+    await handler(
+      { scheduledTime: Date.parse("2030-01-10T12:00:00.000Z"), cron: "*/15 * * * *" },
+      {
+        NEON_DATABASE_URL: "postgresql://user:password@example.invalid/neondb?sslmode=require",
+      },
+      {} as ExecutionContext,
+    );
+
+    expect(runs).toEqual([
+      "postgresql://user:password@example.invalid/neondb?sslmode=require|2030-01-10T12:00:00.000Z",
+    ]);
   });
 });
 

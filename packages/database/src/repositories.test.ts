@@ -19,8 +19,42 @@ import {
   createInMemoryMembershipManagementRepository,
   createMembershipRepositoryFromQuery,
 } from "./membership-repository";
+import { createMaintenanceRepositoryFromQuery } from "./maintenance-repository";
 
 describe("database repositories", () => {
+  it("runs retention cleanup only against technical auth tables", async () => {
+    const captured: Array<{ query: string; values: unknown[] }> = [];
+    const repository = createMaintenanceRepositoryFromQuery({
+      query(query: string, values?: unknown[]) {
+        captured.push({ query, values: values ?? [] });
+        return Promise.resolve([{ deleted_count: 2 }]);
+      },
+    } as never);
+
+    const result = await repository.run({
+      now: new Date("2030-01-10T12:00:00.000Z"),
+      retention: { authLoginAttemptHours: 24, expiredAuthRecordDays: 7 },
+    });
+
+    expect(result.deleted).toEqual({
+      authLoginAttempts: 2,
+      authSessions: 2,
+      authRecoveryTokens: 2,
+      authInvites: 2,
+    });
+    expect(captured.map((call) => call.query)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("delete from auth_login_attempts"),
+        expect.stringContaining("delete from auth_sessions"),
+        expect.stringContaining("delete from auth_recovery_tokens"),
+        expect.stringContaining("delete from auth_invites"),
+      ]),
+    );
+    expect(captured.map((call) => call.query).join("\n")).not.toMatch(
+      /delete from (audit_events|central_products|central_lots|central_observations|central_projected_tasks)/i,
+    );
+  });
+
   it("maps active membership rows to the domain shape", async () => {
     const repository = createMembershipRepositoryFromQuery((() =>
       Promise.resolve([
@@ -357,6 +391,9 @@ describe("database repositories", () => {
       normalizedKey: "ovos caipiras ficticios",
     });
     expect(captured.some(([query]) => String(query).includes("normalized_key"))).toBe(true);
+    expect(
+      captured.some(([query]) => String(query).includes("insert into central_categories")),
+    ).toBe(true);
     expect(captured.some(([query]) => String(query).includes("insert into central_products"))).toBe(
       true,
     );

@@ -741,6 +741,13 @@ export function createCaptureRepositoryFromQuery(
     const requestedAt = new Date(input.request.requestedAt).toISOString();
     const categoryRuleProfile = JSON.stringify(input.request.categoryRuleProfile);
 
+    await upsertCentralCategory({
+      storeId: input.storeId,
+      categoryId: input.request.categoryId,
+      categoryName: input.request.categoryName,
+      categoryRuleProfile,
+      occurredAt: requestedAt,
+    });
     await sql.query(
       `insert into central_products (
         central_product_id, store_id, display_name, normalized_key, category_id,
@@ -822,6 +829,32 @@ export function createCaptureRepositoryFromQuery(
       draft,
       acknowledgement,
     });
+  }
+
+  async function upsertCentralCategory(input: {
+    storeId: string;
+    categoryId: string;
+    categoryName: string;
+    categoryRuleProfile: string;
+    occurredAt: string;
+  }): Promise<void> {
+    await sql.query(
+      `insert into central_categories (
+        store_id, category_id, category_name, category_rule_profile, status, created_at, updated_at
+      ) values ($1, $2, $3, $4::jsonb, 'active', $5::timestamptz, $5::timestamptz)
+      on conflict (store_id, category_id) do update set
+        category_name = excluded.category_name,
+        category_rule_profile = excluded.category_rule_profile,
+        status = 'active',
+        updated_at = excluded.updated_at`,
+      [
+        input.storeId,
+        input.categoryId,
+        input.categoryName,
+        input.categoryRuleProfile,
+        input.occurredAt,
+      ],
+    );
   }
 
   async function reviewProductDraft(

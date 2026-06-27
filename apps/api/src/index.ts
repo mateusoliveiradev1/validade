@@ -60,6 +60,10 @@ import {
 } from "@validade-zero/database/auth-repository";
 import { checkDatabaseHealth } from "@validade-zero/database/health-repository";
 import {
+  createNeonMaintenanceRepository,
+  type DatabaseMaintenanceRepository,
+} from "@validade-zero/database/maintenance-repository";
+import {
   createInMemoryMembershipManagementRepository,
   createNeonMembershipRepository,
   type MembershipManagementRepository,
@@ -2067,7 +2071,34 @@ export function createScheduledAlertHandler(
   };
 }
 
-export const scheduled = createScheduledAlertHandler();
+export function createWorkerScheduledHandler(input?: {
+  alertHandler?: ReturnType<typeof createScheduledAlertHandler>;
+  maintenanceRepositoryFactory?: (connectionString: string) => DatabaseMaintenanceRepository;
+}) {
+  const alertHandler = input?.alertHandler ?? createScheduledAlertHandler();
+  const maintenanceRepositoryFactory =
+    input?.maintenanceRepositoryFactory ??
+    ((connectionString: string) => createNeonMaintenanceRepository({ connectionString }));
+
+  return async function scheduledWorkerMaintenance(
+    event: ScheduledControllerLike,
+    env?: WorkerEnvironment,
+    context?: ExecutionContext,
+  ): Promise<void> {
+    await alertHandler(event, env, context);
+
+    const databaseUrl = env?.NEON_DATABASE_URL?.trim();
+    if (databaseUrl === undefined || databaseUrl.length === 0) return;
+
+    const referenceTime =
+      event.scheduledTime === undefined ? new Date() : new Date(event.scheduledTime);
+    await maintenanceRepositoryFactory(databaseUrl).run({
+      now: referenceTime,
+    });
+  };
+}
+
+export const scheduled = createWorkerScheduledHandler();
 
 export function createWorkerApp(
   env: WorkerEnvironment,

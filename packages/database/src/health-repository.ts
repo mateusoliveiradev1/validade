@@ -5,6 +5,7 @@ const EXPECTED_TABLES = [
   "auth_credentials",
   "auth_login_attempts",
   "auth_sessions",
+  "central_categories",
   "central_device_snapshots",
   "central_lots",
   "central_observations",

@@ -10,6 +10,7 @@ import {
   authLoginAttempts,
   authRecoveryTokens,
   authSessions,
+  centralCategories,
   evidenceAssets,
   evidenceAssetStateEnum,
   membershipRoleEnum,
@@ -45,6 +46,10 @@ const authMigrationSql = readFileSync(
 );
 const productionHardeningMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0008_phase_10_production_hardening.sql"),
+  "utf8",
+);
+const productionOpsMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0009_phase_10_categories_retention.sql"),
   "utf8",
 );
 
@@ -197,6 +202,20 @@ describe("phase 08 database schema", () => {
     expect(productionHardeningMigrationSql).toContain("central_observations_lot_fkey");
     expect(productionHardeningMigrationSql).toContain("central_projected_tasks_lot_fkey");
     expect(productionHardeningMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+  });
+
+  it("models store-scoped central categories before products depend on them", () => {
+    expect(centralCategories.storeId.name).toBe("store_id");
+    expect(centralCategories.categoryId.name).toBe("category_id");
+    expect(centralCategories.categoryName.name).toBe("category_name");
+    expect(centralCategories.categoryRuleProfile.name).toBe("category_rule_profile");
+    expect(productionOpsMigrationSql).toContain("CREATE TABLE IF NOT EXISTS central_categories");
+    expect(productionOpsMigrationSql).toContain("PRIMARY KEY (store_id, category_id)");
+    expect(productionOpsMigrationSql).toContain("INSERT INTO central_categories");
+    expect(productionOpsMigrationSql).toContain("central_products_category_fkey");
+    expect(productionOpsMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
   });

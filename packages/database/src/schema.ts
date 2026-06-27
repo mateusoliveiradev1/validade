@@ -87,6 +87,27 @@ export const centralTaskStatusEnum = pgEnum("central_task_status", [
   "blocked",
 ]);
 
+export const centralCategories = pgTable(
+  "central_categories",
+  {
+    categoryId: text("category_id").notNull(),
+    storeId: text("store_id").notNull(),
+    categoryName: text("category_name").notNull(),
+    categoryRuleProfile: jsonb("category_rule_profile").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.storeId, table.categoryId] }),
+    index("central_categories_store_status_idx").on(
+      table.storeId,
+      table.status,
+      table.categoryName,
+    ),
+  ],
+);
+
 export const storeMemberships = pgTable(
   "store_memberships",
   {
@@ -629,6 +650,8 @@ export type AuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferSele
 export type NewAuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferInsert;
 export type PrivacyRequestDatabaseRecord = typeof privacyRequests.$inferSelect;
 export type NewPrivacyRequestDatabaseRecord = typeof privacyRequests.$inferInsert;
+export type CentralCategoryRecord = typeof centralCategories.$inferSelect;
+export type NewCentralCategoryRecord = typeof centralCategories.$inferInsert;
 export type AuditEventRecord = typeof auditEvents.$inferSelect;
 export type NewAuditEventRecord = typeof auditEvents.$inferInsert;
 export type EvidenceAssetRecord = typeof evidenceAssets.$inferSelect;
