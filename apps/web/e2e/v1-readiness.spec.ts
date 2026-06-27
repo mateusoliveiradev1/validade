@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installWebFixture } from "./fixtures/v1-readiness";
+import { adminSession, installWebFixture } from "./fixtures/v1-readiness";
 
 test("Command Center answers safety first and keeps the operational funnel in order", async ({
   page,
@@ -12,6 +12,7 @@ test("Command Center answers safety first and keeps the operational funnel in or
   await expect(
     page.getByRole("heading", { name: "Folhas FICTICIAS - lote FOL-001" }),
   ).toBeVisible();
+  await expect(page.getByText("Manga FICTICIA - lote MAN-001")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navegacao principal" })).toBeVisible();
   await expect(page.getByText("Ambiente seguro para desenvolvimento")).toHaveCount(0);
   await page.keyboard.press("Tab");
@@ -22,6 +23,22 @@ test("Command Center answers safety first and keeps the operational funnel in or
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
     pageText.indexOf("Rebaixas pendentes"),
   );
+  expect(pageText.indexOf("Folhas FICTICIAS - lote FOL-001")).toBeLessThan(
+    pageText.indexOf("Historico resolvido"),
+  );
+  expect(pageText.indexOf("Historico resolvido")).toBeLessThan(
+    pageText.indexOf("Manga FICTICIA - lote MAN-001"),
+  );
+});
+
+test("role and store scope keep Command Center denied for admin-only access", async ({ page }) => {
+  await installWebFixture(page, { session: adminSession });
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Convites e vinculos da loja" })).toBeVisible();
+  await expect(page.getByText("Lideranca V1 FICTICIA")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Command Center" })).toBeDisabled();
+  await expect(page.getByText("Escopo operacional indisponivel")).toBeVisible();
 });
 
 test("privacy content, audit fallback, and narrow navigation remain reachable", async ({

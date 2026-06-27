@@ -1,6 +1,6 @@
 # Phase 10 Validation Matrix
 
-**Status:** Planned
+**Status:** Repository evidence in progress; Android/provider evidence blocked
 **Mode:** central-truth pilot UAT
 
 | Area | Required evidence | Gate |
@@ -16,6 +16,21 @@
 | Shift close | Safe close requires current central revalidation; unsafe close remains explicit with handoff and blockers. | Domain/API/mobile tests and UAT. |
 | Security and data safety | No secrets, real store data, raw evidence binaries, device URIs, signed URLs, or production provider artifacts are committed. | `pnpm.cmd security` and focused source scans. |
 | Android pilot reality | Installed build on a second phone/emulator completes first access, product, lot, resolution, and second-device visibility. | `pnpm.cmd test:e2e:mobile` plus manual UAT record. |
+
+## Current Evidence - 2026-06-27
+
+| Area | Status | Evidence |
+|---|---|---|
+| Prepare-turn central hydration | Passed in automated composition/API coverage | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys`; capture/API prepare-turn tests from 10-01 through 10-05 |
+| Product search/create | Passed for central reuse and draft/review coverage | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- capture authorization` |
+| Lot registration | Passed for native composition and central write coverage | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys`; capture repository/API tests |
+| Terminal resolution | Passed in domain/API/mobile sync tests; installed run pending | `pnpm.cmd vitest run --config vitest.config.ts --project api -- capture sync`; `pnpm.cmd --filter @validade-zero/mobile test -- today-screen task-resolution sync-engine` |
+| Sync taxonomy | Passed in automated mobile/web/API coverage | 10-04/10-05 verification plus `pnpm.cmd test:e2e:web` |
+| Command Center | Passed in Playwright with active/resolved consistency and role/store denial | `pnpm.cmd test:e2e:web` |
+| RBAC and store scope | Passed in API/web tests; installed app run pending | `pnpm.cmd test:e2e:web`; authorization tests from 10-05 |
+| Shift close | Passed in domain/contracts/API/mobile tests with central revalidation | `pnpm.cmd --filter @validade-zero/domain test -- shift-close`; `pnpm.cmd --filter @validade-zero/contracts test -- shift-close`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- shift-close capture`; `pnpm.cmd --filter @validade-zero/mobile test -- shift-close` |
+| Security and data safety | Pending final 10-06 gate | `pnpm.cmd security` not yet rerun after Task 2 docs |
+| Android pilot reality | Blocked | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).` |
 
 ## Final Phase 10 UAT Script
 

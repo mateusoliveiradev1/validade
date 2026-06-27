@@ -12,4 +12,6 @@ appId: com.validadezero.app
 - assertVisible: "Centro de Privacidade"
 - assertVisible: "Solicitacao de direitos LGPD"
 # Authenticated Hoje, offline/sync, evidence, and shift-close continuation needs a pilot-safe
-# authenticated device fixture. Component journeys cover it until an emulator or internal APK exists.
+# authenticated device fixture. Component journeys cover prepare-turn, product reuse, lot creation,
+# Command Center consistency, and shift close until an emulator or internal APK exists.
+# Current local result on 2026-06-27: blocked with "Not enough devices connected (0)".

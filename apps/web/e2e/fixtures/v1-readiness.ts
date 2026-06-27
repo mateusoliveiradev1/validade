@@ -29,6 +29,42 @@ export const activeSession = {
   },
 } as const;
 
+export const adminSession = {
+  status: "refreshed",
+  sessionToken: "b".repeat(32),
+  session: {
+    actor: { subjectId: "admin-ficticio", displayName: "Administracao FICTICIA" },
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    activeRole: "admin",
+    capabilities: ["catalog.review", "user.manage"],
+    sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+    accountStatus: "active",
+    canRequestRecovery: true,
+    privacyCenterUrl: "/privacy",
+    actions: {
+      canReadCommandCenter: false,
+      canActOnTask: false,
+      canReviewProductDrafts: true,
+      canCloseShift: false,
+      canReadStoreAudit: false,
+      canManageUsers: true,
+    },
+  },
+} as const;
+
+export const membership = {
+  membershipId: "membership-v1-ficticia",
+  subjectId: "lead-v1-ficticia",
+  displayName: "Lideranca V1 FICTICIA",
+  role: "lead",
+  storeId: "loja-ficticia",
+  storeName: "Loja Ficticia Piloto",
+  status: "active",
+  version: 1,
+  createdAt: "2030-01-10T12:00:00.000Z",
+  updatedAt: "2030-01-10T12:00:00.000Z",
+} as const;
+
 export const commandCenterProjection = {
   storeId: "loja-ficticia",
   storeName: "Loja Ficticia Piloto",
@@ -74,14 +110,26 @@ export const commandCenterProjection = {
   pendingEvidence: [],
   syncConflicts: [],
   discardedActions: [],
-  resolvedHistory: [],
+  resolvedHistory: [
+    {
+      taskId: "task-resolvida-ficticia-001",
+      label: "Manga FICTICIA - lote MAN-001",
+      actionLabel: "Retirada confirmada",
+      actorLabel: "Lideranca FICTICIA",
+      resolvedAt: "2030-01-10T11:35:00.000Z",
+      detail: "Retirada conferida na area de venda.",
+    },
+  ],
   pendingShiftCloses: [],
   shiftHistory: [],
 } as const;
 
-export async function installWebFixture(page: Page, input?: { commandCenterStatus?: number }) {
+export async function installWebFixture(
+  page: Page,
+  input?: { commandCenterStatus?: number; session?: typeof activeSession | typeof adminSession },
+) {
   await page.route("**/auth/session", async (route) => {
-    await route.fulfill({ json: activeSession });
+    await route.fulfill({ json: input?.session ?? activeSession });
   });
   await page.route("**/command-center?*", async (route) => {
     if (input?.commandCenterStatus !== undefined) {
@@ -95,5 +143,8 @@ export async function installWebFixture(page: Page, input?: { commandCenterStatu
   });
   await page.route("**/audit/events?*", async (route) => {
     await route.fulfill({ json: { items: [] } });
+  });
+  await page.route("**/memberships?*", async (route) => {
+    await route.fulfill({ json: { items: [membership] } });
   });
 }
