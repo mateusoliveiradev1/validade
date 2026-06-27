@@ -70,6 +70,34 @@ describe("authorization contracts", () => {
     expect(context.actions.canCloseShift).toBe(true);
   });
 
+  it("backfills newly introduced session actions from server-owned capabilities", () => {
+    const context = SessionContextResponseSchema.parse({
+      actor: {
+        subjectId: "lead-local",
+        displayName: "Lideranca local",
+      },
+      store: {
+        storeId: "loja-piloto",
+        storeName: "Loja Ficticia Piloto",
+      },
+      activeRole: "lead",
+      capabilities: ["task.act", "command_center.read_store", "shift.close", "audit.read_store"],
+      sessionExpiresAt: "2026-06-23T12:00:00.000Z",
+      accountStatus: "active",
+      canRequestRecovery: true,
+      privacyCenterUrl: "/privacy",
+      actions: {
+        canActOnTask: true,
+        canCloseShift: true,
+        canReadStoreAudit: true,
+        canManageUsers: false,
+      },
+    });
+
+    expect(context.actions.canReadCommandCenter).toBe(true);
+    expect(context.actions.canReviewProductDrafts).toBe(false);
+  });
+
   it("keeps denial payload client-safe and resource-free", () => {
     const denial = ClientSafeAuthorizationDenialSchema.parse({
       error: "access_denied",

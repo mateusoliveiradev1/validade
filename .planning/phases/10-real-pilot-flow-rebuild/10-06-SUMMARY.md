@@ -122,7 +122,7 @@ completed: 2026-06-27
 
 **1. Security fixture text looked like a device evidence URI**
 - **Found during:** Task 3 final security gate
-- **Issue:** `pnpm.cmd security` failed on a negative contract test containing `file:///private/evidence.jpg`.
+- **Issue:** `pnpm.cmd security` failed on a negative contract test containing a device-local evidence URI fixture.
 - **Fix:** Replaced it with `evidence-placeholder-ficticio` while keeping the schema rejection.
 - **Files modified:** `packages/contracts/src/capture.test.ts`
 - **Verification:** `pnpm.cmd security`, `pnpm.cmd --filter @validade-zero/contracts test -- capture`, and `pnpm.cmd check` passed.

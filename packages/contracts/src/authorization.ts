@@ -1,4 +1,9 @@
-import { AUTHORIZATION_ROLES, CAPABILITIES, MEMBERSHIP_STATUSES } from "@validade-zero/domain";
+import {
+  AUTHORIZATION_ROLES,
+  CAPABILITIES,
+  MEMBERSHIP_STATUSES,
+  type Capability as DomainCapability,
+} from "@validade-zero/domain";
 import { z } from "zod";
 
 const RequiredIdentifierSchema = z.string().trim().min(1).max(160);
@@ -63,7 +68,18 @@ export const ClientSafeAuthorizationDenialSchema = z
   })
   .strict();
 
-export const SessionContextResponseSchema = z
+const SessionActionsSchema = z
+  .object({
+    canReadCommandCenter: z.boolean(),
+    canActOnTask: z.boolean(),
+    canReviewProductDrafts: z.boolean(),
+    canCloseShift: z.boolean(),
+    canReadStoreAudit: z.boolean(),
+    canManageUsers: z.boolean(),
+  })
+  .strict();
+
+const SessionContextBaseResponseSchema = z
   .object({
     actor: AuthenticatedIdentitySchema,
     store: z
@@ -78,18 +94,51 @@ export const SessionContextResponseSchema = z
     accountStatus: AccountStatusSchema,
     canRequestRecovery: z.boolean(),
     privacyCenterUrl: z.string().trim().min(1).max(500),
-    actions: z
-      .object({
-        canReadCommandCenter: z.boolean(),
-        canActOnTask: z.boolean(),
-        canReviewProductDrafts: z.boolean(),
-        canCloseShift: z.boolean(),
-        canReadStoreAudit: z.boolean(),
-        canManageUsers: z.boolean(),
-      })
-      .strict(),
+    actions: SessionActionsSchema,
   })
   .strict();
+
+export const SessionContextResponseSchema = z.preprocess(
+  normalizeSessionActions,
+  SessionContextBaseResponseSchema,
+);
+
+function normalizeSessionActions(input: unknown): unknown {
+  if (!isRecord(input) || !isRecord(input.actions)) return input;
+
+  const capabilities = Array.isArray(input.capabilities) ? input.capabilities : [];
+  return {
+    ...input,
+    actions: {
+      canReadCommandCenter:
+        getBoolean(input.actions.canReadCommandCenter) ??
+        capabilities.includes("command_center.read_store" satisfies DomainCapability),
+      canActOnTask:
+        getBoolean(input.actions.canActOnTask) ??
+        capabilities.includes("task.act" satisfies DomainCapability),
+      canReviewProductDrafts:
+        getBoolean(input.actions.canReviewProductDrafts) ??
+        capabilities.includes("catalog.review" satisfies DomainCapability),
+      canCloseShift:
+        getBoolean(input.actions.canCloseShift) ??
+        capabilities.includes("shift.close" satisfies DomainCapability),
+      canReadStoreAudit:
+        getBoolean(input.actions.canReadStoreAudit) ??
+        capabilities.includes("audit.read_store" satisfies DomainCapability),
+      canManageUsers:
+        getBoolean(input.actions.canManageUsers) ??
+        capabilities.includes("user.manage" satisfies DomainCapability),
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
 
 export const ProtectedCapabilityProbeResponseSchema = z
   .object({
