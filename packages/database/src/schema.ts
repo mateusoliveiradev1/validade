@@ -59,6 +59,34 @@ export const shiftCloseEligibilityEnum = pgEnum("shift_close_eligibility", [
   "cannot_evaluate",
 ]);
 
+export const centralPackageSourceEnum = pgEnum("central_package_source", [
+  "central",
+  "local_cache",
+  "pending_central",
+]);
+
+export const centralSyncStateEnum = pgEnum("central_sync_state", [
+  "local",
+  "pending_central",
+  "synchronized",
+  "conflict",
+  "discarded",
+  "resolved",
+]);
+
+export const centralProductStatusEnum = pgEnum("central_product_status", [
+  "validated",
+  "draft",
+  "rejected",
+  "archived",
+]);
+
+export const centralTaskStatusEnum = pgEnum("central_task_status", [
+  "active",
+  "resolved",
+  "blocked",
+]);
+
 export const storeMemberships = pgTable(
   "store_memberships",
   {
@@ -368,6 +396,199 @@ export const shiftHandoffs = pgTable(
   ],
 );
 
+export const centralProducts = pgTable(
+  "central_products",
+  {
+    centralProductId: text("central_product_id").primaryKey(),
+    storeId: text("store_id").notNull(),
+    displayName: text("display_name").notNull(),
+    categoryId: text("category_id").notNull(),
+    categoryName: text("category_name").notNull(),
+    status: centralProductStatusEnum("status").notNull().default("validated"),
+    state: centralSyncStateEnum("state").notNull().default("synchronized"),
+    gtin: text("gtin"),
+    categoryRuleProfile: jsonb("category_rule_profile").$type<Record<string, unknown>>().notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("central_products_store_name_idx").on(table.storeId, table.displayName),
+    index("central_products_store_category_idx").on(table.storeId, table.categoryId),
+    index("central_products_store_status_idx").on(table.storeId, table.status),
+    uniqueIndex("central_products_store_gtin_uidx")
+      .on(table.storeId, table.gtin)
+      .where(sql`${table.gtin} is not null`),
+  ],
+);
+
+export const centralProductDrafts = pgTable(
+  "central_product_drafts",
+  {
+    draftId: text("draft_id").primaryKey(),
+    storeId: text("store_id").notNull(),
+    centralProductId: text("central_product_id").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    requestedByLabel: text("requested_by_label").notNull(),
+    reviewStatus: text("review_status").notNull().default("pending"),
+    similarProductIds: jsonb("similar_product_ids").$type<readonly string[]>().notNull().default([]),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("central_product_drafts_store_status_idx").on(table.storeId, table.reviewStatus),
+    index("central_product_drafts_store_created_idx").on(table.storeId, table.createdAt),
+    index("central_product_drafts_product_idx").on(table.centralProductId),
+  ],
+);
+
+export const centralLots = pgTable(
+  "central_lots",
+  {
+    centralLotId: text("central_lot_id").primaryKey(),
+    storeId: text("store_id").notNull(),
+    centralProductId: text("central_product_id").notNull(),
+    productDisplayName: text("product_display_name").notNull(),
+    lotIdentity: jsonb("lot_identity").$type<Record<string, unknown>>().notNull(),
+    lotIdentityKey: text("lot_identity_key").notNull(),
+    mode: text("mode").notNull(),
+    currentLocation: jsonb("current_location").$type<Record<string, unknown>>().notNull(),
+    state: centralSyncStateEnum("state").notNull().default("synchronized"),
+    source: centralPackageSourceEnum("source").notNull().default("central"),
+    riskState: text("risk_state"),
+    expiresAt: text("expires_at"),
+    receivedAt: text("received_at"),
+    qualityInspectionDueAt: text("quality_inspection_due_at"),
+    approximateQuantity: integer("approximate_quantity"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("central_lots_store_product_idx").on(table.storeId, table.centralProductId),
+    index("central_lots_store_identity_idx").on(table.storeId, table.lotIdentityKey),
+    index("central_lots_store_risk_idx").on(table.storeId, table.riskState),
+    index("central_lots_store_state_idx").on(table.storeId, table.state),
+  ],
+);
+
+export const centralObservations = pgTable(
+  "central_observations",
+  {
+    observationId: text("observation_id").primaryKey(),
+    storeId: text("store_id").notNull(),
+    centralLotId: text("central_lot_id").notNull(),
+    actorId: text("actor_id").notNull(),
+    actorDisplayName: text("actor_display_name").notNull(),
+    status: text("status").notNull(),
+    location: jsonb("location").$type<Record<string, unknown>>().notNull(),
+    quantity: jsonb("quantity").$type<Record<string, unknown>>().notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("central_observations_store_lot_idx").on(table.storeId, table.centralLotId),
+    index("central_observations_store_occurred_idx").on(table.storeId, table.occurredAt),
+  ],
+);
+
+export const centralProjectedTasks = pgTable(
+  "central_projected_tasks",
+  {
+    centralTaskId: text("central_task_id").primaryKey(),
+    activeKey: text("active_key").notNull(),
+    storeId: text("store_id").notNull(),
+    centralLotId: text("central_lot_id").notNull(),
+    productDisplayName: text("product_display_name").notNull(),
+    currentLocation: jsonb("current_location").$type<Record<string, unknown>>().notNull(),
+    riskState: text("risk_state").notNull(),
+    severity: text("severity").notNull(),
+    requiredResolution: text("required_resolution").notNull(),
+    status: centralTaskStatusEnum("status").notNull().default("active"),
+    state: centralSyncStateEnum("state").notNull().default("synchronized"),
+    ownerLabel: text("owner_label").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    resolutionAction: text("resolution_action"),
+    resolutionReason: text("resolution_reason"),
+    actorLabel: text("actor_label"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("central_projected_tasks_store_active_key_uidx").on(table.storeId, table.activeKey),
+    index("central_projected_tasks_store_status_idx").on(table.storeId, table.status),
+    index("central_projected_tasks_store_lot_idx").on(table.storeId, table.centralLotId),
+    index("central_projected_tasks_store_resolved_idx").on(table.storeId, table.resolvedAt),
+  ],
+);
+
+export const centralSyncCommands = pgTable(
+  "central_sync_commands",
+  {
+    commandId: text("command_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    storeId: text("store_id").notNull(),
+    deviceId: text("device_id").notNull(),
+    kind: text("kind").notNull(),
+    state: centralSyncStateEnum("state").notNull().default("pending_central"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    centralVersion: integer("central_version").notNull().default(1),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
+    discardedAt: timestamp("discarded_at", { withTimezone: true, mode: "date" }),
+    discardReason: text("discard_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("central_sync_commands_idempotency_key_uidx").on(table.idempotencyKey),
+    index("central_sync_commands_store_state_idx").on(table.storeId, table.state),
+    index("central_sync_commands_store_device_idx").on(table.storeId, table.deviceId),
+  ],
+);
+
+export const centralSyncConflicts = pgTable(
+  "central_sync_conflicts",
+  {
+    conflictId: text("conflict_id").primaryKey(),
+    commandId: text("command_id").notNull(),
+    storeId: text("store_id").notNull(),
+    productDisplayName: text("product_display_name").notNull(),
+    lotIdentity: jsonb("lot_identity").$type<Record<string, unknown>>().notNull(),
+    currentLocation: jsonb("current_location").$type<Record<string, unknown>>().notNull(),
+    reason: text("reason").notNull(),
+    state: centralSyncStateEnum("state").notNull().default("conflict"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    resolutionReason: text("resolution_reason"),
+  },
+  (table) => [
+    index("central_sync_conflicts_store_state_idx").on(table.storeId, table.state),
+    index("central_sync_conflicts_command_idx").on(table.commandId),
+  ],
+);
+
+export const centralDeviceSnapshots = pgTable(
+  "central_device_snapshots",
+  {
+    deviceId: text("device_id").notNull(),
+    storeId: text("store_id").notNull(),
+    preparedAt: timestamp("prepared_at", { withTimezone: true, mode: "date" }),
+    lastCentralReadAt: timestamp("last_central_read_at", { withTimezone: true, mode: "date" }),
+    lastHydratedAt: timestamp("last_hydrated_at", { withTimezone: true, mode: "date" }),
+    pendingCommandCount: integer("pending_command_count").notNull().default(0),
+    conflictCount: integer("conflict_count").notNull().default(0),
+    source: centralPackageSourceEnum("source").notNull().default("central"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.deviceId, table.storeId] }),
+    index("central_device_snapshots_store_updated_idx").on(table.storeId, table.updatedAt),
+  ],
+);
+
 export type StoreMembershipRecord = typeof storeMemberships.$inferSelect;
 export type NewStoreMembershipRecord = typeof storeMemberships.$inferInsert;
 export type MembershipMutationRecord = typeof membershipMutations.$inferSelect;
@@ -390,3 +611,19 @@ export type ShiftClosureRecord = typeof shiftClosures.$inferSelect;
 export type NewShiftClosureRecord = typeof shiftClosures.$inferInsert;
 export type ShiftHandoffRecord = typeof shiftHandoffs.$inferSelect;
 export type NewShiftHandoffRecord = typeof shiftHandoffs.$inferInsert;
+export type CentralProductRecord = typeof centralProducts.$inferSelect;
+export type NewCentralProductRecord = typeof centralProducts.$inferInsert;
+export type CentralProductDraftRecord = typeof centralProductDrafts.$inferSelect;
+export type NewCentralProductDraftRecord = typeof centralProductDrafts.$inferInsert;
+export type CentralLotRecord = typeof centralLots.$inferSelect;
+export type NewCentralLotRecord = typeof centralLots.$inferInsert;
+export type CentralObservationRecord = typeof centralObservations.$inferSelect;
+export type NewCentralObservationRecord = typeof centralObservations.$inferInsert;
+export type CentralProjectedTaskRecord = typeof centralProjectedTasks.$inferSelect;
+export type NewCentralProjectedTaskRecord = typeof centralProjectedTasks.$inferInsert;
+export type CentralSyncCommandRecord = typeof centralSyncCommands.$inferSelect;
+export type NewCentralSyncCommandRecord = typeof centralSyncCommands.$inferInsert;
+export type CentralSyncConflictRecord = typeof centralSyncConflicts.$inferSelect;
+export type NewCentralSyncConflictRecord = typeof centralSyncConflicts.$inferInsert;
+export type CentralDeviceSnapshotRecord = typeof centralDeviceSnapshots.$inferSelect;
+export type NewCentralDeviceSnapshotRecord = typeof centralDeviceSnapshots.$inferInsert;

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
 import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
 import {
+  createCaptureRepositoryFromQuery,
+  createInMemoryCaptureRepository,
+} from "./capture-repository";
+import {
   createInMemoryMembershipManagementRepository,
   createMembershipRepositoryFromQuery,
 } from "./membership-repository";
@@ -137,6 +141,63 @@ describe("database repositories", () => {
     expect(String(captured[0]?.[0])).toContain("target_type");
     expect(String(captured[0]?.[0])).toContain("limit");
     expect(page.items).toHaveLength(1);
+  });
+
+  it("hydrates prepare-turn packages by authorized store only", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [
+        centralProduct("store-1", "produto-store-1"),
+        centralProduct("store-2", "produto-store-2"),
+      ],
+      lots: [centralLot("store-1", "lote-store-1"), centralLot("store-2", "lote-store-2")],
+      tasks: [centralTask("store-1", "tarefa-store-1"), centralTask("store-2", "tarefa-store-2")],
+    });
+
+    const response = await repository.prepareTurn(prepareTurnInput("store-1"));
+    expect(response.products.map((item) => item.centralProductId)).toEqual(["produto-store-1"]);
+    expect(response.lots.map((item) => item.centralLotId)).toEqual(["lote-store-1"]);
+    expect(response.activeTasks.map((item) => item.centralTaskId)).toEqual(["tarefa-store-1"]);
+    expect(response.store.readiness).toBe("prepared");
+    expect(JSON.stringify(response)).not.toContain("store-2");
+    expect(repository.readDeviceSnapshots()).toHaveLength(1);
+    expect(repository.readAuditEvents()[0]).toMatchObject({
+      type: "sync.changed",
+      sanitized: true,
+    });
+  });
+
+  it("returns deterministic needs-review semantics for empty prepare-turn reads", async () => {
+    const repository = createInMemoryCaptureRepository();
+
+    const response = await repository.prepareTurn(prepareTurnInput("store-empty"));
+    expect(response.store.readiness).toBe("needs_review");
+    expect(response.cache.state).toBe("needs_first_central_read");
+    expect(response.store.blockers[0]).toContain("Leitura central sem fatos");
+  });
+
+  it("uses store-scoped SQL and writes sanitized prepare-turn audit rows", async () => {
+    const captured: unknown[][] = [];
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+        if (strings.includes("from central_products")) {
+          return Promise.resolve([centralProductRow()]);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    const response = await repository.prepareTurn(prepareTurnInput("store-1"));
+    const selectQueries = captured.slice(0, 5).map(([query]) => String(query));
+    expect(selectQueries).toHaveLength(5);
+    expect(selectQueries.every((query) => /where\s+(t\.)?store_id = \$1/.test(query))).toBe(true);
+    expect(String(captured[5]?.[0])).toContain("insert into central_device_snapshots");
+    expect(String(captured[6]?.[0])).toContain("insert into audit_events");
+    expect(String(captured[6]?.[0])).toContain("sanitized");
+    expect(String(captured[6]?.[0])).toContain("true");
+    expect(response.products[0]?.centralProductId).toBe("produto-store-1");
   });
 
   it("deduplicates pilot invites and rejects expired invite tokens", async () => {
@@ -373,6 +434,100 @@ function inviteInput() {
     expiresAt: new Date("2026-06-29T10:00:00.000Z"),
     createdBy: "admin-1",
     createdAt: new Date("2026-06-22T10:00:00.000Z"),
+  };
+}
+
+function prepareTurnInput(storeId: string) {
+  return {
+    requestId: `prepare-${storeId}`,
+    storeId,
+    storeName: "Loja Ficticia Piloto",
+    actorId: "subject-1",
+    actorDisplayName: "Pessoa Piloto",
+    actorRoleSnapshot: "lead" as const,
+    request: {
+      deviceId: "aparelho-ficticio-001",
+      requestedAt: "2030-01-10T09:00:00.000Z",
+      localSnapshot: {
+        knownProductCount: 0,
+        knownLotCount: 0,
+        pendingCommandCount: 0,
+      },
+    },
+  };
+}
+
+function centralProduct(storeId: string, centralProductId: string) {
+  return {
+    storeId,
+    centralProductId,
+    displayName: "Ovos Brancos FICTICIOS",
+    categoryId: "categoria-ficticia-ovos",
+    categoryName: "Ovos ficticios",
+    status: "validated" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    categoryRuleProfile: {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity" as const,
+    },
+  };
+}
+
+function centralLot(storeId: string, centralLotId: string) {
+  return {
+    storeId,
+    centralLotId,
+    centralProductId: `produto-${storeId}`,
+    productDisplayName: "Ovos Brancos FICTICIOS",
+    lotIdentity: {
+      identitySource: "printed" as const,
+      value: "OVOS-FICTICIOS-001",
+    },
+    mode: "formal_validity" as const,
+    currentLocation: { kind: "area_de_venda" as const },
+    state: "synchronized" as const,
+    source: "central" as const,
+    riskState: "critical" as const,
+    expiresAt: "2030-01-12",
+    approximateQuantity: 12,
+    updatedAt: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function centralTask(storeId: string, centralTaskId: string) {
+  return {
+    storeId,
+    centralTaskId,
+    activeKey: `${storeId}:lote:critical:check_presence`,
+    centralLotId: `lote-${storeId}`,
+    productDisplayName: "Ovos Brancos FICTICIOS",
+    currentLocation: { kind: "area_de_venda" as const },
+    riskState: "critical" as const,
+    severity: "high" as const,
+    requiredResolution: "check_presence" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    ownerLabel: "Equipe do turno",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function centralProductRow() {
+  return {
+    central_product_id: "produto-store-1",
+    display_name: "Ovos Brancos FICTICIOS",
+    category_id: "categoria-ficticia-ovos",
+    category_name: "Ovos ficticios",
+    status: "validated",
+    state: "synchronized",
+    gtin: null,
+    category_rule_profile: {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity",
+    },
+    updated_at: "2030-01-10T09:00:00.000Z",
   };
 }
 

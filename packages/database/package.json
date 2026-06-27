@@ -20,6 +20,10 @@
       "types": "./src/auth-repository.ts",
       "import": "./src/auth-repository.ts"
     },
+    "./capture-repository": {
+      "types": "./src/capture-repository.ts",
+      "import": "./src/capture-repository.ts"
+    },
     "./evidence-repository": {
       "types": "./src/evidence-repository.ts",
       "import": "./src/evidence-repository.ts"
@@ -44,6 +48,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
