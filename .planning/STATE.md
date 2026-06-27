@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 in progress - 1/6 plans complete
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-06-27T00:39:50.257Z"
+status: Phase 10 in progress - 2/6 plans complete
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-06-27T01:29:05.936Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 45
-  completed_plans: 40
-  percent: 89
+  completed_plans: 41
+  percent: 91
 ---
 
 # Project State: Validade Zero
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | In Progress | Real Pilot Flow Rebuild - 1/6 plans complete; 10-02 next |
+| 10 | In Progress | Real Pilot Flow Rebuild - 2/6 plans complete; 10-03 next |
 
 ## Active Constraints
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 10 Real Pilot Flow Rebuild with 10-02.
+Continue Phase 10 Real Pilot Flow Rebuild with 10-03.
 
 `$gsd-execute-phase 10`
 
@@ -66,6 +66,7 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-02.
 
 - Phase 10 added: Real Pilot Flow Rebuild for lot/product/access/sync pilot flow repair.
 - Phase 10 Plan 01 completed: authorized central prepare-turn package, central capture repository, mobile Preparar turno gate, and SQLite hydration before Hoje.
+- Phase 10 Plan 02 completed: central product search/reuse/draft contracts, idempotent store-scoped catalog repository, authorized API product draft workflow, mobile unified create/reuse flow, and Command Center product draft visibility.
 
 ### Quick Tasks Completed
 
@@ -122,6 +123,7 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-02.
 | Phase 08 P04 | inline | 2 tasks | truthful close, mobile flow, Neon verification |
 | Phase 08 P05 | inline | 2 tasks | memberships, E2E, security, and runbooks |
 | Phase 10 P01 | 130min | 3 tasks | 27 files |
+| Phase 10 P02 | 150min | 3 tasks | 34 files |
 
 ## Session
 
@@ -131,6 +133,9 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-02.
 
 ## Decisions
 
+- [Phase 10]: Product search, reuse, and draft creation are one operational path with central duplicate prevention. - Prevents local-only product shortcuts from creating accidental duplicates before lot work.
+- [Phase 10]: Mobile product confirmation no longer forces immediate lot registration. - Keeps product truth and lot lifecycle separate while preserving an explicit `Registrar lote` next step.
+- [Phase 10]: Product drafts stay visible as pending central review on mobile and web. - Prevents a draft from being mistaken for an approved catalog item.
 - [Phase 10]: Prepare-turn uses session-authorized POST and never accepts client-provided store, role, or capability authority. - Keeps central read hydration scoped to server-owned membership.
 - [Phase 10]: Mobile blocks normal Hoje until a prepared central package is hydrated; cache fallback is explicitly labeled as not safe. - Prevents stale local data from looking like a current sales-area verdict.
 - [Phase 10]: Prepare-turn cache status is separate from offline command cache status. - Keeps central-read freshness independent from local command acknowledgement.
