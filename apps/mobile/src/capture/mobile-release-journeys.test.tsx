@@ -58,12 +58,14 @@ function activeSession(): SessionContextResponse {
 
 function authClient(overrides: Partial<MobileAuthClient> = {}): MobileAuthClient {
   return {
+    authHeaders: () => ({}),
     readSession: () => Promise.reject(new MobileAuthError("session_expired")),
     login: () => Promise.resolve(activeSession()),
     validateInvite: () => Promise.resolve({ status: "invalid" }),
     activateInvite: () => Promise.resolve(activeSession()),
     requestRecovery: () => Promise.resolve(),
     submitPrivacyRequest: () => Promise.resolve(),
+    prepareTurn: () => Promise.reject(new Error("not used")),
     logout: () => Promise.resolve(),
     ...overrides,
   };

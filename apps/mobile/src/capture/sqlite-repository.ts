@@ -8,11 +8,15 @@ import {
   MarkdownWorkflowRecordSchema,
   OperationalLocationSchema,
   PhysicalObservationInputSchema,
+  PrepareTurnCacheStatusSchema,
   PushOpenIntentSchema,
   TaskAlertStateRecordSchema,
+  type ActiveTaskSnippet,
   type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
+  type CentralLotSnippet,
+  type CentralProductSnippet,
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
   type MarkdownWorkflowRecord,
@@ -20,6 +24,8 @@ import {
   type OfflineCacheStatus,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type PrepareTurnCacheStatus,
+  type PrepareTurnResponse,
   type PushOpenIntent,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -75,6 +81,8 @@ import {
   parseMarkdownShelfConfirmationCommand,
   parseOfflineActionCommand,
   parseOfflineCacheStatus,
+  parsePrepareTurnCacheStatus,
+  parsePrepareTurnResponse,
   parseLotId,
   parseLotInput,
   parseObservationInput,
@@ -264,6 +272,20 @@ interface OfflineCacheStatusRow {
   updated_at: string;
 }
 
+interface PrepareTurnCacheStatusRow {
+  id: string;
+  state: string;
+  source: string;
+  updated_at: string;
+  last_central_read_at: string | null;
+  stale_after_hours: number;
+  product_count: number;
+  lot_count: number;
+  active_task_count: number;
+  conflict_count: number;
+  resolved_history_count: number;
+}
+
 interface EvidenceUploadRow {
   local_evidence_id: string;
   task_id: string;
@@ -408,6 +430,39 @@ export function createSQLiteCaptureRepository(
     initialization ??= initializeDatabase(getDatabase);
 
     return initialization;
+  }
+
+  async function hydratePrepareTurn(response: PrepareTurnResponse): Promise<void> {
+    await initialize();
+    const prepared = parsePrepareTurnResponse(response);
+    const db = await getDatabase();
+    const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
+
+    await db.withTransactionAsync(async () => {
+      for (const product of prepared.products) {
+        await upsertCentralProduct(db, product);
+      }
+
+      for (const lot of prepared.lots) {
+        await upsertCentralLot(db, lot);
+      }
+
+      for (const task of prepared.activeTasks) {
+        await upsertTodayTask(db, mapCentralActiveTask(task, lotsById));
+      }
+
+      await upsertPrepareTurnCacheStatus(db, prepared.cache);
+    });
+  }
+
+  async function loadPrepareTurnCacheStatus(): Promise<PrepareTurnCacheStatus | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<PrepareTurnCacheStatusRow>(
+      "SELECT * FROM prepare_turn_cache_status WHERE id = 'prepare-turn'",
+    );
+
+    return row === null ? null : mapPrepareTurnCacheStatus(row);
   }
 
   async function createProduct(input: CaptureProductInput): Promise<CaptureProductRecord> {
@@ -2204,6 +2259,8 @@ export function createSQLiteCaptureRepository(
 
   return {
     initialize,
+    hydratePrepareTurn,
+    loadPrepareTurnCacheStatus,
     createProduct,
     findProducts,
     listFrequentProducts,
@@ -2346,6 +2403,19 @@ async function initializeDatabase(
       stale_after_hours REAL NOT NULL,
       source TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS prepare_turn_cache_status (
+      id TEXT PRIMARY KEY NOT NULL,
+      state TEXT NOT NULL,
+      source TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_central_read_at TEXT,
+      stale_after_hours REAL NOT NULL,
+      product_count INTEGER NOT NULL,
+      lot_count INTEGER NOT NULL,
+      active_task_count INTEGER NOT NULL,
+      conflict_count INTEGER NOT NULL,
+      resolved_history_count INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS evidence_uploads (
       local_evidence_id TEXT PRIMARY KEY NOT NULL,
@@ -2537,6 +2607,8 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS today_tasks_lot_status_idx ON today_tasks(lot_id, status);
     CREATE INDEX IF NOT EXISTS today_tasks_active_key_idx ON today_tasks(active_key);
     CREATE INDEX IF NOT EXISTS offline_cache_status_state_idx ON offline_cache_status(state);
+    CREATE INDEX IF NOT EXISTS prepare_turn_cache_status_state_idx
+      ON prepare_turn_cache_status(state);
     CREATE INDEX IF NOT EXISTS evidence_uploads_state_created_idx
       ON evidence_uploads(state, created_at);
     CREATE INDEX IF NOT EXISTS evidence_uploads_task_state_idx
@@ -2731,6 +2803,137 @@ async function upsertOfflineCacheStatus(
     status.staleAfterHours,
     status.source,
     status.updatedAt,
+  );
+}
+
+async function upsertPrepareTurnCacheStatus(
+  db: SQLite.SQLiteDatabase,
+  status: PrepareTurnCacheStatus,
+): Promise<void> {
+  const prepared = parsePrepareTurnCacheStatus(status);
+
+  await db.runAsync(
+    `INSERT INTO prepare_turn_cache_status (
+      id, state, source, updated_at, last_central_read_at, stale_after_hours,
+      product_count, lot_count, active_task_count, conflict_count, resolved_history_count
+    ) VALUES ('prepare-turn', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      state = excluded.state,
+      source = excluded.source,
+      updated_at = excluded.updated_at,
+      last_central_read_at = excluded.last_central_read_at,
+      stale_after_hours = excluded.stale_after_hours,
+      product_count = excluded.product_count,
+      lot_count = excluded.lot_count,
+      active_task_count = excluded.active_task_count,
+      conflict_count = excluded.conflict_count,
+      resolved_history_count = excluded.resolved_history_count`,
+    prepared.state,
+    prepared.source,
+    prepared.updatedAt,
+    prepared.lastCentralReadAt ?? null,
+    prepared.staleAfterHours,
+    prepared.productCount,
+    prepared.lotCount,
+    prepared.activeTaskCount,
+    prepared.conflictCount,
+    prepared.resolvedHistoryCount,
+  );
+}
+
+async function upsertCentralProduct(
+  db: SQLite.SQLiteDatabase,
+  product: CentralProductSnippet,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO capture_products (
+      id, display_name, normalized_name, category_id, category_profile_json,
+      supplier_name, gtin, product_override_json, created_at
+    ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      display_name = excluded.display_name,
+      normalized_name = excluded.normalized_name,
+      category_id = excluded.category_id,
+      category_profile_json = excluded.category_profile_json,
+      gtin = excluded.gtin`,
+    product.centralProductId,
+    product.displayName,
+    normalizeProductLookup(product.displayName),
+    product.categoryId,
+    JSON.stringify(product.categoryRuleProfile),
+    product.gtin ?? null,
+    product.updatedAt,
+  );
+}
+
+async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippet): Promise<void> {
+  const observationId = centralObservationIdFor(lot.centralLotId);
+  const occurredAt = lot.updatedAt;
+
+  await db.runAsync(
+    `INSERT INTO capture_lots (
+      id, product_id, identity_source, identity_value, mode, expires_at, received_at,
+      quality_inspection_due_at, quality_window_days, approximate_quantity,
+      initial_location_kind, initial_location_custom_name, current_observation_id,
+      current_status, current_actor_label, current_occurred_at, current_location_kind,
+      current_location_custom_name, current_quantity_state, current_approximate_quantity,
+      current_is_correction, current_correction_reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'present', 'Leitura central',
+      ?, ?, ?, ?, ?, 0, NULL)
+    ON CONFLICT(id) DO UPDATE SET
+      product_id = excluded.product_id,
+      identity_source = excluded.identity_source,
+      identity_value = excluded.identity_value,
+      mode = excluded.mode,
+      expires_at = excluded.expires_at,
+      received_at = excluded.received_at,
+      quality_inspection_due_at = excluded.quality_inspection_due_at,
+      approximate_quantity = excluded.approximate_quantity,
+      current_observation_id = excluded.current_observation_id,
+      current_status = excluded.current_status,
+      current_actor_label = excluded.current_actor_label,
+      current_occurred_at = excluded.current_occurred_at,
+      current_location_kind = excluded.current_location_kind,
+      current_location_custom_name = excluded.current_location_custom_name,
+      current_quantity_state = excluded.current_quantity_state,
+      current_approximate_quantity = excluded.current_approximate_quantity`,
+    lot.centralLotId,
+    lot.centralProductId,
+    lot.lotIdentity.identitySource,
+    lot.lotIdentity.value,
+    lot.mode,
+    lot.expiresAt ?? null,
+    lot.receivedAt ?? null,
+    lot.qualityInspectionDueAt ?? null,
+    lot.approximateQuantity ?? 0,
+    lot.currentLocation.kind,
+    lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
+    observationId,
+    occurredAt,
+    lot.currentLocation.kind,
+    lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
+    lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
+    lot.approximateQuantity ?? null,
+  );
+
+  await db.runAsync(
+    `INSERT INTO capture_observations (
+      id, lot_id, status, actor_label, occurred_at, location_kind, location_custom_name,
+      quantity_state, approximate_quantity, is_correction, correction_reason
+    ) VALUES (?, ?, 'present', 'Leitura central', ?, ?, ?, ?, ?, 0, NULL)
+    ON CONFLICT(id) DO UPDATE SET
+      occurred_at = excluded.occurred_at,
+      location_kind = excluded.location_kind,
+      location_custom_name = excluded.location_custom_name,
+      quantity_state = excluded.quantity_state,
+      approximate_quantity = excluded.approximate_quantity`,
+    observationId,
+    lot.centralLotId,
+    occurredAt,
+    lot.currentLocation.kind,
+    lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
+    lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
+    lot.approximateQuantity ?? null,
   );
 }
 
@@ -3177,6 +3380,98 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
   };
 }
 
+function mapCentralActiveTask(
+  task: ActiveTaskSnippet,
+  lotsById: ReadonlyMap<string, CentralLotSnippet>,
+): TodayTaskRecord {
+  const lot = lotsById.get(task.centralLotId);
+
+  return parseTodayTaskRecord({
+    id: task.centralTaskId,
+    activeKey: task.activeKey,
+    lotId: task.centralLotId,
+    productDisplayName: task.productDisplayName,
+    lotIdentity: lot?.lotIdentity ?? {
+      identitySource: "generated_internal",
+      value: task.centralLotId,
+    },
+    currentLocation: task.currentLocation,
+    riskState: task.riskState,
+    severity: task.severity,
+    dueBucket: dueBucketForCentralRisk(task.riskState),
+    requiredResolution: task.requiredResolution,
+    section: sectionForCentralRisk(task.riskState, task.currentLocation),
+    ownerLabel: task.ownerLabel,
+    status: "active",
+    sourceRisk: {
+      state: task.riskState,
+      reasons: [{ code: reasonCodeForCentralRisk(task.riskState), field: "central" }],
+    },
+    priority: priorityForCentralRisk(task.riskState, task.currentLocation),
+    createdAt: task.updatedAt,
+    updatedAt: task.updatedAt,
+    ...(task.state === "synchronized"
+      ? {
+          sync: {
+            state: "synced",
+            savedAt: task.updatedAt,
+            lastSyncedAt: task.updatedAt,
+          },
+        }
+      : {}),
+  });
+}
+
+function dueBucketForCentralRisk(
+  riskState: ActiveTaskSnippet["riskState"],
+): TodayTaskRecord["dueBucket"] {
+  if (riskState === "expired") return "now";
+  if (riskState === "critical" || riskState === "uncertain") return "shift";
+  return "today";
+}
+
+function sectionForCentralRisk(
+  riskState: ActiveTaskSnippet["riskState"],
+  location: ActiveTaskSnippet["currentLocation"],
+): TodayTaskRecord["section"] {
+  if (riskState === "expired") return "withdraw_now";
+  if (riskState === "markdown_due") return "request_markdown";
+  if (location.kind === "area_de_venda") return "check_sales_area";
+  return "follow_up";
+}
+
+function priorityForCentralRisk(
+  riskState: ActiveTaskSnippet["riskState"],
+  location: ActiveTaskSnippet["currentLocation"],
+): number {
+  const isSalesArea = location.kind === "area_de_venda";
+  if (isSalesArea && riskState === "expired") return 0;
+  if (isSalesArea && riskState === "critical") return 1;
+  if (isSalesArea && riskState === "uncertain") return 2;
+  if (riskState === "markdown_due") return 3;
+  if (riskState === "expired") return 4;
+  if (riskState === "critical") return 5;
+  return 6;
+}
+
+function reasonCodeForCentralRisk(
+  riskState: ActiveTaskSnippet["riskState"],
+): "expired" | "expires_in_15_days" | "expires_in_3_days" | "presence_missing" {
+  if (riskState === "expired") return "expired";
+  if (riskState === "markdown_due") return "expires_in_15_days";
+  if (riskState === "critical") return "expires_in_3_days";
+  return "presence_missing";
+}
+
+function centralObservationIdFor(centralLotId: string): string {
+  return `central-observation:${safeLocalIdentifier(centralLotId, 90)}`;
+}
+
+function safeLocalIdentifier(value: string, maxLength: number): string {
+  const normalized = value.replace(/[^a-zA-Z0-9:_-]/g, "-");
+  return normalized.length === 0 ? "central" : normalized.slice(0, maxLength);
+}
+
 function mapLotSnapshot(row: LotRow): CaptureLotSnapshot {
   const initialLocation = mapLocation(row.initial_location_kind, row.initial_location_custom_name);
   const lot = parseStoredLot(row, initialLocation);
@@ -3397,6 +3692,21 @@ function mapOfflineCacheStatus(row: OfflineCacheStatusRow): OfflineCacheStatus {
     staleAfterHours: row.stale_after_hours,
     source: row.source,
     updatedAt: row.updated_at,
+  });
+}
+
+function mapPrepareTurnCacheStatus(row: PrepareTurnCacheStatusRow): PrepareTurnCacheStatus {
+  return PrepareTurnCacheStatusSchema.parse({
+    state: row.state,
+    source: row.source,
+    updatedAt: row.updated_at,
+    ...(row.last_central_read_at === null ? {} : { lastCentralReadAt: row.last_central_read_at }),
+    staleAfterHours: row.stale_after_hours,
+    productCount: row.product_count,
+    lotCount: row.lot_count,
+    activeTaskCount: row.active_task_count,
+    conflictCount: row.conflict_count,
+    resolvedHistoryCount: row.resolved_history_count,
   });
 }
 

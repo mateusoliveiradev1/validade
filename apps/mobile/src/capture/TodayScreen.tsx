@@ -4,6 +4,7 @@ import type {
   AlertDeliveryResult,
   FutureAttentionRecord,
   OfflineCacheStatus,
+  PrepareTurnCacheStatus,
   SyncConflictRecord,
   SyncQueueSummary as SyncQueueSummaryRecord,
   TaskAlertStateRecord,
@@ -47,6 +48,18 @@ const ACTIVE_SECTION_ORDER = [
   "follow_up",
 ] as const satisfies readonly TodayTaskRecord["section"][];
 
+function prepareTurnNotice(
+  status: PrepareTurnCacheStatus,
+  source: "central" | "local_cache" | undefined,
+): string {
+  const readAt = status.lastCentralReadAt ?? status.updatedAt;
+  if (source === "central" && status.state === "ready") {
+    return `Turno preparado pela central em ${readAt}. ${status.activeTaskCount} tarefas ativas.`;
+  }
+
+  return `Leitura local em uso desde ${readAt}. Nao declare area segura sem preparar a central.`;
+}
+
 export function TodayScreen({
   repository,
   onRegisterLot,
@@ -59,6 +72,8 @@ export function TodayScreen({
   syncEngine,
   pushFallbackNotice,
   highlightedTaskId,
+  prepareTurnCacheStatus,
+  prepareTurnSource,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -72,6 +87,8 @@ export function TodayScreen({
   syncEngine?: SyncEngine | undefined;
   pushFallbackNotice?: string | undefined;
   highlightedTaskId?: string | undefined;
+  prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
+  prepareTurnSource?: "central" | "local_cache" | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
@@ -367,6 +384,9 @@ export function TodayScreen({
   const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
   const firstPriorityTask = overdueTasks[0] ?? currentTasks[0];
   const canOpenPriorityTask = firstPriorityTask !== undefined && onOpenTask !== undefined;
+  const centralPackageReady =
+    prepareTurnSource === undefined ||
+    (prepareTurnSource === "central" && prepareTurnCacheStatus?.state === "ready");
   const heroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
@@ -374,13 +394,15 @@ export function TodayScreen({
   const heroSecondaryLabel = canOpenPriorityTask ? todayCopy.registerLot : todayCopy.recentLots;
   const verdict = isInitialLoading
     ? "Carregando riscos da area de venda"
-    : refreshError !== undefined
-      ? "Riscos precisam ser atualizados"
-      : salesAreaRiskCount > 0
-        ? todayCopy.criticalHeader(salesAreaRiskCount)
-        : tasks.length > 0
-          ? todayCopy.safeWithWorkHeader
-          : todayCopy.safeHeader;
+    : !centralPackageReady
+      ? "Leitura central local ou pendente"
+      : refreshError !== undefined
+        ? "Riscos precisam ser atualizados"
+        : salesAreaRiskCount > 0
+          ? todayCopy.criticalHeader(salesAreaRiskCount)
+          : tasks.length > 0
+            ? todayCopy.safeWithWorkHeader
+            : todayCopy.safeHeader;
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -393,13 +415,15 @@ export function TodayScreen({
         <Text style={styles.heroKicker}>{todayCopy.title}</Text>
         <Text style={styles.safetyVerdict}>{verdict}</Text>
         <Text style={styles.safetyBody}>
-          {salesAreaRiskCount > 0
-            ? "Comece pelo primeiro risco da area de venda."
-            : isInitialLoading
-              ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
-              : refreshError !== undefined
-                ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
-                : "Continue conferindo os lotes do turno sem esconder pendencias."}
+          {!centralPackageReady
+            ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
+            : salesAreaRiskCount > 0
+              ? "Comece pelo primeiro risco da area de venda."
+              : isInitialLoading
+                ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
+                : refreshError !== undefined
+                  ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
+                  : "Continue conferindo os lotes do turno sem esconder pendencias."}
         </Text>
         <View style={styles.heroMetrics}>
           <View style={styles.heroMetric}>
@@ -453,6 +477,11 @@ export function TodayScreen({
         onRetry={() => void manualSync()}
       />
       <OfflineCacheNotice status={offlineStatus} />
+      {prepareTurnCacheStatus === undefined || prepareTurnCacheStatus === null ? null : (
+        <StatusNotice tone={centralPackageReady ? "success" : "info"}>
+          {prepareTurnNotice(prepareTurnCacheStatus, prepareTurnSource)}
+        </StatusNotice>
+      )}
 
       <View style={styles.shiftCloseEntry}>
         <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>

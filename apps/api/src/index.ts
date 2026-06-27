@@ -18,6 +18,8 @@ import {
   HealthContract,
   MembershipListResponseSchema,
   MembershipMutationResponseSchema,
+  PrepareTurnRequestSchema,
+  PrepareTurnResponseSchema,
   ProtectedCapabilityProbeResponseSchema,
   SafeProbeContract,
   RevokeMembershipRequestSchema,
@@ -47,8 +49,19 @@ import {
   createNeonMembershipRepository,
   type MembershipManagementRepository,
 } from "@validade-zero/database/membership-repository";
+import {
+  createInMemoryCaptureRepository,
+  createNeonCaptureRepository,
+  type CaptureRepository,
+} from "@validade-zero/database/capture-repository";
 import type { ShiftCloseRepository } from "@validade-zero/database/shift-close-repository";
-import type { AuthorizedActorContext, Capability } from "@validade-zero/domain";
+import type {
+  AuthenticatedIdentity,
+  AuthorizedActorContext,
+  AuthorizationDenialReason,
+  Capability,
+  StoreMembership,
+} from "@validade-zero/domain";
 import { Hono, type Context } from "hono";
 import {
   createAuditAccessDeniedRecorder,
@@ -125,6 +138,7 @@ export function createApiApp(input?: {
   evidenceRepository?: EvidenceRepository;
   evidenceStore?: EvidenceStore;
   evidenceService?: EvidenceService;
+  captureRepository?: CaptureRepository;
   shiftCloseRepository?: ShiftCloseRepository;
   shiftCloseRevalidator?: ShiftCloseRevalidator;
   shiftCloseService?: ShiftCloseService;
@@ -217,6 +231,11 @@ export function createApiApp(input?: {
       auditRepository,
       now,
     });
+  const captureRepository =
+    input?.captureRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryCaptureRepository()
+      : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
   const shiftCloseRepository =
     input?.shiftCloseRepository ??
     (input?.databaseUrl === undefined
@@ -321,6 +340,68 @@ export function createApiApp(input?: {
     return context.json({
       results: results.map((result) => SyncTransportResultSchema.parse(result)),
     });
+  });
+
+  api.post("/capture/prepare-turn", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = PrepareTurnRequestSchema.safeParse(rawPayload);
+    const requestId = createPrepareTurnRequestId(parsed.success ? parsed.data.deviceId : "device");
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_prepare_turn_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const storeName = resolved.storeName ?? normalizeStoreName(undefined, storeId);
+      await captureRepository.recordPrepareTurnRejected({
+        requestId,
+        storeId,
+        storeName,
+        actorId: resolved.identity?.subjectId ?? "sessao-nao-autenticada",
+        actorDisplayName: resolved.identity?.displayName ?? "Sessao nao autenticada",
+        actorRoleSnapshot: roleSnapshotForAudit(resolved.decision.auditMembership?.role),
+        reason: resolved.reason,
+        occurredAt: now(),
+      });
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "prepare_turn",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.prepareTurn({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        actorId: actorContext.identity.subjectId,
+        actorDisplayName: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
+        request: parsed.data,
+      });
+
+      return context.json(PrepareTurnResponseSchema.parse(response));
+    } catch {
+      return context.json({ error: "prepare_turn_unavailable" }, 503);
+    }
   });
 
   api.post("/tasks/:taskId/actions", async (context) => {
@@ -1145,6 +1226,22 @@ function normalizeStoreName(value: string | undefined, storeId: string): string 
   return storeId.slice(0, 240);
 }
 
+function normalizeOptionalQueryValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed.slice(0, 120);
+}
+
+function createPrepareTurnRequestId(deviceId: string): string {
+  const devicePart = safeAuditIdentifier(deviceId).slice(0, 48);
+  return `pt:${Date.now().toString(36)}:${devicePart}`.slice(0, 120);
+}
+
+function roleSnapshotForAudit(
+  role: StoreMembership["role"] | undefined,
+): "collaborator" | "lead" | "admin" {
+  return role === "lead" || role === "admin" ? role : "collaborator";
+}
+
 function safeAuditIdentifier(value: string): string {
   const safe = value.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 160);
   return safe.length === 0 ? "sync-event" : safe;
@@ -1438,6 +1535,72 @@ async function authorizeRequest(input: {
   });
 
   return { ...decision, identity, capability: input.capability };
+}
+
+async function resolvePrepareTurnScope(input: {
+  request: Request;
+  requestedStoreId?: string | undefined;
+  authProvider: AuthProvider;
+  authorizationService: AuthorizationService;
+  membershipRepository: MembershipRepository;
+}): Promise<
+  | {
+      allowed: true;
+      identity: AuthenticatedIdentity;
+      decision: ApiAuthorizationDecision & { context: AuthorizedActorContext };
+    }
+  | {
+      allowed: false;
+      identity?: AuthenticatedIdentity | undefined;
+      decision: ApiAuthorizationDecision;
+      reason: AuthorizationDenialReason;
+      storeId?: string | undefined;
+      storeName?: string | undefined;
+    }
+> {
+  const identity = await input.authProvider.verify(input.request);
+
+  if (identity === undefined) {
+    return {
+      allowed: false,
+      decision: { allowed: false, reason: "unauthenticated" },
+      reason: "unauthenticated",
+      ...(input.requestedStoreId === undefined ? {} : { storeId: input.requestedStoreId }),
+    };
+  }
+
+  const memberships = await input.membershipRepository.listActiveMemberships(identity.subjectId);
+  const requestedMembership =
+    input.requestedStoreId === undefined
+      ? undefined
+      : memberships.find((membership) => membership.storeId === input.requestedStoreId);
+  const targetMembership = requestedMembership ?? memberships[0];
+  const targetStoreId =
+    input.requestedStoreId ?? targetMembership?.storeId ?? "loja-nao-autorizada";
+  const decision = await input.authorizationService.authorize({
+    identity,
+    capability: "task.act",
+    resourceStoreId: targetStoreId,
+  });
+
+  if (decision.allowed && decision.context !== undefined) {
+    return {
+      allowed: true,
+      identity,
+      decision: { ...decision, context: decision.context },
+    };
+  }
+
+  return {
+    allowed: false,
+    identity,
+    decision,
+    reason: decision.reason ?? "capability_not_allowed",
+    storeId: targetStoreId,
+    storeName:
+      (requestedMembership ?? targetMembership)?.storeName ??
+      normalizeStoreName(undefined, targetStoreId),
+  };
 }
 
 async function authorizeEvidenceRead(input: {

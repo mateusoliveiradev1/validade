@@ -1,13 +1,19 @@
 import type {
   AlertDeliveryResult,
+  ActiveTaskSnippet,
   AuditTimelineItem,
+  CaptureLotInput,
   CaptureProductInput,
+  CentralLotSnippet,
+  CentralProductSnippet,
   DevicePushRegistrationCommand,
   FutureAttentionRecord,
   MarkdownWorkflowRecord,
   OfflineActionCommand,
   OfflineCacheStatus,
   PhysicalObservationInput,
+  PrepareTurnCacheStatus,
+  PrepareTurnResponse,
   PushOpenIntent,
   SyncCommandRecord,
   SyncConflictRecord,
@@ -80,6 +86,8 @@ import {
   parsePushOpenIntent,
   parseOfflineActionCommand,
   parseOfflineCacheStatus,
+  parsePrepareTurnCacheStatus,
+  parsePrepareTurnResponse,
   parseSyncCommandRecord,
   parseSyncConflictRecord,
   parseSyncQueueSummary,
@@ -111,9 +119,38 @@ export function createMemoryCaptureRepository(
   const alertAttempts: RecordAlertAttemptInput[] = [];
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
   let offlineCacheStatus: OfflineCacheStatus | undefined;
+  let prepareTurnCacheStatus: PrepareTurnCacheStatus | undefined;
 
   async function initialize(): Promise<void> {
     return Promise.resolve();
+  }
+
+  function hydratePrepareTurn(response: PrepareTurnResponse): Promise<void> {
+    const prepared = parsePrepareTurnResponse(response);
+    const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
+
+    for (const product of prepared.products) {
+      products.set(product.centralProductId, centralProductToLocal(product));
+    }
+
+    for (const lot of prepared.lots) {
+      const snapshot = centralLotToLocal(lot);
+      lots.set(snapshot.id, snapshot);
+      observations.set(snapshot.id, [snapshot.currentObservation]);
+    }
+
+    for (const task of prepared.activeTasks) {
+      const record = centralActiveTaskToLocal(task, lotsById);
+      todayTasks.set(record.id, record);
+    }
+
+    prepareTurnCacheStatus = parsePrepareTurnCacheStatus(prepared.cache);
+
+    return Promise.resolve();
+  }
+
+  function loadPrepareTurnCacheStatus(): Promise<PrepareTurnCacheStatus | null> {
+    return Promise.resolve(prepareTurnCacheStatus ?? null);
   }
 
   function createProduct(input: CaptureProductInput): Promise<CaptureProductRecord> {
@@ -1349,6 +1386,8 @@ export function createMemoryCaptureRepository(
 
   return {
     initialize,
+    hydratePrepareTurn,
+    loadPrepareTurnCacheStatus,
     createProduct,
     findProducts,
     listFrequentProducts,
@@ -1394,6 +1433,160 @@ export function createMemoryCaptureRepository(
     loadSyncConflict,
     listAuditTimeline,
   };
+
+  function centralProductToLocal(product: CentralProductSnippet): CaptureProductRecord {
+    return {
+      displayName: product.displayName,
+      categoryId: product.categoryId,
+      categoryRuleProfile: product.categoryRuleProfile,
+      ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      id: product.centralProductId,
+      normalizedName: normalizeProductLookup(product.displayName),
+      createdAt: product.updatedAt,
+    };
+  }
+
+  function centralLotToLocal(lot: CentralLotSnippet): CaptureLotSnapshot {
+    const observation: CaptureObservationRecord = {
+      id: centralObservationIdFor(lot.centralLotId),
+      lotId: lot.centralLotId,
+      status: "present",
+      actorLabel: "Leitura central",
+      occurredAt: lot.updatedAt,
+      location: lot.currentLocation,
+      isCorrection: false,
+      ...(lot.approximateQuantity === undefined
+        ? { quantityState: "not_estimable" as const }
+        : { quantityState: "estimated" as const, approximateQuantity: lot.approximateQuantity }),
+    };
+
+    return {
+      ...centralLotInput(lot),
+      id: lot.centralLotId,
+      productDisplayName: lot.productDisplayName,
+      currentObservation: observation,
+    };
+  }
+
+  function centralLotInput(lot: CentralLotSnippet): CaptureLotInput {
+    const base = {
+      productId: lot.centralProductId,
+      identity: lot.lotIdentity,
+      approximateQuantity: lot.approximateQuantity ?? 0,
+      initialLocation: lot.currentLocation,
+    };
+
+    if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
+      return {
+        ...base,
+        mode: lot.mode,
+        expiresAt: lot.expiresAt ?? lot.updatedAt.slice(0, 10),
+        ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      };
+    }
+
+    if (lot.mode === "flv_inspection") {
+      return {
+        ...base,
+        mode: "flv_inspection",
+        receivedAt: lot.receivedAt ?? lot.updatedAt.slice(0, 10),
+        qualityInspectionDueAt: lot.qualityInspectionDueAt ?? lot.updatedAt.slice(0, 10),
+      };
+    }
+
+    return {
+      ...base,
+      mode: "receiving_monitored",
+      receivedAt: lot.receivedAt ?? lot.updatedAt.slice(0, 10),
+    };
+  }
+
+  function centralActiveTaskToLocal(
+    task: ActiveTaskSnippet,
+    lotsById: ReadonlyMap<string, CentralLotSnippet>,
+  ): TodayTaskRecord {
+    const lot = lotsById.get(task.centralLotId);
+
+    return parseTodayTaskRecord({
+      id: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      productDisplayName: task.productDisplayName,
+      lotIdentity: lot?.lotIdentity ?? {
+        identitySource: "generated_internal",
+        value: task.centralLotId,
+      },
+      currentLocation: task.currentLocation,
+      riskState: task.riskState,
+      severity: task.severity,
+      dueBucket: dueBucketForCentralRisk(task.riskState),
+      requiredResolution: task.requiredResolution,
+      section: sectionForCentralRisk(task.riskState, task.currentLocation),
+      ownerLabel: task.ownerLabel,
+      status: "active",
+      sourceRisk: {
+        state: task.riskState,
+        reasons: [{ code: reasonCodeForCentralRisk(task.riskState), field: "central" }],
+      },
+      priority: priorityForCentralRisk(task.riskState, task.currentLocation),
+      createdAt: task.updatedAt,
+      updatedAt: task.updatedAt,
+      ...(task.state === "synchronized"
+        ? {
+            sync: {
+              state: "synced",
+              savedAt: task.updatedAt,
+              lastSyncedAt: task.updatedAt,
+            },
+          }
+        : {}),
+    });
+  }
+
+  function dueBucketForCentralRisk(
+    riskState: ActiveTaskSnippet["riskState"],
+  ): TodayTaskRecord["dueBucket"] {
+    if (riskState === "expired") return "now";
+    if (riskState === "critical" || riskState === "uncertain") return "shift";
+    return "today";
+  }
+
+  function sectionForCentralRisk(
+    riskState: ActiveTaskSnippet["riskState"],
+    location: ActiveTaskSnippet["currentLocation"],
+  ): TodayTaskRecord["section"] {
+    if (riskState === "expired") return "withdraw_now";
+    if (riskState === "markdown_due") return "request_markdown";
+    if (location.kind === "area_de_venda") return "check_sales_area";
+    return "follow_up";
+  }
+
+  function priorityForCentralRisk(
+    riskState: ActiveTaskSnippet["riskState"],
+    location: ActiveTaskSnippet["currentLocation"],
+  ): number {
+    const isSalesArea = location.kind === "area_de_venda";
+    if (isSalesArea && riskState === "expired") return 0;
+    if (isSalesArea && riskState === "critical") return 1;
+    if (isSalesArea && riskState === "uncertain") return 2;
+    if (riskState === "markdown_due") return 3;
+    if (riskState === "expired") return 4;
+    if (riskState === "critical") return 5;
+    return 6;
+  }
+
+  function reasonCodeForCentralRisk(
+    riskState: ActiveTaskSnippet["riskState"],
+  ): "expired" | "expires_in_15_days" | "expires_in_3_days" | "presence_missing" {
+    if (riskState === "expired") return "expired";
+    if (riskState === "markdown_due") return "expires_in_15_days";
+    if (riskState === "critical") return "expires_in_3_days";
+    return "presence_missing";
+  }
+
+  function centralObservationIdFor(centralLotId: string): string {
+    return `central-observation:${centralLotId.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 90)}`;
+  }
 
   function snapshotForOfflineAction(action: OfflineActionCommand): {
     idempotencyKey: string;

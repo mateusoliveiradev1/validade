@@ -431,7 +431,10 @@ export const centralProductDrafts = pgTable(
     requestedBy: text("requested_by").notNull(),
     requestedByLabel: text("requested_by_label").notNull(),
     reviewStatus: text("review_status").notNull().default("pending"),
-    similarProductIds: jsonb("similar_product_ids").$type<readonly string[]>().notNull().default([]),
+    similarProductIds: jsonb("similar_product_ids")
+      .$type<readonly string[]>()
+      .notNull()
+      .default([]),
     reason: text("reason"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),

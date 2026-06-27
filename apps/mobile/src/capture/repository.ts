@@ -11,6 +11,8 @@ import {
   OfflineActionCommandSchema,
   OfflineCacheStatusSchema,
   PhysicalObservationInputSchema,
+  PrepareTurnCacheStatusSchema,
+  PrepareTurnResponseSchema,
   PushOpenIntentSchema,
   SyncCommandRecordSchema,
   SyncConflictRecordSchema,
@@ -38,6 +40,8 @@ import {
   type OfflineCacheStatus,
   type OperationalLocation,
   type PhysicalObservationInput,
+  type PrepareTurnCacheStatus,
+  type PrepareTurnResponse,
   type PushOpenIntent,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -254,6 +258,8 @@ export interface LoadMarkdownEntryStateInput {
 
 export interface CaptureRepository {
   initialize(): Promise<void>;
+  hydratePrepareTurn?: (response: PrepareTurnResponse) => Promise<void>;
+  loadPrepareTurnCacheStatus?: () => Promise<PrepareTurnCacheStatus | null>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
   findProducts(query: string): Promise<readonly CaptureProductRecord[]>;
   listFrequentProducts?: () => Promise<readonly CaptureProductRecord[]>;
@@ -391,6 +397,14 @@ export function parsePushOpenIntent(input: unknown): PushOpenIntent {
 
 export function parseOfflineCacheStatus(input: unknown): OfflineCacheStatus {
   return OfflineCacheStatusSchema.parse(input);
+}
+
+export function parsePrepareTurnResponse(input: unknown): PrepareTurnResponse {
+  return PrepareTurnResponseSchema.parse(input);
+}
+
+export function parsePrepareTurnCacheStatus(input: unknown): PrepareTurnCacheStatus {
+  return PrepareTurnCacheStatusSchema.parse(input);
 }
 
 export function parseOfflineActionCommand(input: unknown): OfflineActionCommand {

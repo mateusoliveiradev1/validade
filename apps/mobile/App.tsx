@@ -34,7 +34,13 @@ export default function App({
       <StatusBar backgroundColor={captureColors.background} barStyle="dark-content" />
       <View style={styles.safeArea}>
         <AuthGate authClient={authClient}>
-          {(session) => <AuthenticatedCaptureApp alertChannel={alertChannel} session={session} />}
+          {(session, authenticatedClient) => (
+            <AuthenticatedCaptureApp
+              alertChannel={alertChannel}
+              authClient={authenticatedClient}
+              session={session}
+            />
+          )}
         </AuthGate>
       </View>
     </>
@@ -43,9 +49,11 @@ export default function App({
 
 function AuthenticatedCaptureApp({
   alertChannel,
+  authClient,
   session,
 }: {
   alertChannel?: PushAlertChannel | undefined;
+  authClient: MobileAuthClient;
   session: SessionContextResponse;
 }) {
   const syncEngine = useMemo(
@@ -57,12 +65,14 @@ function AuthenticatedCaptureApp({
           baseUrl: configuredApiBaseUrl(),
           storeId: session.store.storeId,
           storeName: session.store.storeName,
+          headers: () => authClient.authHeaders(),
         }),
         createId: () => `sync-batch-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         deviceId: `validade-zero-mobile:${session.store.storeId}`,
       }),
-    [session.store.storeId, session.store.storeName],
+    [authClient, session.store.storeId, session.store.storeName],
   );
+  const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
 
   return (
     <CaptureApp
@@ -71,6 +81,7 @@ function AuthenticatedCaptureApp({
       actorLabel={session.actor.displayName ?? "Pessoa da operacao"}
       storeId={session.store.storeId}
       syncEngine={syncEngine}
+      prepareTurnClient={prepareTurnClient}
       {...(alertChannel === undefined ? {} : { alertChannel })}
     />
   );

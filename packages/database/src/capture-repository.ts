@@ -30,7 +30,11 @@ export interface PrepareTurnDeniedInput {
   actorId: string;
   actorDisplayName: string;
   actorRoleSnapshot: CaptureActorRoleSnapshot;
-  reason: "unauthenticated" | "inactive_membership" | "capability_not_allowed" | "outside_store_scope";
+  reason:
+    | "unauthenticated"
+    | "inactive_membership"
+    | "capability_not_allowed"
+    | "outside_store_scope";
   occurredAt: Date;
 }
 
@@ -128,7 +132,9 @@ type StoredTask = ActiveTaskSnippet & {
 type StoredResolved = ResolvedTaskHistorySnippet & { storeId: string };
 type StoredConflict = CentralConflictSnippet & { storeId: string };
 
-export function createNeonCaptureRepository(input: { connectionString: string }): CaptureRepository {
+export function createNeonCaptureRepository(input: {
+  connectionString: string;
+}): CaptureRepository {
   return createCaptureRepositoryFromQuery(neon(input.connectionString));
 }
 
@@ -321,8 +327,9 @@ export function createInMemoryCaptureRepository(input?: {
   const conflicts = [...(input?.conflicts ?? [])];
   const auditEvents: Record<string, unknown>[] = [];
   const deviceSnapshots = new Map<string, DeviceSnapshotInput>();
-  const upsertDeviceSnapshot = async (snapshot: DeviceSnapshotInput): Promise<void> => {
+  const upsertDeviceSnapshot = (snapshot: DeviceSnapshotInput): Promise<void> => {
     deviceSnapshots.set(`${snapshot.storeId}:${snapshot.deviceId}`, snapshot);
+    return Promise.resolve();
   };
 
   return {
@@ -361,7 +368,7 @@ export function createInMemoryCaptureRepository(input?: {
       return response;
     },
     upsertDeviceSnapshot,
-    async recordPrepareTurnRejected(denied) {
+    recordPrepareTurnRejected(denied) {
       auditEvents.push({
         type: "access.denied",
         storeId: denied.storeId,
@@ -369,6 +376,7 @@ export function createInMemoryCaptureRepository(input?: {
         reason: denied.reason,
         sanitized: true,
       });
+      return Promise.resolve();
     },
     readAuditEvents() {
       return auditEvents;

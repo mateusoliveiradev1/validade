@@ -29,6 +29,7 @@ describe("HTTP sync transport", () => {
       baseUrl: "https://validade-zero-api-staging.validadezero.workers.dev/",
       storeId: "loja-piloto",
       storeName: "Loja Piloto - Staging",
+      headers: () => ({ Authorization: "Bearer fake-session-token" }),
       fetcher,
     });
 
@@ -46,6 +47,7 @@ describe("HTTP sync transport", () => {
       "https://validade-zero-api-staging.validadezero.workers.dev/sync/commands?storeId=loja-piloto&storeName=Loja+Piloto+-+Staging",
     );
     expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer fake-session-token");
     expect(init.body).toContain("command-sync-001");
   });
 

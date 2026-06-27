@@ -1,10 +1,16 @@
 import { SyncTransportResultSchema } from "@validade-zero/contracts";
 import type { SyncTransport } from "./sync-engine";
 
+type SyncTransportHeaders = Record<string, string>;
+
 export function createFetchSyncTransport(input: {
   baseUrl: string;
   storeId: string;
   storeName?: string | undefined;
+  headers?:
+    | SyncTransportHeaders
+    | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>)
+    | undefined;
   fetcher?: typeof fetch | undefined;
 }): SyncTransport {
   const fetcher = input.fetcher ?? fetch;
@@ -23,6 +29,7 @@ export function createFetchSyncTransport(input: {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          ...(await resolveHeaders(input.headers)),
         },
         body: JSON.stringify(batch),
       });
@@ -37,6 +44,16 @@ export function createFetchSyncTransport(input: {
       return SyncTransportResultSchema.array().parse(payload?.results);
     },
   };
+}
+
+async function resolveHeaders(
+  headers:
+    | SyncTransportHeaders
+    | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>)
+    | undefined,
+): Promise<Record<string, string>> {
+  const resolved = typeof headers === "function" ? await headers() : headers;
+  return resolved ?? {};
 }
 
 function normalizeBaseUrl(value: string): string {

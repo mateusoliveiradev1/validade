@@ -4,6 +4,7 @@ import type { MobileAuthClient } from "./auth/AuthGate";
 import type {
   MarkdownWorkflowRecord,
   OfflineCacheStatus,
+  PrepareTurnResponse,
   SyncCommandSummary,
   SyncQueueSummary,
   TodayTaskRecord,
@@ -143,6 +144,7 @@ function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSum
 }
 
 const authenticatedMobileClient: MobileAuthClient = {
+  authHeaders: () => ({ Authorization: "Bearer fake-session" }),
   readSession: () =>
     Promise.resolve({
       actor: { subjectId: "collaborator-local", displayName: "Colaborador FICTICIO" },
@@ -165,8 +167,98 @@ const authenticatedMobileClient: MobileAuthClient = {
   activateInvite: () => Promise.reject(new Error("not used")),
   requestRecovery: () => Promise.resolve(),
   submitPrivacyRequest: () => Promise.resolve(),
+  prepareTurn: () => Promise.resolve(preparedTurnResponse()),
   logout: () => Promise.resolve(),
 };
+
+function preparedTurnResponse(): PrepareTurnResponse {
+  return {
+    requestId: "prepare-turn-smoke",
+    store: {
+      storeId: "loja-ficticia",
+      storeName: "Loja Ficticia Piloto",
+      centralVersion: 1,
+      generatedAt: "2030-01-10T09:00:00.000Z",
+      centralReadAt: "2030-01-10T09:00:00.000Z",
+      source: "central",
+      readiness: "prepared",
+      blockers: [],
+    },
+    device: {
+      deviceId: "validade-zero-mobile:loja-ficticia",
+      preparedAt: "2030-01-10T09:00:00.000Z",
+      lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+      lastHydratedAt: "2030-01-10T09:00:00.000Z",
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+    },
+    cache: {
+      state: "ready",
+      source: "central",
+      updatedAt: "2030-01-10T09:00:00.000Z",
+      lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+      staleAfterHours: 4,
+      productCount: 1,
+      lotCount: 1,
+      activeTaskCount: 1,
+      conflictCount: 0,
+      resolvedHistoryCount: 0,
+    },
+    products: [
+      {
+        centralProductId: "product-smoke",
+        displayName: "Produto Smoke FICTICIO",
+        categoryId: "categoria-smoke",
+        categoryName: "Categoria Smoke",
+        status: "validated",
+        state: "synchronized",
+        source: "central",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+        categoryRuleProfile: {
+          categoryId: "categoria-smoke",
+          mode: "formal_validity",
+          windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+        },
+      },
+    ],
+    lots: [
+      {
+        centralLotId: "lot-smoke",
+        centralProductId: "product-smoke",
+        productDisplayName: "Produto Smoke FICTICIO",
+        lotIdentity: { identitySource: "printed", value: "LOTE-SMOKE-FICTICIO" },
+        mode: "formal_validity",
+        currentLocation: { kind: "area_de_venda" },
+        state: "synchronized",
+        source: "central",
+        riskState: "expired",
+        expiresAt: "2030-01-09",
+        approximateQuantity: 1,
+        updatedAt: "2030-01-10T09:00:00.000Z",
+      },
+    ],
+    activeTasks: [
+      {
+        centralTaskId: "task-smoke",
+        activeKey: "lot-smoke:expired:withdraw_or_loss:root",
+        centralLotId: "lot-smoke",
+        productDisplayName: "Produto Smoke FICTICIO",
+        currentLocation: { kind: "area_de_venda" },
+        riskState: "expired",
+        severity: "critical",
+        requiredResolution: "withdraw_or_loss",
+        state: "synchronized",
+        source: "central",
+        ownerLabel: "Equipe do turno",
+        dueAt: "2030-01-10T09:00:00.000Z",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+      },
+    ],
+    resolvedHistory: [],
+    conflicts: [],
+  };
+}
 
 function lotDetailFixture(): CaptureLotDetail {
   const currentObservation = {
@@ -384,7 +476,11 @@ describe("Validade Zero mobile smoke", () => {
     });
 
     expect(tree).toBeDefined();
-    const rendered = JSON.stringify(tree?.toJSON());
+    if (tree === undefined) throw new Error("App did not render.");
+    expect(JSON.stringify(tree.toJSON())).toContain("Preparar turno");
+
+    await press(tree, "Preparar turno");
+    const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
     expect(rendered).toContain("Area de venda segura");

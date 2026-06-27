@@ -7,7 +7,11 @@ import {
   TODAY_ACTIONABLE_RISK_STATES,
 } from "@validade-zero/domain";
 import { z } from "zod";
-import { LotIdentitySchema, OperationalLocationSchema, VisibleCentralSyncStateSchema } from "./capture";
+import {
+  LotIdentitySchema,
+  OperationalLocationSchema,
+  VisibleCentralSyncStateSchema,
+} from "./capture";
 import {
   MarkdownApplicationCommandSchema,
   MarkdownApprovalCommandSchema,

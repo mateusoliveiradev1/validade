@@ -1,0 +1,294 @@
+import type { ReactNode } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
+import type { PrepareTurnRequest, PrepareTurnResponse } from "@validade-zero/contracts";
+import { createFakePushAlertChannel } from "./alert-channel";
+import { CaptureApp } from "./CaptureApp";
+import { createMemoryCaptureRepository } from "./memory-repository";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
+
+vi.mock("react-native", async () => {
+  const React = await import("react");
+  const host =
+    (name: string) =>
+    ({ children, ...props }: { children?: ReactNode }) =>
+      React.createElement(name, props, children);
+
+  return {
+    StyleSheet: {
+      create: <T extends Record<string, unknown>>(styles: T) => styles,
+    },
+    Text: host("Text"),
+    View: host("View"),
+    ScrollView: host("ScrollView"),
+    TextInput: host("TextInput"),
+    Pressable: host("Pressable"),
+    BackHandler: {
+      addEventListener: () => ({ remove: () => undefined }),
+    },
+  };
+});
+
+vi.mock("expo-camera", () => ({
+  CameraView: () => null,
+  PermissionStatus: {
+    DENIED: "denied",
+    GRANTED: "granted",
+    UNDETERMINED: "undetermined",
+  },
+  useCameraPermissions: () => [{ granted: false }, () => Promise.resolve(false)],
+}));
+vi.mock("expo-notifications", () => ({
+  addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
+  cancelScheduledNotificationAsync: () => Promise.resolve(undefined),
+  getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-PREPARE" }),
+  getPermissionsAsync: () => Promise.resolve({ status: "undetermined" }),
+  requestPermissionsAsync: () => Promise.resolve({ status: "granted" }),
+  scheduleNotificationAsync: () => Promise.resolve("notificacao-ficticia-prepare"),
+}));
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => ({}),
+}));
+vi.mock("@react-native-community/datetimepicker", () => ({
+  default: () => null,
+  DateTimePickerAndroid: { open: () => undefined },
+}));
+
+describe("prepare-turn gate", () => {
+  it("hydrates the central package before opening Hoje", async () => {
+    const repository = createRepository();
+    const prepareTurnClient = vi.fn((request: PrepareTurnRequest) => {
+      void request;
+      return Promise.resolve(preparedTurnResponse());
+    });
+    const tree = await renderApp(repository, prepareTurnClient);
+
+    expect(textContent(tree)).toContain("Preparar turno");
+    await press(tree, "Preparar turno");
+
+    expect(prepareTurnClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: "validade-zero-mobile:loja-piloto",
+        localSnapshot: expect.objectContaining({ pendingCommandCount: 0 }),
+      }),
+    );
+    expect(textContent(tree)).toContain("Turno preparado pela central");
+    expect(textContent(tree)).toContain("Morango FICTICIO");
+  });
+
+  it("keeps empty central packages out of the safe Hoje cockpit", async () => {
+    const repository = createRepository();
+    const tree = await renderApp(repository, () =>
+      Promise.resolve(
+        preparedTurnResponse({
+          readiness: "needs_review",
+          products: [],
+          lots: [],
+          activeTasks: [],
+          cacheState: "needs_first_central_read",
+        }),
+      ),
+    );
+
+    await press(tree, "Preparar turno");
+
+    expect(textContent(tree)).toContain("Leitura central exige revisao");
+    expect(textContent(tree)).toContain("Leitura central sem fatos");
+    expect(textContent(tree)).not.toContain("Area de venda segura");
+  });
+
+  it("labels local-cache fallback as not safe when central is unavailable", async () => {
+    const repository = createRepository();
+    await repository.hydratePrepareTurn?.(preparedTurnResponse());
+    const tree = await renderApp(repository, () => Promise.reject(new Error("network")));
+
+    await press(tree, "Preparar turno");
+    expect(textContent(tree)).toContain("Central indisponivel");
+
+    await press(tree, "Entrar com leitura local");
+
+    expect(textContent(tree)).toContain("Leitura central local ou pendente");
+    expect(textContent(tree)).toContain("Nao declare area segura");
+  });
+});
+
+function createRepository() {
+  let nextIdentifier = 1;
+
+  return createMemoryCaptureRepository({
+    clock: () => "2030-01-10T12:30:00.000Z",
+    createId: () => `prepare-turn-local-${nextIdentifier++}`,
+  });
+}
+
+async function renderApp(
+  repository: ReturnType<typeof createRepository>,
+  prepareTurnClient: (request: PrepareTurnRequest) => Promise<PrepareTurnResponse>,
+): Promise<ReactTestRenderer> {
+  let tree: ReactTestRenderer | undefined;
+
+  await act(async () => {
+    tree = create(
+      <CaptureApp
+        alertChannel={createFakePushAlertChannel()}
+        prepareTurnClient={prepareTurnClient}
+        repository={repository}
+        storeId="loja-piloto"
+      />,
+    );
+    await flush();
+  });
+
+  if (tree === undefined) {
+    throw new Error("CaptureApp did not render.");
+  }
+
+  return tree;
+}
+
+async function press(tree: ReactTestRenderer, label: string): Promise<void> {
+  const button = tree.root
+    .findAllByType("Pressable")
+    .find((candidate) => candidate.props.accessibilityLabel === label);
+  const onPress = button?.props.onPress;
+
+  if (typeof onPress !== "function") {
+    throw new Error(`Expected a pressable action named ${label}.`);
+  }
+
+  await act(async () => {
+    onPress();
+    await flush();
+  });
+}
+
+function textContent(tree: ReactTestRenderer): string {
+  return tree.root
+    .findAllByType("Text")
+    .map((node) => flattenText(node.props.children))
+    .join("\n");
+}
+
+function flattenText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(flattenText).join("");
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  return "";
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function preparedTurnResponse(
+  input: {
+    readiness?: PrepareTurnResponse["store"]["readiness"];
+    cacheState?: PrepareTurnResponse["cache"]["state"];
+    products?: PrepareTurnResponse["products"];
+    lots?: PrepareTurnResponse["lots"];
+    activeTasks?: PrepareTurnResponse["activeTasks"];
+  } = {},
+): PrepareTurnResponse {
+  const products = input.products ?? [
+    {
+      centralProductId: "product-morango",
+      displayName: "Morango FICTICIO",
+      categoryId: "frutas",
+      categoryName: "Frutas",
+      status: "validated",
+      state: "synchronized",
+      source: "central",
+      updatedAt: "2030-01-10T12:00:00.000Z",
+      categoryRuleProfile: {
+        categoryId: "frutas",
+        mode: "formal_validity",
+        windows: {
+          radarDays: 60,
+          markdownDays: 15,
+          criticalDays: 3,
+          expiredDays: 0,
+        },
+      },
+    },
+  ];
+  const lots = input.lots ?? [
+    {
+      centralLotId: "lot-morango",
+      centralProductId: "product-morango",
+      productDisplayName: "Morango FICTICIO",
+      lotIdentity: {
+        identitySource: "printed",
+        value: "LOTE-MORANGO-FICTICIO",
+      },
+      mode: "formal_validity",
+      currentLocation: { kind: "area_de_venda" },
+      state: "synchronized",
+      source: "central",
+      riskState: "expired",
+      expiresAt: "2030-01-09",
+      approximateQuantity: 8,
+      updatedAt: "2030-01-10T12:00:00.000Z",
+    },
+  ];
+  const activeTasks = input.activeTasks ?? [
+    {
+      centralTaskId: "task-morango",
+      activeKey: "lot-morango:expired:withdraw_or_loss:root",
+      centralLotId: "lot-morango",
+      productDisplayName: "Morango FICTICIO",
+      currentLocation: { kind: "area_de_venda" },
+      riskState: "expired",
+      severity: "critical",
+      requiredResolution: "withdraw_or_loss",
+      state: "synchronized",
+      source: "central",
+      ownerLabel: "Equipe do turno",
+      dueAt: "2030-01-10T12:00:00.000Z",
+      updatedAt: "2030-01-10T12:00:00.000Z",
+    },
+  ];
+  const centralFactCount = products.length + lots.length + activeTasks.length;
+  const readiness = input.readiness ?? (centralFactCount === 0 ? "needs_review" : "prepared");
+
+  return {
+    requestId: "prepare-turn-test",
+    store: {
+      storeId: "loja-piloto",
+      storeName: "Loja Piloto",
+      centralVersion: 1,
+      generatedAt: "2030-01-10T12:30:00.000Z",
+      ...(centralFactCount === 0 ? {} : { centralReadAt: "2030-01-10T12:30:00.000Z" }),
+      source: "central",
+      readiness,
+      blockers: readiness === "prepared" ? [] : ["Leitura central sem fatos"],
+    },
+    device: {
+      deviceId: "validade-zero-mobile:loja-piloto",
+      preparedAt: "2030-01-10T12:30:00.000Z",
+      lastCentralReadAt: "2030-01-10T12:30:00.000Z",
+      lastHydratedAt: "2030-01-10T12:30:00.000Z",
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+    },
+    cache: {
+      state: input.cacheState ?? "ready",
+      source: "central",
+      updatedAt: "2030-01-10T12:30:00.000Z",
+      ...(centralFactCount === 0 ? {} : { lastCentralReadAt: "2030-01-10T12:30:00.000Z" }),
+      staleAfterHours: 4,
+      productCount: products.length,
+      lotCount: lots.length,
+      activeTaskCount: activeTasks.length,
+      conflictCount: 0,
+      resolvedHistoryCount: 0,
+    },
+    products,
+    lots,
+    activeTasks,
+    resolvedHistory: [],
+    conflicts: [],
+  };
+}

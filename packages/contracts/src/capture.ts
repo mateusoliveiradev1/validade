@@ -30,13 +30,7 @@ const RiskWindowsSchema = z
   })
   .strict();
 
-const ForbiddenHydrationFields = [
-  "uri",
-  "base64",
-  "objectKey",
-  "photoUri",
-  "imageBytes",
-] as const;
+const ForbiddenHydrationFields = ["uri", "base64", "objectKey", "photoUri", "imageBytes"] as const;
 
 const CentralRiskStateSchema = z.enum([...TODAY_ACTIONABLE_RISK_STATES, "radar"] as const);
 
@@ -396,9 +390,7 @@ function rejectForbiddenHydrationFields(
   path: (string | number)[] = [],
 ): void {
   if (Array.isArray(value)) {
-    value.forEach((item, index) =>
-      rejectForbiddenHydrationFields(item, context, [...path, index]),
-    );
+    value.forEach((item, index) => rejectForbiddenHydrationFields(item, context, [...path, index]));
     return;
   }
 
@@ -409,9 +401,7 @@ function rejectForbiddenHydrationFields(
   for (const [key, nestedValue] of Object.entries(value)) {
     const nextPath = [...path, key];
 
-    if (
-      ForbiddenHydrationFields.includes(key as (typeof ForbiddenHydrationFields)[number])
-    ) {
+    if (ForbiddenHydrationFields.includes(key as (typeof ForbiddenHydrationFields)[number])) {
       context.addIssue({
         code: "custom",
         path: nextPath,

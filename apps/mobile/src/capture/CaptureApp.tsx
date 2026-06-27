@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CaptureProductRecord, CaptureRepository, MarkdownEntryState } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -14,7 +14,12 @@ import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
-import type { TodayTaskRecord } from "@validade-zero/contracts";
+import type {
+  PrepareTurnCacheStatus,
+  PrepareTurnRequest,
+  PrepareTurnResponse,
+  TodayTaskRecord,
+} from "@validade-zero/contracts";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
@@ -44,6 +49,7 @@ export function CaptureApp({
   repository,
   alertChannel,
   syncEngine,
+  prepareTurnClient,
   activeRole = "lead",
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
@@ -51,12 +57,21 @@ export function CaptureApp({
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
+  prepareTurnClient?: ((request: PrepareTurnRequest) => Promise<PrepareTurnResponse>) | undefined;
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
 }) {
   const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(initialRouteStack);
   const [initializationError, setInitializationError] = useState<string | undefined>();
+  const [prepareTurnState, setPrepareTurnState] = useState<
+    "checking" | "needs_prepare" | "preparing" | "ready" | "needs_review" | "cache_only" | "error"
+  >(prepareTurnClient === undefined ? "ready" : "checking");
+  const [prepareTurnCache, setPrepareTurnCache] = useState<PrepareTurnCacheStatus | null>(null);
+  const [prepareTurnError, setPrepareTurnError] = useState<string | undefined>();
+  const [prepareTurnSource, setPrepareTurnSource] = useState<"central" | "local_cache" | undefined>(
+    prepareTurnClient === undefined ? undefined : "local_cache",
+  );
   const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>();
   const resolvedAlertChannel = useMemo(
@@ -93,10 +108,25 @@ export function CaptureApp({
   }, [routeStack.length]);
 
   useEffect(() => {
-    void repository.initialize().catch(() => {
-      setInitializationError("Não foi possível preparar o registro local neste aparelho.");
-    });
-  }, [repository]);
+    let current = true;
+    void repository
+      .initialize()
+      .then(async () => {
+        const cache = await loadPrepareTurnCache(repository);
+        if (!current) return;
+        setPrepareTurnCache(cache);
+        setPrepareTurnState(prepareTurnClient === undefined ? "ready" : "needs_prepare");
+      })
+      .catch(() => {
+        if (!current) return;
+        setInitializationError("Nao foi possivel preparar o registro local neste aparelho.");
+        setPrepareTurnState(prepareTurnClient === undefined ? "ready" : "error");
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [prepareTurnClient, repository]);
 
   useEffect(() => {
     const subscription = addHardwareBackPressListener(() => {
@@ -150,6 +180,63 @@ export function CaptureApp({
       subscription.remove();
     };
   }, [repository, resolvedAlertChannel]);
+
+  async function prepareTurn(): Promise<void> {
+    if (prepareTurnClient === undefined) {
+      setPrepareTurnState("ready");
+      return;
+    }
+
+    setPrepareTurnError(undefined);
+    setPrepareTurnState("preparing");
+
+    try {
+      const [cache, queue] = await Promise.all([
+        loadPrepareTurnCache(repository),
+        repository.listSyncQueue(),
+      ]);
+      const response = await prepareTurnClient({
+        deviceId: `validade-zero-mobile:${storeId}`,
+        requestedAt: new Date().toISOString(),
+        appVersion: "phase-10-pilot",
+        localSnapshot: {
+          ...(cache?.lastCentralReadAt === undefined
+            ? {}
+            : { lastCentralReadAt: cache.lastCentralReadAt }),
+          knownProductCount: cache?.productCount ?? 0,
+          knownLotCount: cache?.lotCount ?? 0,
+          pendingCommandCount: queue.totalCount,
+        },
+      });
+
+      await hydratePrepareTurn(repository, response);
+      setPrepareTurnCache(response.cache);
+
+      if (response.store.readiness === "prepared") {
+        setPrepareTurnSource("central");
+        setPrepareTurnState("ready");
+        return;
+      }
+
+      setPrepareTurnError(response.store.blockers[0] ?? "A leitura central exige revisao.");
+      setPrepareTurnState("needs_review");
+    } catch {
+      const cache = await loadPrepareTurnCache(repository).catch(() => null);
+      setPrepareTurnCache(cache);
+      setPrepareTurnError("Nao foi possivel baixar a leitura central agora.");
+      setPrepareTurnState(cache?.state === "ready" ? "cache_only" : "error");
+    }
+  }
+
+  function enterWithLocalCache(): void {
+    if (prepareTurnCache === null || prepareTurnCache.state !== "ready") {
+      setPrepareTurnState("needs_prepare");
+      return;
+    }
+
+    setPrepareTurnSource("local_cache");
+    setPrepareTurnState("ready");
+  }
 
   async function loadMarkdownEntryStateFor(lotId: string): Promise<MarkdownEntryState | undefined> {
     const current = new Date();
@@ -234,6 +321,18 @@ export function CaptureApp({
     navigate({ name: "task-resolution", task });
   }
 
+  if (prepareTurnState !== "ready") {
+    return (
+      <PrepareTurnScreen
+        cache={prepareTurnCache}
+        error={initializationError ?? prepareTurnError}
+        state={prepareTurnState}
+        onPrepare={() => void prepareTurn()}
+        onUseCache={prepareTurnCache?.state === "ready" ? enterWithLocalCache : undefined}
+      />
+    );
+  }
+
   if (currentRoute.name === "today") {
     return (
       <>
@@ -246,6 +345,8 @@ export function CaptureApp({
           pushFallbackNotice={pushFallbackNotice}
           repository={repository}
           syncEngine={syncEngine}
+          prepareTurnCacheStatus={prepareTurnCache}
+          prepareTurnSource={prepareTurnSource}
           onRegisterLot={() => navigate({ name: "discovery" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
@@ -407,6 +508,109 @@ export function CaptureApp({
   );
 }
 
+async function loadPrepareTurnCache(
+  repository: CaptureRepository,
+): Promise<PrepareTurnCacheStatus | null> {
+  return repository.loadPrepareTurnCacheStatus === undefined
+    ? null
+    : repository.loadPrepareTurnCacheStatus();
+}
+
+async function hydratePrepareTurn(
+  repository: CaptureRepository,
+  response: PrepareTurnResponse,
+): Promise<void> {
+  if (repository.hydratePrepareTurn === undefined) {
+    throw new Error("Prepare-turn hydration is not available in this repository.");
+  }
+
+  await repository.hydratePrepareTurn(response);
+}
+
+function PrepareTurnScreen({
+  cache,
+  error,
+  state,
+  onPrepare,
+  onUseCache,
+}: {
+  cache: PrepareTurnCacheStatus | null;
+  error?: string | undefined;
+  state: "checking" | "needs_prepare" | "preparing" | "needs_review" | "cache_only" | "error";
+  onPrepare: () => void;
+  onUseCache?: (() => void) | undefined;
+}) {
+  const preparing = state === "checking" || state === "preparing";
+
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <ScreenHeader title="Preparar turno" body={prepareTurnBodyFor(state)} />
+      <View style={styles.preparePanel}>
+        <Text style={styles.prepareTitle}>{prepareTurnTitleFor(state)}</Text>
+        <Text style={styles.prepareBody}>{prepareTurnDetailFor(state, cache)}</Text>
+      </View>
+      {cache === null ? null : (
+        <View style={styles.prepareMetrics}>
+          <Text style={styles.prepareMetric}>{cache.productCount} produtos centrais</Text>
+          <Text style={styles.prepareMetric}>{cache.lotCount} lotes centrais</Text>
+          <Text style={styles.prepareMetric}>{cache.activeTaskCount} tarefas ativas</Text>
+          <Text style={styles.prepareMetric}>{cache.conflictCount} conflitos</Text>
+        </View>
+      )}
+      {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
+      <PrimaryAction
+        disabled={preparing}
+        label={state === "preparing" ? "Baixando leitura" : "Preparar turno"}
+        onPress={onPrepare}
+      />
+      {onUseCache === undefined ? null : (
+        <SecondaryAction label="Entrar com leitura local" onPress={onUseCache} />
+      )}
+    </ScrollView>
+  );
+}
+
+function prepareTurnTitleFor(state: Parameters<typeof PrepareTurnScreen>[0]["state"]): string {
+  if (state === "checking") return "Conferindo este aparelho";
+  if (state === "preparing") return "Baixando leitura central";
+  if (state === "needs_review") return "Leitura central exige revisao";
+  if (state === "cache_only") return "Central indisponivel";
+  if (state === "error") return "Turno nao preparado";
+  return "Leitura central obrigatoria";
+}
+
+function prepareTurnBodyFor(state: Parameters<typeof PrepareTurnScreen>[0]["state"]): string {
+  if (state === "checking") return "Aguarde a verificacao local antes de abrir Hoje.";
+  if (state === "preparing") return "Baixando a leitura central da loja...";
+  if (state === "needs_review") {
+    return "A central respondeu, mas ainda nao ha base suficiente para tratar a area como segura.";
+  }
+  if (state === "cache_only") {
+    return "Use a leitura local apenas para continuar o trabalho visivel. Ela nao declara area segura.";
+  }
+  if (state === "error") return "Tente preparar novamente antes de operar o turno.";
+  return "Baixe a leitura central da loja antes de abrir Hoje.";
+}
+
+function prepareTurnDetailFor(
+  state: Parameters<typeof PrepareTurnScreen>[0]["state"],
+  cache: PrepareTurnCacheStatus | null,
+): string {
+  if (cache === null) {
+    return "Nenhuma leitura central esta salva neste aparelho.";
+  }
+
+  const lastRead =
+    cache.lastCentralReadAt === undefined
+      ? "sem leitura central confirmada"
+      : cache.lastCentralReadAt;
+  if (state === "cache_only") {
+    return `Ultima leitura local: ${lastRead}. Confira pendencias antes de qualquer decisao.`;
+  }
+
+  return `Ultima leitura central: ${lastRead}. Estado do cache: ${cache.state}.`;
+}
+
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: captureColors.background,
@@ -424,5 +628,40 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
+  },
+  preparePanel: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 16,
+  },
+  prepareTitle: {
+    color: captureColors.ink,
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 23,
+  },
+  prepareBody: {
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  prepareMetrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  prepareMetric: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: captureColors.ink,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
 });

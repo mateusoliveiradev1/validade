@@ -9,9 +9,13 @@ import {
   LoginRequestSchema,
   LogoutResponseSchema,
   PrivacyRequestResponseSchema,
+  PrepareTurnRequestSchema,
+  PrepareTurnResponseSchema,
   RecoveryRequestedResponseSchema,
   RecoveryRequestSchema,
   SessionStatusResponseSchema,
+  type PrepareTurnRequest,
+  type PrepareTurnResponse,
   type PrivacyRequest,
   type SessionContextResponse,
   type PrivacyTopicId,
@@ -51,12 +55,14 @@ type GateScreen =
   | "ready";
 
 export interface MobileAuthClient {
+  authHeaders(): Record<string, string>;
   readSession(): Promise<SessionContextResponse>;
   login(input: { identifier: string; password: string }): Promise<SessionContextResponse>;
   validateInvite(token: string): Promise<ReturnType<typeof InviteValidationResponseSchema.parse>>;
   activateInvite(input: { token: string; password: string }): Promise<SessionContextResponse>;
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
+  prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
   logout(): Promise<void>;
 }
 
@@ -95,6 +101,9 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
   }
 
   return {
+    authHeaders() {
+      return sessionToken === undefined ? {} : { Authorization: `Bearer ${sessionToken}` };
+    },
     readSession: () => readAuthenticatedSession("/auth/session"),
     login(input) {
       const body = LoginRequestSchema.parse(input);
@@ -132,6 +141,15 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       );
       if (response.status !== "received") throw new MobileAuthError("network");
     },
+    async prepareTurn(input) {
+      const body = PrepareTurnRequestSchema.parse(input);
+      return PrepareTurnResponseSchema.parse(
+        await request("/capture/prepare-turn", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
     async logout() {
       LogoutResponseSchema.parse(
         await request("/auth/logout", { method: "POST", body: JSON.stringify({}) }),
@@ -146,7 +164,7 @@ export function AuthGate({
   children,
 }: {
   authClient: MobileAuthClient;
-  children: (session: SessionContextResponse) => ReactNode;
+  children: (session: SessionContextResponse, authClient: MobileAuthClient) => ReactNode;
 }) {
   const [screen, setScreen] = useState<GateScreen>("checking");
   const [session, setSession] = useState<SessionContextResponse | undefined>();
@@ -314,7 +332,7 @@ export function AuthGate({
             />
           </View>
         </View>
-        {children(session)}
+        {children(session, authClient)}
       </View>
     );
   }
