@@ -192,6 +192,31 @@ export const FutureAttentionRecordSchema = z
   })
   .strict();
 
+export const CentralTaskProjectionSchema = z.discriminatedUnion("attention", [
+  z
+    .object({
+      attention: z.literal("active_task"),
+      task: TodayTaskRecordSchema.refine(
+        (task) => task.status === "active",
+        "Central active task projections must carry an active task.",
+      ),
+    })
+    .strict(),
+  z
+    .object({
+      attention: z.literal("future_attention"),
+      futureAttention: FutureAttentionRecordSchema,
+    })
+    .strict(),
+  z
+    .object({
+      attention: z.literal("none"),
+      riskState: z.literal("safe"),
+      observedAt: IsoDateTimeSchema,
+    })
+    .strict(),
+]);
+
 export const TaskResolutionCommandSchema = z
   .object({
     taskId: IdentifierSchema,
@@ -212,6 +237,7 @@ export function parseRequiredResolution(value: RequiredResolution): RequiredReso
 export type TodayTaskStatus = z.infer<typeof TodayTaskStatusSchema>;
 export type TodayTaskRecord = z.infer<typeof TodayTaskRecordSchema>;
 export type FutureAttentionRecord = z.infer<typeof FutureAttentionRecordSchema>;
+export type CentralTaskProjection = z.infer<typeof CentralTaskProjectionSchema>;
 export type TaskRefreshMetadata = z.infer<typeof TaskRefreshMetadataSchema>;
 export type TodayTaskSyncMetadata = z.infer<typeof TodayTaskSyncMetadataSchema>;
 export type TaskResolutionCommand = z.infer<typeof TaskResolutionCommandSchema>;

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  CentralLotCreateRequestSchema,
+  CentralLotSnapshotSchema,
+  CentralObservationAppendRequestSchema,
   ProductDraftCreateRequestSchema,
   ProductDraftCreateResponseSchema,
   ProductDraftReviewRequestSchema,
@@ -439,6 +442,110 @@ describe("capture runtime contracts", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts central lot creation requests without client-side store authority", () => {
+    expect(
+      CentralLotCreateRequestSchema.parse({
+        lot: {
+          productId: "produto-central-ficticio-001",
+          mode: "formal_validity",
+          identity: {
+            identitySource: "printed",
+            value: "OVOS-FICTICIOS-001",
+          },
+          approximateQuantity: 12,
+          initialLocation: { kind: "area_de_venda" },
+          expiresAt: "2030-01-10",
+          receivedAt: "2030-01-09",
+        },
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: "2030-01-10T09:00:00.000Z",
+        idempotencyKey: "lot-create-ficticio-001",
+      }),
+    ).toMatchObject({
+      actorLabel: "Colaboradora FICTICIA",
+    });
+
+    expect(() =>
+      CentralLotCreateRequestSchema.parse({
+        lot: {
+          productId: "produto-central-ficticio-001",
+          mode: "formal_validity",
+          identity: {
+            identitySource: "printed",
+            value: "OVOS-FICTICIOS-001",
+          },
+          approximateQuantity: 12,
+          initialLocation: { kind: "area_de_venda" },
+          expiresAt: "2030-01-10",
+        },
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: "2030-01-10T09:00:00.000Z",
+        storeId: "loja-injetada",
+        role: "lead",
+      }),
+    ).toThrow();
+  });
+
+  it("keeps central lot snapshots tied to physical observation and task projection", () => {
+    expect(CentralLotSnapshotSchema.parse(centralLotSnapshot())).toMatchObject({
+      centralLotId: "lote-central-ficticio-001",
+      currentObservation: {
+        status: "present",
+        location: { kind: "area_de_venda" },
+      },
+      taskProjection: {
+        attention: "active_task",
+        requiredResolution: "withdraw_or_loss",
+      },
+    });
+
+    expect(() =>
+      CentralLotSnapshotSchema.parse({
+        ...centralLotSnapshot(),
+        currentObservation: {
+          ...centralLotSnapshot().currentObservation,
+          localUri: "file:///private/evidence.jpg",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("accepts central observation append requests but rejects injected authority", () => {
+    expect(
+      CentralObservationAppendRequestSchema.parse({
+        observation: {
+          status: "moved",
+          actorLabel: "Colaboradora FICTICIA",
+          occurredAt: "2030-01-10T10:00:00.000Z",
+          location: { kind: "estoque" },
+          quantityState: "estimated",
+          approximateQuantity: 10,
+          isCorrection: false,
+        },
+        idempotencyKey: "observation-ficticia-001",
+      }),
+    ).toMatchObject({
+      observation: {
+        status: "moved",
+      },
+    });
+
+    expect(() =>
+      CentralObservationAppendRequestSchema.parse({
+        observation: {
+          status: "moved",
+          actorLabel: "Colaboradora FICTICIA",
+          occurredAt: "2030-01-10T10:00:00.000Z",
+          location: { kind: "estoque" },
+          quantityState: "estimated",
+          approximateQuantity: 10,
+          isCorrection: false,
+        },
+        capability: "task.act",
+      }),
+    ).toThrow();
+  });
 });
 
 function categoryRuleProfile() {
@@ -506,5 +613,49 @@ function productDraft(overrides: Partial<ProductDraftReviewState> = {}): Product
     ],
     gtin: "7890000000002",
     ...overrides,
+  };
+}
+
+function centralLotSnapshot() {
+  return {
+    centralLotId: "lote-central-ficticio-001",
+    centralProductId: "produto-central-ficticio-001",
+    productDisplayName: "Ovos Brancos FICTICIOS",
+    lotIdentity: {
+      identitySource: "printed" as const,
+      value: "OVOS-FICTICIOS-001",
+    },
+    approximateQuantity: 12,
+    initialLocation: { kind: "area_de_venda" as const },
+    currentObservation: {
+      centralObservationId: "observacao-central-ficticia-001",
+      centralLotId: "lote-central-ficticio-001",
+      status: "present" as const,
+      actorLabel: "Colaboradora FICTICIA",
+      occurredAt: "2030-01-10T09:00:00.000Z",
+      location: { kind: "area_de_venda" as const },
+      quantityState: "estimated" as const,
+      approximateQuantity: 12,
+      isCorrection: false,
+    },
+    lifecycleStatus: "active" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    riskState: "expired" as const,
+    taskProjection: {
+      attention: "active_task" as const,
+      centralTaskId: "task-central-ficticia-001",
+      activeKey: "lote-central-ficticio-001:expired:withdraw_or_loss:root",
+      riskState: "expired" as const,
+      severity: "critical" as const,
+      requiredResolution: "withdraw_or_loss" as const,
+      ownerLabel: "Equipe do turno",
+      updatedAt: "2030-01-10T09:00:00.000Z",
+    },
+    mode: "formal_validity" as const,
+    expiresAt: "2030-01-10",
+    receivedAt: "2030-01-09",
+    createdAt: "2030-01-10T09:00:00.000Z",
+    updatedAt: "2030-01-10T09:00:00.000Z",
   };
 }

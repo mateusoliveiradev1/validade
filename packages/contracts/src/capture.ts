@@ -168,6 +168,131 @@ export const PhysicalObservationInputSchema = z
     }
   });
 
+const CentralObservationBaseSchema = ObservationBaseSchema.extend({
+  centralObservationId: IdentifierSchema,
+  centralLotId: IdentifierSchema,
+});
+
+export const CentralPhysicalObservationSchema = z.discriminatedUnion("quantityState", [
+  CentralObservationBaseSchema.extend({
+    quantityState: z.literal("estimated"),
+    approximateQuantity: z.number().nonnegative(),
+  }).strict(),
+  CentralObservationBaseSchema.extend({
+    quantityState: z.literal("not_estimable"),
+  }).strict(),
+]);
+
+export const CentralLotLifecycleStatusSchema = z.enum(["active", "resolved", "archived"]);
+
+export const CentralLotTaskProjectionSummarySchema = z.discriminatedUnion("attention", [
+  z
+    .object({
+      attention: z.literal("active_task"),
+      centralTaskId: IdentifierSchema,
+      activeKey: IdentifierSchema,
+      riskState: z.enum(TODAY_ACTIONABLE_RISK_STATES),
+      severity: z.enum(TODAY_TASK_SEVERITIES),
+      requiredResolution: z.enum(REQUIRED_RESOLUTIONS),
+      ownerLabel: RequiredTextSchema,
+      updatedAt: IsoDateTimeSchema,
+    })
+    .strict(),
+  z
+    .object({
+      attention: z.literal("future_attention"),
+      riskState: z.literal("radar"),
+      observedAt: IsoDateTimeSchema,
+    })
+    .strict(),
+  z
+    .object({
+      attention: z.literal("none"),
+      riskState: z.literal("safe"),
+      observedAt: IsoDateTimeSchema,
+    })
+    .strict(),
+]);
+
+const CentralLotSnapshotBaseSchema = z.object({
+  centralLotId: IdentifierSchema,
+  centralProductId: IdentifierSchema,
+  productDisplayName: RequiredTextSchema,
+  lotIdentity: LotIdentitySchema,
+  approximateQuantity: z.number().nonnegative(),
+  initialLocation: OperationalLocationSchema,
+  currentObservation: CentralPhysicalObservationSchema,
+  lifecycleStatus: CentralLotLifecycleStatusSchema,
+  state: VisibleCentralSyncStateSchema,
+  source: CentralPackageSourceSchema,
+  riskState: CentralRiskStateSchema.optional(),
+  taskProjection: CentralLotTaskProjectionSummarySchema,
+  createdAt: IsoDateTimeSchema,
+  updatedAt: IsoDateTimeSchema,
+});
+
+export const CentralLotSnapshotSchema = z.discriminatedUnion("mode", [
+  CentralLotSnapshotBaseSchema.extend({
+    mode: z.literal("formal_validity"),
+    expiresAt: IsoDateSchema,
+    receivedAt: IsoDateSchema.optional(),
+  }).strict(),
+  CentralLotSnapshotBaseSchema.extend({
+    mode: z.literal("processed_repack_loss"),
+    expiresAt: IsoDateSchema,
+    receivedAt: IsoDateSchema.optional(),
+  }).strict(),
+  CentralLotSnapshotBaseSchema.extend({
+    mode: z.literal("flv_inspection"),
+    receivedAt: IsoDateSchema,
+    qualityInspectionDueAt: IsoDateSchema.optional(),
+    qualityWindowDays: z.number().int().positive().optional(),
+  })
+    .strict()
+    .refine(
+      (value) =>
+        value.qualityInspectionDueAt !== undefined || value.qualityWindowDays !== undefined,
+      "Central FLV lot snapshots require a quality inspection date or quality window.",
+    ),
+  CentralLotSnapshotBaseSchema.extend({
+    mode: z.literal("receiving_monitored"),
+    receivedAt: IsoDateSchema,
+  }).strict(),
+]);
+
+export const CentralLotCreateRequestSchema = z
+  .object({
+    lot: CaptureLotInputSchema,
+    actorLabel: RequiredTextSchema,
+    occurredAt: IsoDateTimeSchema,
+    idempotencyKey: IdentifierSchema.optional(),
+  })
+  .strict();
+
+export const CentralLotWriteResponseSchema = z
+  .object({
+    requestId: IdentifierSchema,
+    lot: CentralLotSnapshotSchema,
+    taskProjection: CentralLotTaskProjectionSummarySchema,
+    acknowledgement: z
+      .object({
+        acknowledgementId: IdentifierSchema,
+        centralLotId: IdentifierSchema,
+        state: VisibleCentralSyncStateSchema,
+        acknowledgedAt: IsoDateTimeSchema,
+        message: RequiredTextSchema.optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const CentralObservationAppendRequestSchema = z
+  .object({
+    observation: PhysicalObservationInputSchema,
+    idempotencyKey: IdentifierSchema.optional(),
+  })
+  .strict();
+
 export const PrepareTurnRequestSchema = z
   .object({
     deviceId: IdentifierSchema,
@@ -676,6 +801,11 @@ export const CaptureContract = {
   productInput: CaptureProductInputSchema,
   lotInput: CaptureLotInputSchema,
   physicalObservation: PhysicalObservationInputSchema,
+  centralPhysicalObservation: CentralPhysicalObservationSchema,
+  centralLotCreateRequest: CentralLotCreateRequestSchema,
+  centralObservationAppendRequest: CentralObservationAppendRequestSchema,
+  centralLotWriteResponse: CentralLotWriteResponseSchema,
+  centralLotSnapshot: CentralLotSnapshotSchema,
   prepareTurnRequest: PrepareTurnRequestSchema,
   prepareTurnResponse: PrepareTurnResponseSchema,
   productSearchRequest: ProductSearchRequestSchema,
@@ -693,6 +823,13 @@ export type OperationalLocation = z.infer<typeof OperationalLocationSchema>;
 export type LotIdentity = z.infer<typeof LotIdentitySchema>;
 export type CaptureLotInput = z.infer<typeof CaptureLotInputSchema>;
 export type PhysicalObservationInput = z.infer<typeof PhysicalObservationInputSchema>;
+export type CentralPhysicalObservation = z.infer<typeof CentralPhysicalObservationSchema>;
+export type CentralLotLifecycleStatus = z.infer<typeof CentralLotLifecycleStatusSchema>;
+export type CentralLotTaskProjectionSummary = z.infer<typeof CentralLotTaskProjectionSummarySchema>;
+export type CentralLotSnapshot = z.infer<typeof CentralLotSnapshotSchema>;
+export type CentralLotCreateRequest = z.infer<typeof CentralLotCreateRequestSchema>;
+export type CentralLotWriteResponse = z.infer<typeof CentralLotWriteResponseSchema>;
+export type CentralObservationAppendRequest = z.infer<typeof CentralObservationAppendRequestSchema>;
 export type CentralPackageSource = z.infer<typeof CentralPackageSourceSchema>;
 export type VisibleCentralSyncState = z.infer<typeof VisibleCentralSyncStateSchema>;
 export type PrepareTurnRequest = z.infer<typeof PrepareTurnRequestSchema>;

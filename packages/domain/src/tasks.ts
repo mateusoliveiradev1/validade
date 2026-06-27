@@ -1,4 +1,12 @@
-import type { RiskAssessment, RiskReason, RiskState } from "./types";
+import type { PhysicalConfirmationStatus } from "./presence";
+import { calculateLotRisk, type RiskCalculationLot } from "./risk";
+import type {
+  CategoryRuleProfile,
+  ProductRuleOverride,
+  RiskAssessment,
+  RiskReason,
+  RiskState,
+} from "./types";
 
 export const TODAY_ACTIONABLE_RISK_STATES = [
   "expired",
@@ -115,6 +123,42 @@ export interface FutureAttentionCandidate {
   observedAt: string;
 }
 
+export interface CentralLotPhysicalObservation {
+  status: PhysicalConfirmationStatus;
+  observedAt: string;
+  quantityState: "estimated" | "not_estimable";
+  approximateQuantity?: number;
+}
+
+export interface CentralLotTaskProjectionInput {
+  currentDate: string;
+  currentTimestamp: string;
+  lotId: string;
+  productDisplayName: string;
+  lotIdentity: string;
+  currentLocation: TodayTaskLocation;
+  lot: RiskCalculationLot;
+  categoryProfile: CategoryRuleProfile;
+  productOverride?: ProductRuleOverride;
+  lastPhysicalObservation?: CentralLotPhysicalObservation;
+}
+
+export type CentralLotTaskProjection =
+  | {
+      attention: "active_task";
+      assessment: RiskAssessment;
+      task: TodayTaskCandidate;
+    }
+  | {
+      attention: "future_attention";
+      assessment: RiskAssessment;
+      futureAttention: FutureAttentionCandidate;
+    }
+  | {
+      attention: "none";
+      assessment: RiskAssessment;
+    };
+
 export function classifyTodayRiskAttention(assessment: RiskAssessment): TodayRiskAttention {
   if (isTodayActionableRiskState(assessment.state)) {
     return "active_task";
@@ -186,6 +230,68 @@ export function deriveFutureAttentionCandidate(
       reasons: input.assessment.reasons,
     },
     observedAt: input.observedAt,
+  };
+}
+
+export function projectCentralLotTask(
+  input: CentralLotTaskProjectionInput,
+): CentralLotTaskProjection {
+  const assessment = calculateLotRisk({
+    currentDate: input.currentDate,
+    currentTimestamp: input.currentTimestamp,
+    categoryProfile: input.categoryProfile,
+    ...(input.productOverride === undefined ? {} : { productOverride: input.productOverride }),
+    ...(input.lastPhysicalObservation === undefined
+      ? {}
+      : {
+          lastPhysicalConfirmation: {
+            status: input.lastPhysicalObservation.status,
+            confirmedAt: input.lastPhysicalObservation.observedAt,
+            ...(input.lastPhysicalObservation.quantityState === "estimated" &&
+            input.lastPhysicalObservation.approximateQuantity !== undefined
+              ? { approximateQuantity: input.lastPhysicalObservation.approximateQuantity }
+              : {}),
+          },
+        }),
+    lot: input.lot,
+  });
+  const task = deriveTodayTaskCandidate({
+    lotId: input.lotId,
+    productDisplayName: input.productDisplayName,
+    lotIdentity: input.lotIdentity,
+    currentLocation: input.currentLocation,
+    assessment,
+    observedAt: input.currentTimestamp,
+  });
+
+  if (task !== null) {
+    return {
+      attention: "active_task",
+      assessment,
+      task,
+    };
+  }
+
+  const futureAttention = deriveFutureAttentionCandidate({
+    lotId: input.lotId,
+    productDisplayName: input.productDisplayName,
+    lotIdentity: input.lotIdentity,
+    currentLocation: input.currentLocation,
+    assessment,
+    observedAt: input.currentTimestamp,
+  });
+
+  if (futureAttention !== null) {
+    return {
+      attention: "future_attention",
+      assessment,
+      futureAttention,
+    };
+  }
+
+  return {
+    attention: "none",
+    assessment,
   };
 }
 

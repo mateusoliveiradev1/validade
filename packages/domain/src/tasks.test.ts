@@ -5,6 +5,7 @@ import {
   deriveFutureAttentionCandidate,
   deriveTodayTaskCandidate,
   isResolutionCompatible,
+  projectCentralLotTask,
   type TodayTaskCandidate,
   type TodayTaskCandidateInput,
 } from "./tasks";
@@ -151,4 +152,177 @@ describe("Today task derivation", () => {
       }),
     );
   });
+
+  it("projects formal-validity central lots into active withdrawal tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "formal_validity",
+          productId: "produto-central-ficticio-001",
+          lotCode: "LOTE-FORMAL-FICTICIO-001",
+          expiresAt: "2030-01-09",
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        requiredResolution: "withdraw_or_loss",
+        section: "withdraw_now",
+      },
+    });
+  });
+
+  it("projects processed/repack-loss central lots into repack-or-loss tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "processed_repack_loss",
+          productId: "produto-central-ficticio-002",
+          lotCode: "LOTE-PROCESSADO-FICTICIO-001",
+          expiresAt: "2030-01-09",
+        },
+        categoryProfile: {
+          categoryId: "categoria-processados-ficticia",
+          mode: "processed_repack_loss",
+          windows: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        requiredResolution: "repack_or_loss",
+      },
+    });
+  });
+
+  it("projects FLV inspection central lots into active quality-window tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "flv_inspection",
+          productId: "produto-central-ficticio-003",
+          lotCode: "LOTE-FLV-FICTICIO-001",
+          receivedAt: "2030-01-08",
+          qualityWindowDays: 2,
+        },
+        categoryProfile: {
+          categoryId: "categoria-flv-ficticia",
+          mode: "flv_inspection",
+          windows: { radarDays: 7, markdownDays: 3, criticalDays: 1, expiredDays: 0 },
+          maxPhysicalConfirmationAgeHours: 24,
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        riskState: "critical",
+        requiredResolution: "check_presence",
+      },
+    });
+  });
+
+  it("keeps unverified risky central lots uncertain instead of safe", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "formal_validity",
+          productId: "produto-central-ficticio-004",
+          lotCode: "LOTE-SEM-PRESENCA-FICTICIO-001",
+          expiresAt: "2030-01-11",
+        },
+        lastPhysicalObservation: undefined,
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        riskState: "uncertain",
+        requiredResolution: "check_presence",
+      },
+    });
+  });
+
+  it("projects central radar lots as future attention instead of active tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "formal_validity",
+          productId: "produto-central-ficticio-005",
+          lotCode: "LOTE-RADAR-FICTICIO-001",
+          expiresAt: "2030-01-18",
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "future_attention",
+      futureAttention: {
+        riskState: "radar",
+      },
+    });
+  });
+
+  it("projects receiving-monitored central lots with missing received date as active review work", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "receiving_monitored",
+          productId: "produto-central-ficticio-006",
+          lotCode: "LOTE-RECEBIMENTO-FICTICIO-001",
+        },
+        categoryProfile: {
+          categoryId: "categoria-recebimento-ficticia",
+          mode: "receiving_monitored",
+          windows: { radarDays: 2, markdownDays: 1, criticalDays: 1, expiredDays: 0 },
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        riskState: "uncertain",
+        requiredResolution: "check_presence",
+      },
+    });
+  });
 });
+
+function centralLotProjectionInput(
+  overrides: Partial<Parameters<typeof projectCentralLotTask>[0]> = {},
+): Parameters<typeof projectCentralLotTask>[0] {
+  return {
+    currentDate: "2030-01-10",
+    currentTimestamp: "2030-01-10T09:00:00.000Z",
+    lotId: "lote-central-ficticio-001",
+    productDisplayName: "Produto Central FICTICIO",
+    lotIdentity: "LOTE-CENTRAL-FICTICIO-001",
+    currentLocation: salesArea,
+    lot: {
+      mode: "formal_validity",
+      productId: "produto-central-ficticio-001",
+      lotCode: "LOTE-CENTRAL-FICTICIO-001",
+      expiresAt: "2030-01-09",
+    },
+    categoryProfile: {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity",
+      windows: { radarDays: 10, markdownDays: 5, criticalDays: 2, expiredDays: 0 },
+      maxPhysicalConfirmationAgeHours: 24,
+    },
+    lastPhysicalObservation: {
+      status: "present",
+      observedAt,
+      quantityState: "estimated",
+      approximateQuantity: 6,
+    },
+    ...overrides,
+  };
+}

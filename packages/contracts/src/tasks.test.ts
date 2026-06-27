@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CentralTaskProjectionSchema,
   EvidencePromptMetadataSchema,
+  FutureAttentionRecordSchema,
   TaskResolutionCommandSchema,
   TodayTaskRecordSchema,
 } from "./tasks";
@@ -179,6 +181,59 @@ describe("Today task contracts", () => {
         kind: "photo_recorded",
         localEvidenceId: "evidence-local-ficticio-001",
         objectKey: "private/loja-piloto/evidence-001",
+      }),
+    ).toThrow();
+  });
+
+  it("validates central task projection responses for active, radar, and safe lots", () => {
+    expect(
+      CentralTaskProjectionSchema.parse({
+        attention: "active_task",
+        task: baseTask,
+      }),
+    ).toMatchObject({
+      attention: "active_task",
+      task: { status: "active" },
+    });
+
+    expect(
+      CentralTaskProjectionSchema.parse({
+        attention: "future_attention",
+        futureAttention: FutureAttentionRecordSchema.parse({
+          id: "future-lote-ficticio-001",
+          lotId: "lote-ficticio-001",
+          productDisplayName: "Ovos Brancos FICTICIOS",
+          lotIdentity: {
+            identitySource: "printed",
+            value: "OVOS-FICTICIOS-001",
+          },
+          currentLocation: { kind: "estoque" },
+          riskState: "radar",
+          section: "future_attention",
+          sourceRiskReasons: [{ code: "expires_in_60_days", field: "expiresAt" }],
+          observedAt: "2030-01-10T09:00:00.000Z",
+        }),
+      }),
+    ).toMatchObject({
+      attention: "future_attention",
+    });
+
+    expect(
+      CentralTaskProjectionSchema.parse({
+        attention: "none",
+        riskState: "safe",
+        observedAt: "2030-01-10T09:00:00.000Z",
+      }),
+    ).toMatchObject({ attention: "none" });
+
+    expect(() =>
+      CentralTaskProjectionSchema.parse({
+        attention: "active_task",
+        task: {
+          ...baseTask,
+          status: "resolved",
+          resolvedAt: "2030-01-10T10:00:00.000Z",
+        },
       }),
     ).toThrow();
   });
