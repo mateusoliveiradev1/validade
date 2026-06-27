@@ -79,6 +79,7 @@ function AuthenticatedCaptureApp({
     [authClient, repository, session.store.storeId, session.store.storeName],
   );
   const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
+  const closeShiftClient = useMemo(() => authClient.closeShift.bind(authClient), [authClient]);
 
   return (
     <CaptureApp
@@ -88,6 +89,7 @@ function AuthenticatedCaptureApp({
       storeId={session.store.storeId}
       syncEngine={syncEngine}
       prepareTurnClient={prepareTurnClient}
+      closeShiftClient={closeShiftClient}
       {...(alertChannel === undefined ? {} : { alertChannel })}
     />
   );

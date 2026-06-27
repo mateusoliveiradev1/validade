@@ -18,6 +18,8 @@ import type {
   PrepareTurnCacheStatus,
   PrepareTurnRequest,
   PrepareTurnResponse,
+  ShiftCloseSafeRequest,
+  ShiftClosureSnapshot,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
@@ -50,6 +52,7 @@ export function CaptureApp({
   alertChannel,
   syncEngine,
   prepareTurnClient,
+  closeShiftClient,
   activeRole = "lead",
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
@@ -58,6 +61,9 @@ export function CaptureApp({
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   prepareTurnClient?: ((request: PrepareTurnRequest) => Promise<PrepareTurnResponse>) | undefined;
+  closeShiftClient?:
+    | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
+    | undefined;
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
@@ -402,6 +408,9 @@ export function CaptureApp({
         repository={repository}
         canCloseShift={activeRole === "lead"}
         storeId={storeId}
+        prepareTurnCacheStatus={prepareTurnCache}
+        prepareTurnSource={prepareTurnSource}
+        onSafeClose={closeShiftClient}
         onBack={goBack}
       />
     );

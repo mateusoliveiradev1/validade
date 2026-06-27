@@ -102,6 +102,22 @@ describe("prepare-turn gate", () => {
 
     expect(textContent(tree)).toContain("Localizar produto");
     expect(textContent(tree)).not.toContain("Area de venda segura");
+
+    await changeText(tree, "Buscar produto", "banana prata");
+    await press(tree, "Buscar manualmente");
+    await press(tree, "Criar rascunho operacional");
+    await changeText(tree, "Nome do produto", "Banana Prata");
+    await changeText(tree, "Categoria", "frutas");
+    await press(tree, "Criar rascunho operacional");
+
+    expect(textContent(tree)).toContain("Produto salvo na central");
+    expect(textContent(tree)).toContain("Preparar turno novamente");
+    expect(textContent(tree)).not.toContain("Area de venda segura");
+
+    await press(tree, "Preparar turno novamente");
+
+    expect(textContent(tree)).toContain("Preparar turno");
+    expect(textContent(tree)).not.toContain("Area de venda segura");
   });
 
   it("labels local-cache fallback as not safe when central is unavailable", async () => {
@@ -167,6 +183,33 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
     onPress();
     await flush();
   });
+}
+
+async function changeText(tree: ReactTestRenderer, label: string, value: string): Promise<void> {
+  const input = tree.root
+    .findAllByType("TextInput")
+    .find((candidate) =>
+      normalized(candidate.props.accessibilityLabel).includes(normalized(label)),
+    );
+  const onChangeText = input?.props.onChangeText;
+
+  if (typeof onChangeText !== "function") {
+    throw new Error(`Expected a text input named ${label}.`);
+  }
+
+  await act(async () => {
+    onChangeText(value);
+    await flush();
+  });
+}
+
+function normalized(value: unknown): string {
+  const text = typeof value === "string" || typeof value === "number" ? String(value) : "";
+
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR");
 }
 
 function textContent(tree: ReactTestRenderer): string {

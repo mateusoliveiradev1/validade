@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { ShiftCloseSafeRequest, ShiftClosureSnapshot } from "@validade-zero/contracts";
+import type {
+  PrepareTurnCacheStatus,
+  ShiftCloseSafeRequest,
+  ShiftClosureSnapshot,
+} from "@validade-zero/contracts";
 import {
   SHIFT_CLOSE_CHECKLIST_KEYS,
   evaluateShiftClose,
+  type ShiftCloseCentralState,
   type ShiftCloseChecklistKey,
   type ShiftCloseEvaluation,
 } from "@validade-zero/domain";
@@ -25,6 +30,8 @@ export function ShiftCloseScreen({
   onBack,
   onSafeClose,
   storeId = "loja-local",
+  prepareTurnCacheStatus,
+  prepareTurnSource,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -32,6 +39,8 @@ export function ShiftCloseScreen({
   onBack: () => void;
   onSafeClose?: ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>) | undefined;
   storeId?: string | undefined;
+  prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
+  prepareTurnSource?: "central" | "local_cache" | undefined;
   now?: () => Date;
 }) {
   const [evaluation, setEvaluation] = useState<ShiftCloseEvaluation | undefined>();
@@ -56,6 +65,11 @@ export function ShiftCloseScreen({
       repository.listShiftCloseOutbox?.() ?? Promise.resolve([]),
     ]);
     const pendingOutbox = outbox.filter((item) => item.state !== "synced");
+    const central = centralStateFromPrepareTurn(
+      prepareTurnCacheStatus,
+      prepareTurnSource,
+      queue.totalCount,
+    );
     setPendingUnsafeClose(pendingOutbox[0]);
     setEvaluation(
       evaluateShiftClose({
@@ -72,6 +86,7 @@ export function ShiftCloseScreen({
           urgency: command.urgency,
         })),
         evidence: evidence.map((item) => ({ required: true, state: item.state })),
+        ...(central === undefined ? {} : { central }),
         pendingUnsafeCloseCount: pendingOutbox.length,
         checklist,
       }),
@@ -256,6 +271,43 @@ export function ShiftCloseScreen({
       <SecondaryAction label="Voltar para Hoje" onPress={onBack} />
     </ScrollView>
   );
+}
+
+function centralStateFromPrepareTurn(
+  cache: PrepareTurnCacheStatus | null | undefined,
+  source: "central" | "local_cache" | undefined,
+  pendingCommandCount: number,
+): ShiftCloseCentralState | undefined {
+  if (cache === null || cache === undefined) {
+    return undefined;
+  }
+
+  const resolvedSource = source ?? cache.source;
+  const hasCentralFacts =
+    cache.productCount +
+      cache.lotCount +
+      cache.activeTaskCount +
+      cache.conflictCount +
+      cache.resolvedHistoryCount >
+    0;
+  const prepared =
+    resolvedSource === "central" &&
+    cache.state === "ready" &&
+    cache.lastCentralReadAt !== undefined &&
+    hasCentralFacts;
+
+  return {
+    source: resolvedSource,
+    readiness: prepared ? "prepared" : cache.state === "ready" ? "cache_ready" : "needs_review",
+    hasCurrentRead: cache.lastCentralReadAt !== undefined,
+    hasCentralFacts,
+    activeTaskCount: cache.activeTaskCount,
+    pendingProductDraftCount: 0,
+    conflictCount: cache.conflictCount,
+    discardedActionCount: 0,
+    pendingCommandCount,
+    storeBlockerCount: prepared ? 0 : 1,
+  };
 }
 
 const styles = StyleSheet.create({

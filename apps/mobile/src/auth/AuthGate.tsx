@@ -20,6 +20,8 @@ import {
   RecoveryRequestedResponseSchema,
   RecoveryRequestSchema,
   SessionStatusResponseSchema,
+  ShiftCloseSafeRequestSchema,
+  ShiftClosureSnapshotSchema,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
   type CentralLotCreateRequest,
@@ -30,6 +32,8 @@ import {
   type ProductSearchResponse,
   type PrivacyRequest,
   type SessionContextResponse,
+  type ShiftCloseSafeRequest,
+  type ShiftClosureSnapshot,
   type PrivacyTopicId,
 } from "@validade-zero/contracts";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -78,6 +82,7 @@ export interface MobileAuthClient {
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateRequest): Promise<ProductDraftCreateResponse>;
   createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
+  closeShift(input: ShiftCloseSafeRequest): Promise<ShiftClosureSnapshot>;
   logout(): Promise<void>;
 }
 
@@ -191,6 +196,19 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
           body: JSON.stringify(body),
         }),
       );
+    },
+    async closeShift(input) {
+      const body = ShiftCloseSafeRequestSchema.parse(input);
+      const response = await request("/shift-closes", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      const closure =
+        typeof response === "object" && response !== null && "closure" in response
+          ? response.closure
+          : undefined;
+
+      return ShiftClosureSnapshotSchema.parse(closure);
     },
     async logout() {
       LogoutResponseSchema.parse(

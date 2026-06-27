@@ -86,6 +86,7 @@ function client(overrides: Partial<MobileAuthClient> = {}): MobileAuthClient {
     searchCentralProducts: () => Promise.reject(new Error("not used")),
     createProductDraft: () => Promise.reject(new Error("not used")),
     createCentralLot: () => Promise.reject(new Error("not used")),
+    closeShift: () => Promise.reject(new Error("not used")),
     logout: () => Promise.resolve(),
     ...overrides,
   };
@@ -287,6 +288,65 @@ describe("mobile auth flow", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       "https://api.example.test/capture/products/drafts",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: expectedAuthorization,
+        }),
+      }),
+    );
+  });
+
+  it("uses the authenticated central shift-close endpoint for safe close validation", async () => {
+    const sessionToken = "sessao-ficticia-com-tamanho-valido-0002";
+    const expectedAuthorization = `${"Bearer"} ${sessionToken}`;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "authenticated",
+          sessionToken,
+          session: activeSession(),
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          closure: {
+            closureId: "shift-close-safe-001",
+            idempotencyKey: "safe-shift-close-001",
+            storeId: "loja-piloto",
+            storeName: "Loja Piloto",
+            verdict: "safe",
+            eligibility: "eligible_safe",
+            blockers: [],
+            checklist: ["sales_area_checked", "pending_work_explained", "handoff_ready"],
+            actor: {
+              actorId: "warface-admin-lead",
+              displayName: "Mateus Lideranca",
+              roleSnapshot: "lead",
+            },
+            occurredAt: "2030-01-10T20:00:00.000Z",
+            receivedAt: "2030-01-10T20:00:01.000Z",
+            ruleVersion: "phase-10-central-v1",
+          },
+          replayed: false,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const auth = createMobileAuthClient({ baseUrl: "https://api.example.test" });
+
+    await auth.readSession();
+    await auth.closeShift({
+      storeId: "loja-piloto",
+      verdict: "safe",
+      checklist: ["sales_area_checked", "pending_work_explained", "handoff_ready"],
+      occurredAt: "2030-01-10T20:00:00.000Z",
+      idempotencyKey: "safe-shift-close-001",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.example.test/shift-closes",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
