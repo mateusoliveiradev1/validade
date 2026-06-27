@@ -90,7 +90,7 @@ start https://validade-five.vercel.app
 | 260626-hte | Melhorar painel admin Command Center para explicar vencidos, causas do vencimento, gargalos e proximas acoes com graficos operacionais | 2026-06-26 | local | Verified | [260626-hte-melhorar-painel-admin-command-center-par](./quick/260626-hte-melhorar-painel-admin-command-center-par/) |
 | 260626-i4v | Enriquecer Command Center com causa estruturada de vencimento, trilha de auditoria e dados suficientes para explicar por que venceu | 2026-06-26 | pending-final-batch | Verified | [260626-i4v-enriquecer-command-center-com-causa-estr](./quick/260626-i4v-enriquecer-command-center-com-causa-estr/) |
 | 260627-hkt | Prepare staging for 23-store real UAT with Loja 18 category catalog, no fake products, and web/API store scope cleanup | 2026-06-27 | pending-final-batch | Verified | [260627-hkt-prepare-staging-for-23-store-real-uat-wi](./quick/260627-hkt-prepare-staging-for-23-store-real-uat-wi/) |
-| 260627-iar | Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira | 2026-06-27 | pending-final-batch | Verified | [260627-iar-ajustar-rbac-multi-loja-para-dono-admin-](./quick/260627-iar-ajustar-rbac-multi-loja-para-dono-admin-/) |
+| 260627-iar | Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira | 2026-06-27 | 86965264 | Verified | [260627-iar-ajustar-rbac-multi-loja-para-dono-admin-](./quick/260627-iar-ajustar-rbac-multi-loja-para-dono-admin-/) |
 
 ## Performance Metrics
 
