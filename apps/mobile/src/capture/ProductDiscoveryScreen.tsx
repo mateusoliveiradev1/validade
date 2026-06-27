@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import type { CaptureProductCategory, CaptureProductRecord, CaptureRepository } from "./repository";
+import {
+  productCatalogItemToLocalRecord,
+  productDraftToLocalRecord,
+  type CaptureProductCategory,
+  type CaptureProductRecord,
+  type CaptureRepository,
+} from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import {
   Field,
@@ -33,6 +39,34 @@ export function ProductDiscoveryScreen({
   const [message, setMessage] = useState<string | undefined>();
 
   async function searchManually(): Promise<void> {
+    const trimmedQuery = query.trim();
+
+    if (trimmedQuery.length === 0) {
+      setMatches([]);
+      setCategories([]);
+      setCandidate(undefined);
+      setMessage(captureCopy.noMatch);
+      return;
+    }
+
+    if (repository.searchCentralProducts !== undefined) {
+      const response = await repository.searchCentralProducts({
+        requestedAt: new Date().toISOString(),
+        ...(/^\d{8,14}$/.test(trimmedQuery) ? { gtin: trimmedQuery } : { query: trimmedQuery }),
+      });
+      const results = [
+        ...response.reusableProducts.map(productCatalogItemToLocalRecord),
+        ...response.similarCandidates.map(productCatalogItemToLocalRecord),
+        ...(response.draft === undefined ? [] : [productDraftToLocalRecord(response.draft)]),
+      ];
+
+      setMatches(results);
+      setCategories([]);
+      setCandidate(undefined);
+      setMessage(searchResultMessage(response.resultState));
+      return;
+    }
+
     const results = await repository.findProducts(query);
     setMatches(results);
     setCategories([]);
@@ -100,7 +134,7 @@ export function ProductDiscoveryScreen({
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader title={captureCopy.discoveryTitle} body={captureCopy.discoveryBody} />
       <Field
-        label="Buscar produto por nome ou código"
+        label="Buscar produto por nome, codigo ou categoria"
         value={query}
         onChangeText={setQuery}
         placeholder="Ex.: alface ou 7890000000001"
@@ -127,7 +161,7 @@ export function ProductDiscoveryScreen({
         <SelectionRow
           key={product.id}
           label={product.displayName}
-          detail={product.categoryId}
+          detail={productDetail(product)}
           selected={candidate?.id === product.id}
           onPress={() => setCandidate(product)}
         />
@@ -138,13 +172,17 @@ export function ProductDiscoveryScreen({
       {candidate === undefined ? null : (
         <View style={styles.confirmation}>
           <Text style={styles.confirmationTitle}>{candidate.displayName}</Text>
-          <Text style={styles.metadata}>Categoria: {candidate.categoryId}</Text>
+          <Text style={styles.metadata}>
+            Categoria: {candidate.categoryName ?? candidate.categoryId}
+          </Text>
           <Text style={styles.metadata}>Perfil operacional: {resolvedMode}</Text>
           <Text style={styles.metadata}>Modo de trabalho: {productModeLabels[resolvedMode]}</Text>
-          <PrimaryAction
-            label={captureCopy.confirmProduct}
-            onPress={() => onConfirmProduct(candidate)}
-          />
+          {candidate.reviewStatus === "pending_review" ? (
+            <StatusNotice>
+              Produto em rascunho. O lote entra com risco conservador ate a validacao.
+            </StatusNotice>
+          ) : null}
+          <PrimaryAction label="Usar este produto" onPress={() => onConfirmProduct(candidate)} />
         </View>
       )}
     </ScrollView>
@@ -177,3 +215,35 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+function searchResultMessage(
+  state: "reuse_available" | "similar_requires_review" | "draft_pending_review" | "no_safe_reuse",
+): string {
+  if (state === "reuse_available") {
+    return "Produto central encontrado. Use este produto antes de cadastrar outro.";
+  }
+
+  if (state === "similar_requires_review") {
+    return "Produtos parecidos encontrados. Confira antes de criar rascunho operacional.";
+  }
+
+  if (state === "draft_pending_review") {
+    return "Produto em rascunho. O lote entra com risco conservador ate a validacao.";
+  }
+
+  return captureCopy.noMatch;
+}
+
+function productDetail(product: CaptureProductRecord): string {
+  const category = product.categoryName ?? product.categoryId;
+
+  if (product.reviewStatus === "pending_review") {
+    return `${category} - rascunho em revisao`;
+  }
+
+  if (product.catalogSource === "central") {
+    return `${category} - catalogo central`;
+  }
+
+  return category;
+}

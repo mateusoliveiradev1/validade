@@ -46,6 +46,17 @@ const projection = {
   pendingMarkdowns: [
     { markdownId: "markdown-001", label: "Preco de FOL-001", stage: "Aguardando aplicacao" },
   ],
+  pendingProductDrafts: [
+    {
+      draftId: "product-draft-001",
+      label: "Banana Nanica FICTICIA",
+      reviewStatus: "pending_review",
+      detail: "Rascunho criado no mobile e aguardando validacao central.",
+      similarCount: 1,
+      requestedByLabel: "Colaborador FICTICIO",
+      createdAt: "2030-01-10T11:00:00.000Z",
+    },
+  ],
   pendingEvidence: [
     {
       assetId: "evidence-001",
@@ -88,8 +99,11 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Colaborador FICTICIO")).toBeTruthy();
     expect(screen.getByText("Sync da retirada ainda nao foi confirmado.")).toBeTruthy();
     expect(screen.getByText("Retirar, registrar destino e reconferir a gondola")).toBeTruthy();
+    expect(screen.getByText("Produtos em revisao")).toBeTruthy();
+    expect(screen.getByText("Banana Nanica FICTICIA")).toBeTruthy();
     const text = document.body.textContent ?? "";
-    expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Lotes criticos"));
+    expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
+    expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));
     expect(text.indexOf("Rebaixas pendentes")).toBeLessThan(

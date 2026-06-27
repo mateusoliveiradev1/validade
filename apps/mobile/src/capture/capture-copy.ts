@@ -9,7 +9,7 @@ export const captureCopy = {
   manualSearch: "Buscar manualmente",
   registerLot: "Registrar lote",
   confirmProduct: "Confirmar produto",
-  createProduct: "Cadastrar produto",
+  createProduct: "Criar rascunho operacional",
   backAndReview: "Voltar e revisar",
   supplierPending: "Fornecedor pendente",
   gtinPending: "GTIN pendente",

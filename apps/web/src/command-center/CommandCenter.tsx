@@ -128,6 +128,7 @@ function CommandCenterProjectionView({
     projection.criticalLots.length === 0 &&
     projection.overdueTasks.length === 0 &&
     projection.pendingMarkdowns.length === 0 &&
+    projection.pendingProductDrafts.length === 0 &&
     projection.pendingEvidence.length === 0 &&
     projection.syncConflicts.length === 0 &&
     projection.pendingShiftCloses.length === 0;
@@ -169,6 +170,16 @@ function CommandCenterProjectionView({
       ) : null}
 
       <div className="grid gap-4">
+        <FunnelSection title="Produtos em revisao" count={projection.pendingProductDrafts.length}>
+          {projection.pendingProductDrafts.map((item) => (
+            <FunnelRow
+              key={item.draftId}
+              title={item.label}
+              detail={`${item.requestedByLabel} - ${item.detail}`}
+              tone="warning"
+            />
+          ))}
+        </FunnelSection>
         <FunnelSection title="Lotes criticos" count={projection.criticalLots.length}>
           {projection.criticalLots.map((item) => (
             <FunnelRow

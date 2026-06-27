@@ -62,6 +62,7 @@ export const commandCenterProjection = {
     },
   ],
   pendingMarkdowns: [],
+  pendingProductDrafts: [],
   pendingEvidence: [],
   syncConflicts: [],
   pendingShiftCloses: [],

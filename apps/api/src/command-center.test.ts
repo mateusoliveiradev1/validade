@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
-import { createInMemoryCommandCenterService } from "./command-center";
+import {
+  createAuditBackedCommandCenterService,
+  createInMemoryCommandCenterService,
+} from "./command-center";
 import { createApiApp } from "./index";
 
 const projection = {
@@ -45,6 +48,17 @@ const projection = {
   ],
   pendingMarkdowns: [
     { markdownId: "markdown-001", label: "Preco de FOL-001", stage: "Aguardando aplicacao" },
+  ],
+  pendingProductDrafts: [
+    {
+      draftId: "product-draft-001",
+      label: "Banana Nanica FICTICIA",
+      reviewStatus: "pending_review",
+      detail: "Rascunho criado no mobile e aguardando validacao central.",
+      similarCount: 1,
+      requestedByLabel: "Colaborador FICTICIO",
+      createdAt: "2030-01-10T11:00:00.000Z",
+    },
   ],
   pendingEvidence: [
     {
@@ -108,6 +122,7 @@ describe("Command Center API", () => {
     expect(body).toMatchObject({
       verdict: { state: "blocked" },
       criticalLots: [{ lotId: "lot-critico-001", cause: { code: "formal_expiry_passed" } }],
+      pendingProductDrafts: [{ draftId: "product-draft-001", reviewStatus: "pending_review" }],
       pendingEvidence: [{ state: "failed" }],
       syncConflicts: [{ conflictId: "conflict-001" }],
     });
@@ -123,5 +138,62 @@ describe("Command Center API", () => {
 
     expect(response.status).toBe(403);
     expect(JSON.stringify(await response.json())).not.toContain("lot-critico-001");
+  });
+
+  it("projects pending product drafts from sanitized audit events", async () => {
+    const service = createAuditBackedCommandCenterService({
+      auditRepository: {
+        queryStore: () =>
+          Promise.resolve({
+            items: [
+              {
+                eventId: "audit-product-draft-001",
+                type: "sync.changed",
+                store: {
+                  storeId: "loja-piloto",
+                  storeName: "Loja Ficticia Piloto",
+                },
+                actor: {
+                  actorId: "collaborator-local",
+                  displayName: "Colaborador FICTICIO",
+                  roleSnapshot: "collaborator",
+                },
+                target: {
+                  type: "product",
+                  id: "central-product-001",
+                  label: "Banana Nanica FICTICIA",
+                },
+                occurredAt: "2030-01-10T11:00:00.000Z",
+                summary: "Rascunho operacional de produto criado para revisao central.",
+                status: "received",
+                metadata: {
+                  action: "product.draft_created",
+                  reviewStatus: "pending_review",
+                  similarCandidateCount: 2,
+                },
+              },
+            ],
+          }),
+      },
+      now: () => new Date("2030-01-10T12:00:00.000Z"),
+    });
+
+    const result = await service.read({
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+    });
+
+    expect(result.verdict.state).toBe("needs_review");
+    expect(result.pendingProductDrafts).toEqual([
+      {
+        draftId: "central-product-001",
+        label: "Banana Nanica FICTICIA",
+        reviewStatus: "pending_review",
+        detail: "2 produto(s) parecido(s) revisados antes do rascunho central.",
+        similarCount: 2,
+        requestedByLabel: "Colaborador FICTICIO",
+        createdAt: "2030-01-10T11:00:00.000Z",
+      },
+    ]);
   });
 });

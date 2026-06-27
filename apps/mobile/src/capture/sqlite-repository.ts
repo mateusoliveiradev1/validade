@@ -9,6 +9,8 @@ import {
   OperationalLocationSchema,
   PhysicalObservationInputSchema,
   PrepareTurnCacheStatusSchema,
+  ProductDraftCreateResponseSchema,
+  ProductSearchResponseSchema,
   PushOpenIntentSchema,
   TaskAlertStateRecordSchema,
   type ActiveTaskSnippet,
@@ -26,6 +28,11 @@ import {
   type PhysicalObservationInput,
   type PrepareTurnCacheStatus,
   type PrepareTurnResponse,
+  type ProductCatalogItem,
+  type ProductDraftCreateRequest,
+  type ProductDraftReviewState,
+  type ProductSearchCandidate,
+  type ProductSearchRequest,
   type PushOpenIntent,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -83,11 +90,13 @@ import {
   parseOfflineCacheStatus,
   parsePrepareTurnCacheStatus,
   parsePrepareTurnResponse,
+  parseProductDraftCreateRequest,
   parseLotId,
   parseLotInput,
   parseObservationInput,
   parseProductCategoryId,
   parseProductInput,
+  parseProductSearchRequest,
   parseRecentLotsQuery,
   parseTaskResolutionCommand,
   parsePushOpenIntent,
@@ -106,7 +115,11 @@ import {
   deriveOfflineCacheState,
   sortSyncQueueItems,
 } from "@validade-zero/domain";
-import { ensureTodayTaskMarkdownColumns, ensureTodayTaskSyncColumns } from "./sqlite-migrations";
+import {
+  ensureProductCatalogColumns,
+  ensureTodayTaskMarkdownColumns,
+  ensureTodayTaskSyncColumns,
+} from "./sqlite-migrations";
 
 const OFFLINE_CACHE_STALE_AFTER_HOURS = 4;
 
@@ -115,10 +128,18 @@ interface ProductRow {
   display_name: string;
   normalized_name: string;
   category_id: string;
+  category_name: string | null;
   category_profile_json: string;
   supplier_name: string | null;
   gtin: string | null;
   product_override_json: string | null;
+  central_product_id: string | null;
+  catalog_source: string | null;
+  review_status: string | null;
+  central_sync_state: string | null;
+  draft_id: string | null;
+  draft_review_message: string | null;
+  similar_candidate_count: number | null;
   created_at: string;
 }
 
@@ -481,25 +502,223 @@ export function createSQLiteCaptureRepository(
       id: nextGeneratedId(dependencies),
       normalizedName,
       createdAt: dependencies.clock(),
+      catalogSource: "local",
+      centralSyncState: "local",
     };
 
     await db.runAsync(
       `INSERT INTO capture_products (
-        id, display_name, normalized_name, category_id, category_profile_json,
-        supplier_name, gtin, product_override_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, display_name, normalized_name, category_id, category_name, category_profile_json,
+        supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+        review_status, central_sync_state, draft_id, draft_review_message,
+        similar_candidate_count, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       record.id,
       record.displayName,
       record.normalizedName,
       record.categoryId,
+      record.categoryName ?? null,
       JSON.stringify(record.categoryRuleProfile),
       record.supplierName ?? null,
       record.gtin ?? null,
       record.productRuleOverride === undefined ? null : JSON.stringify(record.productRuleOverride),
+      record.centralProductId ?? null,
+      record.catalogSource ?? "local",
+      record.reviewStatus ?? null,
+      record.centralSyncState ?? "local",
+      record.draftId ?? null,
+      record.draftReviewMessage ?? null,
+      record.similarCandidateCount ?? null,
       record.createdAt,
     );
 
     return record;
+  }
+
+  async function searchCentralProducts(input: ProductSearchRequest) {
+    await initialize();
+    const request = parseProductSearchRequest(input);
+    const normalizedQuery =
+      request.query === undefined ? undefined : normalizeProductLookup(request.query);
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<ProductRow>(
+      `SELECT * FROM capture_products
+       WHERE (? IS NOT NULL AND normalized_name LIKE ?)
+          OR (? IS NOT NULL AND gtin = ?)
+       ORDER BY display_name COLLATE NOCASE ASC`,
+      normalizedQuery ?? null,
+      normalizedQuery === undefined ? null : `%${normalizedQuery}%`,
+      request.gtin ?? null,
+      request.gtin ?? null,
+    );
+    const catalogProducts = rows.map(mapProduct).map(localProductToCatalogItem);
+    const exact = catalogProducts.filter(
+      (product) =>
+        (normalizedQuery !== undefined && product.normalizedKey === normalizedQuery) ||
+        (request.gtin !== undefined && product.gtin === request.gtin),
+    );
+    const reusableProducts = exact
+      .filter((product) => product.reviewStatus === "validated")
+      .map((product) => productSearchCandidate(product, "reusable_central"));
+    const draft = exact.find((product) => product.reviewStatus === "pending_review");
+    const similarCandidates = catalogProducts
+      .filter(
+        (product) =>
+          !exact.some((candidate) => candidate.centralProductId === product.centralProductId) &&
+          isSimilarProduct(product.normalizedKey, normalizedQuery),
+      )
+      .slice(0, 10)
+      .map((product) => productSearchCandidate(product, "similar_candidate"));
+
+    return ProductSearchResponseSchema.parse({
+      requestId: `mobile-search-${dependencies.clock()}`,
+      ...(normalizedQuery === undefined ? {} : { normalizedQuery }),
+      resultState:
+        reusableProducts.length > 0
+          ? "reuse_available"
+          : draft !== undefined
+            ? "draft_pending_review"
+            : similarCandidates.length > 0
+              ? "similar_requires_review"
+              : "no_safe_reuse",
+      reusableProducts,
+      similarCandidates,
+      ...(draft === undefined ? {} : { draft: catalogItemToDraft(draft) }),
+    });
+  }
+
+  async function createProductDraft(input: ProductDraftCreateRequest) {
+    await initialize();
+    const request = parseProductDraftCreateRequest(input);
+    const normalizedName = normalizeProductLookup(request.displayName);
+    const db = await getDatabase();
+    const existing = await findExistingProduct(db, normalizedName, request.gtin);
+
+    if (existing !== null) {
+      const catalogProduct = localProductToCatalogItem(mapProduct(existing));
+
+      if (catalogProduct.reviewStatus === "pending_review") {
+        const draft = catalogItemToDraft(catalogProduct);
+
+        return ProductDraftCreateResponseSchema.parse({
+          requestId: `mobile-draft-${dependencies.clock()}`,
+          normalizedKey: normalizedName,
+          outcome: "draft_pending_review",
+          similarCandidates: [],
+          draft,
+          acknowledgement: {
+            acknowledgementId: `ack-${catalogProduct.centralProductId}`,
+            centralProductId: catalogProduct.centralProductId,
+            state: "draft_pending_review",
+            syncState: "pending_central",
+            reviewStatus: "pending_review",
+            acknowledgedAt: draft.requestedAt,
+          },
+        });
+      }
+
+      return ProductDraftCreateResponseSchema.parse({
+        requestId: `mobile-draft-${dependencies.clock()}`,
+        normalizedKey: normalizedName,
+        outcome: "reuse_existing",
+        duplicateReason:
+          request.gtin !== undefined && catalogProduct.gtin === request.gtin
+            ? "gtin"
+            : "normalized_name",
+        reusableProduct: catalogProduct,
+        similarCandidates: [],
+      });
+    }
+
+    const candidateRows = await db.getAllAsync<ProductRow>(
+      `SELECT * FROM capture_products
+       WHERE normalized_name LIKE ?
+       ORDER BY display_name COLLATE NOCASE ASC
+       LIMIT 10`,
+      `%${normalizedName}%`,
+    );
+    const acknowledged = new Set(request.similarCandidateIds ?? []);
+    const similarCandidates = candidateRows
+      .map(mapProduct)
+      .map(localProductToCatalogItem)
+      .filter((product) => isSimilarProduct(product.normalizedKey, normalizedName))
+      .map((product) => productSearchCandidate(product, "similar_candidate"));
+
+    if (
+      similarCandidates.length > 0 &&
+      !similarCandidates.every((candidate) => acknowledged.has(candidate.centralProductId))
+    ) {
+      return ProductDraftCreateResponseSchema.parse({
+        requestId: `mobile-draft-${dependencies.clock()}`,
+        normalizedKey: normalizedName,
+        outcome: "similar_found",
+        similarCandidates,
+      });
+    }
+
+    const record: CaptureProductRecord = {
+      displayName: request.displayName,
+      categoryId: request.categoryId,
+      categoryName: request.categoryName,
+      categoryRuleProfile: request.categoryRuleProfile,
+      ...(request.gtin === undefined ? {} : { gtin: request.gtin }),
+      id: nextGeneratedId(dependencies),
+      normalizedName,
+      createdAt: request.requestedAt,
+      centralProductId: `draft:${normalizedName}`,
+      catalogSource: "draft_pending_review",
+      reviewStatus: "pending_review",
+      centralSyncState: "pending_central",
+      draftId: `draft:${normalizedName}`,
+      draftReviewMessage:
+        "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+      similarCandidateCount: similarCandidates.length,
+    };
+
+    await db.runAsync(
+      `INSERT INTO capture_products (
+        id, display_name, normalized_name, category_id, category_name, category_profile_json,
+        supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+        review_status, central_sync_state, draft_id, draft_review_message,
+        similar_candidate_count, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      record.id,
+      record.displayName,
+      record.normalizedName,
+      record.categoryId,
+      record.categoryName ?? null,
+      JSON.stringify(record.categoryRuleProfile),
+      record.supplierName ?? null,
+      record.gtin ?? null,
+      record.productRuleOverride === undefined ? null : JSON.stringify(record.productRuleOverride),
+      record.centralProductId ?? null,
+      "draft_pending_review",
+      record.reviewStatus ?? null,
+      record.centralSyncState ?? null,
+      record.draftId ?? null,
+      record.draftReviewMessage ?? null,
+      record.similarCandidateCount ?? null,
+      record.createdAt,
+    );
+
+    const draft = localProductToDraft(record, similarCandidates);
+
+    return ProductDraftCreateResponseSchema.parse({
+      requestId: `mobile-draft-${dependencies.clock()}`,
+      normalizedKey: normalizedName,
+      outcome: "draft_pending_review",
+      similarCandidates,
+      draft,
+      acknowledgement: {
+        acknowledgementId: `ack-${record.id}`,
+        centralProductId: draft.centralProductId,
+        state: "draft_pending_review",
+        syncState: "pending_central",
+        reviewStatus: "pending_review",
+        acknowledgedAt: request.requestedAt,
+        message: record.draftReviewMessage,
+      },
+    });
   }
 
   async function findProducts(query: string): Promise<readonly CaptureProductRecord[]> {
@@ -2261,6 +2480,8 @@ export function createSQLiteCaptureRepository(
     initialize,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
+    searchCentralProducts,
+    createProductDraft,
     createProduct,
     findProducts,
     listFrequentProducts,
@@ -2320,10 +2541,18 @@ async function initializeDatabase(
       display_name TEXT NOT NULL,
       normalized_name TEXT NOT NULL,
       category_id TEXT NOT NULL,
+      category_name TEXT,
       category_profile_json TEXT NOT NULL,
       supplier_name TEXT,
       gtin TEXT,
       product_override_json TEXT,
+      central_product_id TEXT,
+      catalog_source TEXT,
+      review_status TEXT,
+      central_sync_state TEXT,
+      draft_id TEXT,
+      draft_review_message TEXT,
+      similar_candidate_count INTEGER,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS capture_lots (
@@ -2642,6 +2871,7 @@ async function initializeDatabase(
 
   await ensureTodayTaskMarkdownColumns(db);
   await ensureTodayTaskSyncColumns(db);
+  await ensureProductCatalogColumns(db);
 }
 
 async function findExistingProduct(
@@ -2847,21 +3077,40 @@ async function upsertCentralProduct(
 ): Promise<void> {
   await db.runAsync(
     `INSERT INTO capture_products (
-      id, display_name, normalized_name, category_id, category_profile_json,
-      supplier_name, gtin, product_override_json, created_at
-    ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?)
+      id, display_name, normalized_name, category_id, category_name, category_profile_json,
+      supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+      review_status, central_sync_state, draft_id, draft_review_message,
+      similar_candidate_count, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, 0, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       normalized_name = excluded.normalized_name,
       category_id = excluded.category_id,
+      category_name = excluded.category_name,
       category_profile_json = excluded.category_profile_json,
-      gtin = excluded.gtin`,
+      gtin = excluded.gtin,
+      central_product_id = excluded.central_product_id,
+      catalog_source = excluded.catalog_source,
+      review_status = excluded.review_status,
+      central_sync_state = excluded.central_sync_state,
+      draft_id = excluded.draft_id,
+      draft_review_message = excluded.draft_review_message,
+      similar_candidate_count = excluded.similar_candidate_count`,
     product.centralProductId,
     product.displayName,
     normalizeProductLookup(product.displayName),
     product.categoryId,
+    product.categoryName,
     JSON.stringify(product.categoryRuleProfile),
     product.gtin ?? null,
+    product.centralProductId,
+    product.status === "draft" ? "draft_pending_review" : "central",
+    reviewStatusForCentralProduct(product),
+    product.state,
+    product.status === "draft" ? product.centralProductId : null,
+    product.status === "draft"
+      ? "Produto em rascunho. O lote entra com risco conservador ate a validacao."
+      : null,
     product.updatedAt,
   );
 }
@@ -3371,13 +3620,158 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
       ? {}
       : { productRuleOverride: parseJson(row.product_override_json) }),
   });
+  const catalogSource = parseCatalogSource(row.catalog_source);
+  const reviewStatus = parseReviewStatus(row.review_status);
+  const centralSyncState = parseCentralSyncState(row.central_sync_state);
 
   return {
     ...product,
     id: row.id,
     normalizedName: row.normalized_name,
     createdAt: row.created_at,
+    ...(row.category_name === null ? {} : { categoryName: row.category_name }),
+    ...(row.central_product_id === null ? {} : { centralProductId: row.central_product_id }),
+    ...(catalogSource === undefined ? {} : { catalogSource }),
+    ...(reviewStatus === undefined ? {} : { reviewStatus }),
+    ...(centralSyncState === undefined ? {} : { centralSyncState }),
+    ...(row.draft_id === null ? {} : { draftId: row.draft_id }),
+    ...(row.draft_review_message === null ? {} : { draftReviewMessage: row.draft_review_message }),
+    ...(row.similar_candidate_count === null
+      ? {}
+      : { similarCandidateCount: row.similar_candidate_count }),
   };
+}
+
+function localProductToCatalogItem(product: CaptureProductRecord): ProductCatalogItem {
+  return {
+    centralProductId: product.centralProductId ?? product.id,
+    displayName: product.displayName,
+    normalizedKey: product.normalizedName,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName ?? product.categoryId,
+    categoryRuleProfile: product.categoryRuleProfile,
+    source: product.catalogSource === "draft_pending_review" ? "draft_pending_review" : "central",
+    reviewStatus:
+      product.reviewStatus === undefined || product.reviewStatus === "discarded"
+        ? "validated"
+        : product.reviewStatus,
+    syncState:
+      product.centralSyncState === undefined || product.centralSyncState === "local"
+        ? "synchronized"
+        : product.centralSyncState,
+    updatedAt: product.createdAt,
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+  };
+}
+
+function productSearchCandidate(
+  product: ProductCatalogItem,
+  matchKind: ProductSearchCandidate["matchKind"],
+): ProductSearchCandidate {
+  return {
+    ...product,
+    matchKind,
+    matchReasons: matchKind === "similar_candidate" ? ["similar_name"] : ["exact_normalized_name"],
+    ...(matchKind === "similar_candidate"
+      ? { warning: "Produto parecido encontrado. Reutilize se for o mesmo item." }
+      : {}),
+  };
+}
+
+function isSimilarProduct(productKey: string, requestedKey: string | undefined): boolean {
+  if (requestedKey === undefined) {
+    return false;
+  }
+  const tokens = requestedKey.split(" ").filter((token) => token.length >= 3);
+
+  return tokens.some((token) => productKey.includes(token));
+}
+
+function catalogItemToDraft(product: ProductCatalogItem): ProductDraftReviewState {
+  return {
+    draftId: product.centralProductId,
+    centralProductId: product.centralProductId,
+    displayName: product.displayName,
+    normalizedKey: product.normalizedKey,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName,
+    categoryRuleProfile: product.categoryRuleProfile,
+    source: "draft_pending_review",
+    reviewStatus: "pending_review",
+    syncState: "pending_central",
+    requestedByLabel: "Este aparelho",
+    requestedAt: product.updatedAt,
+    similarCandidates: [],
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+  };
+}
+
+function localProductToDraft(
+  product: CaptureProductRecord,
+  similarCandidates: readonly ProductSearchCandidate[],
+): ProductDraftReviewState {
+  return {
+    draftId: product.draftId ?? product.centralProductId ?? product.id,
+    centralProductId: product.centralProductId ?? product.id,
+    displayName: product.displayName,
+    normalizedKey: product.normalizedName,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName ?? product.categoryId,
+    categoryRuleProfile: product.categoryRuleProfile,
+    source: "draft_pending_review",
+    reviewStatus: "pending_review",
+    syncState: "pending_central",
+    requestedByLabel: "Este aparelho",
+    requestedAt: product.createdAt,
+    similarCandidates: [...similarCandidates],
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+  };
+}
+
+function reviewStatusForCentralProduct(
+  product: CentralProductSnippet,
+): NonNullable<CaptureProductRecord["reviewStatus"]> {
+  if (product.status === "draft") return "pending_review";
+  if (product.status === "rejected") return "rejected";
+  if (product.status === "archived") return "discarded";
+
+  return "validated";
+}
+
+function parseCatalogSource(value: string | null): CaptureProductRecord["catalogSource"] {
+  if (value === "central" || value === "draft_pending_review" || value === "local") {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseReviewStatus(value: string | null): CaptureProductRecord["reviewStatus"] {
+  if (
+    value === "validated" ||
+    value === "pending_review" ||
+    value === "rejected" ||
+    value === "discarded"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseCentralSyncState(value: string | null): CaptureProductRecord["centralSyncState"] {
+  if (
+    value === "local" ||
+    value === "pending_central" ||
+    value === "synchronized" ||
+    value === "conflict" ||
+    value === "discarded" ||
+    value === "resolved"
+  ) {
+    return value;
+  }
+
+  return undefined;
 }
 
 function mapCentralActiveTask(

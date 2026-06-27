@@ -14,6 +14,17 @@ const TODAY_TASK_MARKDOWN_COLUMNS = [
 
 const TODAY_TASK_SYNC_COLUMNS = [{ name: "sync_json", definition: "TEXT" }] as const;
 
+const PRODUCT_CATALOG_COLUMNS = [
+  { name: "category_name", definition: "TEXT" },
+  { name: "central_product_id", definition: "TEXT" },
+  { name: "catalog_source", definition: "TEXT" },
+  { name: "review_status", definition: "TEXT" },
+  { name: "central_sync_state", definition: "TEXT" },
+  { name: "draft_id", definition: "TEXT" },
+  { name: "draft_review_message", definition: "TEXT" },
+  { name: "similar_candidate_count", definition: "INTEGER" },
+] as const;
+
 async function ensureColumns(
   db: SchemaMigrationDatabase,
   tableName: string,
@@ -38,4 +49,8 @@ export async function ensureTodayTaskMarkdownColumns(db: SchemaMigrationDatabase
 
 export async function ensureTodayTaskSyncColumns(db: SchemaMigrationDatabase): Promise<void> {
   await ensureColumns(db, "today_tasks", TODAY_TASK_SYNC_COLUMNS);
+}
+
+export async function ensureProductCatalogColumns(db: SchemaMigrationDatabase): Promise<void> {
+  await ensureColumns(db, "capture_products", PRODUCT_CATALOG_COLUMNS);
 }

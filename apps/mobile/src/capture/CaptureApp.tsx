@@ -412,15 +412,24 @@ export function CaptureApp({
 
     return (
       <ScrollView contentContainerStyle={styles.screen}>
-        <ScreenHeader title="Produto confirmado" body="Revise o perfil antes de informar o lote." />
+        <ScreenHeader
+          title="Produto confirmado"
+          body="Produto pronto para o proximo passo. Registrar lote e opcional neste momento."
+        />
         <Text style={styles.productName}>{currentRoute.product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {currentRoute.product.categoryId}</Text>
         <Text style={styles.metadata}>Perfil operacional: {productModeLabels[mode]}</Text>
+        {currentRoute.product.reviewStatus === "pending_review" ? (
+          <StatusNotice>
+            Produto em rascunho. O lote entra com risco conservador ate a validacao.
+          </StatusNotice>
+        ) : null}
         <PrimaryAction
-          label={captureCopy.confirmProduct}
+          label={captureCopy.registerLot}
           onPress={() => navigate({ name: "lot-registration", product: currentRoute.product })}
         />
         <SecondaryAction label={captureCopy.backAndReview} onPress={goBack} />
+        <SecondaryAction label="Voltar para Hoje" onPress={() => resetToToday()} />
       </ScrollView>
     );
   }

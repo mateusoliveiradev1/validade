@@ -21,7 +21,8 @@ export type AuditTargetType =
   | "markdown"
   | "sync_command"
   | "access_request"
-  | "membership";
+  | "membership"
+  | "product";
 
 export interface AppendAuditEventInput {
   eventId: string;

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { ProductMode } from "@validade-zero/domain";
-import type { CaptureProductRecord, CaptureRepository } from "./repository";
+import type { ProductSearchCandidate } from "@validade-zero/contracts";
+import {
+  productCatalogItemToLocalRecord,
+  productDraftToLocalRecord,
+  type CaptureProductRecord,
+  type CaptureRepository,
+} from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import {
   Field,
@@ -52,6 +58,8 @@ export function ProductFormScreen({
   const [categoryMode, setCategoryMode] = useState<ProductMode>("formal_validity");
   const [overrideMode, setOverrideMode] = useState<ProductMode | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const [notice, setNotice] = useState<string | undefined>();
+  const [similarCandidates, setSimilarCandidates] = useState<readonly ProductSearchCandidate[]>([]);
 
   const canCreate = displayName.trim().length > 0 && categoryId.trim().length > 0;
 
@@ -62,14 +70,51 @@ export function ProductFormScreen({
     }
 
     try {
+      const categoryRuleProfile = {
+        categoryId,
+        mode: categoryMode,
+        windows: categoryWindows[categoryMode],
+      };
+
+      if (repository.createProductDraft !== undefined) {
+        const response = await repository.createProductDraft({
+          displayName,
+          categoryId,
+          categoryName: categoryId,
+          categoryRuleProfile,
+          requestedAt: new Date().toISOString(),
+          ...(supplierName.trim().length === 0 ? {} : { supplierName }),
+          ...(gtin.trim().length === 0 ? {} : { gtin }),
+          similarCandidateIds: similarCandidates.map((candidate) => candidate.centralProductId),
+        });
+
+        if (response.outcome === "reuse_existing" && response.reusableProduct !== undefined) {
+          onCreated(productCatalogItemToLocalRecord(response.reusableProduct));
+          return;
+        }
+
+        if (response.outcome === "similar_found") {
+          setSimilarCandidates(response.similarCandidates);
+          setError(undefined);
+          setNotice(
+            "Produtos parecidos encontrados. Use um existente ou confirme o rascunho operacional.",
+          );
+          return;
+        }
+
+        if (response.outcome === "draft_pending_review" && response.draft !== undefined) {
+          onCreated(productDraftToLocalRecord(response.draft));
+          return;
+        }
+
+        setError("Nao foi possivel criar o rascunho operacional deste produto.");
+        return;
+      }
+
       const product = await repository.createProduct({
         displayName,
         categoryId,
-        categoryRuleProfile: {
-          categoryId,
-          mode: categoryMode,
-          windows: categoryWindows[categoryMode],
-        },
+        categoryRuleProfile,
         ...(supplierName.trim().length === 0 ? {} : { supplierName }),
         ...(gtin.trim().length === 0 ? {} : { gtin }),
         ...(overrideMode === undefined ? {} : { productRuleOverride: { mode: overrideMode } }),
@@ -86,8 +131,8 @@ export function ProductFormScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
-        title="Cadastrar produto"
-        body="Cadastre somente o necessário para confirmar o lote."
+        title="Criar rascunho operacional"
+        body="Crie o rascunho sem abrir lote automaticamente. A lideranca valida depois."
       />
       <Field label="Nome do produto" value={displayName} onChangeText={setDisplayName} />
       <Field label="Categoria" value={categoryId} onChangeText={setCategoryId} />
@@ -132,6 +177,15 @@ export function ProductFormScreen({
       {gtin.trim().length === 0 ? (
         <Text style={styles.pending}>{captureCopy.gtinPending}</Text>
       ) : null}
+      {notice === undefined ? null : <StatusNotice>{notice}</StatusNotice>}
+      {similarCandidates.map((candidate) => (
+        <SelectionRow
+          key={candidate.centralProductId}
+          label={candidate.displayName}
+          detail={`${candidate.categoryName} - produto parecido`}
+          onPress={() => onCreated(productCatalogItemToLocalRecord(candidate))}
+        />
+      ))}
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
       <PrimaryAction
         label={captureCopy.createProduct}

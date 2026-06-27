@@ -1,27 +1,34 @@
-import type {
-  AlertDeliveryResult,
-  ActiveTaskSnippet,
-  AuditTimelineItem,
-  CaptureLotInput,
-  CaptureProductInput,
-  CentralLotSnippet,
-  CentralProductSnippet,
-  DevicePushRegistrationCommand,
-  FutureAttentionRecord,
-  MarkdownWorkflowRecord,
-  OfflineActionCommand,
-  OfflineCacheStatus,
-  PhysicalObservationInput,
-  PrepareTurnCacheStatus,
-  PrepareTurnResponse,
-  PushOpenIntent,
-  SyncCommandRecord,
-  SyncConflictRecord,
-  SyncQueueSummary,
-  SyncTransportResult,
-  TaskAlertStateRecord,
-  TaskResolutionCommand,
-  TodayTaskRecord,
+import {
+  ProductDraftCreateResponseSchema,
+  ProductSearchResponseSchema,
+  type ProductCatalogItem,
+  type ProductDraftCreateRequest,
+  type ProductDraftReviewState,
+  type ProductSearchCandidate,
+  type ProductSearchRequest,
+  type AlertDeliveryResult,
+  type ActiveTaskSnippet,
+  type AuditTimelineItem,
+  type CaptureLotInput,
+  type CaptureProductInput,
+  type CentralLotSnippet,
+  type CentralProductSnippet,
+  type DevicePushRegistrationCommand,
+  type FutureAttentionRecord,
+  type MarkdownWorkflowRecord,
+  type OfflineActionCommand,
+  type OfflineCacheStatus,
+  type PhysicalObservationInput,
+  type PrepareTurnCacheStatus,
+  type PrepareTurnResponse,
+  type PushOpenIntent,
+  type SyncCommandRecord,
+  type SyncConflictRecord,
+  type SyncQueueSummary,
+  type SyncTransportResult,
+  type TaskAlertStateRecord,
+  type TaskResolutionCommand,
+  type TodayTaskRecord,
 } from "@validade-zero/contracts";
 import {
   canStartMarkdownWorkflow,
@@ -88,6 +95,8 @@ import {
   parseOfflineCacheStatus,
   parsePrepareTurnCacheStatus,
   parsePrepareTurnResponse,
+  parseProductDraftCreateRequest,
+  parseProductSearchRequest,
   parseSyncCommandRecord,
   parseSyncConflictRecord,
   parseSyncQueueSummary,
@@ -175,6 +184,189 @@ export function createMemoryCaptureRepository(
     products.set(record.id, record);
 
     return Promise.resolve(record);
+  }
+
+  function searchCentralProducts(input: ProductSearchRequest) {
+    const request = parseProductSearchRequest(input);
+    const normalizedQuery =
+      request.query === undefined ? undefined : normalizeProductLookup(request.query);
+    const catalogProducts = [...products.values()].map(localProductToCatalogItem);
+    const exact = catalogProducts.filter(
+      (product) =>
+        (normalizedQuery !== undefined && product.normalizedKey === normalizedQuery) ||
+        (request.gtin !== undefined && product.gtin === request.gtin),
+    );
+    const reusableProducts = exact
+      .filter((product) => product.reviewStatus === "validated")
+      .map((product) => productSearchCandidate(product, "reusable_central"));
+    const draft = exact.find((product) => product.reviewStatus === "pending_review");
+    const similarCandidates = catalogProducts
+      .filter(
+        (product) =>
+          !exact.some((candidate) => candidate.centralProductId === product.centralProductId) &&
+          isSimilarProduct(product.normalizedKey, normalizedQuery),
+      )
+      .slice(0, 10)
+      .map((product) => productSearchCandidate(product, "similar_candidate"));
+
+    return Promise.resolve(
+      ProductSearchResponseSchema.parse({
+        requestId: `mobile-search-${dependencies.clock()}`,
+        ...(normalizedQuery === undefined ? {} : { normalizedQuery }),
+        resultState:
+          reusableProducts.length > 0
+            ? "reuse_available"
+            : draft !== undefined
+              ? "draft_pending_review"
+              : similarCandidates.length > 0
+                ? "similar_requires_review"
+                : "no_safe_reuse",
+        reusableProducts,
+        similarCandidates,
+        ...(draft === undefined
+          ? {}
+          : {
+              draft: {
+                draftId: draft.centralProductId,
+                centralProductId: draft.centralProductId,
+                displayName: draft.displayName,
+                normalizedKey: draft.normalizedKey,
+                categoryId: draft.categoryId,
+                categoryName: draft.categoryName,
+                categoryRuleProfile: draft.categoryRuleProfile,
+                source: "draft_pending_review",
+                reviewStatus: "pending_review",
+                syncState: draft.syncState,
+                requestedByLabel: "Este aparelho",
+                requestedAt: draft.updatedAt,
+                similarCandidates: [],
+                ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+              },
+            }),
+      }),
+    );
+  }
+
+  function createProductDraft(input: ProductDraftCreateRequest) {
+    const request = parseProductDraftCreateRequest(input);
+    const normalizedName = normalizeProductLookup(request.displayName);
+    const catalogProducts = [...products.values()].map(localProductToCatalogItem);
+    const exact = catalogProducts.find(
+      (product) =>
+        product.normalizedKey === normalizedName ||
+        (request.gtin !== undefined && product.gtin === request.gtin),
+    );
+
+    if (exact !== undefined) {
+      if (exact.reviewStatus === "pending_review") {
+        const draft = {
+          draftId: exact.centralProductId,
+          centralProductId: exact.centralProductId,
+          displayName: exact.displayName,
+          normalizedKey: exact.normalizedKey,
+          categoryId: exact.categoryId,
+          categoryName: exact.categoryName,
+          categoryRuleProfile: exact.categoryRuleProfile,
+          source: "draft_pending_review" as const,
+          reviewStatus: "pending_review" as const,
+          syncState: "pending_central" as const,
+          requestedByLabel: "Este aparelho",
+          requestedAt: exact.updatedAt,
+          similarCandidates: [],
+          ...(exact.gtin === undefined ? {} : { gtin: exact.gtin }),
+        };
+
+        return Promise.resolve(
+          ProductDraftCreateResponseSchema.parse({
+            requestId: `mobile-draft-${dependencies.clock()}`,
+            normalizedKey: normalizedName,
+            outcome: "draft_pending_review",
+            similarCandidates: [],
+            draft,
+            acknowledgement: {
+              acknowledgementId: `ack-${exact.centralProductId}`,
+              centralProductId: exact.centralProductId,
+              state: "draft_pending_review",
+              syncState: "pending_central",
+              reviewStatus: "pending_review",
+              acknowledgedAt: exact.updatedAt,
+            },
+          }),
+        );
+      }
+
+      return Promise.resolve(
+        ProductDraftCreateResponseSchema.parse({
+          requestId: `mobile-draft-${dependencies.clock()}`,
+          normalizedKey: normalizedName,
+          outcome: "reuse_existing",
+          duplicateReason:
+            request.gtin !== undefined && exact.gtin === request.gtin ? "gtin" : "normalized_name",
+          reusableProduct: exact,
+          similarCandidates: [],
+        }),
+      );
+    }
+
+    const acknowledged = new Set(request.similarCandidateIds ?? []);
+    const similarCandidates = catalogProducts
+      .filter((product) => isSimilarProduct(product.normalizedKey, normalizedName))
+      .slice(0, 10)
+      .map((product) => productSearchCandidate(product, "similar_candidate"));
+
+    if (
+      similarCandidates.length > 0 &&
+      !similarCandidates.every((candidate) => acknowledged.has(candidate.centralProductId))
+    ) {
+      return Promise.resolve(
+        ProductDraftCreateResponseSchema.parse({
+          requestId: `mobile-draft-${dependencies.clock()}`,
+          normalizedKey: normalizedName,
+          outcome: "similar_found",
+          similarCandidates,
+        }),
+      );
+    }
+
+    const record: CaptureProductRecord = {
+      displayName: request.displayName,
+      categoryId: request.categoryId,
+      categoryName: request.categoryName,
+      categoryRuleProfile: request.categoryRuleProfile,
+      ...(request.gtin === undefined ? {} : { gtin: request.gtin }),
+      id: nextGeneratedId(dependencies),
+      normalizedName,
+      createdAt: request.requestedAt,
+      centralProductId: `draft:${normalizedName}`,
+      catalogSource: "draft_pending_review",
+      reviewStatus: "pending_review",
+      centralSyncState: "pending_central",
+      draftId: `draft:${normalizedName}`,
+      draftReviewMessage:
+        "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+      similarCandidateCount: similarCandidates.length,
+    };
+    products.set(record.id, record);
+    const draft = productDraftToLocalRecordToDraft(record, similarCandidates);
+
+    return Promise.resolve(
+      ProductDraftCreateResponseSchema.parse({
+        requestId: `mobile-draft-${dependencies.clock()}`,
+        normalizedKey: normalizedName,
+        outcome: "draft_pending_review",
+        similarCandidates,
+        draft,
+        acknowledgement: {
+          acknowledgementId: `ack-${record.id}`,
+          centralProductId: draft.centralProductId,
+          state: "draft_pending_review",
+          syncState: "pending_central",
+          reviewStatus: "pending_review",
+          acknowledgedAt: request.requestedAt,
+          message: record.draftReviewMessage,
+        },
+      }),
+    );
   }
 
   function findProducts(query: string): Promise<readonly CaptureProductRecord[]> {
@@ -1388,6 +1580,8 @@ export function createMemoryCaptureRepository(
     initialize,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
+    searchCentralProducts,
+    createProductDraft,
     createProduct,
     findProducts,
     listFrequentProducts,
@@ -1438,11 +1632,83 @@ export function createMemoryCaptureRepository(
     return {
       displayName: product.displayName,
       categoryId: product.categoryId,
+      categoryName: product.categoryName,
       categoryRuleProfile: product.categoryRuleProfile,
       ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
       id: product.centralProductId,
+      centralProductId: product.centralProductId,
       normalizedName: normalizeProductLookup(product.displayName),
       createdAt: product.updatedAt,
+      catalogSource: product.status === "draft" ? "draft_pending_review" : "central",
+      reviewStatus:
+        product.status === "draft"
+          ? "pending_review"
+          : product.status === "rejected"
+            ? "rejected"
+            : product.status === "archived"
+              ? "discarded"
+              : "validated",
+      centralSyncState: product.state,
+    };
+  }
+
+  function localProductToCatalogItem(product: CaptureProductRecord): ProductCatalogItem {
+    return {
+      centralProductId: product.centralProductId ?? product.id,
+      displayName: product.displayName,
+      normalizedKey: product.normalizedName,
+      categoryId: product.categoryId,
+      categoryName: product.categoryName ?? product.categoryId,
+      categoryRuleProfile: product.categoryRuleProfile,
+      source: product.catalogSource === "draft_pending_review" ? "draft_pending_review" : "central",
+      reviewStatus: product.reviewStatus ?? "validated",
+      syncState: product.centralSyncState ?? "synchronized",
+      updatedAt: product.createdAt,
+      ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    };
+  }
+
+  function productSearchCandidate(
+    product: ProductCatalogItem,
+    matchKind: ProductSearchCandidate["matchKind"],
+  ): ProductSearchCandidate {
+    return {
+      ...product,
+      matchKind,
+      matchReasons:
+        matchKind === "similar_candidate" ? ["similar_name"] : ["exact_normalized_name"],
+      ...(matchKind === "similar_candidate"
+        ? { warning: "Produto parecido encontrado. Reutilize se for o mesmo item." }
+        : {}),
+    };
+  }
+
+  function isSimilarProduct(productKey: string, requestedKey: string | undefined): boolean {
+    if (requestedKey === undefined) return false;
+    const tokens = requestedKey.split(" ").filter((token) => token.length >= 3);
+
+    return tokens.some((token) => productKey.includes(token));
+  }
+
+  function productDraftToLocalRecordToDraft(
+    record: CaptureProductRecord,
+    similarCandidates: readonly ProductSearchCandidate[],
+  ): ProductDraftReviewState {
+    return {
+      draftId: record.draftId ?? record.id,
+      centralProductId: record.centralProductId ?? record.id,
+      displayName: record.displayName,
+      normalizedKey: record.normalizedName,
+      categoryId: record.categoryId,
+      categoryName: record.categoryName ?? record.categoryId,
+      categoryRuleProfile: record.categoryRuleProfile,
+      source: "draft_pending_review",
+      reviewStatus: "pending_review",
+      syncState: "pending_central",
+      requestedByLabel: "Este aparelho",
+      requestedAt: record.createdAt,
+      similarCandidates: [...similarCandidates],
+      ...(record.gtin === undefined ? {} : { gtin: record.gtin }),
     };
   }
 

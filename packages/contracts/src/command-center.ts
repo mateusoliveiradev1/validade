@@ -62,6 +62,18 @@ export const CommandCenterMarkdownSchema = z
   })
   .strict();
 
+export const CommandCenterProductDraftSchema = z
+  .object({
+    draftId: IdentifierSchema,
+    label: RequiredTextSchema,
+    reviewStatus: z.enum(["pending_review", "rejected", "discarded"]),
+    detail: RequiredTextSchema,
+    similarCount: z.number().int().nonnegative(),
+    requestedByLabel: RequiredTextSchema,
+    createdAt: IsoDateTimeSchema,
+  })
+  .strict();
+
 export const CommandCenterEvidenceSchema = z
   .object({
     assetId: IdentifierSchema,
@@ -106,6 +118,7 @@ export const CommandCenterProjectionSchema = z
     criticalLots: z.array(CommandCenterCriticalLotSchema),
     overdueTasks: z.array(CommandCenterTaskSchema),
     pendingMarkdowns: z.array(CommandCenterMarkdownSchema),
+    pendingProductDrafts: z.array(CommandCenterProductDraftSchema),
     pendingEvidence: z.array(CommandCenterEvidenceSchema),
     syncConflicts: z.array(CommandCenterSyncConflictSchema),
     pendingShiftCloses: z.array(CommandCenterPendingShiftSchema),

@@ -13,6 +13,8 @@ import {
   PhysicalObservationInputSchema,
   PrepareTurnCacheStatusSchema,
   PrepareTurnResponseSchema,
+  ProductDraftCreateRequestSchema,
+  ProductSearchRequestSchema,
   PushOpenIntentSchema,
   SyncCommandRecordSchema,
   SyncConflictRecordSchema,
@@ -42,6 +44,12 @@ import {
   type PhysicalObservationInput,
   type PrepareTurnCacheStatus,
   type PrepareTurnResponse,
+  type ProductCatalogItem,
+  type ProductDraftCreateRequest,
+  type ProductDraftCreateResponse,
+  type ProductDraftReviewState,
+  type ProductSearchRequest,
+  type ProductSearchResponse,
   type PushOpenIntent,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -82,6 +90,20 @@ export type CaptureProductRecord = CaptureProductInput & {
   id: string;
   normalizedName: string;
   createdAt: string;
+  centralProductId?: string;
+  catalogSource?: "central" | "draft_pending_review" | "local";
+  reviewStatus?: "validated" | "pending_review" | "rejected" | "discarded";
+  centralSyncState?:
+    | "local"
+    | "pending_central"
+    | "synchronized"
+    | "conflict"
+    | "discarded"
+    | "resolved";
+  draftId?: string;
+  categoryName?: string;
+  draftReviewMessage?: string;
+  similarCandidateCount?: number;
 };
 
 export interface CaptureProductCategory {
@@ -260,6 +282,8 @@ export interface CaptureRepository {
   initialize(): Promise<void>;
   hydratePrepareTurn?: (response: PrepareTurnResponse) => Promise<void>;
   loadPrepareTurnCacheStatus?: () => Promise<PrepareTurnCacheStatus | null>;
+  searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;
+  createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
   findProducts(query: string): Promise<readonly CaptureProductRecord[]>;
   listFrequentProducts?: () => Promise<readonly CaptureProductRecord[]>;
@@ -339,6 +363,53 @@ export function normalizeProductLookup(value: string): string {
 
 export function parseProductInput(input: CaptureProductInput): CaptureProductInput {
   return CaptureProductInputSchema.parse(input);
+}
+
+export function parseProductSearchRequest(input: ProductSearchRequest): ProductSearchRequest {
+  return ProductSearchRequestSchema.parse(input);
+}
+
+export function parseProductDraftCreateRequest(
+  input: ProductDraftCreateRequest,
+): ProductDraftCreateRequest {
+  return ProductDraftCreateRequestSchema.parse(input);
+}
+
+export function productCatalogItemToLocalRecord(product: ProductCatalogItem): CaptureProductRecord {
+  return {
+    displayName: product.displayName,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName,
+    categoryRuleProfile: product.categoryRuleProfile,
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    id: product.centralProductId,
+    centralProductId: product.centralProductId,
+    normalizedName: product.normalizedKey,
+    createdAt: product.updatedAt,
+    catalogSource: product.source,
+    reviewStatus: product.reviewStatus,
+    centralSyncState: product.syncState,
+  };
+}
+
+export function productDraftToLocalRecord(draft: ProductDraftReviewState): CaptureProductRecord {
+  return {
+    displayName: draft.displayName,
+    categoryId: draft.categoryId,
+    categoryName: draft.categoryName,
+    categoryRuleProfile: draft.categoryRuleProfile,
+    ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+    id: draft.centralProductId,
+    centralProductId: draft.centralProductId,
+    normalizedName: draft.normalizedKey,
+    createdAt: draft.requestedAt,
+    catalogSource: "draft_pending_review",
+    reviewStatus: draft.reviewStatus,
+    centralSyncState: draft.syncState,
+    draftId: draft.draftId,
+    draftReviewMessage: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+    similarCandidateCount: draft.similarCandidates.length,
+  };
 }
 
 export function parseLotInput(input: CaptureLotInput): CaptureLotInput {

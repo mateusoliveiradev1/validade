@@ -56,6 +56,7 @@ export const AuditTargetTypeSchema = z.enum([
   "sync_command",
   "access_request",
   "membership",
+  "product",
 ]);
 
 export const AuditProducerKindSchema = z.enum([

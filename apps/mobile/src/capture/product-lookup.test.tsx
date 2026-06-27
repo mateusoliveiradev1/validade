@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMemoryCaptureRepository } from "./memory-repository";
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
 import { ProductFormScreen } from "./ProductFormScreen";
+import type { CaptureProductRecord } from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -82,7 +83,7 @@ describe("manual product discovery", () => {
     });
 
     act(() => {
-      getInput(tree!, "Buscar produto por nome ou código").props.onChangeText("OVOS");
+      getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText("OVOS");
     });
 
     await act(async () => {
@@ -102,7 +103,7 @@ describe("manual product discovery", () => {
     expect(confirmed).toEqual([]);
 
     act(() => {
-      press(tree!, "Confirmar produto");
+      press(tree!, "Usar este produto");
     });
 
     expect(confirmed).toHaveLength(1);
@@ -127,7 +128,9 @@ describe("manual product discovery", () => {
     });
 
     act(() => {
-      getInput(tree!, "Buscar produto por nome ou código").props.onChangeText("7890000000001");
+      getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText(
+        "7890000000001",
+      );
     });
 
     await act(async () => {
@@ -137,7 +140,7 @@ describe("manual product discovery", () => {
     });
 
     act(() => {
-      press(tree!, "Cadastrar produto");
+      press(tree!, "Criar rascunho operacional");
     });
 
     expect(openProductFormWith).toBe("7890000000001");
@@ -157,6 +160,57 @@ describe("manual product discovery", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Quantidade aproximada");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Data de validade");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Local inicial");
+  });
+
+  it("shows similar central products before creating an operational draft", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await repository.createProduct({
+      displayName: "Banana Prata Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    const created: CaptureProductRecord[] = [];
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <ProductFormScreen
+          repository={repository}
+          onCreated={(product) => created.push(product)}
+          onBack={() => undefined}
+        />,
+      );
+    });
+
+    act(() => {
+      getInput(tree!, "Nome do produto").props.onChangeText("Banana Nanica Exemplo FICTICIA");
+      getInput(tree!, "Categoria").props.onChangeText("categoria-ficticia-frutas");
+    });
+
+    await act(async () => {
+      press(tree!, "Criar rascunho operacional");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree!.toJSON())).toContain("Produtos parecidos encontrados");
+    expect(JSON.stringify(tree!.toJSON())).toContain("Banana Prata Exemplo FICTICIA");
+    expect(created).toEqual([]);
+
+    await act(async () => {
+      press(tree!, "Criar rascunho operacional");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(created).toHaveLength(1);
+    expect(created[0]?.reviewStatus).toBe("pending_review");
+    expect(created[0]?.draftReviewMessage).toContain("risco conservador");
   });
 
   it("opens existing lots from the Recents shortcut instead of only showing a hint", () => {
@@ -243,7 +297,7 @@ describe("manual product discovery", () => {
       press(tree!, "Banana Prata Exemplo FICTICIA");
     });
     act(() => {
-      press(tree!, "Confirmar produto");
+      press(tree!, "Usar este produto");
     });
     expect(confirmed).toEqual([frequentProduct.id]);
 

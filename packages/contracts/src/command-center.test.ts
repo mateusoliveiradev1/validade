@@ -37,6 +37,7 @@ describe("Command Center contracts", () => {
       ],
       overdueTasks: [],
       pendingMarkdowns: [],
+      pendingProductDrafts: [],
       pendingEvidence: [],
       syncConflicts: [],
       pendingShiftCloses: [],

@@ -40,6 +40,7 @@ export function createInMemoryCommandCenterService(input?: {
           criticalLots: [],
           overdueTasks: [],
           pendingMarkdowns: [],
+          pendingProductDrafts: [],
           pendingEvidence: [],
           syncConflicts: [],
           pendingShiftCloses: [],
@@ -80,6 +81,7 @@ export function createAuditBackedCommandCenterService(input: {
           criticalLots: [],
           overdueTasks: [],
           pendingMarkdowns: [],
+          pendingProductDrafts: [],
           pendingEvidence: [],
           syncConflicts: [],
           pendingShiftCloses: [],
@@ -102,6 +104,12 @@ export function createAuditBackedCommandCenterService(input: {
           "confirm_markdown_on_shelf",
         ].includes(metadataText(event, "commandKind") ?? ""),
       );
+      const pendingProductDraftEvents = syncEvents.filter(
+        (event) =>
+          event.target.type === "product" &&
+          metadataText(event, "action") === "product.draft_created" &&
+          metadataText(event, "reviewStatus") === "pending_review",
+      );
       const criticalEvents = [...retryEvents, ...conflictEvents].filter((event) =>
         ["expired", "critical"].includes(metadataText(event, "riskState") ?? ""),
       );
@@ -114,12 +122,14 @@ export function createAuditBackedCommandCenterService(input: {
               detail:
                 "O mobile enviou uma acao, mas a leitura central pediu revisao antes de considerar a area segura.",
             }
-          : retryEvents.length > 0 || pendingMarkdownEvents.length > 0
+          : retryEvents.length > 0 ||
+              pendingMarkdownEvents.length > 0 ||
+              pendingProductDraftEvents.length > 0
             ? {
                 state: "needs_review" as const,
                 title: "Mobile sincronizado com pendencias operacionais",
                 detail:
-                  "O Command Center recebeu dados do app, mas ainda ha rebaixa, retry ou conferencia pendente.",
+                  "O Command Center recebeu dados do app, mas ainda ha produto, rebaixa, retry ou conferencia pendente.",
               }
             : {
                 state: "safe" as const,
@@ -160,6 +170,18 @@ export function createAuditBackedCommandCenterService(input: {
           })),
           (item) => item.markdownId,
         ),
+        pendingProductDrafts: uniqueBy(
+          pendingProductDraftEvents.map((event) => ({
+            draftId: event.target.id,
+            label: event.target.label ?? "Produto em revisao",
+            reviewStatus: "pending_review" as const,
+            detail: productDraftDetail(event),
+            similarCount: metadataNumber(event, "similarCandidateCount") ?? 0,
+            requestedByLabel: event.actor.displayName,
+            createdAt: event.occurredAt,
+          })),
+          (item) => item.draftId,
+        ),
         pendingEvidence: [],
         syncConflicts: conflictEvents.map((event) => ({
           conflictId: metadataText(event, "conflictId") ?? event.eventId,
@@ -176,6 +198,21 @@ export function createAuditBackedCommandCenterService(input: {
 function metadataText(event: AuditTimelineItem, key: string): string | undefined {
   const value = event.metadata[key];
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function metadataNumber(event: AuditTimelineItem, key: string): number | undefined {
+  const value = event.metadata[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function productDraftDetail(event: AuditTimelineItem): string {
+  const similarCount = metadataNumber(event, "similarCandidateCount") ?? 0;
+
+  if (similarCount === 0) {
+    return "Rascunho criado no mobile e aguardando validacao central antes de virar catalogo.";
+  }
+
+  return `${similarCount} produto(s) parecido(s) revisados antes do rascunho central.`;
 }
 
 function criticalLotReason(event: AuditTimelineItem): string {
