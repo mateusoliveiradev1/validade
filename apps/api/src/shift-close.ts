@@ -12,7 +12,9 @@ import {
   type ShiftClosureSnapshot,
   type ShiftHandoffAcknowledgementRequest,
   type ShiftHandoffReceipt,
+  type PrepareTurnResponse,
 } from "@validade-zero/contracts";
+import type { CaptureRepository } from "@validade-zero/database/capture-repository";
 import {
   createNeonShiftCloseRepository,
   type ShiftCloseRepository,
@@ -22,12 +24,17 @@ import {
 import {
   evaluateShiftClose,
   type AuthorizedActorContext,
+  type ShiftCloseChecklistKey,
   type ShiftCloseEvaluationInput,
 } from "@validade-zero/domain";
 import type { AuditEventRepository } from "./audit";
 
 export interface ShiftCloseRevalidator {
-  evaluate(input: { storeId: string }): Promise<ShiftCloseEvaluation>;
+  evaluate(input: {
+    storeId: string;
+    storeName?: string;
+    checklist?: readonly ShiftCloseChecklistKey[];
+  }): Promise<ShiftCloseEvaluation>;
 }
 
 export interface ShiftCloseService {
@@ -105,8 +112,69 @@ export function createStaticShiftCloseRevalidator(
   input: ShiftCloseEvaluationInput,
 ): ShiftCloseRevalidator {
   return {
-    evaluate() {
-      return Promise.resolve(ShiftCloseEvaluationSchema.parse(evaluateShiftClose(input)));
+    evaluate(request) {
+      const checklist = request.checklist ?? input.checklist;
+      const evaluationInput = checklist === undefined ? input : { ...input, checklist };
+
+      return Promise.resolve(ShiftCloseEvaluationSchema.parse(evaluateShiftClose(evaluationInput)));
+    },
+  };
+}
+
+export function createCentralCaptureShiftCloseRevalidator(input: {
+  captureRepository: CaptureRepository;
+  now?: () => Date;
+}): ShiftCloseRevalidator {
+  const now = input.now ?? (() => new Date());
+
+  return {
+    async evaluate(request) {
+      const requestedAt = now().toISOString();
+
+      try {
+        const prepared = await input.captureRepository.prepareTurn({
+          requestId: `shift-close:${sanitizeIdentifier(request.storeId)}:${sanitizeIdentifier(requestedAt)}`,
+          storeId: request.storeId,
+          storeName: request.storeName ?? request.storeId,
+          actorId: "shift-close-revalidator",
+          actorDisplayName: "Revalidacao de fechamento",
+          actorRoleSnapshot: "lead",
+          request: {
+            deviceId: "shift-close-api",
+            requestedAt,
+            appVersion: "api-shift-close",
+            localSnapshot: {
+              knownProductCount: 0,
+              knownLotCount: 0,
+              pendingCommandCount: 0,
+            },
+          },
+        });
+
+        return ShiftCloseEvaluationSchema.parse(
+          evaluateShiftClose(shiftCloseInputFromPreparedTurn(prepared, request.checklist)),
+        );
+      } catch {
+        const fallbackInput: ShiftCloseEvaluationInput = {
+          cacheState: "offline_unavailable",
+          tasks: [],
+          ...(request.checklist === undefined ? {} : { checklist: request.checklist }),
+          central: {
+            source: "unavailable",
+            readiness: "blocked",
+            hasCurrentRead: false,
+            hasCentralFacts: false,
+            activeTaskCount: 0,
+            pendingProductDraftCount: 0,
+            conflictCount: 0,
+            discardedActionCount: 0,
+            pendingCommandCount: 0,
+            storeBlockerCount: 1,
+          },
+        };
+
+        return ShiftCloseEvaluationSchema.parse(evaluateShiftClose(fallbackInput));
+      }
     },
   };
 }
@@ -134,7 +202,11 @@ export function createShiftCloseService(input: {
       const request = ShiftCloseRequestSchema.parse(inputValue.request);
       assertActorStore(inputValue.actorContext, request.storeId);
       const evaluation = ShiftCloseEvaluationSchema.parse(
-        await revalidator.evaluate({ storeId: request.storeId }),
+        await revalidator.evaluate({
+          storeId: request.storeId,
+          storeName: inputValue.actorContext.membership.storeName,
+          checklist: request.checklist,
+        }),
       );
 
       if (request.verdict === "safe" && evaluation.eligibility !== "eligible_safe") {
@@ -292,6 +364,63 @@ export function createShiftCloseService(input: {
       }
 
       return { closure: toSnapshot(result.closure), replayed: result.replayed };
+    },
+  };
+}
+
+function shiftCloseInputFromPreparedTurn(
+  prepared: PrepareTurnResponse,
+  checklist: readonly ShiftCloseChecklistKey[] | undefined,
+): ShiftCloseEvaluationInput {
+  const conflictCount = prepared.conflicts.filter(
+    (conflict) => conflict.state === "conflict",
+  ).length;
+  const discardedActionCount = prepared.conflicts.filter(
+    (conflict) => conflict.state === "discarded",
+  ).length;
+  const hasCentralFacts =
+    prepared.products.length +
+      prepared.lots.length +
+      prepared.activeTasks.length +
+      prepared.resolvedHistory.length +
+      prepared.conflicts.length >
+    0;
+  const hasCurrentRead =
+    prepared.store.source === "central" &&
+    prepared.store.centralReadAt !== undefined &&
+    prepared.store.readiness === "prepared" &&
+    prepared.cache.state === "ready";
+
+  return {
+    cacheState:
+      prepared.cache.state === "unavailable"
+        ? "offline_unavailable"
+        : prepared.cache.state === "stale"
+          ? "offline_stale"
+          : "offline_ready",
+    tasks: prepared.activeTasks.map((task) => ({
+      id: task.centralTaskId,
+      status: "active",
+      riskState: task.riskState,
+      severity: task.severity,
+      requiredResolution: task.requiredResolution,
+    })),
+    evidence: [],
+    ...(checklist === undefined ? {} : { checklist }),
+    central: {
+      source: prepared.store.source,
+      readiness: prepared.store.readiness,
+      hasCurrentRead,
+      hasCentralFacts,
+      activeTaskCount: prepared.activeTasks.length,
+      pendingProductDraftCount: prepared.products.filter(
+        (product) => product.status === "draft" || product.status === "rejected",
+      ).length,
+      conflictCount,
+      discardedActionCount,
+      pendingCommandCount: prepared.device.pendingCommandCount,
+      storeBlockerCount:
+        prepared.store.blockers.length + (prepared.cache.state === "ready" ? 0 : 1),
     },
   };
 }

@@ -18,14 +18,14 @@ export function ShiftCloseReceipt({
   const isPending = pendingUnsafeClose !== undefined;
   const isSafe = closure?.verdict === "safe";
   const title = isPending
-    ? "Fechamento inseguro salvo neste aparelho"
+    ? "Fechamento inseguro pendente de sincronizacao"
     : isSafe
-      ? "Turno encerrado com área segura"
+      ? "Turno aceito pela central com area segura"
       : "Turno encerrado com pendências";
   const body = isPending
-    ? "A passagem ainda aguarda sincronização. As tarefas e cobranças continuam ativas."
+    ? "A passagem foi salva localmente, ainda nao foi aceita pela central e nao resolve tarefas ou alertas."
     : isSafe
-      ? "A validação central confirmou o checklist e a ausência de bloqueios."
+      ? "A validacao central reconsultou a captura do turno, confirmou o checklist e nao encontrou bloqueios."
       : "A passagem foi registrada sem esconder as pendências operacionais.";
   const continuityOwner = pendingUnsafeClose?.request.continuityOwner ?? closure?.continuityOwner;
   const deadline = pendingUnsafeClose?.request.continuityDeadline ?? closure?.continuityDeadline;

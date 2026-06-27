@@ -91,7 +91,9 @@ describe("ShiftCloseScreen", () => {
         .props.onPress();
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("Fechamento inseguro salvo neste aparelho");
+    expect(JSON.stringify(tree!.toJSON())).toContain(
+      "Fechamento inseguro pendente de sincronizacao",
+    );
     expect(queueUnsafeShiftClose).toHaveBeenCalledTimes(1);
   });
 

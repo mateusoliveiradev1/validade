@@ -71,7 +71,7 @@ describe("shift close contracts", () => {
         },
         occurredAt: base.occurredAt,
         receivedAt: "2030-01-10T18:00:01.000Z",
-        ruleVersion: "phase-08-v1",
+        ruleVersion: "phase-10-central-v1",
         reason: "Risco vencido ainda em conferência.",
         continuityOwner: "Lideranca Ficticia Noturna",
         continuityDeadline: "2030-01-10T19:00:00.000Z",

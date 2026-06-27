@@ -21,17 +21,22 @@ export type ShiftCloseChecklistKey = (typeof SHIFT_CLOSE_CHECKLIST_KEYS)[number]
 export const SHIFT_CLOSE_BLOCKER_CODES = [
   "expired_or_critical_risk",
   "open_sales_area_recheck",
+  "central_capture_not_ready",
+  "central_active_tasks",
+  "central_product_review_pending",
+  "central_discarded_action",
   "critical_sync_conflict",
   "critical_pending_sync",
   "offline_cache_stale",
   "offline_cache_unavailable",
   "offline_mode_requires_central_revalidation",
   "required_evidence_pending",
+  "pending_unsafe_close_sync",
   "incomplete_checklist",
 ] as const;
 export type ShiftCloseBlockerCode = (typeof SHIFT_CLOSE_BLOCKER_CODES)[number];
 
-export const SHIFT_CLOSE_RULE_VERSION = "phase-08-v1" as const;
+export const SHIFT_CLOSE_RULE_VERSION = "phase-10-central-v1" as const;
 
 export interface ShiftCloseTaskState {
   id: string;
@@ -59,6 +64,19 @@ export interface ShiftCloseEvidenceState {
   state: "waiting_upload" | "uploading" | "failed" | "uploaded" | "invalidated" | "expired";
 }
 
+export interface ShiftCloseCentralState {
+  source: "central" | "local_cache" | "pending_central" | "unavailable";
+  readiness: "needs_review" | "cache_ready" | "prepared" | "blocked";
+  hasCurrentRead: boolean;
+  hasCentralFacts: boolean;
+  activeTaskCount: number;
+  pendingProductDraftCount: number;
+  conflictCount: number;
+  discardedActionCount: number;
+  pendingCommandCount: number;
+  storeBlockerCount: number;
+}
+
 export interface ShiftCloseBlocker {
   code: ShiftCloseBlockerCode;
   label: string;
@@ -71,6 +89,8 @@ export interface ShiftCloseEvaluationInput {
   syncCommands?: readonly ShiftCloseSyncState[];
   evidence?: readonly ShiftCloseEvidenceState[];
   checklist?: readonly ShiftCloseChecklistKey[];
+  central?: ShiftCloseCentralState;
+  pendingUnsafeCloseCount?: number;
 }
 
 export interface ShiftCloseEvaluation {
@@ -83,6 +103,62 @@ export interface ShiftCloseEvaluation {
 export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftCloseEvaluation {
   const blockers: ShiftCloseBlocker[] = [];
   const activeTasks = input.tasks.filter((task) => task.status === "active");
+  const central = input.central;
+
+  if (
+    central !== undefined &&
+    (central.source !== "central" ||
+      central.readiness !== "prepared" ||
+      !central.hasCurrentRead ||
+      !central.hasCentralFacts ||
+      central.storeBlockerCount > 0)
+  ) {
+    blockers.push({
+      code: "central_capture_not_ready",
+      label: "A leitura central ainda nao confirma a seguranca da area de venda.",
+      actionLabel: "Preparar turno pela central",
+    });
+  }
+
+  if (central !== undefined && central.activeTaskCount > 0) {
+    blockers.push({
+      code: "central_active_tasks",
+      label: "Ha tarefas centrais ativas antes do fechamento.",
+      actionLabel: "Resolver tarefas ativas",
+    });
+  }
+
+  if (central !== undefined && central.pendingProductDraftCount > 0) {
+    blockers.push({
+      code: "central_product_review_pending",
+      label: "Ha produto em rascunho aguardando revisao central.",
+      actionLabel: "Revisar cadastro pendente",
+    });
+  }
+
+  if (central !== undefined && central.conflictCount > 0) {
+    blockers.push({
+      code: "critical_sync_conflict",
+      label: "Ha conflito central aguardando revisao.",
+      actionLabel: "Revisar conflitos",
+    });
+  }
+
+  if (central !== undefined && central.discardedActionCount > 0) {
+    blockers.push({
+      code: "central_discarded_action",
+      label: "Ha acao local descartada pela central que precisa de ciencia operacional.",
+      actionLabel: "Revisar descarte central",
+    });
+  }
+
+  if (central !== undefined && central.pendingCommandCount > 0) {
+    blockers.push({
+      code: "critical_pending_sync",
+      label: "Ha acao local ainda sem confirmacao central.",
+      actionLabel: "Sincronizar acoes",
+    });
+  }
 
   if (activeTasks.some((task) => task.riskState === "expired" || task.severity === "critical")) {
     blockers.push({
@@ -161,6 +237,14 @@ export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftClose
     });
   }
 
+  if ((input.pendingUnsafeCloseCount ?? 0) > 0) {
+    blockers.push({
+      code: "pending_unsafe_close_sync",
+      label: "Ha fechamento inseguro local aguardando sincronizacao.",
+      actionLabel: "Sincronizar passagem pendente",
+    });
+  }
+
   const checklistComplete = hasCompleteShiftCloseChecklist(input.checklist ?? []);
   if (!checklistComplete) {
     blockers.push({
@@ -175,6 +259,7 @@ export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftClose
       "offline_cache_stale",
       "offline_cache_unavailable",
       "offline_mode_requires_central_revalidation",
+      "central_capture_not_ready",
     ].includes(blocker.code),
   );
 

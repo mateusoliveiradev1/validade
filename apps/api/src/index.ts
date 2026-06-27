@@ -118,6 +118,7 @@ import {
 } from "./evidence";
 import { createMembershipService, type MembershipService } from "./memberships";
 import {
+  createCentralCaptureShiftCloseRevalidator,
   createDatabaseShiftCloseRepository,
   createInMemoryShiftCloseRepository,
   createShiftCloseService,
@@ -276,9 +277,9 @@ export function createApiApp(input?: {
     createShiftCloseService({
       repository: shiftCloseRepository,
       auditRepository,
-      ...(input?.shiftCloseRevalidator === undefined
-        ? {}
-        : { revalidator: input.shiftCloseRevalidator }),
+      revalidator:
+        input?.shiftCloseRevalidator ??
+        createCentralCaptureShiftCloseRevalidator({ captureRepository, now }),
       now,
     });
 

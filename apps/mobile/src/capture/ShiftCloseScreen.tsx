@@ -55,7 +55,8 @@ export function ShiftCloseScreen({
       repository.listEvidenceUploads(),
       repository.listShiftCloseOutbox?.() ?? Promise.resolve([]),
     ]);
-    setPendingUnsafeClose(outbox.find((item) => item.state !== "synced"));
+    const pendingOutbox = outbox.filter((item) => item.state !== "synced");
+    setPendingUnsafeClose(pendingOutbox[0]);
     setEvaluation(
       evaluateShiftClose({
         cacheState: cache.state,
@@ -71,6 +72,7 @@ export function ShiftCloseScreen({
           urgency: command.urgency,
         })),
         evidence: evidence.map((item) => ({ required: true, state: item.state })),
+        pendingUnsafeCloseCount: pendingOutbox.length,
         checklist,
       }),
     );
