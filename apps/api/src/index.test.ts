@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { app } from "./index";
+import { app, createApiApp } from "./index";
 
 describe("validade zero API smoke", () => {
   it("returns a safe health response", async () => {
@@ -25,6 +25,27 @@ describe("validade zero API smoke", () => {
       checks: {
         database: { ok: false },
         evidence: { mode: "memory" },
+      },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/secret|token|password|database_url|postgres/i);
+  });
+
+  it("reports explicitly disabled binary evidence as degraded", async () => {
+    const degradedApp = createApiApp({
+      runtimeConfig: {
+        appEnv: "staging",
+        evidenceStoreMode: "disabled",
+      },
+    });
+
+    const response = await degradedApp.request("/health/deep");
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      checks: {
+        evidence: { ok: false, mode: "disabled" },
       },
     });
     expect(JSON.stringify(body)).not.toMatch(/secret|token|password|database_url|postgres/i);

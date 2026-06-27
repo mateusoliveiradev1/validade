@@ -40,6 +40,20 @@ describe("Worker runtime configuration", () => {
     expect(createWorkerApp({ ...env, EVIDENCE_BUCKET: createFakeR2Bucket() })).toBeDefined();
     expect(createWorkerApp({ ...env, EVIDENCE_STORE_MODE: "memory" })).toBeUndefined();
   });
+
+  it("can serve staging with binary evidence explicitly disabled", () => {
+    const databaseUrl = "postgresql://user:password@example.invalid/neondb?sslmode=require";
+
+    expect(
+      createWorkerApp({
+        VALIDADE_ZERO_APP_ENV: "staging",
+        NEON_DATABASE_URL: databaseUrl,
+        AUTH_TOKEN_PEPPER: "token-pepper-for-test-only",
+        AUTH_PASSWORD_PEPPER: "password-pepper-for-test-only",
+        EVIDENCE_STORE_MODE: "disabled",
+      }),
+    ).toBeDefined();
+  });
 });
 
 function createFakeR2Bucket() {

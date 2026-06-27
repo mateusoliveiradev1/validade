@@ -162,6 +162,8 @@ export interface WorkerEnvironment {
   EVIDENCE_BUCKET?: R2BucketLike;
 }
 
+type EvidenceStoreMode = "memory" | "r2" | "disabled";
+
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
   authRepository?: AuthRepository;
@@ -189,7 +191,7 @@ export function createApiApp(input?: {
   commandCenterService?: CommandCenterService;
   runtimeConfig?: {
     appEnv?: string;
-    evidenceStoreMode?: "memory" | "r2";
+    evidenceStoreMode?: EvidenceStoreMode;
   };
   now?: () => Date;
 }): Hono {
@@ -258,6 +260,7 @@ export function createApiApp(input?: {
       : createDatabaseEvidenceRepository(input.databaseUrl));
   const evidenceStore = input?.evidenceStore ?? createInMemoryEvidenceStore();
   const evidenceStoreMode = input?.runtimeConfig?.evidenceStoreMode ?? "memory";
+  const evidenceBinaryAvailable = evidenceStoreMode !== "disabled";
   const appEnv =
     input?.runtimeConfig?.appEnv ?? (input?.databaseUrl === undefined ? "local" : "production");
   const evidenceService =
@@ -868,6 +871,10 @@ export function createApiApp(input?: {
       return context.json(AuthorizationContract.denial.parse(denial), 403);
     }
 
+    if (!evidenceBinaryAvailable) {
+      return context.json({ error: "evidence_storage_unavailable" }, 503);
+    }
+
     return context.json(
       await evidenceService.createUploadIntent({
         actorContext: decision.context,
@@ -881,6 +888,10 @@ export function createApiApp(input?: {
 
     if (storeId === undefined || storeId.trim().length === 0) {
       return context.json({ error: "missing_store_id" }, 400);
+    }
+
+    if (!evidenceBinaryAvailable) {
+      return context.json({ error: "evidence_storage_unavailable" }, 503);
     }
 
     const body = await context.req.raw.arrayBuffer();
@@ -2117,7 +2128,7 @@ function parsePositiveSeconds(value: string | undefined, fallback: number): numb
 function createEvidenceStoreFromWorkerEnv(
   env: WorkerEnvironment,
   appEnv: string,
-): { mode: "memory" | "r2"; store: EvidenceStore } | undefined {
+): { mode: EvidenceStoreMode; store: EvidenceStore } | undefined {
   const mode = env.EVIDENCE_STORE_MODE?.trim() || (appEnv === "local" ? "memory" : "r2");
 
   if (mode === "r2") {
@@ -2126,11 +2137,32 @@ function createEvidenceStoreFromWorkerEnv(
       : { mode: "r2", store: createR2EvidenceStore(env.EVIDENCE_BUCKET) };
   }
 
+  if (mode === "disabled") {
+    return { mode: "disabled", store: createDisabledEvidenceStore() };
+  }
+
   if (mode === "memory" && appEnv === "local") {
     return { mode: "memory", store: createInMemoryEvidenceStore() };
   }
 
   return undefined;
+}
+
+function createDisabledEvidenceStore(): EvidenceStore {
+  return {
+    put() {
+      return Promise.reject(new Error("Evidence binary storage is unavailable."));
+    },
+    head() {
+      return Promise.resolve(undefined);
+    },
+    get() {
+      return Promise.resolve(undefined);
+    },
+    delete() {
+      return Promise.resolve();
+    },
+  };
 }
 
 async function authorizeRequest(input: {

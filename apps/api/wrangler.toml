@@ -22,12 +22,8 @@ workers_dev = true
 [env.staging.vars]
 VALIDADE_ZERO_APP_ENV = "staging"
 SAFE_PROBE_DEFAULT_VALUE = "sonda-segura-ficticia"
-EVIDENCE_STORE_MODE = "r2"
+EVIDENCE_STORE_MODE = "disabled"
 EVIDENCE_RETENTION_DAYS = "90"
-
-[[env.staging.r2_buckets]]
-binding = "EVIDENCE_BUCKET"
-bucket_name = "validade-zero-evidence-staging"
 
 [env.staging.triggers]
 crons = ["*/15 * * * *"]
