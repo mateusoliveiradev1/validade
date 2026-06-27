@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 in progress - 3/6 plans complete
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-06-27T02:11:05.613Z"
+status: Phase 10 in progress - 4/6 plans complete
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-06-27T02:36:48.904Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 45
-  completed_plans: 42
-  percent: 93
+  completed_plans: 43
+  percent: 96
 ---
 
 # Project State: Validade Zero
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | In Progress | Real Pilot Flow Rebuild - 3/6 plans complete; 10-04 next |
+| 10 | In Progress | Real Pilot Flow Rebuild - 4/6 plans complete; 10-05 next |
 
 ## Active Constraints
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 10 Real Pilot Flow Rebuild with 10-04.
+Continue Phase 10 Real Pilot Flow Rebuild with 10-05.
 
 `$gsd-execute-phase 10`
 
@@ -68,6 +68,7 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-04.
 - Phase 10 Plan 01 completed: authorized central prepare-turn package, central capture repository, mobile Preparar turno gate, and SQLite hydration before Hoje.
 - Phase 10 Plan 02 completed: central product search/reuse/draft contracts, idempotent store-scoped catalog repository, authorized API product draft workflow, mobile unified create/reuse flow, and Command Center product draft visibility.
 - Phase 10 Plan 03 completed: central lot creation/observation contracts, durable store-scoped task projection, authorized API lot writes, mobile central-save path, and visible central/local lot cache state.
+- Phase 10 Plan 04 completed: central terminal resolution policy, central sync command application, conflicts/retries/idempotency, mobile resolved-history reconciliation, and migration/schema check against existing 0006 central capture migration.
 
 ### Quick Tasks Completed
 
@@ -126,11 +127,12 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-04.
 | Phase 10 P01 | 130min | 3 tasks | 27 files |
 | Phase 10 P02 | 150min | 3 tasks | 34 files |
 | Phase 10 P03 | 210min | 3 tasks | 23 files |
+| Phase 10 P04 | inline | 3 tasks | terminal sync policy, central application, mobile reconciliation, migration check |
 
 ## Session
 
-**Last session:** 2026-06-27T02:11:05.608Z
-**Stopped at:** Completed 10-03-PLAN.md
+**Last session:** 2026-06-27T02:36:48.904Z
+**Stopped at:** Completed 10-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -138,6 +140,9 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-04.
 - [Phase 10]: Central lot write-through is gated by a ready central prepare-turn cache. - Degraded operation can still capture locally, but it remains visibly pending instead of claiming central acknowledgement.
 - [Phase 10]: Mobile lot saves persist the returned central id, source, sync state, task projection, and acknowledgement copy locally. - Keeps recent/detail/Hoje views aligned with second-device prepare-turn truth.
 - [Phase 10]: Task projection is recalculated on lot and observation writes, while terminal action sync remains reserved for the next plan. - Avoids resolving critical work before the terminal slice enforces compatible outcomes.
+- [Phase 10]: Terminal task resolution is central business state, not transport state. - A plain sync ack marks delivery only; `centralResult.resolved_history` is required before mobile hides active risk.
+- [Phase 10]: Central sync conflicts preserve active task visibility and local action context. - Incompatible actions, changed active keys, and missing evidence return conflict/retry instead of clearing Hoje.
+- [Phase 10]: Mobile repositories reconcile central resolved history into resolved local tasks. - Keeps Hoje, audit context, and second-device truth aligned after central acknowledgement.
 - [Phase 10]: Mobile repository construction happens after authentication. - Central lot API calls use the current authenticated session instead of a pre-auth singleton.
 - [Phase 10]: Product search, reuse, and draft creation are one operational path with central duplicate prevention. - Prevents local-only product shortcuts from creating accidental duplicates before lot work.
 - [Phase 10]: Mobile product confirmation no longer forces immediate lot registration. - Keeps product truth and lot lifecycle separate while preserving an explicit `Registrar lote` next step.

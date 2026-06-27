@@ -309,13 +309,13 @@ Plans:
 4. Mobile and web use one truth model for pending, synced, conflict, discarded, and resolved states; offline actions never pretend they reached the central store before acknowledgement.
 5. End-to-end UAT covers first access, product creation, lot creation, loss/withdrawal resolution, second-device visibility, and Command Center consistency with real staging data.
 
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 - [x] 10-01-PLAN.md - Central prepare-turn package, store authorization, SQLite hydration, and first-device readiness
 - [x] 10-02-PLAN.md - Central product search, duplicate prevention, draft review, and unified create/reuse flow
 - [x] 10-03-PLAN.md - Central lot lifecycle, observation persistence, task projection, and second-device visibility
-- [ ] 10-04-PLAN.md - Terminal resolution, central sync application, conflict/discard taxonomy, and resolved history
+- [x] 10-04-PLAN.md - Terminal resolution, central sync application, conflict/discard taxonomy, resolved history, and migration/schema check
 - [ ] 10-05-PLAN.md - Capture-backed Command Center, role/store controls, and central push/escalation audience
 - [ ] 10-06-PLAN.md - Central shift-close revalidation, full pilot UAT, release evidence, and blocked-state record
 
