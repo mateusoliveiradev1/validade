@@ -13,6 +13,10 @@ import {
   PrivacyRequestResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
+  ProductDraftCreateRequestSchema,
+  ProductDraftCreateResponseSchema,
+  ProductSearchRequestSchema,
+  ProductSearchResponseSchema,
   RecoveryRequestedResponseSchema,
   RecoveryRequestSchema,
   SessionStatusResponseSchema,
@@ -20,6 +24,10 @@ import {
   type PrepareTurnResponse,
   type CentralLotCreateRequest,
   type CentralLotWriteResponse,
+  type ProductDraftCreateRequest,
+  type ProductDraftCreateResponse,
+  type ProductSearchRequest,
+  type ProductSearchResponse,
   type PrivacyRequest,
   type SessionContextResponse,
   type PrivacyTopicId,
@@ -67,6 +75,8 @@ export interface MobileAuthClient {
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
+  searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
+  createProductDraft(input: ProductDraftCreateRequest): Promise<ProductDraftCreateResponse>;
   createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
   logout(): Promise<void>;
 }
@@ -150,6 +160,24 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       const body = PrepareTurnRequestSchema.parse(input);
       return PrepareTurnResponseSchema.parse(
         await request("/capture/prepare-turn", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+    async searchCentralProducts(input) {
+      const body = ProductSearchRequestSchema.parse(input);
+      return ProductSearchResponseSchema.parse(
+        await request("/capture/products/search", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+    async createProductDraft(input) {
+      const body = ProductDraftCreateRequestSchema.parse(input);
+      return ProductDraftCreateResponseSchema.parse(
+        await request("/capture/products/drafts", {
           method: "POST",
           body: JSON.stringify(body),
         }),

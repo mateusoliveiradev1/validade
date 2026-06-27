@@ -56,6 +56,8 @@ function AuthenticatedCaptureApp({
       createSQLiteCaptureRepository({
         clock: () => new Date().toISOString(),
         createId: () => `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        searchCentralProducts: authClient.searchCentralProducts.bind(authClient),
+        createProductDraft: authClient.createProductDraft.bind(authClient),
         createCentralLot: authClient.createCentralLot.bind(authClient),
       }),
     [authClient],

@@ -567,6 +567,29 @@ export function createSQLiteCaptureRepository(
   async function searchCentralProducts(input: ProductSearchRequest) {
     await initialize();
     const request = parseProductSearchRequest(input);
+    if (dependencies.searchCentralProducts !== undefined) {
+      const response = ProductSearchResponseSchema.parse(
+        await dependencies.searchCentralProducts(request),
+      );
+      const db = await getDatabase();
+
+      await db.withTransactionAsync(async () => {
+        for (const product of response.reusableProducts) {
+          await upsertProductRecord(db, productCatalogItemToRecord(product));
+        }
+
+        for (const product of response.similarCandidates) {
+          await upsertProductRecord(db, productCatalogItemToRecord(product));
+        }
+
+        if (response.draft !== undefined) {
+          await upsertProductRecord(db, productDraftToRecord(response.draft));
+        }
+      });
+
+      return response;
+    }
+
     const normalizedQuery =
       request.query === undefined ? undefined : normalizeProductLookup(request.query);
     const db = await getDatabase();
@@ -619,6 +642,29 @@ export function createSQLiteCaptureRepository(
   async function createProductDraft(input: ProductDraftCreateRequest) {
     await initialize();
     const request = parseProductDraftCreateRequest(input);
+    if (dependencies.createProductDraft !== undefined) {
+      const response = ProductDraftCreateResponseSchema.parse(
+        await dependencies.createProductDraft(request),
+      );
+      const db = await getDatabase();
+
+      await db.withTransactionAsync(async () => {
+        if (response.reusableProduct !== undefined) {
+          await upsertProductRecord(db, productCatalogItemToRecord(response.reusableProduct));
+        }
+
+        for (const product of response.similarCandidates) {
+          await upsertProductRecord(db, productCatalogItemToRecord(product));
+        }
+
+        if (response.draft !== undefined) {
+          await upsertProductRecord(db, productDraftToRecord(response.draft));
+        }
+      });
+
+      return response;
+    }
+
     const normalizedName = normalizeProductLookup(request.displayName);
     const db = await getDatabase();
     const existing = await findExistingProduct(db, normalizedName, request.gtin);
@@ -3283,20 +3329,29 @@ async function upsertCentralProduct(
   db: SQLite.SQLiteDatabase,
   product: CentralProductSnippet,
 ): Promise<void> {
+  await upsertProductRecord(db, centralProductToRecord(product));
+}
+
+async function upsertProductRecord(
+  db: SQLite.SQLiteDatabase,
+  product: CaptureProductRecord,
+): Promise<void> {
   await db.runAsync(
     `INSERT INTO capture_products (
       id, display_name, normalized_name, category_id, category_name, category_profile_json,
       supplier_name, gtin, product_override_json, central_product_id, catalog_source,
       review_status, central_sync_state, draft_id, draft_review_message,
       similar_candidate_count, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, 0, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       normalized_name = excluded.normalized_name,
       category_id = excluded.category_id,
       category_name = excluded.category_name,
       category_profile_json = excluded.category_profile_json,
+      supplier_name = excluded.supplier_name,
       gtin = excluded.gtin,
+      product_override_json = excluded.product_override_json,
       central_product_id = excluded.central_product_id,
       catalog_source = excluded.catalog_source,
       review_status = excluded.review_status,
@@ -3304,23 +3359,92 @@ async function upsertCentralProduct(
       draft_id = excluded.draft_id,
       draft_review_message = excluded.draft_review_message,
       similar_candidate_count = excluded.similar_candidate_count`,
-    product.centralProductId,
+    product.id,
     product.displayName,
-    normalizeProductLookup(product.displayName),
+    product.normalizedName,
     product.categoryId,
-    product.categoryName,
+    product.categoryName ?? null,
     JSON.stringify(product.categoryRuleProfile),
+    product.supplierName ?? null,
     product.gtin ?? null,
-    product.centralProductId,
-    product.status === "draft" ? "draft_pending_review" : "central",
-    reviewStatusForCentralProduct(product),
-    product.state,
-    product.status === "draft" ? product.centralProductId : null,
-    product.status === "draft"
-      ? "Produto em rascunho. O lote entra com risco conservador ate a validacao."
-      : null,
-    product.updatedAt,
+    product.productRuleOverride === undefined ? null : JSON.stringify(product.productRuleOverride),
+    product.centralProductId ?? null,
+    product.catalogSource ?? null,
+    product.reviewStatus ?? null,
+    product.centralSyncState ?? null,
+    product.draftId ?? null,
+    product.draftReviewMessage ?? null,
+    product.similarCandidateCount ?? null,
+    product.createdAt,
   );
+}
+
+function centralProductToRecord(product: CentralProductSnippet): CaptureProductRecord {
+  return {
+    displayName: product.displayName,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName,
+    categoryRuleProfile: product.categoryRuleProfile,
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    id: product.centralProductId,
+    centralProductId: product.centralProductId,
+    normalizedName: normalizeProductLookup(product.displayName),
+    createdAt: product.updatedAt,
+    catalogSource: product.status === "draft" ? "draft_pending_review" : "central",
+    reviewStatus: reviewStatusForCentralProduct(product),
+    centralSyncState: product.state,
+    ...(product.status === "draft" ? { draftId: product.centralProductId } : {}),
+    ...(product.status === "draft"
+      ? {
+          draftReviewMessage:
+            "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        }
+      : {}),
+  };
+}
+
+function productCatalogItemToRecord(product: ProductCatalogItem): CaptureProductRecord {
+  return {
+    displayName: product.displayName,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName,
+    categoryRuleProfile: product.categoryRuleProfile,
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    id: product.centralProductId,
+    centralProductId: product.centralProductId,
+    normalizedName: product.normalizedKey,
+    createdAt: product.updatedAt,
+    catalogSource: product.source === "draft_pending_review" ? "draft_pending_review" : "central",
+    reviewStatus: product.reviewStatus,
+    centralSyncState: product.syncState,
+    ...(product.reviewStatus === "pending_review" ? { draftId: product.centralProductId } : {}),
+    ...(product.reviewStatus === "pending_review"
+      ? {
+          draftReviewMessage:
+            "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        }
+      : {}),
+  };
+}
+
+function productDraftToRecord(draft: ProductDraftReviewState): CaptureProductRecord {
+  return {
+    displayName: draft.displayName,
+    categoryId: draft.categoryId,
+    categoryName: draft.categoryName,
+    categoryRuleProfile: draft.categoryRuleProfile,
+    ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+    id: draft.centralProductId,
+    centralProductId: draft.centralProductId,
+    normalizedName: draft.normalizedKey,
+    createdAt: draft.requestedAt,
+    catalogSource: "draft_pending_review",
+    reviewStatus: draft.reviewStatus,
+    centralSyncState: draft.syncState,
+    draftId: draft.draftId,
+    draftReviewMessage: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+    similarCandidateCount: draft.similarCandidates.length,
+  };
 }
 
 async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippet): Promise<void> {

@@ -92,6 +92,8 @@ import {
 export interface CaptureRepositoryDependencies {
   clock: () => string;
   createId: () => string;
+  searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;
+  createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createCentralLot?: (request: CentralLotCreateRequest) => Promise<CentralLotWriteResponse>;
 }
 

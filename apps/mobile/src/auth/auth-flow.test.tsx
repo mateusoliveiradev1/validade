@@ -83,6 +83,8 @@ function client(overrides: Partial<MobileAuthClient> = {}): MobileAuthClient {
     requestRecovery: () => Promise.resolve(),
     submitPrivacyRequest: () => Promise.resolve(),
     prepareTurn: () => Promise.reject(new Error("not used")),
+    searchCentralProducts: () => Promise.reject(new Error("not used")),
+    createProductDraft: () => Promise.reject(new Error("not used")),
     createCentralLot: () => Promise.reject(new Error("not used")),
     logout: () => Promise.resolve(),
     ...overrides,
@@ -194,6 +196,104 @@ describe("mobile auth flow", () => {
     await expect(
       createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession(),
     ).rejects.toMatchObject({ code: "session_expired" });
+  });
+
+  it("uses the authenticated central product endpoints for first-store setup", async () => {
+    const sessionToken = "sessao-ficticia-com-tamanho-valido-0001";
+    const expectedAuthorization = `${"Bearer"} ${sessionToken}`;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "authenticated",
+          sessionToken,
+          session: activeSession(),
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          requestId: "search-first-store",
+          normalizedQuery: "banana",
+          resultState: "no_safe_reuse",
+          reusableProducts: [],
+          similarCandidates: [],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          requestId: "draft-first-store",
+          normalizedKey: "banana prata",
+          outcome: "draft_pending_review",
+          similarCandidates: [],
+          draft: {
+            draftId: "draft-banana-prata",
+            centralProductId: "product-banana-prata",
+            displayName: "Banana Prata",
+            normalizedKey: "banana prata",
+            categoryId: "frutas",
+            categoryName: "Frutas",
+            categoryRuleProfile: {
+              categoryId: "frutas",
+              mode: "formal_validity",
+              windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+            },
+            source: "draft_pending_review",
+            reviewStatus: "pending_review",
+            syncState: "pending_central",
+            requestedByLabel: "Mateus Lideranca",
+            requestedAt: "2030-01-10T12:00:00.000Z",
+            similarCandidates: [],
+          },
+          acknowledgement: {
+            acknowledgementId: "ack-product-banana-prata",
+            centralProductId: "product-banana-prata",
+            state: "draft_pending_review",
+            syncState: "pending_central",
+            reviewStatus: "pending_review",
+            acknowledgedAt: "2030-01-10T12:00:00.000Z",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const auth = createMobileAuthClient({ baseUrl: "https://api.example.test" });
+
+    await auth.readSession();
+    await auth.searchCentralProducts({
+      query: "banana",
+      requestedAt: "2030-01-10T12:00:00.000Z",
+    });
+    await auth.createProductDraft({
+      displayName: "Banana Prata",
+      categoryId: "frutas",
+      categoryName: "Frutas",
+      categoryRuleProfile: {
+        categoryId: "frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+      requestedAt: "2030-01-10T12:00:00.000Z",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.example.test/capture/products/search",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: expectedAuthorization,
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.example.test/capture/products/drafts",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: expectedAuthorization,
+        }),
+      }),
+    );
   });
 
   it("does not show a pre-login warning when the initial session check cannot connect", async () => {

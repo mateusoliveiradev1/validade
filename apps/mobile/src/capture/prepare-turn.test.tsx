@@ -78,7 +78,7 @@ describe("prepare-turn gate", () => {
     expect(textContent(tree)).toContain("Morango FICTICIO");
   });
 
-  it("keeps empty central packages out of the safe Hoje cockpit", async () => {
+  it("lets a real empty store start product setup without claiming safe area", async () => {
     const repository = createRepository();
     const tree = await renderApp(repository, () =>
       Promise.resolve(
@@ -96,6 +96,11 @@ describe("prepare-turn gate", () => {
 
     expect(textContent(tree)).toContain("Leitura central exige revisao");
     expect(textContent(tree)).toContain("Leitura central sem fatos");
+    expect(textContent(tree)).not.toContain("Area de venda segura");
+
+    await press(tree, "Iniciar cadastro da loja");
+
+    expect(textContent(tree)).toContain("Localizar produto");
     expect(textContent(tree)).not.toContain("Area de venda segura");
   });
 

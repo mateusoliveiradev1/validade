@@ -170,6 +170,8 @@ const authenticatedMobileClient: MobileAuthClient = {
   requestRecovery: () => Promise.resolve(),
   submitPrivacyRequest: () => Promise.resolve(),
   prepareTurn: () => Promise.resolve(preparedTurnResponse()),
+  searchCentralProducts: () => Promise.reject(new Error("not used")),
+  createProductDraft: () => Promise.reject(new Error("not used")),
   createCentralLot: () => Promise.reject(new Error("not used")),
   logout: () => Promise.resolve(),
 };

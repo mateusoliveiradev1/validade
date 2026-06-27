@@ -238,6 +238,20 @@ export function CaptureApp({
     setPrepareTurnState("ready");
   }
 
+  function startFirstStoreSetup(): void {
+    setPrepareTurnError(undefined);
+    setPrepareTurnSource("central");
+    setPrepareTurnState("ready");
+    setRouteStack([{ name: "discovery" }]);
+  }
+
+  function requestCentralReprepare(): void {
+    setPrepareTurnError(undefined);
+    setPrepareTurnSource("local_cache");
+    setPrepareTurnState("needs_prepare");
+    setRouteStack(initialRouteStack);
+  }
+
   async function loadMarkdownEntryStateFor(lotId: string): Promise<MarkdownEntryState | undefined> {
     const current = new Date();
     const currentTimestamp = current.toISOString();
@@ -328,6 +342,9 @@ export function CaptureApp({
         error={initializationError ?? prepareTurnError}
         state={prepareTurnState}
         onPrepare={() => void prepareTurn()}
+        onStartFirstSetup={
+          isFirstStoreSetupState(prepareTurnCache) ? startFirstStoreSetup : undefined
+        }
         onUseCache={prepareTurnCache?.state === "ready" ? enterWithLocalCache : undefined}
       />
     );
@@ -409,6 +426,8 @@ export function CaptureApp({
     const mode =
       currentRoute.product.productRuleOverride?.mode ??
       currentRoute.product.categoryRuleProfile.mode;
+    const needsCentralReprepareBeforeLot =
+      prepareTurnClient !== undefined && prepareTurnCache?.state !== "ready";
 
     return (
       <ScrollView contentContainerStyle={styles.screen}>
@@ -424,10 +443,20 @@ export function CaptureApp({
             Produto em rascunho. O lote entra com risco conservador ate a validacao.
           </StatusNotice>
         ) : null}
-        <PrimaryAction
-          label={captureCopy.registerLot}
-          onPress={() => navigate({ name: "lot-registration", product: currentRoute.product })}
-        />
+        {needsCentralReprepareBeforeLot ? (
+          <>
+            <StatusNotice>
+              Produto salvo na central. Prepare o turno novamente para baixar a base da loja antes
+              de registrar lote.
+            </StatusNotice>
+            <PrimaryAction label="Preparar turno novamente" onPress={requestCentralReprepare} />
+          </>
+        ) : (
+          <PrimaryAction
+            label={captureCopy.registerLot}
+            onPress={() => navigate({ name: "lot-registration", product: currentRoute.product })}
+          />
+        )}
         <SecondaryAction label={captureCopy.backAndReview} onPress={goBack} />
         <SecondaryAction label="Voltar para Hoje" onPress={() => resetToToday()} />
       </ScrollView>
@@ -541,12 +570,14 @@ function PrepareTurnScreen({
   error,
   state,
   onPrepare,
+  onStartFirstSetup,
   onUseCache,
 }: {
   cache: PrepareTurnCacheStatus | null;
   error?: string | undefined;
   state: "checking" | "needs_prepare" | "preparing" | "needs_review" | "cache_only" | "error";
   onPrepare: () => void;
+  onStartFirstSetup?: (() => void) | undefined;
   onUseCache?: (() => void) | undefined;
 }) {
   const preparing = state === "checking" || state === "preparing";
@@ -572,10 +603,24 @@ function PrepareTurnScreen({
         label={state === "preparing" ? "Baixando leitura" : "Preparar turno"}
         onPress={onPrepare}
       />
+      {onStartFirstSetup === undefined ? null : (
+        <PrimaryAction label="Iniciar cadastro da loja" onPress={onStartFirstSetup} />
+      )}
       {onUseCache === undefined ? null : (
         <SecondaryAction label="Entrar com leitura local" onPress={onUseCache} />
       )}
     </ScrollView>
+  );
+}
+
+function isFirstStoreSetupState(cache: PrepareTurnCacheStatus | null): boolean {
+  return (
+    cache?.source === "central" &&
+    cache.state === "needs_first_central_read" &&
+    cache.productCount === 0 &&
+    cache.lotCount === 0 &&
+    cache.activeTaskCount === 0 &&
+    cache.conflictCount === 0
   );
 }
 
