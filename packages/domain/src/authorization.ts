@@ -5,6 +5,8 @@ export const CAPABILITIES = [
   "task.assign",
   "markdown.decide",
   "escalation.assume",
+  "command_center.read_store",
+  "catalog.review",
   "audit.read_store",
   "evidence.read_store",
   "evidence.invalidate",
@@ -72,6 +74,7 @@ const COLLABORATOR_CAPABILITIES = [
   "task.act",
   "evidence.attach",
   "markdown.request",
+  "command_center.read_store",
 ] as const satisfies readonly Capability[];
 
 const LEAD_CAPABILITIES = [
@@ -79,6 +82,7 @@ const LEAD_CAPABILITIES = [
   "task.assign",
   "markdown.decide",
   "escalation.assume",
+  "catalog.review",
   "audit.read_store",
   "evidence.read_store",
   "evidence.invalidate",
@@ -87,6 +91,7 @@ const LEAD_CAPABILITIES = [
 ] as const satisfies readonly Capability[];
 
 const ADMIN_CAPABILITIES = [
+  "catalog.review",
   "user.manage",
   "role.manage",
   "store.manage",

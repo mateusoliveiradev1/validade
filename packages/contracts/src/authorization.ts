@@ -80,7 +80,9 @@ export const SessionContextResponseSchema = z
     privacyCenterUrl: z.string().trim().min(1).max(500),
     actions: z
       .object({
+        canReadCommandCenter: z.boolean(),
         canActOnTask: z.boolean(),
+        canReviewProductDrafts: z.boolean(),
         canCloseShift: z.boolean(),
         canReadStoreAudit: z.boolean(),
         canManageUsers: z.boolean(),

@@ -157,4 +157,28 @@ describe("CommandCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tentar atualizar o Command Center" }));
     expect(read).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps audit actions disabled without store audit capability", async () => {
+    const onOpenAudit = vi.fn();
+    const client: CommandCenterClient = { read: vi.fn().mockResolvedValue(projection) };
+    render(
+      <CommandCenter
+        canOpenAudit={false}
+        client={client}
+        onOpenAudit={onOpenAudit}
+        storeId="loja-piloto"
+      />,
+    );
+
+    const buttons = await screen.findAllByRole("button", {
+      name: "Auditoria bloqueada para este papel",
+    });
+    const firstButton = buttons[0];
+
+    expect(firstButton).toBeDefined();
+    if (firstButton === undefined) throw new Error("Blocked audit button not rendered.");
+    expect(firstButton).toHaveProperty("disabled", true);
+    fireEvent.click(firstButton);
+    expect(onOpenAudit).not.toHaveBeenCalled();
+  });
 });

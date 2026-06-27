@@ -562,7 +562,7 @@ export function createApiApp(input?: {
       authProvider,
       authorizationService,
       membershipRepository,
-      capability: "shift.close",
+      capability: "catalog.review",
     });
 
     if (!resolved.allowed) {
@@ -571,7 +571,7 @@ export function createApiApp(input?: {
         recorder: accessDeniedAuditRecorder,
         identity: resolved.identity,
         decision: resolved.decision,
-        capability: "shift.close",
+        capability: "catalog.review",
         reason: resolved.reason,
         targetType: "product_draft_review",
         storeScope: storeId,
@@ -1241,7 +1241,7 @@ export function createApiApp(input?: {
     const identity = await authProvider.verify(context.req.raw);
     const decision = await authorizationService.authorize({
       identity,
-      capability: "audit.read_store",
+      capability: "command_center.read_store",
       resourceStoreId: storeId,
     });
 
@@ -1250,7 +1250,7 @@ export function createApiApp(input?: {
         recorder: accessDeniedAuditRecorder,
         identity,
         decision,
-        capability: "audit.read_store",
+        capability: "command_center.read_store",
         reason: decision.reason ?? "capability_not_allowed",
         targetType: "command_center",
         storeScope: storeId,
@@ -1276,9 +1276,19 @@ export function createApiApp(input?: {
   api.get("/session/context", async (context) => {
     const identity = await authProvider.verify(context.req.raw);
     const storeId = context.req.query("storeId") ?? "loja-piloto";
+    const commandCenterReadDecision = await authorizationService.authorize({
+      identity,
+      capability: "command_center.read_store",
+      resourceStoreId: storeId,
+    });
     const taskDecision = await authorizationService.authorize({
       identity,
       capability: "task.act",
+      resourceStoreId: storeId,
+    });
+    const productReviewDecision = await authorizationService.authorize({
+      identity,
+      capability: "catalog.review",
       resourceStoreId: storeId,
     });
 
@@ -1297,22 +1307,26 @@ export function createApiApp(input?: {
       capability: "audit.read_store",
       resourceStoreId: storeId,
     });
-    const decision = taskDecision.allowed
-      ? taskDecision
-      : userManagementDecision.allowed
-        ? userManagementDecision
-        : shiftCloseDecision.allowed
-          ? shiftCloseDecision
-          : auditReadDecision.allowed
-            ? auditReadDecision
-            : taskDecision;
+    const decision = commandCenterReadDecision.allowed
+      ? commandCenterReadDecision
+      : taskDecision.allowed
+        ? taskDecision
+        : productReviewDecision.allowed
+          ? productReviewDecision
+          : userManagementDecision.allowed
+            ? userManagementDecision
+            : shiftCloseDecision.allowed
+              ? shiftCloseDecision
+              : auditReadDecision.allowed
+                ? auditReadDecision
+                : commandCenterReadDecision;
 
     if (!decision.allowed) {
       const denial = await recordDeniedAccess({
         recorder: accessDeniedAuditRecorder,
         identity,
         decision,
-        capability: "task.act",
+        capability: "command_center.read_store",
         reason: decision.reason ?? "capability_not_allowed",
         targetType: "session_context",
         storeScope: storeId,
@@ -1337,7 +1351,9 @@ export function createApiApp(input?: {
         ...sessionContext,
         actions: {
           ...sessionContext.actions,
+          canReadCommandCenter: commandCenterReadDecision.allowed,
           canActOnTask: taskDecision.allowed,
+          canReviewProductDrafts: productReviewDecision.allowed,
           canCloseShift: shiftCloseDecision.allowed,
           canReadStoreAudit: auditReadDecision.allowed,
           canManageUsers: userManagementDecision.allowed,

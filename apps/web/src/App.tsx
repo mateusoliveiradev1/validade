@@ -143,10 +143,11 @@ export function App() {
         onRecovery={() => setScreen("recovery")}
       />
     );
+  const activeRoute = routeAllowed(route, session) ? route : firstAllowedRoute(session);
   return (
     <AppShell
       session={session}
-      route={route}
+      route={activeRoute}
       onRouteChange={setRoute}
       onOpenPrivacy={() => setScreen("privacy")}
       onLogout={() => {
@@ -158,9 +159,13 @@ export function App() {
         setSession(undefined);
       }}
     >
-      {route === "command" ? (
-        <CommandCenter storeId={session.store.storeId} onOpenAudit={() => setRoute("audit")} />
-      ) : route === "access" ? (
+      {activeRoute === "command" ? (
+        <CommandCenter
+          storeId={session.store.storeId}
+          canOpenAudit={session.actions.canReadStoreAudit}
+          onOpenAudit={() => setRoute("audit")}
+        />
+      ) : activeRoute === "access" ? (
         <MembershipAdministration
           session={session}
           onOpenInviteActivation={(token) => {
@@ -177,6 +182,19 @@ export function App() {
       )}
     </AppShell>
   );
+}
+
+function routeAllowed(route: AppRoute, session: SessionContextResponse): boolean {
+  if (route === "command") return session.actions.canReadCommandCenter;
+  if (route === "access") return session.actions.canManageUsers;
+  return session.actions.canReadStoreAudit;
+}
+
+function firstAllowedRoute(session: SessionContextResponse): AppRoute {
+  if (session.actions.canReadCommandCenter) return "command";
+  if (session.actions.canManageUsers) return "access";
+  if (session.actions.canReadStoreAudit) return "audit";
+  return "command";
 }
 
 function writeInviteUrlParam(token: string): void {

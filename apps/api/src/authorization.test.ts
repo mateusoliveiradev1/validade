@@ -24,7 +24,12 @@ describe("authorization API seam", () => {
     expect(contextBody).toMatchObject({
       activeRole: "collaborator",
       store: { storeId: "loja-piloto" },
-      actions: { canActOnTask: true, canCloseShift: false },
+      actions: {
+        canReadCommandCenter: true,
+        canActOnTask: true,
+        canReviewProductDrafts: false,
+        canCloseShift: false,
+      },
     });
 
     const probeResponse = await app.request("/session/probe/task-act?storeId=loja-piloto", {
@@ -48,7 +53,11 @@ describe("authorization API seam", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       activeRole: "lead",
-      actions: { canCloseShift: true, canReadStoreAudit: true },
+      actions: {
+        canReviewProductDrafts: true,
+        canCloseShift: true,
+        canReadStoreAudit: true,
+      },
     });
   });
 

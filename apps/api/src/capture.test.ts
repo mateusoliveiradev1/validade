@@ -282,12 +282,13 @@ describe("capture product catalog API", () => {
     );
   });
 
-  it("allows lead review but denies admin-only product draft review", async () => {
+  it("allows lead and admin catalog review but denies collaborators", async () => {
     const captureRepository = createInMemoryCaptureRepository();
     const app = createApiApp({
       authProvider: new FakeAuthProvider(),
       membershipRepository: createInMemoryMembershipRepository([
         leadMembership("loja-piloto"),
+        collaboratorMembership("loja-piloto"),
         adminMembership("loja-piloto"),
       ]),
       captureRepository,
@@ -307,7 +308,7 @@ describe("capture product catalog API", () => {
     const denied = await app.request(`/capture/products/drafts/${draftId}/review`, {
       method: "POST",
       headers: {
-        authorization: "Bearer fake:admin-local",
+        authorization: "Bearer fake:collaborator-local",
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -323,10 +324,10 @@ describe("capture product catalog API", () => {
       reason: "capability_not_allowed",
     });
 
-    const reviewed = await app.request(`/capture/products/drafts/${draftId}/review`, {
+    const reviewedByAdmin = await app.request(`/capture/products/drafts/${draftId}/review`, {
       method: "POST",
       headers: {
-        authorization: "Bearer fake:lead-local",
+        authorization: "Bearer fake:admin-local",
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -335,13 +336,13 @@ describe("capture product catalog API", () => {
         reviewedAt: NOW,
       }),
     });
-    const reviewedBody = (await reviewed.json()) as {
+    const reviewedByAdminBody = (await reviewedByAdmin.json()) as {
       draft?: { reviewStatus?: string };
       acknowledgement?: { state?: string };
     };
 
-    expect(reviewed.status).toBe(200);
-    expect(reviewedBody).toMatchObject({
+    expect(reviewedByAdmin.status).toBe(200);
+    expect(reviewedByAdminBody).toMatchObject({
       draft: { reviewStatus: "validated" },
       acknowledgement: { state: "validated" },
     });
@@ -568,6 +569,16 @@ function leadMembership(storeId: string) {
   return {
     subjectId: "lead-local",
     role: "lead" as const,
+    storeId,
+    storeName: storeId === "loja-piloto" ? "Loja Piloto" : "Loja Outra",
+    status: "active" as const,
+  };
+}
+
+function collaboratorMembership(storeId: string) {
+  return {
+    subjectId: "collaborator-local",
+    role: "collaborator" as const,
     storeId,
     storeName: storeId === "loja-piloto" ? "Loja Piloto" : "Loja Outra",
     status: "active" as const,

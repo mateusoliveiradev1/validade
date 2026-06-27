@@ -6,6 +6,11 @@ import { Sheet, SheetContent } from "../components/ui/sheet";
 
 export type AppRoute = "command" | "access" | "audit";
 
+interface NavItemState {
+  allowed: boolean;
+  reason?: string;
+}
+
 const navItems: Array<{
   id: AppRoute;
   label: string;
@@ -40,7 +45,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-sidebar-border bg-sidebar p-4 md:flex md:flex-col">
-        <ShellNavigation route={route} onRouteChange={onRouteChange} />
+        <ShellNavigation route={route} session={session} onRouteChange={onRouteChange} />
       </aside>
       <main className="min-h-screen md:pl-72">
         <header className="sticky top-0 z-20 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur md:px-8">
@@ -63,6 +68,7 @@ export function AppShell({
               </Button>
               <MobileNavigation
                 route={route}
+                session={session}
                 onLogout={onLogout}
                 onOpenPrivacy={onOpenPrivacy}
                 onRouteChange={onRouteChange}
@@ -78,9 +84,11 @@ export function AppShell({
 
 function ShellNavigation({
   route,
+  session,
   onRouteChange,
 }: {
   route: AppRoute;
+  session: SessionContextResponse;
   onRouteChange: (route: AppRoute) => void;
 }) {
   return (
@@ -92,24 +100,29 @@ function ShellNavigation({
           <p className="text-sm text-muted-foreground">Nada vencido invisivel</p>
         </div>
       </div>
-      {navItems.map((item) => (
-        <Button
-          key={item.id}
-          aria-label={item.label}
-          aria-current={route === item.id ? "page" : undefined}
-          className="h-auto justify-start gap-3 px-3 py-3 text-left"
-          variant={route === item.id ? "secondary" : "ghost"}
-          onClick={() => onRouteChange(item.id)}
-        >
-          <item.icon className="size-4" aria-hidden="true" />
-          <span className="grid gap-0.5">
-            <span>{item.label}</span>
-            <span aria-hidden="true" className="text-xs font-normal text-muted-foreground">
-              {item.description}
+      {navItems.map((item) => {
+        const state = navItemState(item.id, session);
+
+        return (
+          <Button
+            key={item.id}
+            aria-label={item.label}
+            aria-current={route === item.id ? "page" : undefined}
+            className="h-auto justify-start gap-3 px-3 py-3 text-left"
+            disabled={!state.allowed}
+            variant={route === item.id ? "secondary" : "ghost"}
+            onClick={() => onRouteChange(item.id)}
+          >
+            <item.icon className="size-4" aria-hidden="true" />
+            <span className="grid gap-0.5">
+              <span>{item.label}</span>
+              <span aria-hidden="true" className="text-xs font-normal text-muted-foreground">
+                {state.reason ?? item.description}
+              </span>
             </span>
-          </span>
-        </Button>
-      ))}
+          </Button>
+        );
+      })}
     </nav>
   );
 }
@@ -118,11 +131,13 @@ function MobileNavigation({
   onLogout,
   onOpenPrivacy,
   route,
+  session,
   onRouteChange,
 }: {
   onLogout: () => void;
   onOpenPrivacy: () => void;
   route: AppRoute;
+  session: SessionContextResponse;
   onRouteChange: (route: AppRoute) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -155,6 +170,7 @@ function MobileNavigation({
               </div>
               <ShellNavigation
                 route={route}
+                session={session}
                 onRouteChange={(nextRoute) => {
                   onRouteChange(nextRoute);
                   setOpen(false);
@@ -188,6 +204,24 @@ function MobileNavigation({
       </Sheet>
     </>
   );
+}
+
+function navItemState(route: AppRoute, session: SessionContextResponse): NavItemState {
+  if (route === "command") {
+    return session.actions.canReadCommandCenter
+      ? { allowed: true }
+      : { allowed: false, reason: "Escopo operacional indisponivel" };
+  }
+
+  if (route === "access") {
+    return session.actions.canManageUsers
+      ? { allowed: true }
+      : { allowed: false, reason: "Administracao apenas" };
+  }
+
+  return session.actions.canReadStoreAudit
+    ? { allowed: true }
+    : { allowed: false, reason: "Lideranca apenas" };
 }
 
 function roleLabel(role: SessionContextResponse["activeRole"]): string {

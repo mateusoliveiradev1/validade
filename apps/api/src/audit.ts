@@ -484,6 +484,14 @@ function taskActionSummary(action: ProtectedTaskActionRequest["action"]): string
 }
 
 function denialTargetLabel(capability: Capability): string {
+  if (capability === "command_center.read_store") {
+    return "Command Center bloqueado";
+  }
+
+  if (capability === "catalog.review") {
+    return "Revisao de catalogo bloqueada";
+  }
+
   if (capability === "audit.read_store" || capability === "audit.read_global") {
     return "Consulta de auditoria bloqueada";
   }

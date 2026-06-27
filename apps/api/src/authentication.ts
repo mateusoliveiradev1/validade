@@ -42,7 +42,9 @@ import type { MembershipService } from "./memberships";
 
 const SESSION_COOKIE = "vz_session";
 const AUTH_CAPABILITIES: readonly Capability[] = [
+  "command_center.read_store",
   "task.act",
+  "catalog.review",
   "user.manage",
   "shift.close",
   "audit.read_store",
@@ -581,13 +583,17 @@ async function sessionResponse(
   if (base === undefined) throw new Error("Session context could not be created.");
 
   const actions = {
+    canReadCommandCenter: false,
     canActOnTask: false,
+    canReviewProductDrafts: false,
     canCloseShift: false,
     canReadStoreAudit: false,
     canManageUsers: false,
   };
   const capabilityActions = [
+    ["command_center.read_store", "canReadCommandCenter"],
     ["task.act", "canActOnTask"],
+    ["catalog.review", "canReviewProductDrafts"],
     ["shift.close", "canCloseShift"],
     ["audit.read_store", "canReadStoreAudit"],
     ["user.manage", "canManageUsers"],

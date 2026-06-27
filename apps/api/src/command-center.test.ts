@@ -125,6 +125,13 @@ function createApp() {
         storeName: "Loja Ficticia Piloto",
         status: "active",
       },
+      {
+        subjectId: "admin-local",
+        role: "admin",
+        storeId: "loja-piloto",
+        storeName: "Loja Ficticia Piloto",
+        status: "active",
+      },
     ]),
     commandCenterService: createInMemoryCommandCenterService({ projection }),
   });
@@ -152,9 +159,21 @@ describe("Command Center API", () => {
     );
   });
 
-  it("denies roles without leadership audit scope", async () => {
+  it("allows collaborator operational read without audit scope", async () => {
     const response = await createApp().request("/command-center?storeId=loja-piloto", {
       headers: { authorization: "Bearer fake:collaborator-local" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      storeId: "loja-piloto",
+      verdict: { state: "blocked" },
+    });
+  });
+
+  it("denies admin governance membership without operational Command Center scope", async () => {
+    const response = await createApp().request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:admin-local" },
     });
 
     expect(response.status).toBe(403);

@@ -9,10 +9,12 @@ import { createFetchCommandCenterClient, type CommandCenterClient } from "./comm
 type CommandCenterStatus = "loading" | "ready" | "error";
 
 export function CommandCenter({
+  canOpenAudit,
   client: providedClient,
   onOpenAudit,
   storeId,
 }: {
+  canOpenAudit?: boolean;
   client?: CommandCenterClient;
   onOpenAudit?: () => void;
   storeId: string;
@@ -107,6 +109,7 @@ export function CommandCenter({
 
       {current === undefined ? null : (
         <CommandCenterProjectionView
+          canOpenAudit={canOpenAudit ?? onOpenAudit !== undefined}
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
           projection={current}
         />
@@ -116,9 +119,11 @@ export function CommandCenter({
 }
 
 function CommandCenterProjectionView({
+  canOpenAudit,
   onOpenAudit,
   projection,
 }: {
+  canOpenAudit: boolean;
   onOpenAudit?: () => void;
   projection: CommandCenterProjection;
 }) {
@@ -156,6 +161,7 @@ function CommandCenterProjectionView({
       </section>
 
       <CommandCenterInsightPanel
+        canOpenAudit={canOpenAudit}
         insight={insight}
         {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
       />
@@ -280,11 +286,10 @@ function CommandCenterProjectionView({
             />
           ))}
         </FunnelSection>
-        {onOpenAudit === undefined ? null : (
-          <Button className="min-h-12 w-fit" variant="outline" onClick={onOpenAudit}>
-            Abrir investigacao na auditoria
-          </Button>
-        )}
+        <AuditActionButton
+          canOpenAudit={canOpenAudit}
+          {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
+        />
       </div>
     </div>
   );
@@ -335,9 +340,11 @@ interface InsightMetric {
 }
 
 function CommandCenterInsightPanel({
+  canOpenAudit,
   insight,
   onOpenAudit,
 }: {
+  canOpenAudit: boolean;
   insight: CommandCenterInsight;
   onOpenAudit?: () => void;
 }) {
@@ -386,6 +393,7 @@ function CommandCenterInsightPanel({
       </div>
 
       <WhyExpiredPanel
+        canOpenAudit={canOpenAudit}
         lots={insight.expiredLots}
         {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
       />
@@ -466,9 +474,11 @@ function DecisionPath({ steps }: { steps: DecisionStep[] }) {
 }
 
 function WhyExpiredPanel({
+  canOpenAudit,
   lots,
   onOpenAudit,
 }: {
+  canOpenAudit: boolean;
   lots: ExpiredLotInsight[];
   onOpenAudit?: () => void;
 }) {
@@ -529,13 +539,37 @@ function WhyExpiredPanel({
         </div>
       )}
 
-      {onOpenAudit === undefined ? null : (
-        <Button className="min-h-12 w-fit" variant="outline" onClick={onOpenAudit}>
-          <Search className="size-4" aria-hidden="true" />
-          Abrir auditoria para investigar causa
-        </Button>
-      )}
+      <AuditActionButton
+        canOpenAudit={canOpenAudit}
+        label="Abrir auditoria para investigar causa"
+        {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
+      />
     </section>
+  );
+}
+
+function AuditActionButton({
+  canOpenAudit,
+  label = "Abrir investigacao na auditoria",
+  onOpenAudit,
+}: {
+  canOpenAudit: boolean;
+  label?: string;
+  onOpenAudit?: () => void;
+}) {
+  if (onOpenAudit === undefined) return null;
+
+  return (
+    <Button
+      className="min-h-12 w-fit"
+      disabled={!canOpenAudit}
+      title={canOpenAudit ? undefined : "Auditoria operacional exige lideranca ativa nesta loja."}
+      variant="outline"
+      onClick={canOpenAudit ? onOpenAudit : undefined}
+    >
+      <Search className="size-4" aria-hidden="true" />
+      {canOpenAudit ? label : "Auditoria bloqueada para este papel"}
+    </Button>
   );
 }
 

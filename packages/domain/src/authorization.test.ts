@@ -22,10 +22,15 @@ const leadMembership: StoreMembership = {
 describe("authorization matrix", () => {
   it("keeps collaborator, lead, and admin operational capabilities distinct", () => {
     expect(roleAllowsCapability("collaborator", "task.act")).toBe(true);
+    expect(roleAllowsCapability("collaborator", "command_center.read_store")).toBe(true);
+    expect(roleAllowsCapability("collaborator", "catalog.review")).toBe(false);
     expect(roleAllowsCapability("collaborator", "shift.close")).toBe(false);
     expect(roleAllowsCapability("lead", "shift.close")).toBe(true);
+    expect(roleAllowsCapability("lead", "catalog.review")).toBe(true);
     expect(roleAllowsCapability("lead", "user.manage")).toBe(false);
     expect(roleAllowsCapability("admin", "user.manage")).toBe(true);
+    expect(roleAllowsCapability("admin", "catalog.review")).toBe(true);
+    expect(roleAllowsCapability("admin", "command_center.read_store")).toBe(false);
     expect(roleAllowsCapability("admin", "shift.close")).toBe(false);
   });
 

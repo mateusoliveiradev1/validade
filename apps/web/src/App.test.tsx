@@ -9,13 +9,15 @@ const activeSession = {
     actor: { subjectId: "collaborator-ficticio", displayName: "Colaborador FICTICIO" },
     store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
     activeRole: "collaborator",
-    capabilities: ["task.act"],
+    capabilities: ["task.act", "command_center.read_store"],
     sessionExpiresAt: "2030-01-11T12:00:00.000Z",
     accountStatus: "active",
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
     actions: {
+      canReadCommandCenter: true,
       canActOnTask: true,
+      canReviewProductDrafts: false,
       canCloseShift: false,
       canReadStoreAudit: false,
       canManageUsers: false,
@@ -93,6 +95,14 @@ describe("authenticated web shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir navegacao" }));
     const navigationDialog = screen.getByRole("dialog");
     expect(navigationDialog).toBeTruthy();
-    expect(within(navigationDialog).getByRole("button", { name: "Acessos da loja" })).toBeTruthy();
+    expect(
+      within(navigationDialog).getByRole("button", { name: "Acessos da loja" }),
+    ).toHaveProperty("disabled", true);
+    expect(within(navigationDialog).getByText("Administracao apenas")).toBeTruthy();
+    expect(within(navigationDialog).getByRole("button", { name: "Auditoria" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(within(navigationDialog).getByText("Lideranca apenas")).toBeTruthy();
   });
 });

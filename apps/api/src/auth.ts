@@ -277,7 +277,9 @@ export function createSessionContext(decision: AuthorizationDecision) {
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
     actions: {
+      canReadCommandCenter: roleAllowsCapability(role, "command_center.read_store"),
       canActOnTask: roleAllowsCapability(role, "task.act"),
+      canReviewProductDrafts: roleAllowsCapability(role, "catalog.review"),
       canCloseShift: roleAllowsCapability(role, "shift.close"),
       canReadStoreAudit: roleAllowsCapability(role, "audit.read_store"),
       canManageUsers: roleAllowsCapability(role, "user.manage"),

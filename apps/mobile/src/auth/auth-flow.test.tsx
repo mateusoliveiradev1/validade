@@ -56,13 +56,15 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
     actor: { subjectId: "worker-ficticio", displayName: "Colaborador FICTICIO" },
     store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
     activeRole: "collaborator",
-    capabilities: ["task.act"],
+    capabilities: ["task.act", "command_center.read_store"],
     sessionExpiresAt: "2030-01-11T12:00:00.000Z",
     accountStatus: "active",
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
     actions: {
+      canReadCommandCenter: true,
       canActOnTask: true,
+      canReviewProductDrafts: false,
       canCloseShift: false,
       canReadStoreAudit: false,
       canManageUsers: false,
@@ -295,7 +297,9 @@ describe("mobile auth flow", () => {
           Promise.resolve(
             activeSession({
               actions: {
+                canReadCommandCenter: false,
                 canActOnTask: false,
+                canReviewProductDrafts: false,
                 canCloseShift: false,
                 canReadStoreAudit: false,
                 canManageUsers: false,
