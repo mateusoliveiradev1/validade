@@ -18,6 +18,12 @@ import {
   HealthContract,
   MembershipListResponseSchema,
   MembershipMutationResponseSchema,
+  ProductDraftCreateRequestSchema,
+  ProductDraftCreateResponseSchema,
+  ProductDraftReviewRequestSchema,
+  ProductDraftReviewResponseSchema,
+  ProductSearchRequestSchema,
+  ProductSearchResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
   ProtectedCapabilityProbeResponseSchema,
@@ -358,6 +364,7 @@ export function createApiApp(input?: {
       authProvider,
       authorizationService,
       membershipRepository,
+      capability: "task.act",
     });
 
     if (!resolved.allowed) {
@@ -401,6 +408,168 @@ export function createApiApp(input?: {
       return context.json(PrepareTurnResponseSchema.parse(response));
     } catch {
       return context.json({ error: "prepare_turn_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/products/search", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = ProductSearchRequestSchema.safeParse(rawPayload);
+    const requestId = createProductCatalogRequestId(
+      "search",
+      parsed.success ? (parsed.data.query ?? parsed.data.gtin ?? "category") : "invalid",
+    );
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_product_search_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "product_search",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.searchProducts({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        request: parsed.data,
+      });
+
+      return context.json(ProductSearchResponseSchema.parse(response));
+    } catch {
+      return context.json({ error: "product_search_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/products/drafts", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = ProductDraftCreateRequestSchema.safeParse(rawPayload);
+    const requestId = createProductCatalogRequestId(
+      "draft",
+      parsed.success ? parsed.data.displayName : "invalid",
+    );
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_product_draft_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "product_draft",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.createProductDraft({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        actorId: actorContext.identity.subjectId,
+        actorDisplayName: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
+        request: parsed.data,
+      });
+
+      return context.json(ProductDraftCreateResponseSchema.parse(response));
+    } catch {
+      return context.json({ error: "product_draft_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/products/drafts/:draftId/review", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = ProductDraftReviewRequestSchema.safeParse(rawPayload);
+    const requestId = createProductCatalogRequestId("review", context.req.param("draftId"));
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success || parsed.data.draftId !== context.req.param("draftId")) {
+      return context.json({ error: "invalid_product_review_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "shift.close",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "shift.close",
+        reason: resolved.reason,
+        targetType: "product_draft_review",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.reviewProductDraft({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        actorId: actorContext.identity.subjectId,
+        actorDisplayName: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
+        request: parsed.data,
+      });
+
+      return context.json(ProductDraftReviewResponseSchema.parse(response));
+    } catch (error) {
+      if (error instanceof Error && error.message === "product_draft_not_found") {
+        return context.json({ error: "product_draft_not_found" }, 404);
+      }
+
+      return context.json({ error: "product_review_unavailable" }, 503);
     }
   });
 
@@ -1236,6 +1405,11 @@ function createPrepareTurnRequestId(deviceId: string): string {
   return `pt:${Date.now().toString(36)}:${devicePart}`.slice(0, 120);
 }
 
+function createProductCatalogRequestId(kind: string, value: string): string {
+  const valuePart = safeAuditIdentifier(value).slice(0, 48);
+  return `catalog:${kind}:${Date.now().toString(36)}:${valuePart}`.slice(0, 120);
+}
+
 function roleSnapshotForAudit(
   role: StoreMembership["role"] | undefined,
 ): "collaborator" | "lead" | "admin" {
@@ -1543,6 +1717,7 @@ async function resolvePrepareTurnScope(input: {
   authProvider: AuthProvider;
   authorizationService: AuthorizationService;
   membershipRepository: MembershipRepository;
+  capability: Capability;
 }): Promise<
   | {
       allowed: true;
@@ -1579,7 +1754,7 @@ async function resolvePrepareTurnScope(input: {
     input.requestedStoreId ?? targetMembership?.storeId ?? "loja-nao-autorizada";
   const decision = await input.authorizationService.authorize({
     identity,
-    capability: "task.act",
+    capability: input.capability,
     resourceStoreId: targetStoreId,
   });
 

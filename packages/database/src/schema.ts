@@ -402,6 +402,7 @@ export const centralProducts = pgTable(
     centralProductId: text("central_product_id").primaryKey(),
     storeId: text("store_id").notNull(),
     displayName: text("display_name").notNull(),
+    normalizedKey: text("normalized_key").notNull(),
     categoryId: text("category_id").notNull(),
     categoryName: text("category_name").notNull(),
     status: centralProductStatusEnum("status").notNull().default("validated"),
@@ -414,6 +415,10 @@ export const centralProducts = pgTable(
   },
   (table) => [
     index("central_products_store_name_idx").on(table.storeId, table.displayName),
+    uniqueIndex("central_products_store_normalized_key_uidx").on(
+      table.storeId,
+      table.normalizedKey,
+    ),
     index("central_products_store_category_idx").on(table.storeId, table.categoryId),
     index("central_products_store_status_idx").on(table.storeId, table.status),
     uniqueIndex("central_products_store_gtin_uidx")

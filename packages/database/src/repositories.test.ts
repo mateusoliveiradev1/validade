@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ProductDraftCreateRequest } from "@validade-zero/contracts";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
 import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
 import {
@@ -198,6 +199,131 @@ describe("database repositories", () => {
     expect(String(captured[6]?.[0])).toContain("sanitized");
     expect(String(captured[6]?.[0])).toContain("true");
     expect(response.products[0]?.centralProductId).toBe("produto-store-1");
+  });
+
+  it("prevents duplicate product drafts by normalized name or GTIN", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [
+        {
+          ...centralProduct("store-1", "produto-store-1"),
+          normalizedKey: "ovos brancos ficticios",
+          gtin: "7890000000001",
+        },
+      ],
+    });
+
+    const duplicateByGtin = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos Outra Embalagem FICTICIOS",
+        gtin: "7890000000001",
+      }),
+    );
+    const duplicateByName = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos FICTICIOS",
+      }),
+    );
+
+    expect(duplicateByGtin).toMatchObject({
+      outcome: "reuse_existing",
+      duplicateReason: "gtin",
+    });
+    expect(duplicateByName).toMatchObject({
+      outcome: "reuse_existing",
+      duplicateReason: "normalized_name",
+    });
+    expect(repository.readProductDrafts()).toHaveLength(0);
+    expect(repository.readAuditEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetType: "product",
+          action: "product.reused",
+          sanitized: true,
+        }),
+      ]),
+    );
+  });
+
+  it("returns similar candidates before creating a product draft", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [
+        {
+          ...centralProduct("store-1", "produto-store-1"),
+          normalizedKey: "ovos brancos ficticios",
+        },
+      ],
+    });
+
+    const firstAttempt = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos Organicos FICTICIOS",
+      }),
+    );
+    expect(firstAttempt).toMatchObject({
+      outcome: "similar_found",
+      similarCandidates: [
+        {
+          centralProductId: "produto-store-1",
+          matchKind: "similar_candidate",
+        },
+      ],
+    });
+
+    const draft = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos Organicos FICTICIOS",
+        similarCandidateIds: ["produto-store-1"],
+      }),
+    );
+    const replay = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos Organicos FICTICIOS",
+        similarCandidateIds: ["produto-store-1"],
+      }),
+    );
+
+    expect(draft).toMatchObject({
+      outcome: "draft_pending_review",
+      draft: {
+        reviewStatus: "pending_review",
+        source: "draft_pending_review",
+      },
+    });
+    expect(replay).toMatchObject({
+      outcome: "draft_pending_review",
+      draft: {
+        centralProductId: draft.draft?.centralProductId,
+      },
+    });
+    expect(repository.readProductDrafts()).toHaveLength(1);
+  });
+
+  it("uses normalized product keys and sanitized catalog audit rows in SQL", async () => {
+    const captured: unknown[][] = [];
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    const response = await repository.createProductDraft(productDraftInput("store-1"));
+
+    expect(response).toMatchObject({
+      outcome: "draft_pending_review",
+      normalizedKey: "ovos caipiras ficticios",
+    });
+    expect(captured.some(([query]) => String(query).includes("normalized_key"))).toBe(true);
+    expect(captured.some(([query]) => String(query).includes("insert into central_products"))).toBe(
+      true,
+    );
+    const auditQuery = captured.find(([query]) =>
+      String(query).includes("insert into audit_events"),
+    );
+    expect(String(auditQuery?.[0])).toContain("'product'");
+    expect(String(auditQuery?.[0])).toContain("sanitized");
+    expect(String(auditQuery?.[0])).toContain("true");
   });
 
   it("deduplicates pilot invites and rejects expired invite tokens", async () => {
@@ -457,6 +583,28 @@ function prepareTurnInput(storeId: string) {
   };
 }
 
+function productDraftInput(storeId: string, overrides: Partial<ProductDraftCreateRequest> = {}) {
+  return {
+    requestId: `draft-${storeId}-${overrides.displayName ?? "default"}`,
+    storeId,
+    storeName: "Loja Ficticia Piloto",
+    actorId: "subject-1",
+    actorDisplayName: "Pessoa Piloto",
+    actorRoleSnapshot: "lead" as const,
+    request: {
+      displayName: "Ovos Caipiras FICTICIOS",
+      categoryId: "categoria-ficticia-ovos",
+      categoryName: "Ovos ficticios",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-ovos",
+        mode: "formal_validity" as const,
+      },
+      requestedAt: "2030-01-10T09:00:00.000Z",
+      ...overrides,
+    },
+  };
+}
+
 function centralProduct(storeId: string, centralProductId: string) {
   return {
     storeId,
@@ -518,6 +666,7 @@ function centralProductRow() {
   return {
     central_product_id: "produto-store-1",
     display_name: "Ovos Brancos FICTICIOS",
+    normalized_key: "ovos brancos ficticios",
     category_id: "categoria-ficticia-ovos",
     category_name: "Ovos ficticios",
     status: "validated",

@@ -142,6 +142,228 @@ describe("capture prepare-turn API", () => {
   });
 });
 
+describe("capture product catalog API", () => {
+  it("searches products only inside the store resolved from the session", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto"), centralProduct("loja-outra")],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/products/search", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(productSearchRequest("Morango FICTICIO")),
+    });
+    const body = (await response.json()) as {
+      reusableProducts?: Array<{ centralProductId?: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.reusableProducts).toEqual([
+      expect.objectContaining({ centralProductId: "product-loja-piloto" }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain("loja-outra");
+
+    const denied = await app.request("/capture/products/search?storeId=loja-outra", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(productSearchRequest("Morango FICTICIO")),
+    });
+
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      error: "access_denied",
+      reason: "outside_store_scope",
+    });
+  });
+
+  it("returns duplicate and similar product states before creating drafts", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [
+        {
+          ...centralProduct("loja-piloto"),
+          gtin: "7890000000001",
+          normalizedKey: "morango ficticio",
+        },
+      ],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const duplicate = await app.request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        productDraftRequest({
+          displayName: "Morango bandeja FICTICIO",
+          gtin: "7890000000001",
+        }),
+      ),
+    });
+    const duplicateBody = (await duplicate.json()) as {
+      outcome?: string;
+      duplicateReason?: string;
+    };
+
+    expect(duplicate.status).toBe(200);
+    expect(duplicateBody).toMatchObject({
+      outcome: "reuse_existing",
+      duplicateReason: "gtin",
+    });
+
+    const similar = await app.request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(productDraftRequest({ displayName: "Morango Organico FICTICIO" })),
+    });
+    const similarBody = (await similar.json()) as {
+      outcome?: string;
+      similarCandidates?: Array<{ centralProductId: string }>;
+    };
+
+    expect(similar.status).toBe(200);
+    expect(similarBody).toMatchObject({
+      outcome: "similar_found",
+      similarCandidates: [expect.objectContaining({ centralProductId: "product-loja-piloto" })],
+    });
+
+    const draft = await app.request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        productDraftRequest({
+          displayName: "Morango Organico FICTICIO",
+          similarCandidateIds: ["product-loja-piloto"],
+        }),
+      ),
+    });
+    const draftBody = (await draft.json()) as {
+      outcome?: string;
+      draft?: { reviewStatus?: string };
+    };
+
+    expect(draft.status).toBe(200);
+    expect(draftBody).toMatchObject({
+      outcome: "draft_pending_review",
+      draft: { reviewStatus: "pending_review" },
+    });
+    expect(captureRepository.readAuditEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetType: "product",
+          action: "product.draft_created",
+          sanitized: true,
+        }),
+      ]),
+    );
+  });
+
+  it("allows lead review but denies admin-only product draft review", async () => {
+    const captureRepository = createInMemoryCaptureRepository();
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        leadMembership("loja-piloto"),
+        adminMembership("loja-piloto"),
+      ]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+    const created = await app.request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(productDraftRequest({ displayName: "Produto Revisao FICTICIO" })),
+    });
+    const createdBody = (await created.json()) as { draft?: { draftId?: string } };
+    const draftId = createdBody.draft?.draftId ?? "draft-nao-criado";
+
+    const denied = await app.request(`/capture/products/drafts/${draftId}/review`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:admin-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        draftId,
+        decision: "approve",
+        reviewedAt: NOW,
+      }),
+    });
+
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      error: "access_denied",
+      reason: "capability_not_allowed",
+    });
+
+    const reviewed = await app.request(`/capture/products/drafts/${draftId}/review`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        draftId,
+        decision: "approve",
+        reviewedAt: NOW,
+      }),
+    });
+    const reviewedBody = (await reviewed.json()) as {
+      draft?: { reviewStatus?: string };
+      acknowledgement?: { state?: string };
+    };
+
+    expect(reviewed.status).toBe(200);
+    expect(reviewedBody).toMatchObject({
+      draft: { reviewStatus: "validated" },
+      acknowledgement: { state: "validated" },
+    });
+  });
+
+  it("rejects forged product store authority in request bodies", async () => {
+    const response = await createApiApp().request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        ...productDraftRequest(),
+        storeId: "loja-injetada",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+});
+
 function prepareTurnRequest() {
   return {
     deviceId: "device-pilot-001",
@@ -156,10 +378,47 @@ function prepareTurnRequest() {
   };
 }
 
+function productSearchRequest(query: string) {
+  return {
+    query,
+    requestedAt: NOW,
+  };
+}
+
+function productDraftRequest(overrides: Record<string, unknown> = {}) {
+  return {
+    displayName: "Morango Organico FICTICIO",
+    categoryId: "frutas",
+    categoryName: "Frutas",
+    categoryRuleProfile: {
+      categoryId: "frutas",
+      mode: "formal_validity",
+      windows: {
+        radarDays: 60,
+        markdownDays: 15,
+        criticalDays: 3,
+        expiredDays: 0,
+      },
+    },
+    requestedAt: NOW,
+    ...overrides,
+  };
+}
+
 function leadMembership(storeId: string) {
   return {
     subjectId: "lead-local",
     role: "lead" as const,
+    storeId,
+    storeName: storeId === "loja-piloto" ? "Loja Piloto" : "Loja Outra",
+    status: "active" as const,
+  };
+}
+
+function adminMembership(storeId: string) {
+  return {
+    subjectId: "admin-local",
+    role: "admin" as const,
     storeId,
     storeName: storeId === "loja-piloto" ? "Loja Piloto" : "Loja Outra",
     status: "active" as const,
