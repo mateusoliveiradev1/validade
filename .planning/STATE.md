@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 in progress - 5/6 plans complete
-stopped_at: Completed 10-05-PLAN.md
-last_updated: "2026-06-27T03:35:20.000Z"
+status: Phase 10 complete - repository gates passed; Android/provider/remote migration validation blocked externally
+stopped_at: Completed 10-06-PLAN.md
+last_updated: "2026-06-27T03:56:56.000Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 10
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 45
-  completed_plans: 44
-  percent: 98
+  completed_plans: 45
+  percent: 100
 ---
 
 # Project State: Validade Zero
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | In Progress | Real Pilot Flow Rebuild - 5/6 plans complete; 10-06 next |
+| 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates passed; Android/provider/remote migration validation blocked externally |
 
 ## Active Constraints
 
@@ -56,9 +56,13 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 10 Real Pilot Flow Rebuild with 10-06.
+Apply the remote database migration after a target URL is configured, then run installed Android/provider UAT.
 
-`$gsd-execute-phase 10`
+```powershell
+$env:NEON_DATABASE_URL="postgres://..."
+pnpm.cmd --filter @validade-zero/database db:push
+pnpm.cmd test:e2e:mobile
+```
 
 ## Accumulated Context
 
@@ -70,6 +74,7 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-06.
 - Phase 10 Plan 03 completed: central lot creation/observation contracts, durable store-scoped task projection, authorized API lot writes, mobile central-save path, and visible central/local lot cache state.
 - Phase 10 Plan 04 completed: central terminal resolution policy, central sync command application, conflicts/retries/idempotency, mobile resolved-history reconciliation, and migration/schema check against existing 0006 central capture migration.
 - Phase 10 Plan 05 completed: capture-backed Command Center projection, explicit command_center/catalog capabilities, role-scoped web navigation/actions, central active-task alert dispatch, and migration/schema check with remote apply blocked until database URL is provided.
+- Phase 10 Plan 06 completed: central shift-close revalidation, pilot UAT docs, mobile/web release journeys, root gates, security/performance verification, and external blocker record for Android/provider/remote migration.
 
 ### Quick Tasks Completed
 
@@ -130,6 +135,7 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-06.
 | Phase 10 P03 | 210min | 3 tasks | 23 files |
 | Phase 10 P04 | inline | 3 tasks | terminal sync policy, central application, mobile reconciliation, migration check |
 | Phase 10 P05 | inline | 3 tasks | capture-backed Command Center, role/store controls, central alert audience, migration check |
+| Phase 10 P06 | inline | 3 tasks | central shift close, pilot UAT, release truth gate, Android/provider/migration blockers |
 
 ## Session
 
@@ -148,6 +154,8 @@ Continue Phase 10 Real Pilot Flow Rebuild with 10-06.
 - [Phase 10]: Command Center reads central capture truth by default and fails closed when central facts are missing. - Prevents an audit-only interpretation from producing a false safe verdict.
 - [Phase 10]: Command Center read and catalog review use explicit capabilities. - Collaborators can read allowed operational state, leads keep audit/shift authority, and admins can govern catalog/users without implicit shift/task authority.
 - [Phase 10]: Push/escalation dispatch is derived from active central tasks and store-scoped audience registrations. - Delivery is a reminder signal only and never resolves persistent task truth.
+- [Phase 10]: Safe shift close revalidates central capture truth immediately before acceptance. - Prevents stale, local, draft, conflict, discarded, or active-task state from becoming a false safe close.
+- [Phase 10]: Release readiness separates repository gates from Android/provider/remote migration evidence. - `pnpm check` can pass while installed-build and provider validation remain externally blocked.
 - [Phase 10]: Mobile repository construction happens after authentication. - Central lot API calls use the current authenticated session instead of a pre-auth singleton.
 - [Phase 10]: Product search, reuse, and draft creation are one operational path with central duplicate prevention. - Prevents local-only product shortcuts from creating accidental duplicates before lot work.
 - [Phase 10]: Mobile product confirmation no longer forces immediate lot registration. - Keeps product truth and lot lifecycle separate while preserving an explicit `Registrar lote` next step.
