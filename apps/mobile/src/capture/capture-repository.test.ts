@@ -353,4 +353,91 @@ describe("memory capture repository", () => {
       }),
     ]);
   });
+
+  it("does not confirm central-cache lots locally when the central write fails", async () => {
+    const createCentralLot = vi.fn(() => Promise.reject(new Error("network unavailable")));
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "identificador-local-nao-usado",
+      createCentralLot,
+    });
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-central-ficticio",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:00:00.000Z",
+        centralReadAt: "2030-01-10T09:00:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        lastHydratedAt: "2030-01-10T09:00:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: "produto-central-alface-001",
+          displayName: "Alface Central FICTICIA",
+          categoryId: "categoria-ficticia-folhas",
+          categoryName: "Folhas",
+          categoryRuleProfile: {
+            categoryId: "categoria-ficticia-folhas",
+            mode: "formal_validity",
+            windows: {
+              radarDays: 60,
+              markdownDays: 15,
+              criticalDays: 3,
+              expiredDays: 0,
+            },
+          },
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+      ],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(
+      repository.saveLot({
+        lot: {
+          productId: "produto-central-alface-001",
+          identity: { identitySource: "printed", value: "LOTE-CENTRAL-FICTICIO-001" },
+          mode: "formal_validity",
+          expiresAt: "2030-01-12",
+          receivedAt: "2030-01-10",
+          approximateQuantity: 9,
+          initialLocation: { kind: "area_de_venda" },
+        },
+        actorLabel: "Colaboradora Central FICTICIA",
+      }),
+    ).rejects.toThrow("central_lot_write_failed");
+    expect(createCentralLot).toHaveBeenCalledOnce();
+    await expect(repository.listRecentLots()).resolves.toEqual([]);
+  });
 });

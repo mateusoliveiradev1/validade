@@ -502,12 +502,16 @@ export function createMemoryCaptureRepository(
     product: CaptureProductRecord,
     actorLabel: string,
   ): Promise<CaptureLotSnapshot | null> {
-    if (dependencies.createCentralLot === undefined || product.centralProductId === undefined) {
+    if (dependencies.createCentralLot === undefined) {
       return null;
     }
 
+    if (product.centralProductId === undefined) {
+      throw new Error("central_lot_requires_central_product");
+    }
+
     if (prepareTurnCacheStatus?.state !== "ready" || prepareTurnCacheStatus.source !== "central") {
-      return null;
+      throw new Error("central_lot_requires_ready_prepare_turn");
     }
 
     try {
@@ -536,8 +540,16 @@ export function createMemoryCaptureRepository(
       }
 
       return snapshot;
-    } catch {
-      return null;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message === "central_lot_requires_central_product" ||
+          error.message === "central_lot_requires_ready_prepare_turn")
+      ) {
+        throw error;
+      }
+
+      throw new Error("central_lot_write_failed", { cause: error });
     }
   }
 

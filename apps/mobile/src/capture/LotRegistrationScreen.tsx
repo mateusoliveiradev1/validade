@@ -114,10 +114,8 @@ export function LotRegistrationScreen({
       );
       setSaveError(undefined);
       onSaved?.();
-    } catch {
-      setSaveError(
-        "Não foi possível registrar este lote neste aparelho. Revise os campos destacados e tente novamente.",
-      );
+    } catch (error) {
+      setSaveError(lotSaveErrorMessage(error));
     }
   }
 
@@ -549,3 +547,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+function lotSaveErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === "central_lot_requires_ready_prepare_turn") {
+    return "Prepare o turno novamente antes de registrar lote. Nada foi salvo apenas neste aparelho.";
+  }
+
+  if (error instanceof Error && error.message === "central_lot_requires_central_product") {
+    return "Este produto ainda nao esta confirmado na central. Reabra o cadastro do produto antes de registrar lote.";
+  }
+
+  if (error instanceof Error && error.message === "central_lot_write_failed") {
+    return "Nao foi possivel confirmar este lote na central. Nada foi salvo apenas neste aparelho; tente novamente.";
+  }
+
+  return "Nao foi possivel registrar este lote neste aparelho. Revise os campos destacados e tente novamente.";
+}

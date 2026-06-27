@@ -955,14 +955,18 @@ export function createSQLiteCaptureRepository(
     product: CaptureProductRecord,
     actorLabel: string,
   ): Promise<CaptureLotSnapshot | null> {
-    if (dependencies.createCentralLot === undefined || product.centralProductId === undefined) {
+    if (dependencies.createCentralLot === undefined) {
       return null;
+    }
+
+    if (product.centralProductId === undefined) {
+      throw new Error("central_lot_requires_central_product");
     }
 
     const cache = await loadPrepareTurnCacheStatus().catch(() => null);
 
     if (cache?.state !== "ready" || cache.source !== "central") {
-      return null;
+      throw new Error("central_lot_requires_ready_prepare_turn");
     }
 
     const occurredAt = dependencies.clock();
@@ -997,8 +1001,16 @@ export function createSQLiteCaptureRepository(
       });
 
       return centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
-    } catch {
-      return null;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message === "central_lot_requires_central_product" ||
+          error.message === "central_lot_requires_ready_prepare_turn")
+      ) {
+        throw error;
+      }
+
+      throw new Error("central_lot_write_failed", { cause: error });
     }
   }
 
