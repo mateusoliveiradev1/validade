@@ -12,11 +12,13 @@ import {
   authSessions,
   centralCategoryCatalog,
   centralCategories,
+  centralProductIdentifiers,
   evidenceAssets,
   evidenceAssetStateEnum,
   membershipRoleEnum,
   membershipStatusEnum,
   membershipMutations,
+  productIdentifierTypeEnum,
   privacyRequests,
   shiftClosures,
   shiftCloseEligibilityEnum,
@@ -60,6 +62,10 @@ const storeCatalogMigrationSql = readFileSync(
 );
 const globalCategoryCatalogMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0011_phase_10_global_category_catalog.sql"),
+  "utf8",
+);
+const productIdentifiersMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0012_phase_10_product_identifiers.sql"),
   "utf8",
 );
 
@@ -243,6 +249,26 @@ describe("phase 08 database schema", () => {
     expect(globalCategoryCatalogMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
+  });
+
+  it("models multiple product identifiers without weakening store tenancy", () => {
+    expect(productIdentifierTypeEnum.enumValues).toEqual([
+      "gtin",
+      "ean",
+      "barcode",
+      "plu",
+      "internal",
+      "supplier_code",
+    ]);
+    expect(centralProductIdentifiers.storeId.name).toBe("store_id");
+    expect(centralProductIdentifiers.centralProductId.name).toBe("central_product_id");
+    expect(centralProductIdentifiers.normalizedValue.name).toBe("normalized_value");
+    expect(productIdentifiersMigrationSql).toContain(
+      "CREATE TABLE IF NOT EXISTS central_product_identifiers",
+    );
+    expect(productIdentifiersMigrationSql).toContain("central_product_identifiers_active_uidx");
+    expect(productIdentifiersMigrationSql).toContain("WHERE status = 'active'");
+    expect(productIdentifiersMigrationSql).toContain("INSERT INTO central_product_identifiers");
   });
 
   it("anchors store tenancy in an explicit store catalog", () => {

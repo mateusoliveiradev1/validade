@@ -4,6 +4,8 @@ import {
   type ProductCatalogItem,
   type ProductDraftCreateRequest,
   type ProductDraftReviewState,
+  type ProductIdentifier,
+  type ProductIdentifierInput,
   type ProductSearchCandidate,
   type ProductSearchRequest,
   type AlertDeliveryResult,
@@ -223,14 +225,22 @@ export function createMemoryCaptureRepository(
     const normalizedQuery =
       request.query === undefined ? undefined : normalizeProductLookup(request.query);
     const catalogProducts = [...products.values()].map(localProductToCatalogItem);
+    const lookupIdentifiers = requestIdentifiers(request);
     const exact = catalogProducts.filter(
       (product) =>
         (normalizedQuery !== undefined && product.normalizedKey === normalizedQuery) ||
-        (request.gtin !== undefined && product.gtin === request.gtin),
+        (request.gtin !== undefined && product.gtin === request.gtin) ||
+        productHasAnyIdentifier(product, lookupIdentifiers),
     );
     const reusableProducts = exact
       .filter((product) => product.reviewStatus === "validated")
-      .map((product) => productSearchCandidate(product, "reusable_central"));
+      .map((product) =>
+        productSearchCandidate(
+          product,
+          "reusable_central",
+          exactMatchReasons(product, normalizedQuery, request.gtin, lookupIdentifiers),
+        ),
+      );
     const draft = exact.find((product) => product.reviewStatus === "pending_review");
     const similarCandidates = catalogProducts
       .filter(
@@ -273,6 +283,7 @@ export function createMemoryCaptureRepository(
                 requestedAt: draft.updatedAt,
                 similarCandidates: [],
                 ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+                ...(draft.identifiers === undefined ? {} : { identifiers: draft.identifiers }),
               },
             }),
       }),
@@ -283,29 +294,43 @@ export function createMemoryCaptureRepository(
     const request = parseProductDraftCreateRequest(input);
     const normalizedName = normalizeProductLookup(request.displayName);
     const catalogProducts = [...products.values()].map(localProductToCatalogItem);
+    const identifiers = requestIdentifiers(request);
     const exact = catalogProducts.find(
       (product) =>
         product.normalizedKey === normalizedName ||
-        (request.gtin !== undefined && product.gtin === request.gtin),
+        (request.gtin !== undefined && product.gtin === request.gtin) ||
+        productHasAnyIdentifier(product, identifiers),
     );
 
     if (exact !== undefined) {
+      const sourceRecord = [...products.values()].find(
+        (product) => (product.centralProductId ?? product.id) === exact.centralProductId,
+      );
+      const mergedRecord =
+        sourceRecord === undefined ? undefined : mergeProductIdentifiers(sourceRecord, identifiers);
+      if (mergedRecord !== undefined) products.set(mergedRecord.id, mergedRecord);
+      const reusableProduct =
+        mergedRecord === undefined ? exact : localProductToCatalogItem(mergedRecord);
+
       if (exact.reviewStatus === "pending_review") {
         const draft = {
-          draftId: exact.centralProductId,
-          centralProductId: exact.centralProductId,
-          displayName: exact.displayName,
-          normalizedKey: exact.normalizedKey,
-          categoryId: exact.categoryId,
-          categoryName: exact.categoryName,
-          categoryRuleProfile: exact.categoryRuleProfile,
+          draftId: reusableProduct.centralProductId,
+          centralProductId: reusableProduct.centralProductId,
+          displayName: reusableProduct.displayName,
+          normalizedKey: reusableProduct.normalizedKey,
+          categoryId: reusableProduct.categoryId,
+          categoryName: reusableProduct.categoryName,
+          categoryRuleProfile: reusableProduct.categoryRuleProfile,
           source: "draft_pending_review" as const,
           reviewStatus: "pending_review" as const,
           syncState: "pending_central" as const,
           requestedByLabel: "Este aparelho",
-          requestedAt: exact.updatedAt,
+          requestedAt: reusableProduct.updatedAt,
           similarCandidates: [],
-          ...(exact.gtin === undefined ? {} : { gtin: exact.gtin }),
+          ...(reusableProduct.gtin === undefined ? {} : { gtin: reusableProduct.gtin }),
+          ...(reusableProduct.identifiers === undefined
+            ? {}
+            : { identifiers: reusableProduct.identifiers }),
         };
 
         return Promise.resolve(
@@ -317,11 +342,11 @@ export function createMemoryCaptureRepository(
             draft,
             acknowledgement: {
               acknowledgementId: `ack-${exact.centralProductId}`,
-              centralProductId: exact.centralProductId,
+              centralProductId: reusableProduct.centralProductId,
               state: "draft_pending_review",
               syncState: "pending_central",
               reviewStatus: "pending_review",
-              acknowledgedAt: exact.updatedAt,
+              acknowledgedAt: reusableProduct.updatedAt,
             },
           }),
         );
@@ -333,8 +358,12 @@ export function createMemoryCaptureRepository(
           normalizedKey: normalizedName,
           outcome: "reuse_existing",
           duplicateReason:
-            request.gtin !== undefined && exact.gtin === request.gtin ? "gtin" : "normalized_name",
-          reusableProduct: exact,
+            request.gtin !== undefined && exact.gtin === request.gtin
+              ? "gtin"
+              : productHasAnyIdentifier(exact, identifiers)
+                ? "identifier"
+                : "normalized_name",
+          reusableProduct,
           similarCandidates: [],
         }),
       );
@@ -366,6 +395,9 @@ export function createMemoryCaptureRepository(
       categoryName: request.categoryName,
       categoryRuleProfile: request.categoryRuleProfile,
       ...(request.gtin === undefined ? {} : { gtin: request.gtin }),
+      ...(requestIdentifiersForLocal(request).length === 0
+        ? {}
+        : { identifiers: requestIdentifiersForLocal(request) }),
       id: nextGeneratedId(dependencies),
       normalizedName,
       createdAt: request.requestedAt,
@@ -1763,6 +1795,7 @@ export function createMemoryCaptureRepository(
       categoryName: product.categoryName,
       categoryRuleProfile: product.categoryRuleProfile,
       ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
       id: product.centralProductId,
       centralProductId: product.centralProductId,
       normalizedName: normalizeProductLookup(product.displayName),
@@ -1793,18 +1826,21 @@ export function createMemoryCaptureRepository(
       syncState: product.centralSyncState ?? "synchronized",
       updatedAt: product.createdAt,
       ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
     };
   }
 
   function productSearchCandidate(
     product: ProductCatalogItem,
     matchKind: ProductSearchCandidate["matchKind"],
+    matchReasons?: ProductSearchCandidate["matchReasons"],
   ): ProductSearchCandidate {
     return {
       ...product,
       matchKind,
       matchReasons:
-        matchKind === "similar_candidate" ? ["similar_name"] : ["exact_normalized_name"],
+        matchReasons ??
+        (matchKind === "similar_candidate" ? ["similar_name"] : ["exact_normalized_name"]),
       ...(matchKind === "similar_candidate"
         ? { warning: "Produto parecido encontrado. Reutilize se for o mesmo item." }
         : {}),
@@ -1816,6 +1852,134 @@ export function createMemoryCaptureRepository(
     const tokens = requestedKey.split(" ").filter((token) => token.length >= 3);
 
     return tokens.some((token) => productKey.includes(token));
+  }
+
+  function normalizeIdentifierValue(value: string): string {
+    return value.trim().replace(/\s+/g, "").toLocaleLowerCase("pt-BR").slice(0, 160);
+  }
+
+  function requestIdentifiers(request: {
+    gtin?: string | undefined;
+    identifier?: ProductIdentifierInput | undefined;
+    identifiers?: readonly ProductIdentifierInput[] | undefined;
+  }): ProductIdentifierInput[] {
+    const identifiers = new Map<string, ProductIdentifierInput>();
+
+    if (request.gtin !== undefined) {
+      identifiers.set(`gtin:${normalizeIdentifierValue(request.gtin)}`, {
+        type: "gtin",
+        value: request.gtin,
+      });
+    }
+
+    if (request.identifier !== undefined) {
+      identifiers.set(
+        `${request.identifier.type}:${normalizeIdentifierValue(request.identifier.value)}`,
+        request.identifier,
+      );
+    }
+
+    for (const identifier of request.identifiers ?? []) {
+      identifiers.set(
+        `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`,
+        identifier,
+      );
+    }
+
+    return [...identifiers.values()];
+  }
+
+  function requestIdentifiersForLocal(request: {
+    gtin?: string | undefined;
+    identifiers?: readonly ProductIdentifierInput[] | undefined;
+  }): ProductIdentifier[] {
+    return requestIdentifiers(request).map((identifier, index) => ({
+      ...identifier,
+      normalizedValue: normalizeIdentifierValue(identifier.value),
+      source: index === 0 && identifier.type === "gtin" ? "central" : "scan",
+      isPrimary: index === 0,
+    }));
+  }
+
+  function productHasIdentifier(
+    product: Pick<ProductCatalogItem, "gtin" | "identifiers">,
+    identifier: ProductIdentifierInput,
+  ): boolean {
+    const normalizedValue = normalizeIdentifierValue(identifier.value);
+
+    if (
+      (identifier.type === "gtin" || identifier.type === "ean" || identifier.type === "barcode") &&
+      product.gtin !== undefined &&
+      normalizeIdentifierValue(product.gtin) === normalizedValue
+    ) {
+      return true;
+    }
+
+    return (product.identifiers ?? []).some(
+      (candidate) =>
+        candidate.type === identifier.type &&
+        normalizeIdentifierValue(candidate.value) === normalizedValue,
+    );
+  }
+
+  function productHasAnyIdentifier(
+    product: Pick<ProductCatalogItem, "gtin" | "identifiers">,
+    identifiers: readonly ProductIdentifierInput[],
+  ): boolean {
+    return identifiers.some((identifier) => productHasIdentifier(product, identifier));
+  }
+
+  function exactMatchReasons(
+    product: ProductCatalogItem,
+    normalizedQuery: string | undefined,
+    gtin: string | undefined,
+    identifiers: readonly ProductIdentifierInput[],
+  ): ProductSearchCandidate["matchReasons"] {
+    const reasons: ProductSearchCandidate["matchReasons"] = [];
+
+    if (normalizedQuery !== undefined && product.normalizedKey === normalizedQuery) {
+      reasons.push("exact_normalized_name");
+    }
+    if (gtin !== undefined && product.gtin === gtin) {
+      reasons.push("exact_gtin");
+    }
+    if (productHasAnyIdentifier(product, identifiers)) {
+      reasons.push("exact_identifier");
+    }
+
+    return reasons.length === 0 ? ["exact_normalized_name"] : reasons;
+  }
+
+  function mergeProductIdentifiers(
+    product: CaptureProductRecord,
+    identifiers: readonly ProductIdentifierInput[],
+  ): CaptureProductRecord {
+    const current = [...(product.identifiers ?? [])];
+    const seen = new Set(
+      current.map(
+        (identifier) => `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`,
+      ),
+    );
+
+    for (const identifier of identifiers) {
+      const key = `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      current.push({
+        ...identifier,
+        normalizedValue: normalizeIdentifierValue(identifier.value),
+        source: "scan",
+        isPrimary: current.length === 0,
+      });
+    }
+
+    const firstGtin = current.find((identifier) => identifier.type === "gtin")?.value;
+
+    return {
+      ...product,
+      ...(product.gtin === undefined && firstGtin !== undefined ? { gtin: firstGtin } : {}),
+      ...(current.length === 0 ? {} : { identifiers: current }),
+    };
   }
 
   function productDraftToLocalRecordToDraft(
@@ -1837,6 +2001,7 @@ export function createMemoryCaptureRepository(
       requestedAt: record.createdAt,
       similarCandidates: [...similarCandidates],
       ...(record.gtin === undefined ? {} : { gtin: record.gtin }),
+      ...(record.identifiers === undefined ? {} : { identifiers: [...record.identifiers] }),
     };
   }
 

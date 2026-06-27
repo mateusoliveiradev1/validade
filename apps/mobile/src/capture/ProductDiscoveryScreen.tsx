@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ProductIdentifierInput } from "@validade-zero/contracts";
 import {
   productCatalogItemToLocalRecord,
   productDraftToLocalRecord,
@@ -24,13 +25,18 @@ export function ProductDiscoveryScreen({
   onScanCode,
   onOpenRecent,
   initialLookup,
+  initialLookupSource,
 }: {
   repository: CaptureRepository;
   onConfirmProduct: (product: CaptureProductRecord) => void;
-  onCreateProduct: (initialGtin?: string) => void;
+  onCreateProduct: (initial?: {
+    gtin?: string | undefined;
+    identifier?: ProductIdentifierInput | undefined;
+  }) => void;
   onScanCode?: (() => void) | undefined;
   onOpenRecent?: (() => void) | undefined;
   initialLookup?: string | undefined;
+  initialLookupSource?: "scan" | undefined;
 }) {
   const [query, setQuery] = useState(initialLookup ?? "");
   const [matches, setMatches] = useState<readonly CaptureProductRecord[]>([]);
@@ -52,7 +58,7 @@ export function ProductDiscoveryScreen({
     if (repository.searchCentralProducts !== undefined) {
       const response = await repository.searchCentralProducts({
         requestedAt: new Date().toISOString(),
-        ...(/^\d{8,14}$/.test(trimmedQuery) ? { gtin: trimmedQuery } : { query: trimmedQuery }),
+        ...centralProductLookupPayload(trimmedQuery, initialLookupSource),
       });
       const results = [
         ...response.reusableProducts.map(productCatalogItemToLocalRecord),
@@ -79,9 +85,7 @@ export function ProductDiscoveryScreen({
   }
 
   function openCreateProduct(): void {
-    const code = /^\d{8,}$/.test(query.trim()) ? query.trim() : undefined;
-
-    onCreateProduct(code);
+    onCreateProduct(createProductInitialIdentifier(query.trim(), initialLookupSource));
   }
 
   async function showFrequentProducts(): Promise<void> {
@@ -148,6 +152,7 @@ export function ProductDiscoveryScreen({
         <SecondaryAction label={captureCopy.frequent} onPress={() => void showFrequentProducts()} />
         <SecondaryAction label={captureCopy.byCategory} onPress={() => void chooseCategory()} />
       </View>
+      <SecondaryAction label="Produto nao esta na lista" onPress={openCreateProduct} />
       {message === undefined ? null : <StatusNotice>{message}</StatusNotice>}
       {categories.map((category) => (
         <SelectionRow
@@ -166,9 +171,6 @@ export function ProductDiscoveryScreen({
           onPress={() => setCandidate(product)}
         />
       ))}
-      {matches.length === 0 && message === captureCopy.noMatch ? (
-        <PrimaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />
-      ) : null}
       {candidate === undefined ? null : (
         <View style={styles.confirmation}>
           <Text style={styles.confirmationTitle}>{candidate.displayName}</Text>
@@ -246,6 +248,41 @@ function productDetail(product: CaptureProductRecord): string {
   }
 
   return category;
+}
+
+function centralProductLookupPayload(
+  value: string,
+  source: "scan" | undefined,
+): { query: string } | { gtin: string } | { identifier: ProductIdentifierInput } {
+  if (/^\d{8,14}$/.test(value)) {
+    return { gtin: value };
+  }
+
+  if (source === "scan") {
+    return { identifier: { type: "barcode", value } };
+  }
+
+  return { query: value };
+}
+
+function createProductInitialIdentifier(
+  value: string,
+  source: "scan" | undefined,
+): { gtin?: string | undefined; identifier?: ProductIdentifierInput | undefined } | undefined {
+  if (value.length === 0) return undefined;
+
+  if (/^\d{8,14}$/.test(value)) {
+    return {
+      gtin: value,
+      identifier: { type: "gtin", value },
+    };
+  }
+
+  if (source === "scan") {
+    return { identifier: { type: "barcode", value } };
+  }
+
+  return undefined;
 }
 
 function categoryShortcutDetail(category: CaptureProductCategory): string {

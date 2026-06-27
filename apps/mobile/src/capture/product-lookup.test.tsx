@@ -112,7 +112,7 @@ describe("manual product discovery", () => {
 
   it("uses an unknown code only as an optional GTIN prefill", async () => {
     const repository = createRepository();
-    let openProductFormWith: string | undefined;
+    let openProductFormWith: { gtin?: string } | undefined;
     let tree: ReactTestRenderer | undefined;
 
     act(() => {
@@ -120,8 +120,8 @@ describe("manual product discovery", () => {
         <ProductDiscoveryScreen
           repository={repository}
           onConfirmProduct={() => undefined}
-          onCreateProduct={(gtin) => {
-            openProductFormWith = gtin;
+          onCreateProduct={(initial) => {
+            openProductFormWith = initial;
           }}
         />,
       );
@@ -140,16 +140,16 @@ describe("manual product discovery", () => {
     });
 
     act(() => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Produto nao esta na lista");
     });
 
-    expect(openProductFormWith).toBe("7890000000001");
+    expect(openProductFormWith?.gtin).toBe("7890000000001");
 
     await act(async () => {
       tree = create(
         <ProductFormScreen
           repository={repository}
-          initialGtin={openProductFormWith}
+          initialGtin={openProductFormWith?.gtin}
           onCreated={() => undefined}
           onBack={() => undefined}
         />,
@@ -197,7 +197,7 @@ describe("manual product discovery", () => {
     });
 
     await act(async () => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Criar rascunho e continuar");
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -207,7 +207,7 @@ describe("manual product discovery", () => {
     expect(created).toEqual([]);
 
     await act(async () => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Criar rascunho e continuar");
       await Promise.resolve();
       await Promise.resolve();
     });

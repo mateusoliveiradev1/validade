@@ -16,6 +16,7 @@ const TODAY_TASK_SYNC_COLUMNS = [{ name: "sync_json", definition: "TEXT" }] as c
 
 const PRODUCT_CATALOG_COLUMNS = [
   { name: "category_name", definition: "TEXT" },
+  { name: "identifiers_json", definition: "TEXT" },
   { name: "central_product_id", definition: "TEXT" },
   { name: "catalog_source", definition: "TEXT" },
   { name: "review_status", definition: "TEXT" },

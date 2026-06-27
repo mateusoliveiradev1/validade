@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 complete - repository gates and Neon staging migration passed; Android/provider validation blocked externally
+status: Phase 10 complete - product identifiers, repository gates, Neon staging migration, and Worker staging deploy passed; Android/provider validation blocked externally
 stopped_at: Completed 10-06-PLAN.md
 last_updated: "2026-06-27T13:27:07.187-03:00"
-last_activity: "2026-06-27 - Completed quick task 260627-iar: Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira"
+last_activity: "2026-06-27 - Completed quick task 260627-mpa: Adicionar multiplos identificadores por produto e vincular codigo novo sem duplicar produto"
 progress:
   total_phases: 10
   completed_phases: 10
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-27 - Completed quick task 260627-iar: Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira
+**Last activity:** 2026-06-27 - Completed quick task 260627-mpa: Adicionar multiplos identificadores por produto e vincular codigo novo sem duplicar produto
 
 ## Project Reference
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Neon staging and the live web/API now have multi-store RBAC management applied. Next, log out and back in on the web, open Administracao de acessos, and verify Mateus Oliveira can switch stores while a store-scoped admin sees only their own store.
+Neon staging and the live API now support multiple identifiers per product. Next, use the web/API staging flow to create or reuse the first real product, then scan/register another code for the same item and confirm it links to the same product instead of creating a duplicate.
 
 ```powershell
 start https://validade-five.vercel.app
@@ -91,6 +91,7 @@ start https://validade-five.vercel.app
 | 260626-i4v | Enriquecer Command Center com causa estruturada de vencimento, trilha de auditoria e dados suficientes para explicar por que venceu | 2026-06-26 | pending-final-batch | Verified | [260626-i4v-enriquecer-command-center-com-causa-estr](./quick/260626-i4v-enriquecer-command-center-com-causa-estr/) |
 | 260627-hkt | Prepare staging for 23-store real UAT with Loja 18 category catalog, no fake products, and web/API store scope cleanup | 2026-06-27 | pending-final-batch | Verified | [260627-hkt-prepare-staging-for-23-store-real-uat-wi](./quick/260627-hkt-prepare-staging-for-23-store-real-uat-wi/) |
 | 260627-iar | Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira | 2026-06-27 | 86965264 | Verified | [260627-iar-ajustar-rbac-multi-loja-para-dono-admin-](./quick/260627-iar-ajustar-rbac-multi-loja-para-dono-admin-/) |
+| 260627-mpa | Adicionar multiplos identificadores por produto e fluxo para vincular codigo novo sem duplicar produto | 2026-06-27 | pending | Verified | [260627-mpa-adicionar-m-ltiplos-identificadores-por-](./quick/260627-mpa-adicionar-m-ltiplos-identificadores-por-/) |
 
 ## Performance Metrics
 

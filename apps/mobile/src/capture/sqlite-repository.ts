@@ -35,6 +35,8 @@ import {
   type ProductCatalogItem,
   type ProductDraftCreateRequest,
   type ProductDraftReviewState,
+  type ProductIdentifier,
+  type ProductIdentifierInput,
   type ProductSearchCandidate,
   type ProductSearchRequest,
   type PushOpenIntent,
@@ -142,6 +144,7 @@ interface ProductRow {
   category_profile_json: string;
   supplier_name: string | null;
   gtin: string | null;
+  identifiers_json: string | null;
   product_override_json: string | null;
   central_product_id: string | null;
   catalog_source: string | null;
@@ -541,10 +544,10 @@ export function createSQLiteCaptureRepository(
     await db.runAsync(
       `INSERT INTO capture_products (
         id, display_name, normalized_name, category_id, category_name, category_profile_json,
-        supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+        supplier_name, gtin, identifiers_json, product_override_json, central_product_id, catalog_source,
         review_status, central_sync_state, draft_id, draft_review_message,
         similar_candidate_count, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       record.id,
       record.displayName,
       record.normalizedName,
@@ -553,6 +556,7 @@ export function createSQLiteCaptureRepository(
       JSON.stringify(record.categoryRuleProfile),
       record.supplierName ?? null,
       record.gtin ?? null,
+      stringifyProductIdentifiers(record),
       record.productRuleOverride === undefined ? null : JSON.stringify(record.productRuleOverride),
       record.centralProductId ?? null,
       record.catalogSource ?? "local",
@@ -595,22 +599,32 @@ export function createSQLiteCaptureRepository(
 
     const normalizedQuery =
       request.query === undefined ? undefined : normalizeProductLookup(request.query);
+    const lookupIdentifiers = requestIdentifierInputs({
+      ...(request.gtin === undefined ? {} : { gtin: request.gtin }),
+      ...(request.identifier === undefined ? {} : { identifiers: [request.identifier] }),
+    });
     const db = await getDatabase();
     const rows = await db.getAllAsync<ProductRow>(
       `SELECT * FROM capture_products
        WHERE (? IS NOT NULL AND normalized_name LIKE ?)
           OR (? IS NOT NULL AND gtin = ?)
+          OR (? IS NOT NULL AND category_id = ?)
+          OR (? IS NOT NULL)
        ORDER BY display_name COLLATE NOCASE ASC`,
       normalizedQuery ?? null,
       normalizedQuery === undefined ? null : `%${normalizedQuery}%`,
       request.gtin ?? null,
       request.gtin ?? null,
+      request.categoryId ?? null,
+      request.categoryId ?? null,
+      lookupIdentifiers.length === 0 ? null : "identifier",
     );
     const catalogProducts = rows.map(mapProduct).map(localProductToCatalogItem);
     const exact = catalogProducts.filter(
       (product) =>
         (normalizedQuery !== undefined && product.normalizedKey === normalizedQuery) ||
-        (request.gtin !== undefined && product.gtin === request.gtin),
+        (request.gtin !== undefined && product.gtin === request.gtin) ||
+        productHasAnyIdentifier(product, lookupIdentifiers),
     );
     const reusableProducts = exact
       .filter((product) => product.reviewStatus === "validated")
@@ -669,11 +683,14 @@ export function createSQLiteCaptureRepository(
     }
 
     const normalizedName = normalizeProductLookup(request.displayName);
+    const identifiers = requestIdentifierInputs(request);
     const db = await getDatabase();
-    const existing = await findExistingProduct(db, normalizedName, request.gtin);
+    const existing = await findExistingProduct(db, normalizedName, request.gtin, identifiers);
 
     if (existing !== null) {
-      const catalogProduct = localProductToCatalogItem(mapProduct(existing));
+      const existingProduct = mergeProductIdentifiersLocal(mapProduct(existing), identifiers);
+      await upsertProductRecord(db, existingProduct);
+      const catalogProduct = localProductToCatalogItem(existingProduct);
 
       if (catalogProduct.reviewStatus === "pending_review") {
         const draft = catalogItemToDraft(catalogProduct);
@@ -702,7 +719,9 @@ export function createSQLiteCaptureRepository(
         duplicateReason:
           request.gtin !== undefined && catalogProduct.gtin === request.gtin
             ? "gtin"
-            : "normalized_name",
+            : productHasAnyIdentifier(catalogProduct, identifiers)
+              ? "identifier"
+              : "normalized_name",
         reusableProduct: catalogProduct,
         similarCandidates: [],
       });
@@ -740,6 +759,9 @@ export function createSQLiteCaptureRepository(
       categoryName: request.categoryName,
       categoryRuleProfile: request.categoryRuleProfile,
       ...(request.gtin === undefined ? {} : { gtin: request.gtin }),
+      ...(requestIdentifiersForLocal(request).length === 0
+        ? {}
+        : { identifiers: requestIdentifiersForLocal(request) }),
       id: nextGeneratedId(dependencies),
       normalizedName,
       createdAt: request.requestedAt,
@@ -756,10 +778,10 @@ export function createSQLiteCaptureRepository(
     await db.runAsync(
       `INSERT INTO capture_products (
         id, display_name, normalized_name, category_id, category_name, category_profile_json,
-        supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+        supplier_name, gtin, identifiers_json, product_override_json, central_product_id, catalog_source,
         review_status, central_sync_state, draft_id, draft_review_message,
         similar_candidate_count, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       record.id,
       record.displayName,
       record.normalizedName,
@@ -768,6 +790,7 @@ export function createSQLiteCaptureRepository(
       JSON.stringify(record.categoryRuleProfile),
       record.supplierName ?? null,
       record.gtin ?? null,
+      stringifyProductIdentifiers(record),
       record.productRuleOverride === undefined ? null : JSON.stringify(record.productRuleOverride),
       record.centralProductId ?? null,
       "draft_pending_review",
@@ -2850,6 +2873,7 @@ async function initializeDatabase(
       category_profile_json TEXT NOT NULL,
       supplier_name TEXT,
       gtin TEXT,
+      identifiers_json TEXT,
       product_override_json TEXT,
       central_product_id TEXT,
       catalog_source TEXT,
@@ -3195,18 +3219,39 @@ async function findExistingProduct(
   db: SQLite.SQLiteDatabase,
   normalizedName: string,
   gtin: string | undefined,
+  identifiers: readonly ProductIdentifierInput[] = [],
 ): Promise<ProductRow | null> {
+  const firstIdentifierValue = identifiers[0]?.value;
+
   if (gtin === undefined) {
-    return db.getFirstAsync<ProductRow>(
-      "SELECT * FROM capture_products WHERE normalized_name = ?",
+    const rows = await db.getAllAsync<ProductRow>(
+      "SELECT * FROM capture_products WHERE normalized_name = ? OR (? IS NOT NULL AND identifiers_json LIKE ?)",
       normalizedName,
+      firstIdentifierValue ?? null,
+      firstIdentifierValue === undefined ? null : `%${firstIdentifierValue}%`,
+    );
+    return (
+      rows.find((row) =>
+        productHasAnyIdentifier(localProductToCatalogItem(mapProduct(row)), identifiers),
+      ) ??
+      rows[0] ??
+      null
     );
   }
 
-  return db.getFirstAsync<ProductRow>(
-    "SELECT * FROM capture_products WHERE normalized_name = ? OR gtin = ?",
+  const rows = await db.getAllAsync<ProductRow>(
+    "SELECT * FROM capture_products WHERE normalized_name = ? OR gtin = ? OR identifiers_json LIKE ?",
     normalizedName,
     gtin,
+    `%${gtin}%`,
+  );
+
+  return (
+    rows.find((row) =>
+      productHasAnyIdentifier(localProductToCatalogItem(mapProduct(row)), identifiers),
+    ) ??
+    rows[0] ??
+    null
   );
 }
 
@@ -3432,10 +3477,10 @@ async function upsertProductRecord(
   await db.runAsync(
     `INSERT INTO capture_products (
       id, display_name, normalized_name, category_id, category_name, category_profile_json,
-      supplier_name, gtin, product_override_json, central_product_id, catalog_source,
+      supplier_name, gtin, identifiers_json, product_override_json, central_product_id, catalog_source,
       review_status, central_sync_state, draft_id, draft_review_message,
       similar_candidate_count, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       normalized_name = excluded.normalized_name,
@@ -3444,6 +3489,7 @@ async function upsertProductRecord(
       category_profile_json = excluded.category_profile_json,
       supplier_name = excluded.supplier_name,
       gtin = excluded.gtin,
+      identifiers_json = excluded.identifiers_json,
       product_override_json = excluded.product_override_json,
       central_product_id = excluded.central_product_id,
       catalog_source = excluded.catalog_source,
@@ -3460,6 +3506,7 @@ async function upsertProductRecord(
     JSON.stringify(product.categoryRuleProfile),
     product.supplierName ?? null,
     product.gtin ?? null,
+    stringifyProductIdentifiers(product),
     product.productRuleOverride === undefined ? null : JSON.stringify(product.productRuleOverride),
     product.centralProductId ?? null,
     product.catalogSource ?? null,
@@ -3479,6 +3526,7 @@ function centralProductToRecord(product: CentralProductSnippet): CaptureProductR
     categoryName: product.categoryName,
     categoryRuleProfile: product.categoryRuleProfile,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
     id: product.centralProductId,
     centralProductId: product.centralProductId,
     normalizedName: normalizeProductLookup(product.displayName),
@@ -3527,6 +3575,7 @@ function productDraftToRecord(draft: ProductDraftReviewState): CaptureProductRec
     categoryName: draft.categoryName,
     categoryRuleProfile: draft.categoryRuleProfile,
     ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+    ...(draft.identifiers === undefined ? {} : { identifiers: [...draft.identifiers] }),
     id: draft.centralProductId,
     centralProductId: draft.centralProductId,
     normalizedName: draft.normalizedKey,
@@ -4170,6 +4219,7 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
   const catalogSource = parseCatalogSource(row.catalog_source);
   const reviewStatus = parseReviewStatus(row.review_status);
   const centralSyncState = parseCentralSyncState(row.central_sync_state);
+  const identifiers = parseProductIdentifiers(row);
 
   return {
     ...product,
@@ -4181,6 +4231,7 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
     ...(catalogSource === undefined ? {} : { catalogSource }),
     ...(reviewStatus === undefined ? {} : { reviewStatus }),
     ...(centralSyncState === undefined ? {} : { centralSyncState }),
+    ...(identifiers.length === 0 ? {} : { identifiers }),
     ...(row.draft_id === null ? {} : { draftId: row.draft_id }),
     ...(row.draft_review_message === null ? {} : { draftReviewMessage: row.draft_review_message }),
     ...(row.similar_candidate_count === null
@@ -4223,6 +4274,7 @@ function localProductToCatalogItem(product: CaptureProductRecord): ProductCatalo
         : product.centralSyncState,
     updatedAt: product.createdAt,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
   };
 }
 
@@ -4249,6 +4301,164 @@ function isSimilarProduct(productKey: string, requestedKey: string | undefined):
   return tokens.some((token) => productKey.includes(token));
 }
 
+function normalizeIdentifierValue(value: string): string {
+  return value.trim().replace(/\s+/g, "").toLocaleLowerCase("pt-BR").slice(0, 160);
+}
+
+function requestIdentifiersForLocal(input: {
+  gtin?: string | undefined;
+  identifiers?: readonly ProductIdentifierInput[] | undefined;
+}): ProductIdentifier[] {
+  const identifiers = new Map<string, ProductIdentifier>();
+
+  if (input.gtin !== undefined) {
+    const normalizedValue = normalizeIdentifierValue(input.gtin);
+    identifiers.set(`gtin:${normalizedValue}`, {
+      type: "gtin",
+      value: input.gtin,
+      normalizedValue,
+      source: "scan",
+      isPrimary: true,
+    });
+  }
+
+  for (const identifier of input.identifiers ?? []) {
+    const normalizedValue = normalizeIdentifierValue(identifier.value);
+    const key = `${identifier.type}:${normalizedValue}`;
+    if (identifiers.has(key)) continue;
+    identifiers.set(key, {
+      ...identifier,
+      normalizedValue,
+      source: "scan",
+      isPrimary: identifiers.size === 0,
+    });
+  }
+
+  return [...identifiers.values()];
+}
+
+function requestIdentifierInputs(input: {
+  gtin?: string | undefined;
+  identifiers?: readonly ProductIdentifierInput[] | undefined;
+}): ProductIdentifierInput[] {
+  return requestIdentifiersForLocal(input).map((identifier) => ({
+    type: identifier.type,
+    value: identifier.value,
+  }));
+}
+
+function stringifyProductIdentifiers(
+  product: Pick<CaptureProductRecord, "gtin" | "identifiers">,
+): string | null {
+  const identifiers = requestIdentifiersForLocal({
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: product.identifiers }),
+  });
+
+  return identifiers.length === 0 ? null : JSON.stringify(identifiers);
+}
+
+function parseProductIdentifiers(row: ProductRow): ProductIdentifier[] {
+  const raw = row.identifiers_json === null ? [] : parseJson(row.identifiers_json);
+  const rawIdentifiers = Array.isArray(raw) ? raw : [];
+  const parsed = rawIdentifiers
+    .filter((value): value is ProductIdentifier => isProductIdentifier(value))
+    .map((identifier) => ({
+      ...identifier,
+      normalizedValue: normalizeIdentifierValue(identifier.value),
+    }));
+
+  if (
+    row.gtin !== null &&
+    !parsed.some(
+      (identifier) =>
+        identifier.type === "gtin" &&
+        normalizeIdentifierValue(identifier.value) === normalizeIdentifierValue(row.gtin ?? ""),
+    )
+  ) {
+    parsed.unshift({
+      type: "gtin",
+      value: row.gtin,
+      normalizedValue: normalizeIdentifierValue(row.gtin),
+      source: "scan",
+      isPrimary: true,
+    });
+  }
+
+  return parsed;
+}
+
+function isProductIdentifier(value: unknown): value is ProductIdentifier {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.type === "string" &&
+    ["gtin", "ean", "barcode", "plu", "internal", "supplier_code"].includes(candidate.type) &&
+    typeof candidate.value === "string" &&
+    typeof candidate.normalizedValue === "string"
+  );
+}
+
+function productHasIdentifier(
+  product: ProductCatalogItem,
+  identifier: ProductIdentifierInput,
+): boolean {
+  const normalizedValue = normalizeIdentifierValue(identifier.value);
+
+  if (
+    (identifier.type === "gtin" || identifier.type === "ean" || identifier.type === "barcode") &&
+    product.gtin !== undefined &&
+    normalizeIdentifierValue(product.gtin) === normalizedValue
+  ) {
+    return true;
+  }
+
+  return (product.identifiers ?? []).some(
+    (candidate) =>
+      candidate.type === identifier.type &&
+      normalizeIdentifierValue(candidate.value) === normalizedValue,
+  );
+}
+
+function productHasAnyIdentifier(
+  product: ProductCatalogItem,
+  identifiers: readonly ProductIdentifierInput[],
+): boolean {
+  return identifiers.some((identifier) => productHasIdentifier(product, identifier));
+}
+
+function mergeProductIdentifiersLocal(
+  product: CaptureProductRecord,
+  identifiers: readonly ProductIdentifierInput[],
+): CaptureProductRecord {
+  const current = [...(product.identifiers ?? [])];
+  const seen = new Set(
+    current.map((identifier) => `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`),
+  );
+
+  for (const identifier of identifiers) {
+    const normalizedValue = normalizeIdentifierValue(identifier.value);
+    const key = `${identifier.type}:${normalizedValue}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    current.push({
+      ...identifier,
+      normalizedValue,
+      source: "scan",
+      isPrimary: current.length === 0,
+    });
+  }
+
+  const firstGtin = current.find((identifier) => identifier.type === "gtin")?.value;
+
+  return {
+    ...product,
+    ...(product.gtin === undefined && firstGtin !== undefined ? { gtin: firstGtin } : {}),
+    ...(current.length === 0 ? {} : { identifiers: current }),
+  };
+}
+
 function catalogItemToDraft(product: ProductCatalogItem): ProductDraftReviewState {
   return {
     draftId: product.centralProductId,
@@ -4265,6 +4475,7 @@ function catalogItemToDraft(product: ProductCatalogItem): ProductDraftReviewStat
     requestedAt: product.updatedAt,
     similarCandidates: [],
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
   };
 }
 
@@ -4287,6 +4498,7 @@ function localProductToDraft(
     requestedAt: product.createdAt,
     similarCandidates: [...similarCandidates],
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
   };
 }
 

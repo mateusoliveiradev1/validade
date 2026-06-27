@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { ProductMode } from "@validade-zero/domain";
-import type { ProductSearchCandidate } from "@validade-zero/contracts";
+import type { ProductIdentifierInput, ProductSearchCandidate } from "@validade-zero/contracts";
 import {
   productCatalogItemToLocalRecord,
   productDraftToLocalRecord,
@@ -22,11 +22,13 @@ import {
 export function ProductFormScreen({
   repository,
   initialGtin,
+  initialIdentifier,
   onCreated,
   onBack,
 }: {
   repository: CaptureRepository;
   initialGtin?: string;
+  initialIdentifier?: ProductIdentifierInput;
   onCreated: (product: CaptureProductRecord) => void;
   onBack: () => void;
 }) {
@@ -43,6 +45,14 @@ export function ProductFormScreen({
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [similarCandidates, setSimilarCandidates] = useState<readonly ProductSearchCandidate[]>([]);
+  const linkedIdentifier =
+    initialIdentifier ??
+    (initialGtin === undefined
+      ? undefined
+      : ({
+          type: "gtin",
+          value: initialGtin,
+        } satisfies ProductIdentifierInput));
 
   useEffect(() => {
     let active = true;
@@ -115,6 +125,7 @@ export function ProductFormScreen({
           requestedAt: new Date().toISOString(),
           ...(supplierName.trim().length === 0 ? {} : { supplierName }),
           ...(gtin.trim().length === 0 ? {} : { gtin }),
+          ...(linkedIdentifier === undefined ? {} : { identifiers: [linkedIdentifier] }),
           similarCandidateIds: similarCandidates.map((candidate) => candidate.centralProductId),
         });
 
@@ -161,8 +172,8 @@ export function ProductFormScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
-        title="Criar rascunho operacional"
-        body="Escolha a categoria do catalogo geral antes de abrir lote para este produto."
+        title="Criar produto para este lote"
+        body="Informe nome e categoria. O codigo lido fica vinculado ao produto para as proximas leituras."
       />
       <Field label="Nome do produto" value={displayName} onChangeText={setDisplayName} />
       <Text style={styles.sectionLabel}>Categoria</Text>
@@ -240,6 +251,9 @@ export function ProductFormScreen({
       <Field label="GTIN opcional" value={gtin} onChangeText={setGtin} keyboardType="numeric" />
       {gtin.trim().length === 0 ? (
         <Text style={styles.pending}>{captureCopy.gtinPending}</Text>
+      ) : null}
+      {linkedIdentifier !== undefined && linkedIdentifier.type !== "gtin" ? (
+        <StatusNotice>{`Codigo lido: ${linkedIdentifier.value}. Ele sera vinculado ao produto.`}</StatusNotice>
       ) : null}
       {notice === undefined ? null : <StatusNotice>{notice}</StatusNotice>}
       {similarCandidates.map((candidate) => (

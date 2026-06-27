@@ -57,6 +57,7 @@ import {
   type ProductDraftCreateRequest,
   type ProductDraftCreateResponse,
   type ProductDraftReviewState,
+  type ProductIdentifier,
   type ProductSearchRequest,
   type ProductSearchResponse,
   type PushOpenIntent,
@@ -118,6 +119,7 @@ export type CaptureProductRecord = CaptureProductInput & {
   categoryName?: string;
   draftReviewMessage?: string;
   similarCandidateCount?: number;
+  identifiers?: readonly ProductIdentifier[];
 };
 
 export interface CaptureProductCategory {
@@ -415,6 +417,7 @@ export function productCatalogItemToLocalRecord(product: ProductCatalogItem): Ca
     categoryName: product.categoryName,
     categoryRuleProfile: product.categoryRuleProfile,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: product.identifiers }),
     id: product.centralProductId,
     centralProductId: product.centralProductId,
     normalizedName: product.normalizedKey,
@@ -432,6 +435,7 @@ export function productDraftToLocalRecord(draft: ProductDraftReviewState): Captu
     categoryName: draft.categoryName,
     categoryRuleProfile: draft.categoryRuleProfile,
     ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+    ...(draft.identifiers === undefined ? {} : { identifiers: draft.identifiers }),
     id: draft.centralProductId,
     centralProductId: draft.centralProductId,
     normalizedName: draft.normalizedKey,

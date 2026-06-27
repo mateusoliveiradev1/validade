@@ -9,6 +9,7 @@ import {
   ProductDraftCreateRequestSchema,
   ProductDraftCreateResponseSchema,
   ProductDraftReviewRequestSchema,
+  ProductSearchRequestSchema,
   ProductSearchResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
@@ -334,6 +335,63 @@ describe("capture runtime contracts", () => {
         capability: "catalog.review",
       }),
     ).toThrow();
+  });
+
+  it("accepts product identifiers for lookup, catalog reuse, and draft creation", () => {
+    expect(
+      ProductSearchRequestSchema.parse({
+        identifier: { type: "barcode", value: "7890000000099" },
+        requestedAt: "2030-01-10T09:00:00.000Z",
+      }),
+    ).toMatchObject({
+      identifier: { type: "barcode", value: "7890000000099" },
+    });
+
+    const product = centralProduct({
+      identifiers: [
+        {
+          type: "barcode",
+          value: "7890000000099",
+          normalizedValue: "7890000000099",
+          source: "central",
+          isPrimary: true,
+        },
+      ],
+    });
+
+    expect(
+      ProductSearchResponseSchema.parse({
+        requestId: "busca-produto-ficticia-codigo-001",
+        resultState: "reuse_available",
+        reusableProducts: [
+          searchCandidate(product, {
+            matchReasons: ["exact_identifier"],
+          }),
+        ],
+        similarCandidates: [],
+      }),
+    ).toMatchObject({
+      reusableProducts: [
+        {
+          centralProductId: product.centralProductId,
+          matchReasons: ["exact_identifier"],
+          identifiers: [{ type: "barcode", value: "7890000000099" }],
+        },
+      ],
+    });
+
+    expect(
+      ProductDraftCreateRequestSchema.parse({
+        displayName: "Ovos Brancos 20un FICTICIOS",
+        categoryId: "categoria-ficticia-ovos",
+        categoryName: "Ovos ficticios",
+        categoryRuleProfile: categoryRuleProfile(),
+        requestedAt: "2030-01-10T09:00:00.000Z",
+        identifiers: [{ type: "barcode", value: "7890000000099" }],
+      }),
+    ).toMatchObject({
+      identifiers: [{ type: "barcode", value: "7890000000099" }],
+    });
   });
 
   it("exposes global categories with matching operational profiles", () => {

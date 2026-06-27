@@ -18,6 +18,7 @@ import type {
   PrepareTurnCacheStatus,
   PrepareTurnRequest,
   PrepareTurnResponse,
+  ProductIdentifierInput,
   ShiftCloseSafeRequest,
   ShiftClosureSnapshot,
   TodayTaskRecord,
@@ -30,8 +31,12 @@ import { addHardwareBackPressListener } from "../system/hardware-back";
 
 type CaptureRoute =
   | { name: "today" }
-  | { name: "discovery"; initialLookup?: string | undefined }
-  | { name: "product-form"; initialGtin?: string | undefined }
+  | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
+  | {
+      name: "product-form";
+      initialGtin?: string | undefined;
+      initialIdentifier?: ProductIdentifierInput | undefined;
+    }
   | { name: "confirmed"; product: CaptureProductRecord }
   | { name: "lot-registration"; product: CaptureProductRecord }
   | { name: "recent" }
@@ -423,6 +428,9 @@ export function CaptureApp({
         {...(currentRoute.initialGtin === undefined
           ? {}
           : { initialGtin: currentRoute.initialGtin })}
+        {...(currentRoute.initialIdentifier === undefined
+          ? {}
+          : { initialIdentifier: currentRoute.initialIdentifier })}
         onBack={goBack}
         onCreated={(product) => {
           replace({ name: "confirmed", product });
@@ -527,7 +535,7 @@ export function CaptureApp({
       <BarcodeLookupAssistant
         onBack={goBack}
         onLookup={(value) => {
-          replace({ name: "discovery", initialLookup: value });
+          replace({ name: "discovery", initialLookup: value, initialLookupSource: "scan" });
         }}
       />
     );
@@ -542,14 +550,23 @@ export function CaptureApp({
         onConfirmProduct={(product) => {
           navigate({ name: "confirmed", product });
         }}
-        onCreateProduct={(gtin) => {
-          navigate({ name: "product-form", initialGtin: gtin });
+        onCreateProduct={(initial) => {
+          navigate({
+            name: "product-form",
+            ...(initial?.gtin === undefined ? {} : { initialGtin: initial.gtin }),
+            ...(initial?.identifier === undefined ? {} : { initialIdentifier: initial.identifier }),
+          });
         }}
         onScanCode={() => navigate({ name: "barcode" })}
         onOpenRecent={() => navigate({ name: "recent" })}
         {...(currentRoute.name !== "discovery" || currentRoute.initialLookup === undefined
           ? {}
-          : { initialLookup: currentRoute.initialLookup })}
+          : {
+              initialLookup: currentRoute.initialLookup,
+              ...(currentRoute.initialLookupSource === undefined
+                ? {}
+                : { initialLookupSource: currentRoute.initialLookupSource }),
+            })}
       />
     </>
   );

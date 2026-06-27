@@ -368,6 +368,115 @@ describe("memory capture repository", () => {
     ]);
   });
 
+  it("reuses a hydrated central product by barcode and links a newly scanned code", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "identificador-local-nao-usado",
+    });
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-central-ficticio",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:00:00.000Z",
+        centralReadAt: "2030-01-10T09:00:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        lastHydratedAt: "2030-01-10T09:00:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: "produto-central-alface-001",
+          displayName: "Alface Central FICTICIA",
+          categoryId: "categoria-ficticia-folhas",
+          categoryName: "Folhas",
+          categoryRuleProfile,
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+          identifiers: [
+            {
+              type: "barcode",
+              value: "7890000000099",
+              normalizedValue: "7890000000099",
+              source: "central",
+              isPrimary: true,
+            },
+          ],
+        },
+      ],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    const existingCodeLookup = await repository.searchCentralProducts?.({
+      identifier: { type: "barcode", value: "7890000000099" },
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+    expect(existingCodeLookup).toMatchObject({
+      resultState: "reuse_available",
+      reusableProducts: [
+        {
+          centralProductId: "produto-central-alface-001",
+          matchReasons: ["exact_identifier"],
+        },
+      ],
+    });
+
+    const reusedProduct = await repository.createProductDraft?.({
+      displayName: "Alface Central FICTICIA",
+      categoryId: "categoria-ficticia-folhas",
+      categoryName: "Folhas",
+      categoryRuleProfile,
+      requestedAt: "2030-01-10T09:00:00.000Z",
+      identifiers: [{ type: "barcode", value: "7890000000100" }],
+    });
+    expect(reusedProduct).toMatchObject({
+      outcome: "reuse_existing",
+      reusableProduct: {
+        centralProductId: "produto-central-alface-001",
+        identifiers: expect.arrayContaining([
+          expect.objectContaining({ type: "barcode", value: "7890000000100" }),
+        ]),
+      },
+    });
+
+    const newCodeLookup = await repository.searchCentralProducts?.({
+      identifier: { type: "barcode", value: "7890000000100" },
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+    expect(newCodeLookup).toMatchObject({
+      resultState: "reuse_available",
+      reusableProducts: [{ centralProductId: "produto-central-alface-001" }],
+    });
+  });
+
   it("does not confirm central-cache lots locally when the central write fails", async () => {
     const createCentralLot = vi.fn(() => Promise.reject(new Error("network unavailable")));
     const repository = createMemoryCaptureRepository({

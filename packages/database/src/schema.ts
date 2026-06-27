@@ -81,6 +81,15 @@ export const centralProductStatusEnum = pgEnum("central_product_status", [
   "archived",
 ]);
 
+export const productIdentifierTypeEnum = pgEnum("product_identifier_type", [
+  "gtin",
+  "ean",
+  "barcode",
+  "plu",
+  "internal",
+  "supplier_code",
+]);
+
 export const centralTaskStatusEnum = pgEnum("central_task_status", [
   "active",
   "resolved",
@@ -495,6 +504,34 @@ export const centralProducts = pgTable(
   ],
 );
 
+export const centralProductIdentifiers = pgTable(
+  "central_product_identifiers",
+  {
+    identifierId: text("identifier_id").primaryKey(),
+    storeId: text("store_id").notNull(),
+    centralProductId: text("central_product_id").notNull(),
+    identifierType: productIdentifierTypeEnum("identifier_type").notNull(),
+    identifierValue: text("identifier_value").notNull(),
+    normalizedValue: text("normalized_value").notNull(),
+    status: text("status").notNull().default("active"),
+    source: text("source").notNull().default("central"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("central_product_identifiers_product_idx").on(table.storeId, table.centralProductId),
+    index("central_product_identifiers_lookup_idx").on(
+      table.storeId,
+      table.identifierType,
+      table.normalizedValue,
+    ),
+    uniqueIndex("central_product_identifiers_active_uidx")
+      .on(table.storeId, table.identifierType, table.normalizedValue)
+      .where(sql`${table.status} = 'active'`),
+  ],
+);
+
 export const centralProductDrafts = pgTable(
   "central_product_drafts",
   {
@@ -695,6 +732,8 @@ export type ShiftHandoffRecord = typeof shiftHandoffs.$inferSelect;
 export type NewShiftHandoffRecord = typeof shiftHandoffs.$inferInsert;
 export type CentralProductRecord = typeof centralProducts.$inferSelect;
 export type NewCentralProductRecord = typeof centralProducts.$inferInsert;
+export type CentralProductIdentifierRecord = typeof centralProductIdentifiers.$inferSelect;
+export type NewCentralProductIdentifierRecord = typeof centralProductIdentifiers.$inferInsert;
 export type CentralProductDraftRecord = typeof centralProductDrafts.$inferSelect;
 export type NewCentralProductDraftRecord = typeof centralProductDrafts.$inferInsert;
 export type CentralLotRecord = typeof centralLots.$inferSelect;

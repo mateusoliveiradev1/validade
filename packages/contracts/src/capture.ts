@@ -351,6 +351,10 @@ export const CentralProductSnippetSchema = z
     source: CentralPackageSourceSchema,
     updatedAt: IsoDateTimeSchema,
     gtin: IdentifierSchema.optional(),
+    identifiers: z
+      .array(z.lazy(() => ProductIdentifierSchema))
+      .max(12)
+      .optional(),
     categoryRuleProfile: CategoryRuleProfileSchema,
   })
   .strict();
@@ -391,6 +395,28 @@ const ProductGtinSchema = z
   .trim()
   .regex(/^\d{8,14}$/);
 
+export const ProductIdentifierTypeSchema = z.enum([
+  "gtin",
+  "ean",
+  "barcode",
+  "plu",
+  "internal",
+  "supplier_code",
+]);
+
+export const ProductIdentifierInputSchema = z
+  .object({
+    type: ProductIdentifierTypeSchema,
+    value: IdentifierSchema,
+  })
+  .strict();
+
+export const ProductIdentifierSchema = ProductIdentifierInputSchema.extend({
+  normalizedValue: NormalizedProductKeySchema,
+  source: z.enum(["central", "scan", "manual", "migration"]).optional(),
+  isPrimary: z.boolean().optional(),
+}).strict();
+
 export const ProductCatalogSourceSchema = z.enum(["central", "draft_pending_review"]);
 
 export const ProductReviewStatusSchema = z.enum([
@@ -403,6 +429,7 @@ export const ProductReviewStatusSchema = z.enum([
 export const ProductMatchReasonSchema = z.enum([
   "exact_normalized_name",
   "exact_gtin",
+  "exact_identifier",
   "similar_name",
   "similar_category",
 ]);
@@ -414,7 +441,7 @@ export const ProductDraftOutcomeSchema = z.enum([
   "conflict",
 ]);
 
-export const ProductDuplicateReasonSchema = z.enum(["gtin", "normalized_name"]);
+export const ProductDuplicateReasonSchema = z.enum(["gtin", "identifier", "normalized_name"]);
 
 export const ProductReviewDecisionSchema = z.enum(["approve", "reject", "merge", "discard"]);
 
@@ -430,6 +457,7 @@ const ProductCatalogItemFields = {
   syncState: VisibleCentralSyncStateSchema,
   updatedAt: IsoDateTimeSchema,
   gtin: ProductGtinSchema.optional(),
+  identifiers: z.array(ProductIdentifierSchema).max(12).optional(),
 } as const;
 
 export const ProductCatalogItemSchema = z
@@ -486,6 +514,7 @@ export const ProductDraftReviewStateSchema = z
     requestedAt: IsoDateTimeSchema,
     similarCandidates: z.array(ProductSearchCandidateSchema).max(5),
     gtin: ProductGtinSchema.optional(),
+    identifiers: z.array(ProductIdentifierSchema).max(12).optional(),
     reviewReason: RequiredTextSchema.optional(),
     reviewedAt: IsoDateTimeSchema.optional(),
   })
@@ -507,14 +536,18 @@ export const ProductSearchRequestSchema = z
     query: RequiredTextSchema.optional(),
     gtin: ProductGtinSchema.optional(),
     categoryId: IdentifierSchema.optional(),
+    identifier: ProductIdentifierInputSchema.optional(),
     requestedAt: IsoDateTimeSchema,
     includeDrafts: z.boolean().optional(),
   })
   .strict()
   .refine(
     (value) =>
-      value.query !== undefined || value.gtin !== undefined || value.categoryId !== undefined,
-    "Search by name, GTIN, or category before operating on a product.",
+      value.query !== undefined ||
+      value.gtin !== undefined ||
+      value.categoryId !== undefined ||
+      value.identifier !== undefined,
+    "Search by name, GTIN, identifier, or category before operating on a product.",
   );
 
 export const ProductSearchResponseSchema = z
@@ -566,6 +599,7 @@ export const ProductDraftCreateRequestSchema = z
     categoryRuleProfile: CategoryRuleProfileSchema,
     requestedAt: IsoDateTimeSchema,
     gtin: ProductGtinSchema.optional(),
+    identifiers: z.array(ProductIdentifierInputSchema).max(8).optional(),
     supplierName: RequiredTextSchema.optional(),
     reason: RequiredTextSchema.optional(),
     similarCandidateIds: z.array(IdentifierSchema).max(5).optional(),
@@ -864,6 +898,9 @@ export type DeviceSnapshot = z.infer<typeof DeviceSnapshotSchema>;
 export type PrepareTurnCacheStatus = z.infer<typeof PrepareTurnCacheStatusSchema>;
 export type PrepareTurnResponse = z.infer<typeof PrepareTurnResponseSchema>;
 export type ProductCatalogSource = z.infer<typeof ProductCatalogSourceSchema>;
+export type ProductIdentifierType = z.infer<typeof ProductIdentifierTypeSchema>;
+export type ProductIdentifierInput = z.infer<typeof ProductIdentifierInputSchema>;
+export type ProductIdentifier = z.infer<typeof ProductIdentifierSchema>;
 export type ProductReviewStatus = z.infer<typeof ProductReviewStatusSchema>;
 export type ProductMatchReason = z.infer<typeof ProductMatchReasonSchema>;
 export type ProductDraftOutcome = z.infer<typeof ProductDraftOutcomeSchema>;

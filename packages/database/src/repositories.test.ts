@@ -269,7 +269,9 @@ describe("database repositories", () => {
     const response = await repository.prepareTurn(prepareTurnInput("store-1"));
     const selectQueries = captured.slice(0, 5).map(([query]) => String(query));
     expect(selectQueries).toHaveLength(5);
-    expect(selectQueries.every((query) => /where\s+(t\.)?store_id = \$1/.test(query))).toBe(true);
+    expect(selectQueries.every((query) => /where\s+((t|p)\.)?store_id = \$1/.test(query))).toBe(
+      true,
+    );
     expect(String(captured[5]?.[0])).toContain("insert into central_device_snapshots");
     expect(String(captured[6]?.[0])).toContain("insert into audit_events");
     expect(String(captured[6]?.[0])).toContain("sanitized");
@@ -318,6 +320,55 @@ describe("database repositories", () => {
         }),
       ]),
     );
+  });
+
+  it("links new scanned identifiers to an existing product instead of creating a duplicate", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [
+        {
+          ...centralProduct("store-1", "produto-store-1"),
+          normalizedKey: "ovos brancos ficticios",
+          gtin: "7890000000001",
+        },
+      ],
+    });
+
+    const response = await repository.createProductDraft(
+      productDraftInput("store-1", {
+        displayName: "Ovos Brancos FICTICIOS",
+        identifiers: [{ type: "barcode", value: "7890000000099" }],
+      }),
+    );
+    const lookup = await repository.searchProducts({
+      requestId: "search-by-barcode-store-1",
+      storeId: "store-1",
+      storeName: "Loja Ficticia Piloto",
+      actorId: "subject-1",
+      actorDisplayName: "Pessoa Piloto",
+      actorRoleSnapshot: "lead",
+      request: {
+        identifier: { type: "barcode", value: "7890000000099" },
+        requestedAt: "2030-01-10T09:00:00.000Z",
+      },
+    });
+
+    expect(response).toMatchObject({
+      outcome: "reuse_existing",
+      reusableProduct: { centralProductId: "produto-store-1" },
+    });
+    expect(lookup).toMatchObject({
+      resultState: "reuse_available",
+      reusableProducts: [
+        {
+          centralProductId: "produto-store-1",
+          matchReasons: ["exact_identifier"],
+          identifiers: expect.arrayContaining([
+            expect.objectContaining({ type: "barcode", value: "7890000000099" }),
+          ]),
+        },
+      ],
+    });
+    expect(repository.readProductDrafts()).toHaveLength(0);
   });
 
   it("returns similar candidates before creating a product draft", async () => {

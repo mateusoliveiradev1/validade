@@ -4,12 +4,12 @@ const operationalTimeZone = "America/Sao_Paulo";
 
 export const captureCopy = {
   appName: "Validade Zero",
-  discoveryTitle: "Localizar produto",
-  discoveryBody: "Busque pelo nome ou código antes de registrar o lote.",
+  discoveryTitle: "Registrar lote",
+  discoveryBody: "Primeiro confirme o produto. Depois informe os dados do lote físico.",
   manualSearch: "Buscar manualmente",
   registerLot: "Registrar lote",
   confirmProduct: "Confirmar produto",
-  createProduct: "Criar rascunho operacional",
+  createProduct: "Criar rascunho e continuar",
   backAndReview: "Voltar e revisar",
   supplierPending: "Fornecedor pendente",
   gtinPending: "GTIN pendente",

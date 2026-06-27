@@ -6,6 +6,7 @@ import {
   CentralProductAcknowledgementSchema,
   PrepareTurnResponseSchema,
   ProductCatalogItemSchema,
+  ProductIdentifierSchema,
   ProductDraftCreateResponseSchema,
   ProductDraftReviewResponseSchema,
   ProductSearchResponseSchema,
@@ -36,6 +37,8 @@ import {
   type ProductDraftReviewResponse,
   type ProductDraftReviewState,
   type ProductDuplicateReason,
+  type ProductIdentifier,
+  type ProductIdentifierInput,
   type ProductReviewStatus,
   type ProductSearchCandidate,
   type ProductSearchRequest,
@@ -175,6 +178,7 @@ interface ProductRow {
   status: CentralProductSnippet["status"];
   state: VisibleCentralSyncState;
   gtin: string | null;
+  identifiers?: unknown;
   category_rule_profile: Record<string, unknown> | string;
   updated_at: string | Date;
 }
@@ -493,10 +497,29 @@ export function createCaptureRepositoryFromQuery(
     centralProductId: string;
   }): Promise<ProductCatalogItem | undefined> {
     const rows = (await sql.query(
-      `select central_product_id, store_id, display_name, normalized_key, category_id,
-        category_name, status, state, gtin, category_rule_profile, updated_at
-      from central_products
-      where store_id = $1 and central_product_id = $2 and status <> 'archived'
+      `select p.central_product_id, p.store_id, p.display_name, p.normalized_key, p.category_id,
+        p.category_name, p.status, p.state, p.gtin, p.category_rule_profile, p.updated_at,
+        coalesce(
+          (
+            select json_agg(
+              json_build_object(
+                'type', i.identifier_type,
+                'value', i.identifier_value,
+                'normalizedValue', i.normalized_value,
+                'source', i.source,
+                'isPrimary', i.is_primary
+              )
+              order by i.is_primary desc, i.updated_at desc, i.identifier_value asc
+            )
+            from central_product_identifiers i
+            where i.store_id = p.store_id
+              and i.central_product_id = p.central_product_id
+              and i.status = 'active'
+          ),
+          '[]'::json
+        ) as identifiers
+      from central_products p
+      where p.store_id = $1 and p.central_product_id = $2 and p.status <> 'archived'
       limit 1`,
       [input.storeId, input.centralProductId],
     )) as ProductRow[];
@@ -626,33 +649,92 @@ export function createCaptureRepositoryFromQuery(
     storeId: string;
     normalizedKey?: string;
     gtin?: string;
+    identifier?: ProductIdentifierInput;
     categoryId?: string;
     limit?: number;
   }): Promise<readonly ProductCatalogItem[]> {
+    const normalizedGtin =
+      input.gtin === undefined ? undefined : normalizeIdentifierValue(input.gtin);
+    const normalizedIdentifier =
+      input.identifier === undefined ? undefined : normalizeIdentifierValue(input.identifier.value);
     const rows = (await sql.query(
-      `select central_product_id, store_id, display_name, normalized_key, category_id,
-        category_name, status, state, gtin, category_rule_profile, updated_at
-      from central_products
-      where store_id = $1
-        and status <> 'archived'
+      `select p.central_product_id, p.store_id, p.display_name, p.normalized_key, p.category_id,
+        p.category_name, p.status, p.state, p.gtin, p.category_rule_profile, p.updated_at,
+        coalesce(
+          (
+            select json_agg(
+              json_build_object(
+                'type', i.identifier_type,
+                'value', i.identifier_value,
+                'normalizedValue', i.normalized_value,
+                'source', i.source,
+                'isPrimary', i.is_primary
+              )
+              order by i.is_primary desc, i.updated_at desc, i.identifier_value asc
+            )
+            from central_product_identifiers i
+            where i.store_id = p.store_id
+              and i.central_product_id = p.central_product_id
+              and i.status = 'active'
+          ),
+          '[]'::json
+        ) as identifiers
+      from central_products p
+      where p.store_id = $1
+        and p.status <> 'archived'
         and (
-          ($2::text is null and $3::text is null and $4::text is null)
-          or ($2::text is not null and (normalized_key = $2 or normalized_key like $5))
-          or ($3::text is not null and gtin = $3)
-          or ($4::text is not null and category_id = $4)
+          ($2::text is null and $3::text is null and $4::text is null and $6::product_identifier_type is null)
+          or ($2::text is not null and (p.normalized_key = $2 or p.normalized_key like $5))
+          or ($3::text is not null and (
+            p.gtin = $3
+            or exists (
+              select 1
+              from central_product_identifiers gi
+              where gi.store_id = p.store_id
+                and gi.central_product_id = p.central_product_id
+                and gi.status = 'active'
+                and gi.identifier_type in ('gtin', 'ean', 'barcode')
+                and gi.normalized_value = $8
+            )
+          ))
+          or ($4::text is not null and p.category_id = $4)
+          or ($6::product_identifier_type is not null and exists (
+            select 1
+            from central_product_identifiers qi
+            where qi.store_id = p.store_id
+              and qi.central_product_id = p.central_product_id
+              and qi.status = 'active'
+              and qi.identifier_type = $6
+              and qi.normalized_value = $7
+          ))
         )
       order by
-        case when normalized_key = $2 then 0 else 1 end,
-        case when gtin = $3 then 0 else 1 end,
-        updated_at desc,
-        display_name asc
-      limit $6`,
+        case when p.normalized_key = $2 then 0 else 1 end,
+        case
+          when $3::text is not null and p.gtin = $3 then 0
+          when $6::product_identifier_type is not null and exists (
+            select 1
+            from central_product_identifiers oi
+            where oi.store_id = p.store_id
+              and oi.central_product_id = p.central_product_id
+              and oi.status = 'active'
+              and oi.identifier_type = $6
+              and oi.normalized_value = $7
+          ) then 0
+          else 1
+        end,
+        p.updated_at desc,
+        p.display_name asc
+      limit $9`,
       [
         input.storeId,
         input.normalizedKey ?? null,
         input.gtin ?? null,
         input.categoryId ?? null,
         input.normalizedKey === undefined ? null : `%${input.normalizedKey}%`,
+        input.identifier?.type ?? null,
+        normalizedIdentifier ?? null,
+        normalizedGtin ?? null,
         input.limit ?? 20,
       ],
     )) as ProductRow[];
@@ -671,12 +753,49 @@ export function createCaptureRepositoryFromQuery(
     return rows.map(mapCategoryRow);
   }
 
+  async function upsertProductIdentifiers(input: {
+    storeId: string;
+    centralProductId: string;
+    identifiers: readonly ProductIdentifierInput[];
+    source: ProductIdentifier["source"];
+    occurredAt: string;
+  }): Promise<void> {
+    const identifiers = requestIdentifiers(input);
+
+    for (const [index, identifier] of identifiers.entries()) {
+      const normalizedValue = normalizeIdentifierValue(identifier.value);
+      await sql.query(
+        `insert into central_product_identifiers (
+          identifier_id, store_id, central_product_id, identifier_type, identifier_value,
+          normalized_value, status, source, is_primary, created_at, updated_at
+        ) values ($1, $2, $3, $4::product_identifier_type, $5, $6, 'active', $7, $8, $9::timestamptz, $9::timestamptz)
+        on conflict do nothing`,
+        [
+          createStableId(
+            "product-identifier",
+            input.storeId,
+            `${input.centralProductId}:${identifier.type}:${normalizedValue}`,
+          ),
+          input.storeId,
+          input.centralProductId,
+          identifier.type,
+          identifier.value,
+          normalizedValue,
+          input.source ?? "central",
+          index === 0,
+          input.occurredAt,
+        ],
+      );
+    }
+  }
+
   async function searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse> {
     const normalizedKey = input.request.query && normalizeProductKey(input.request.query);
     const candidates = await selectCatalogProducts({
       storeId: input.storeId,
       ...(normalizedKey === undefined ? {} : { normalizedKey }),
       ...(input.request.gtin === undefined ? {} : { gtin: input.request.gtin }),
+      ...(input.request.identifier === undefined ? {} : { identifier: input.request.identifier }),
       ...(input.request.categoryId === undefined ? {} : { categoryId: input.request.categoryId }),
       limit: 20,
     });
@@ -692,19 +811,31 @@ export function createCaptureRepositoryFromQuery(
     input: ProductDraftCreateInput,
   ): Promise<ProductDraftCreateResponse> {
     const normalizedKey = normalizeProductKey(input.request.displayName);
+    const identifiers = requestIdentifiers(input.request);
+    const primaryIdentifier =
+      identifiers.find((identifier) => identifier.type !== "gtin") ?? identifiers[0];
     const exactMatches = await selectCatalogProducts({
       storeId: input.storeId,
       normalizedKey,
       ...(input.request.gtin === undefined ? {} : { gtin: input.request.gtin }),
+      ...(primaryIdentifier === undefined ? {} : { identifier: primaryIdentifier }),
       limit: 10,
     });
     const exact = exactMatches.find(
       (candidate) =>
         candidate.normalizedKey === normalizedKey ||
-        (input.request.gtin !== undefined && candidate.gtin === input.request.gtin),
+        (input.request.gtin !== undefined && candidate.gtin === input.request.gtin) ||
+        productHasAnyIdentifier(candidate, identifiers),
     );
 
     if (exact !== undefined) {
+      await upsertProductIdentifiers({
+        storeId: input.storeId,
+        centralProductId: exact.centralProductId,
+        identifiers,
+        source: "scan",
+        occurredAt: input.request.requestedAt,
+      });
       const response = buildExistingProductCreateResponse({
         requestId: input.requestId,
         normalizedKey,
@@ -712,7 +843,9 @@ export function createCaptureRepositoryFromQuery(
         duplicateReason:
           input.request.gtin !== undefined && exact.gtin === input.request.gtin
             ? "gtin"
-            : "normalized_name",
+            : identifiers.length > 0 && productHasAnyIdentifier(exact, identifiers)
+              ? "identifier"
+              : "normalized_name",
       });
       await appendProductAudit({
         requestId: input.requestId,
@@ -726,7 +859,10 @@ export function createCaptureRepositoryFromQuery(
         action: "product.reused",
         summary: "Produto central reutilizado durante criacao de rascunho.",
         occurredAt: input.request.requestedAt,
-        metadata: { duplicateReason: response.duplicateReason ?? "normalized_name" },
+        metadata: {
+          duplicateReason: response.duplicateReason ?? "normalized_name",
+          linkedIdentifierCount: identifiers.length,
+        },
       });
 
       return response;
@@ -803,6 +939,13 @@ export function createCaptureRepositoryFromQuery(
         requestedAt,
       ],
     );
+    await upsertProductIdentifiers({
+      storeId: input.storeId,
+      centralProductId,
+      identifiers,
+      source: "scan",
+      occurredAt: requestedAt,
+    });
 
     const draft = buildDraftState({
       draftId,
@@ -876,6 +1019,25 @@ export function createCaptureRepositoryFromQuery(
     const rows = (await sql.query(
       `select p.central_product_id, p.store_id, p.display_name, p.normalized_key, p.category_id,
         p.category_name, p.status, p.state, p.gtin, p.category_rule_profile, p.updated_at,
+        coalesce(
+          (
+            select json_agg(
+              json_build_object(
+                'type', i.identifier_type,
+                'value', i.identifier_value,
+                'normalizedValue', i.normalized_value,
+                'source', i.source,
+                'isPrimary', i.is_primary
+              )
+              order by i.is_primary desc, i.updated_at desc, i.identifier_value asc
+            )
+            from central_product_identifiers i
+            where i.store_id = p.store_id
+              and i.central_product_id = p.central_product_id
+              and i.status = 'active'
+          ),
+          '[]'::json
+        ) as identifiers,
         d.draft_id, d.requested_by_label, d.created_at
       from central_product_drafts d
       join central_products p on p.central_product_id = d.central_product_id and p.store_id = d.store_id
@@ -1487,11 +1649,30 @@ export function createCaptureRepositoryFromQuery(
     async prepareTurn(input) {
       const [productRows, lotRows, taskRows, resolvedRows, conflictRows] = await Promise.all([
         sql.query(
-          `select central_product_id, display_name, normalized_key, category_id, category_name, status, state,
-            gtin, category_rule_profile, updated_at
-          from central_products
-          where store_id = $1 and status <> 'archived'
-          order by updated_at desc, display_name asc
+          `select p.central_product_id, p.display_name, p.normalized_key, p.category_id, p.category_name,
+            p.status, p.state, p.gtin, p.category_rule_profile, p.updated_at,
+            coalesce(
+              (
+                select json_agg(
+                  json_build_object(
+                    'type', i.identifier_type,
+                    'value', i.identifier_value,
+                    'normalizedValue', i.normalized_value,
+                    'source', i.source,
+                    'isPrimary', i.is_primary
+                  )
+                  order by i.is_primary desc, i.updated_at desc, i.identifier_value asc
+                )
+                from central_product_identifiers i
+                where i.store_id = p.store_id
+                  and i.central_product_id = p.central_product_id
+                  and i.status = 'active'
+              ),
+              '[]'::json
+            ) as identifiers
+          from central_products p
+          where p.store_id = $1 and p.status <> 'archived'
+          order by p.updated_at desc, p.display_name asc
           limit 100`,
           [input.storeId],
         ) as unknown as Promise<ProductRow[]>,
@@ -1769,16 +1950,30 @@ export function createInMemoryCaptureRepository(input?: {
     },
     createProductDraft(createInput) {
       const normalizedKey = normalizeProductKey(createInput.request.displayName);
+      const identifiers = requestIdentifiers(createInput.request);
       const storeProducts = products.filter((item) => item.storeId === createInput.storeId);
       const exact = storeProducts
         .map(toCatalogItem)
         .find(
           (candidate) =>
             candidate.normalizedKey === normalizedKey ||
-            (createInput.request.gtin !== undefined && candidate.gtin === createInput.request.gtin),
+            (createInput.request.gtin !== undefined &&
+              candidate.gtin === createInput.request.gtin) ||
+            productHasAnyIdentifier(candidate, identifiers),
         );
 
       if (exact !== undefined) {
+        const productIndex = products.findIndex(
+          (product) =>
+            product.storeId === createInput.storeId &&
+            product.centralProductId === exact.centralProductId,
+        );
+        if (productIndex !== -1) {
+          products[productIndex] = mergeProductIdentifiers(
+            products[productIndex] as StoredProduct,
+            identifiers,
+          );
+        }
         const response = buildExistingProductCreateResponse({
           requestId: createInput.requestId,
           normalizedKey,
@@ -1786,7 +1981,9 @@ export function createInMemoryCaptureRepository(input?: {
           duplicateReason:
             createInput.request.gtin !== undefined && exact.gtin === createInput.request.gtin
               ? "gtin"
-              : "normalized_name",
+              : identifiers.length > 0 && productHasAnyIdentifier(exact, identifiers)
+                ? "identifier"
+                : "normalized_name",
         });
         auditEvents.push(
           productAuditEvent(createInput, {
@@ -1857,6 +2054,9 @@ export function createInMemoryCaptureRepository(input?: {
           source: "central",
           updatedAt: requestedAt,
           ...(createInput.request.gtin === undefined ? {} : { gtin: createInput.request.gtin }),
+          ...(requestIdentifiersForResponse(createInput.request).length === 0
+            ? {}
+            : { identifiers: requestIdentifiersForResponse(createInput.request) }),
           categoryRuleProfile: createInput.request.categoryRuleProfile,
           normalizedKey,
         });
@@ -2629,6 +2829,9 @@ function mapProductRow(row: ProductRow): CentralProductSnippet {
     source: "central",
     updatedAt: toIso(row.updated_at),
     ...(row.gtin === null ? {} : { gtin: row.gtin }),
+    ...(parseProductIdentifiers(row) === undefined
+      ? {}
+      : { identifiers: parseProductIdentifiers(row) }),
     categoryRuleProfile: parseJson(row.category_rule_profile),
   } as CentralProductSnippet;
 }
@@ -2646,6 +2849,9 @@ function mapCatalogProductRow(row: ProductRow): ProductCatalogItem {
     syncState: row.state,
     updatedAt: toIso(row.updated_at),
     ...(row.gtin === null ? {} : { gtin: row.gtin }),
+    ...(parseProductIdentifiers(row) === undefined
+      ? {}
+      : { identifiers: parseProductIdentifiers(row) }),
   });
 }
 
@@ -3383,6 +3589,9 @@ function buildDraftState(input: {
     requestedAt: input.requestedAt,
     similarCandidates: [...input.similarCandidates],
     ...(input.request.gtin === undefined ? {} : { gtin: input.request.gtin }),
+    ...(requestIdentifiersForResponse(input.request).length === 0
+      ? {}
+      : { identifiers: requestIdentifiersForResponse(input.request) }),
   };
 }
 
@@ -3410,6 +3619,9 @@ function buildDraftStateFromProduct(input: {
     requestedAt: input.requestedAt,
     similarCandidates: [],
     ...(input.product.gtin === undefined ? {} : { gtin: input.product.gtin }),
+    ...(input.product.identifiers === undefined
+      ? {}
+      : { identifiers: [...input.product.identifiers] }),
     ...(input.reviewStatus === "pending_review"
       ? {}
       : {
@@ -3456,6 +3668,7 @@ function toCatalogItem(product: StoredProduct): ProductCatalogItem {
     syncState: product.state,
     updatedAt: product.updatedAt,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(product.identifiers === undefined ? {} : { identifiers: [...product.identifiers] }),
   });
 }
 
@@ -3479,7 +3692,8 @@ function isExactCatalogMatch(
 ): boolean {
   return (
     (request.normalizedQuery !== undefined && product.normalizedKey === request.normalizedQuery) ||
-    (request.gtin !== undefined && product.gtin === request.gtin)
+    (request.gtin !== undefined && product.gtin === request.gtin) ||
+    (request.identifier !== undefined && productHasIdentifier(product, request.identifier))
   );
 }
 
@@ -3497,6 +3711,10 @@ function exactMatchReasons(
 
   if (request.gtin !== undefined && product.gtin === request.gtin) {
     reasons.push("exact_gtin");
+  }
+
+  if (request.identifier !== undefined && productHasIdentifier(product, request.identifier)) {
+    reasons.push("exact_identifier");
   }
 
   return reasons.length === 0 ? ["exact_normalized_name"] : reasons;
@@ -3552,6 +3770,137 @@ function normalizeProductKey(value: string): string {
     .replace(/\s+/g, " ")
     .toLocaleLowerCase("pt-BR")
     .slice(0, 160);
+}
+
+function normalizeIdentifierValue(value: string): string {
+  return value.trim().replace(/\s+/g, "").toLocaleLowerCase("pt-BR").slice(0, 160);
+}
+
+function requestIdentifiers(request: {
+  gtin?: string | undefined;
+  identifiers?: readonly ProductIdentifierInput[] | undefined;
+}): ProductIdentifierInput[] {
+  const byKey = new Map<string, ProductIdentifierInput>();
+
+  if (request.gtin !== undefined) {
+    byKey.set(`gtin:${normalizeIdentifierValue(request.gtin)}`, {
+      type: "gtin",
+      value: request.gtin,
+    });
+  }
+
+  for (const identifier of request.identifiers ?? []) {
+    const key = `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`;
+    if (!byKey.has(key)) byKey.set(key, identifier);
+  }
+
+  return [...byKey.values()];
+}
+
+function requestIdentifiersForResponse(request: {
+  gtin?: string | undefined;
+  identifiers?: readonly ProductIdentifierInput[] | undefined;
+}): ProductIdentifier[] {
+  return requestIdentifiers(request).map((identifier, index) => ({
+    ...identifier,
+    normalizedValue: normalizeIdentifierValue(identifier.value),
+    source: index === 0 && identifier.type === "gtin" ? "central" : "manual",
+    isPrimary: index === 0,
+  }));
+}
+
+function productHasIdentifier(
+  product: ProductCatalogItem,
+  identifier: ProductIdentifierInput,
+): boolean {
+  const normalizedValue = normalizeIdentifierValue(identifier.value);
+
+  if (
+    (identifier.type === "gtin" || identifier.type === "ean" || identifier.type === "barcode") &&
+    product.gtin !== undefined &&
+    normalizeIdentifierValue(product.gtin) === normalizedValue
+  ) {
+    return true;
+  }
+
+  return (product.identifiers ?? []).some(
+    (candidate) =>
+      candidate.type === identifier.type &&
+      normalizeIdentifierValue(candidate.value) === normalizedValue,
+  );
+}
+
+function productHasAnyIdentifier(
+  product: ProductCatalogItem,
+  identifiers: readonly ProductIdentifierInput[],
+): boolean {
+  return identifiers.some((identifier) => productHasIdentifier(product, identifier));
+}
+
+function mergeProductIdentifiers(
+  product: StoredProduct,
+  identifiers: readonly ProductIdentifierInput[],
+): StoredProduct {
+  const current = [...(product.identifiers ?? [])];
+  const seen = new Set(
+    current.map((identifier) => `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`),
+  );
+
+  for (const identifier of identifiers) {
+    const key = `${identifier.type}:${normalizeIdentifierValue(identifier.value)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    current.push({
+      ...identifier,
+      normalizedValue: normalizeIdentifierValue(identifier.value),
+      source: "scan",
+      isPrimary: current.length === 0,
+    });
+  }
+
+  const firstGtin = current.find((identifier) => identifier.type === "gtin")?.value;
+
+  return {
+    ...product,
+    ...(product.gtin === undefined && firstGtin !== undefined ? { gtin: firstGtin } : {}),
+    ...(current.length === 0 ? {} : { identifiers: current }),
+  };
+}
+
+function parseProductIdentifiers(
+  row: Pick<ProductRow, "gtin" | "identifiers">,
+): ProductIdentifier[] | undefined {
+  const rawIdentifiers =
+    row.identifiers === undefined || row.identifiers === null
+      ? []
+      : Array.isArray(row.identifiers)
+        ? row.identifiers
+        : typeof row.identifiers === "string"
+          ? parseJson<unknown[]>(row.identifiers)
+          : [];
+  const identifiers = rawIdentifiers
+    .map((raw) => ProductIdentifierSchema.safeParse(raw))
+    .filter((result): result is { success: true; data: ProductIdentifier } => result.success)
+    .map((result) => result.data);
+
+  if (
+    row.gtin !== null &&
+    !identifiers.some(
+      (identifier) =>
+        identifier.type === "gtin" &&
+        normalizeIdentifierValue(identifier.value) === normalizeIdentifierValue(row.gtin ?? ""),
+    )
+  ) {
+    identifiers.unshift({
+      type: "gtin",
+      value: row.gtin,
+      normalizedValue: normalizeIdentifierValue(row.gtin),
+      source: "central",
+      isPrimary: true,
+    });
+  }
+
+  return identifiers.length === 0 ? undefined : identifiers;
 }
 
 function createStableId(prefix: string, storeId: string, value: string): string {
