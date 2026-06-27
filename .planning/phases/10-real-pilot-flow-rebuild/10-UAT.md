@@ -15,6 +15,8 @@
 | Command Center active/resolved consistency | Passed | `pnpm.cmd test:e2e:web` |
 | Role/store denial in web shell | Passed | `pnpm.cmd test:e2e:web` |
 | Central shift-close revalidation | Passed | `pnpm.cmd --filter @validade-zero/domain test -- shift-close`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- shift-close capture`; `pnpm.cmd --filter @validade-zero/mobile test -- shift-close` |
+| Final repository gate | Passed | `pnpm.cmd check` -> typecheck, lint, format, tests, smoke tests, build, security, performance |
+| Database schema/migration check | Passed locally; remote apply blocked | `pnpm.cmd --filter @validade-zero/database db:check`; no `NEON_DATABASE_URL` or `DATABASE_URL` in the shell |
 | Native installed-build journey | Blocked | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).` |
 
 ## Manual UAT Checklist

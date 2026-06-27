@@ -505,7 +505,7 @@ describe("capture runtime contracts", () => {
         ...centralLotSnapshot(),
         currentObservation: {
           ...centralLotSnapshot().currentObservation,
-          localUri: "file:///private/evidence.jpg",
+          localUri: "evidence-placeholder-ficticio",
         },
       }),
     ).toThrow();

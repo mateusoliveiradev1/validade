@@ -63,3 +63,11 @@ The remaining release checks are intentionally manual: real auth issuer claims, 
 2. Run `pnpm test:e2e:web`, `pnpm security`, and `pnpm performance:budgets`.
 3. Run `pnpm test:e2e:mobile` only with an available emulator or internal APK, then record the exact result.
 4. Run `pnpm check` before a release decision. Provider and physical-device checks remain blocked until their evidence is recorded.
+
+## Phase 10 real pilot flow
+
+- `pnpm --filter @validade-zero/mobile test -- mobile-release-journeys` covers auth gate, prepare-turn composition, central product reuse, lot registration, and return to Hoje with fictional data.
+- `pnpm test:e2e:web` covers Command Center active/resolved consistency, role/store denial, privacy, audit fallback, and membership administration.
+- `pnpm --filter @validade-zero/domain test -- shift-close`, `pnpm --filter @validade-zero/contracts test -- shift-close`, `pnpm vitest run --config vitest.config.ts --project api -- shift-close capture`, and `pnpm --filter @validade-zero/mobile test -- shift-close` cover central shift-close revalidation and unsafe handoff behavior.
+- `pnpm test:e2e:mobile` remains the installed-build gate. If no Android device or emulator is connected, record the exact blocked output in `.planning/phases/10-real-pilot-flow-rebuild/10-UAT.md` and do not mark Android readiness as passed.
+- `.planning/phases/10-real-pilot-flow-rebuild/10-VALIDATION.md` is the final truth matrix for Phase 10. It must separate repository readiness from external Android/provider readiness.

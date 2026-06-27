@@ -1,6 +1,6 @@
 # Phase 10 Validation Matrix
 
-**Status:** Repository evidence in progress; Android/provider evidence blocked
+**Status:** Repository gates passed; Android/provider/remote migration evidence blocked
 **Mode:** central-truth pilot UAT
 
 | Area | Required evidence | Gate |
@@ -29,7 +29,9 @@
 | Command Center | Passed in Playwright with active/resolved consistency and role/store denial | `pnpm.cmd test:e2e:web` |
 | RBAC and store scope | Passed in API/web tests; installed app run pending | `pnpm.cmd test:e2e:web`; authorization tests from 10-05 |
 | Shift close | Passed in domain/contracts/API/mobile tests with central revalidation | `pnpm.cmd --filter @validade-zero/domain test -- shift-close`; `pnpm.cmd --filter @validade-zero/contracts test -- shift-close`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- shift-close capture`; `pnpm.cmd --filter @validade-zero/mobile test -- shift-close` |
-| Security and data safety | Pending final 10-06 gate | `pnpm.cmd security` not yet rerun after Task 2 docs |
+| Security and data safety | Passed | `pnpm.cmd security`; `pnpm.cmd check` |
+| Final repository gate | Passed | `pnpm.cmd check` -> typecheck, lint, format, 506 tests, 261 smoke tests, build, security, and performance budgets passed |
+| Database migration check | Passed locally; remote apply blocked | `pnpm.cmd --filter @validade-zero/database db:check` passed; `NEON_DATABASE_URL` and `DATABASE_URL` are missing |
 | Android pilot reality | Blocked | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).` |
 
 ## Final Phase 10 UAT Script

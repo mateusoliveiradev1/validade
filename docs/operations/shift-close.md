@@ -10,7 +10,7 @@ O turno nao termina com uma declaracao decorativa. Ele cria uma fotografia imuta
 2. Trabalho pendente explicado.
 3. Passagem preparada para a proxima pessoa.
 
-Risco vencido ou critico, reconferencia aberta, conflito critico, sincronizacao critica pendente, cache desatualizado ou indisponivel, evidencia obrigatoria pendente e checklist incompleto bloqueiam o caminho seguro. Sem internet ou com cache incerto, o aplicativo oferece apenas o encerramento com pendencias.
+Risco vencido ou critico, tarefa central ativa, produto em revisao central, acao local descartada pela central, reconferencia aberta, conflito critico, sincronizacao critica pendente, leitura central vazia/stale/indisponivel, evidencia obrigatoria pendente, fechamento inseguro local ainda nao sincronizado e checklist incompleto bloqueiam o caminho seguro. Sem internet ou com cache incerto, o aplicativo oferece apenas o encerramento com pendencias.
 
 ## Caminho com pendencias
 
