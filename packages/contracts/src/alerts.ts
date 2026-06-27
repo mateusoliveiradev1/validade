@@ -59,6 +59,19 @@ export const DevicePushRegistrationCommandSchema = z
     }
   });
 
+export const CentralAlertAudienceRegistrationSchema = z
+  .object({
+    storeId: IdentifierSchema,
+    storeName: RequiredTextSchema,
+    deviceId: IdentifierSchema,
+    deviceLabel: RequiredTextSchema,
+    audienceRole: z.enum(["collaborator", "shift_team", "leadership"]),
+    expoPushToken: RequiredTextSchema.max(240),
+    registeredBySubjectId: IdentifierSchema,
+    registeredAt: IsoDateTimeSchema,
+  })
+  .strict();
+
 export const AlertDispatchCommandSchema = z
   .object({
     attemptId: IdentifierSchema,
@@ -164,6 +177,9 @@ export type AlertChannelStateContract = z.infer<typeof AlertChannelStateSchema>;
 export type EscalationStateContract = z.infer<typeof EscalationStateSchema>;
 export type TaskAlertStateRecord = z.infer<typeof TaskAlertStateRecordSchema>;
 export type DevicePushRegistrationCommand = z.infer<typeof DevicePushRegistrationCommandSchema>;
+export type CentralAlertAudienceRegistration = z.infer<
+  typeof CentralAlertAudienceRegistrationSchema
+>;
 export type AlertDispatchCommand = z.infer<typeof AlertDispatchCommandSchema>;
 export type AlertDeliveryResult = z.infer<typeof AlertDeliveryResultSchema>;
 export type PushOpenIntent = z.infer<typeof PushOpenIntentSchema>;

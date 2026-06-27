@@ -38,8 +38,10 @@ import {
   ShiftHandoffAcknowledgementRequestSchema,
   SyncTransportBatchSchema,
   SyncTransportResultSchema,
+  type ActiveTaskSnippet,
   type AlertDeliveryResult,
   type AlertDispatchCommand,
+  type CentralAlertAudienceRegistration,
   CommandCenterProjectionSchema,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -64,7 +66,9 @@ import {
   type CaptureRepository,
 } from "@validade-zero/database/capture-repository";
 import type { ShiftCloseRepository } from "@validade-zero/database/shift-close-repository";
+import { createPrivacySafeNotificationContent } from "@validade-zero/domain";
 import type {
+  AlertAudience,
   AuthenticatedIdentity,
   AuthorizedActorContext,
   AuthorizationDenialReason,
@@ -1788,6 +1792,137 @@ export function createInMemoryAlertDispatchRepository(
       return deliveryResults;
     },
   };
+}
+
+export function createCentralTaskAlertDispatchRepository(input: {
+  captureRepository: CaptureRepository;
+  registrations: readonly CentralAlertAudienceRegistration[];
+}): AlertDispatchRepository {
+  const deliveryResults: AlertDispatchResultRecord[] = [];
+
+  return {
+    async listDueAlerts({ now }) {
+      const dueAlerts: DueAlertDispatchRecord[] = [];
+      const registrationsByStore = groupAlertRegistrationsByStore(input.registrations);
+
+      for (const [storeId, registrations] of registrationsByStore) {
+        const storeName = registrations[0]?.storeName ?? storeId;
+        const prepared = await input.captureRepository.prepareTurn({
+          requestId: `alert-dispatch:${storeId}:${now}`,
+          storeId,
+          storeName,
+          actorId: "alert-dispatch",
+          actorDisplayName: "Despacho de alertas",
+          actorRoleSnapshot: "lead",
+          request: {
+            deviceId: "alert-dispatch",
+            requestedAt: now,
+            appVersion: "api-alert-dispatch",
+            localSnapshot: {
+              knownProductCount: 0,
+              knownLotCount: 0,
+              pendingCommandCount: 0,
+            },
+          },
+        });
+
+        for (const task of prepared.activeTasks) {
+          const audience = centralAlertAudienceForTask(task);
+          const content = createPrivacySafeNotificationContent({
+            productDisplayName: task.productDisplayName,
+            currentLocation: task.currentLocation,
+            requiredResolution: task.requiredResolution,
+          });
+
+          for (const registration of registrations) {
+            if (!registrationMatchesAlertAudience(registration.audienceRole, audience)) {
+              continue;
+            }
+
+            dueAlerts.push({
+              expoPushToken: registration.expoPushToken,
+              dispatch: {
+                attemptId: createAlertAttemptId({
+                  storeId,
+                  taskId: task.centralTaskId,
+                  deviceId: registration.deviceId,
+                  referenceTime: now,
+                }),
+                taskId: task.centralTaskId,
+                taskActiveKey: task.activeKey,
+                audience,
+                title: content.title,
+                body: content.body,
+                data: {
+                  taskId: task.centralTaskId,
+                  taskActiveKey: task.activeKey,
+                },
+                createdAt: now,
+              },
+            });
+          }
+        }
+      }
+
+      return dueAlerts;
+    },
+    recordDeliveryResult(result) {
+      deliveryResults.push(result);
+      return Promise.resolve();
+    },
+  };
+}
+
+function groupAlertRegistrationsByStore(
+  registrations: readonly CentralAlertAudienceRegistration[],
+): Map<string, CentralAlertAudienceRegistration[]> {
+  const grouped = new Map<string, CentralAlertAudienceRegistration[]>();
+
+  for (const registration of registrations) {
+    const current = grouped.get(registration.storeId) ?? [];
+    current.push(registration);
+    grouped.set(registration.storeId, current);
+  }
+
+  return grouped;
+}
+
+function centralAlertAudienceForTask(task: ActiveTaskSnippet): AlertAudience {
+  if (task.severity === "critical" || task.riskState === "expired") {
+    return "responsible_and_leadership";
+  }
+
+  return task.ownerLabel.toLocaleLowerCase("pt-BR").includes("lider") ? "leadership" : "shift_team";
+}
+
+function registrationMatchesAlertAudience(
+  role: CentralAlertAudienceRegistration["audienceRole"],
+  audience: AlertAudience,
+): boolean {
+  if (audience === "responsible_and_leadership") {
+    return role === "collaborator" || role === "shift_team" || role === "leadership";
+  }
+
+  if (audience === "responsible") {
+    return role === "collaborator";
+  }
+
+  if (audience === "leadership") {
+    return role === "leadership";
+  }
+
+  return role === "collaborator" || role === "shift_team";
+}
+
+function createAlertAttemptId(input: {
+  storeId: string;
+  taskId: string;
+  deviceId: string;
+  referenceTime: string;
+}): string {
+  return `central-alert:${input.storeId}:${input.taskId}:${input.deviceId}:${input.referenceTime}`
+    .replace(/[^a-zA-Z0-9:._-]/g, "-")
+    .slice(0, 160);
 }
 
 export function createAlertDispatchService(input: {

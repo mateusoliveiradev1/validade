@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AlertDeliveryResultSchema,
   AlertDispatchCommandSchema,
+  CentralAlertAudienceRegistrationSchema,
   DevicePushRegistrationCommandSchema,
   PushOpenIntentSchema,
   TaskAlertStateRecordSchema,
@@ -97,6 +98,34 @@ describe("alert runtime contracts", () => {
         expoPushToken: "ExpoPushToken-FICTICIO-001",
         secret: "nao-registrar-segredo",
         password: "nao-registrar-senha",
+        registeredAt: createdAt,
+      }),
+    ).toThrow();
+  });
+
+  it("registers central alert audience against store and authenticated actor", () => {
+    expect(
+      CentralAlertAudienceRegistrationSchema.parse({
+        storeId: "loja-ficticia",
+        storeName: "Loja Ficticia",
+        deviceId: "aparelho-ficticio-001",
+        deviceLabel: "Celular da lideranca FICTICIA",
+        audienceRole: "leadership",
+        expoPushToken: "ExpoPushToken-FICTICIO-CENTRAL",
+        registeredBySubjectId: "lead-ficticio",
+        registeredAt: createdAt,
+      }),
+    ).toMatchObject({
+      storeId: "loja-ficticia",
+      audienceRole: "leadership",
+    });
+
+    expect(() =>
+      CentralAlertAudienceRegistrationSchema.parse({
+        deviceId: "aparelho-ficticio-001",
+        deviceLabel: "Celular da lideranca FICTICIA",
+        audienceRole: "leadership",
+        expoPushToken: "ExpoPushToken-FICTICIO-CENTRAL",
         registeredAt: createdAt,
       }),
     ).toThrow();

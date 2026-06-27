@@ -1,8 +1,10 @@
 import { createFakeExpoAlertDeliveryProvider } from "@validade-zero/adapters";
 import { AlertDispatchCommandSchema, type AlertDispatchCommand } from "@validade-zero/contracts";
+import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { describe, expect, it } from "vitest";
 import {
   createAlertDispatchService,
+  createCentralTaskAlertDispatchRepository,
   createInMemoryAlertDispatchRepository,
   createScheduledAlertHandler,
 } from "./index";
@@ -142,6 +144,94 @@ describe("alert dispatch API seam", () => {
     });
     expect(JSON.stringify(result)).not.toContain(FAKE_TOKEN);
   });
+
+  it("dispatches only unresolved central tasks for the registered store audience", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      tasks: [
+        centralTask("loja-piloto", {
+          centralTaskId: "task-central-alert-01",
+          activeKey: "active-central-alert-01",
+        }),
+        centralTask("loja-outra", {
+          centralTaskId: "task-outra-alert-01",
+          activeKey: "active-outra-alert-01",
+        }),
+        {
+          ...centralTask("loja-piloto", {
+            centralTaskId: "task-resolvida-alert-01",
+            activeKey: "active-resolvida-alert-01",
+          }),
+          taskStatus: "resolved" as const,
+        },
+      ],
+    });
+    const sent: Array<{ command: AlertDispatchCommand }> = [];
+    const repository = createCentralTaskAlertDispatchRepository({
+      captureRepository,
+      registrations: [
+        {
+          storeId: "loja-piloto",
+          storeName: "Loja Piloto",
+          deviceId: "device-shift-piloto",
+          deviceLabel: "Celular do turno",
+          audienceRole: "shift_team",
+          expoPushToken: FAKE_TOKEN,
+          registeredBySubjectId: "lead-local",
+          registeredAt: NOW,
+        },
+      ],
+    });
+    const service = createAlertDispatchService({
+      repository,
+      provider: createFakeExpoAlertDeliveryProvider({
+        send: (input) => {
+          sent.push(input);
+          return { kind: "ok", providerTicketId: "ticket-central" };
+        },
+      }),
+    });
+
+    const result = await service.dispatchDueAlerts(NOW);
+    const preparedAfterDispatch = await captureRepository.prepareTurn({
+      requestId: "prepare-after-alert-dispatch",
+      storeId: "loja-piloto",
+      storeName: "Loja Piloto",
+      actorId: "lead-local",
+      actorDisplayName: "Lideranca local",
+      actorRoleSnapshot: "lead",
+      request: {
+        deviceId: "device-after-alert",
+        requestedAt: NOW,
+        localSnapshot: {
+          knownProductCount: 0,
+          knownLotCount: 0,
+          pendingCommandCount: 0,
+        },
+      },
+    });
+
+    expect(result.attempted).toBe(1);
+    expect(sent).toEqual([
+      expect.objectContaining({
+        command: expect.objectContaining({
+          taskId: "task-central-alert-01",
+          taskActiveKey: "active-central-alert-01",
+          audience: "responsible_and_leadership",
+          data: {
+            taskId: "task-central-alert-01",
+            taskActiveKey: "active-central-alert-01",
+          },
+        }),
+      }),
+    ]);
+    expect(`${sent[0]?.command.title} ${sent[0]?.command.body}`).not.toMatch(
+      /task-central-alert-01|active-central-alert-01|resolve|resolved/i,
+    );
+    expect(JSON.stringify(result)).not.toContain(FAKE_TOKEN);
+    expect(preparedAfterDispatch.activeTasks).toEqual([
+      expect.objectContaining({ centralTaskId: "task-central-alert-01" }),
+    ]);
+  });
 });
 
 function createDispatchCommand(): AlertDispatchCommand {
@@ -158,4 +248,29 @@ function createDispatchCommand(): AlertDispatchCommand {
     },
     createdAt: NOW,
   });
+}
+
+function centralTask(storeId: string, overrides: Partial<ReturnType<typeof centralTaskBase>> = {}) {
+  return {
+    ...centralTaskBase(storeId),
+    ...overrides,
+  };
+}
+
+function centralTaskBase(storeId: string) {
+  return {
+    storeId,
+    centralTaskId: "task-central-alert-base",
+    activeKey: "active-central-alert-base",
+    centralLotId: `lot-${storeId}`,
+    productDisplayName: "Ovos FICTICIOS",
+    currentLocation: { kind: "area_de_venda" as const },
+    riskState: "expired" as const,
+    severity: "critical" as const,
+    requiredResolution: "withdraw_or_loss" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    ownerLabel: "Equipe do turno",
+    updatedAt: NOW,
+  };
 }
