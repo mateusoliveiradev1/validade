@@ -25,6 +25,14 @@ const PRODUCT_CATALOG_COLUMNS = [
   { name: "similar_candidate_count", definition: "INTEGER" },
 ] as const;
 
+const CAPTURE_LOT_CENTRAL_COLUMNS = [
+  { name: "central_lot_id", definition: "TEXT" },
+  { name: "central_sync_state", definition: "TEXT" },
+  { name: "central_source", definition: "TEXT" },
+  { name: "task_projection_json", definition: "TEXT" },
+  { name: "central_ack_message", definition: "TEXT" },
+] as const;
+
 async function ensureColumns(
   db: SchemaMigrationDatabase,
   tableName: string,
@@ -53,4 +61,8 @@ export async function ensureTodayTaskSyncColumns(db: SchemaMigrationDatabase): P
 
 export async function ensureProductCatalogColumns(db: SchemaMigrationDatabase): Promise<void> {
   await ensureColumns(db, "capture_products", PRODUCT_CATALOG_COLUMNS);
+}
+
+export async function ensureCaptureLotCentralColumns(db: SchemaMigrationDatabase): Promise<void> {
+  await ensureColumns(db, "capture_lots", CAPTURE_LOT_CENTRAL_COLUMNS);
 }

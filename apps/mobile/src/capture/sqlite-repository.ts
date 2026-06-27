@@ -17,7 +17,10 @@ import {
   type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
+  type CentralLotSnapshot,
   type CentralLotSnippet,
+  type CentralLotTaskProjectionSummary,
+  type CentralLotWriteResponse,
   type CentralProductSnippet,
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
@@ -93,6 +96,9 @@ import {
   parseProductDraftCreateRequest,
   parseLotId,
   parseLotInput,
+  parseCentralLotCreateRequest,
+  parseCentralLotTaskProjectionSummary,
+  parseCentralLotWriteResponse,
   parseObservationInput,
   parseProductCategoryId,
   parseProductInput,
@@ -116,6 +122,7 @@ import {
   sortSyncQueueItems,
 } from "@validade-zero/domain";
 import {
+  ensureCaptureLotCentralColumns,
   ensureProductCatalogColumns,
   ensureTodayTaskMarkdownColumns,
   ensureTodayTaskSyncColumns,
@@ -172,6 +179,11 @@ interface LotRow {
   current_approximate_quantity: number | null;
   current_is_correction: number;
   current_correction_reason: string | null;
+  central_lot_id: string | null;
+  central_sync_state: string | null;
+  central_source: string | null;
+  task_projection_json: string | null;
+  central_ack_message: string | null;
 }
 
 interface ObservationRow {
@@ -429,7 +441,12 @@ const LOT_SELECT = `
     l.current_quantity_state,
     l.current_approximate_quantity,
     l.current_is_correction,
-    l.current_correction_reason
+    l.current_correction_reason,
+    l.central_lot_id,
+    l.central_sync_state,
+    l.central_source,
+    l.task_projection_json,
+    l.central_ack_message
   FROM capture_lots l
   INNER JOIN capture_products p ON p.id = l.product_id
 `;
@@ -799,6 +816,12 @@ export function createSQLiteCaptureRepository(
     }
 
     const product = mapProduct(productRow);
+    const centrallySaved = await trySaveLotCentrally(db, lot, product, input.actorLabel);
+
+    if (centrallySaved !== null) {
+      return centrallySaved;
+    }
+
     const lotId = nextGeneratedId(dependencies);
     const observation: CaptureObservationRecord = {
       ...createInitialObservation(lot, input.actorLabel, dependencies.clock()),
@@ -810,6 +833,10 @@ export function createSQLiteCaptureRepository(
       id: lotId,
       productDisplayName: product.displayName,
       currentObservation: observation,
+      centralSyncState: "local",
+      centralSource: "local_cache",
+      centralAcknowledgementMessage:
+        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     };
 
     await db.withTransactionAsync(async () => {
@@ -820,8 +847,9 @@ export function createSQLiteCaptureRepository(
           initial_location_kind, initial_location_custom_name, current_observation_id,
           current_status, current_actor_label, current_occurred_at, current_location_kind,
           current_location_custom_name, current_quantity_state, current_approximate_quantity,
-          current_is_correction, current_correction_reason
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          current_is_correction, current_correction_reason, central_lot_id, central_sync_state,
+          central_source, task_projection_json, central_ack_message
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         lotId,
         lot.productId,
         lot.identity.identitySource,
@@ -851,11 +879,69 @@ export function createSQLiteCaptureRepository(
         observation.quantityState === "estimated" ? observation.approximateQuantity : null,
         observation.isCorrection ? 1 : 0,
         observation.correctionReason ?? null,
+        null,
+        "local",
+        "local_cache",
+        null,
+        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
       );
       await insertObservation(db, observation);
     });
 
     return snapshot;
+  }
+
+  async function trySaveLotCentrally(
+    db: SQLite.SQLiteDatabase,
+    lot: CaptureLotInput,
+    product: CaptureProductRecord,
+    actorLabel: string,
+  ): Promise<CaptureLotSnapshot | null> {
+    if (dependencies.createCentralLot === undefined || product.centralProductId === undefined) {
+      return null;
+    }
+
+    const cache = await loadPrepareTurnCacheStatus().catch(() => null);
+
+    if (cache?.state !== "ready" || cache.source !== "central") {
+      return null;
+    }
+
+    const occurredAt = dependencies.clock();
+    const centralLot = parseLotInput({ ...lot, productId: product.centralProductId });
+    const request = parseCentralLotCreateRequest({
+      lot: centralLot,
+      actorLabel,
+      occurredAt,
+      idempotencyKey: centralLotIdempotencyKey(product.centralProductId, lot),
+    });
+
+    try {
+      const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
+      const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
+        [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
+      ]);
+
+      await db.withTransactionAsync(async () => {
+        await upsertCentralLotSnapshot(
+          db,
+          response.lot,
+          response.taskProjection,
+          response.acknowledgement.message,
+        );
+
+        if (response.taskProjection.attention === "active_task") {
+          await upsertTodayTask(
+            db,
+            mapCentralActiveTask(centralActiveTaskSnippetFromWriteResponse(response), lotsById),
+          );
+        }
+      });
+
+      return centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+    } catch {
+      return null;
+    }
   }
 
   async function appendObservation(
@@ -2578,6 +2664,11 @@ async function initializeDatabase(
       current_approximate_quantity REAL,
       current_is_correction INTEGER NOT NULL,
       current_correction_reason TEXT,
+      central_lot_id TEXT,
+      central_sync_state TEXT,
+      central_source TEXT,
+      task_projection_json TEXT,
+      central_ack_message TEXT,
       FOREIGN KEY (product_id) REFERENCES capture_products(id)
     );
     CREATE TABLE IF NOT EXISTS capture_observations (
@@ -2872,6 +2963,7 @@ async function initializeDatabase(
   await ensureTodayTaskMarkdownColumns(db);
   await ensureTodayTaskSyncColumns(db);
   await ensureProductCatalogColumns(db);
+  await ensureCaptureLotCentralColumns(db);
 }
 
 async function findExistingProduct(
@@ -3118,6 +3210,10 @@ async function upsertCentralProduct(
 async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippet): Promise<void> {
   const observationId = centralObservationIdFor(lot.centralLotId);
   const occurredAt = lot.updatedAt;
+  const acknowledgementMessage =
+    lot.state === "synchronized"
+      ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+      : "Leitura central armazenada neste aparelho.";
 
   await db.runAsync(
     `INSERT INTO capture_lots (
@@ -3126,9 +3222,10 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
       initial_location_kind, initial_location_custom_name, current_observation_id,
       current_status, current_actor_label, current_occurred_at, current_location_kind,
       current_location_custom_name, current_quantity_state, current_approximate_quantity,
-      current_is_correction, current_correction_reason
+      current_is_correction, current_correction_reason, central_lot_id, central_sync_state,
+      central_source, task_projection_json, central_ack_message
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'present', 'Leitura central',
-      ?, ?, ?, ?, ?, 0, NULL)
+      ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, NULL, ?)
     ON CONFLICT(id) DO UPDATE SET
       product_id = excluded.product_id,
       identity_source = excluded.identity_source,
@@ -3145,7 +3242,11 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
       current_location_kind = excluded.current_location_kind,
       current_location_custom_name = excluded.current_location_custom_name,
       current_quantity_state = excluded.current_quantity_state,
-      current_approximate_quantity = excluded.current_approximate_quantity`,
+      current_approximate_quantity = excluded.current_approximate_quantity,
+      central_lot_id = excluded.central_lot_id,
+      central_sync_state = excluded.central_sync_state,
+      central_source = excluded.central_source,
+      central_ack_message = excluded.central_ack_message`,
     lot.centralLotId,
     lot.centralProductId,
     lot.lotIdentity.identitySource,
@@ -3163,6 +3264,10 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
     lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
+    lot.centralLotId,
+    lot.state,
+    lot.source,
+    acknowledgementMessage,
   );
 
   await db.runAsync(
@@ -3183,6 +3288,115 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
     lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
+  );
+}
+
+async function upsertCentralLotSnapshot(
+  db: SQLite.SQLiteDatabase,
+  lot: CentralLotSnapshot,
+  taskProjection: CentralLotTaskProjectionSummary,
+  acknowledgementMessage: string | undefined,
+): Promise<void> {
+  const observation = lot.currentObservation;
+  const snapshot = centralLotSnapshotToLocal(lot, acknowledgementMessage);
+
+  await db.runAsync(
+    `INSERT INTO capture_lots (
+      id, product_id, identity_source, identity_value, mode, expires_at, received_at,
+      quality_inspection_due_at, quality_window_days, approximate_quantity,
+      initial_location_kind, initial_location_custom_name, current_observation_id,
+      current_status, current_actor_label, current_occurred_at, current_location_kind,
+      current_location_custom_name, current_quantity_state, current_approximate_quantity,
+      current_is_correction, current_correction_reason, central_lot_id, central_sync_state,
+      central_source, task_projection_json, central_ack_message
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      product_id = excluded.product_id,
+      identity_source = excluded.identity_source,
+      identity_value = excluded.identity_value,
+      mode = excluded.mode,
+      expires_at = excluded.expires_at,
+      received_at = excluded.received_at,
+      quality_inspection_due_at = excluded.quality_inspection_due_at,
+      quality_window_days = excluded.quality_window_days,
+      approximate_quantity = excluded.approximate_quantity,
+      initial_location_kind = excluded.initial_location_kind,
+      initial_location_custom_name = excluded.initial_location_custom_name,
+      current_observation_id = excluded.current_observation_id,
+      current_status = excluded.current_status,
+      current_actor_label = excluded.current_actor_label,
+      current_occurred_at = excluded.current_occurred_at,
+      current_location_kind = excluded.current_location_kind,
+      current_location_custom_name = excluded.current_location_custom_name,
+      current_quantity_state = excluded.current_quantity_state,
+      current_approximate_quantity = excluded.current_approximate_quantity,
+      current_is_correction = excluded.current_is_correction,
+      current_correction_reason = excluded.current_correction_reason,
+      central_lot_id = excluded.central_lot_id,
+      central_sync_state = excluded.central_sync_state,
+      central_source = excluded.central_source,
+      task_projection_json = excluded.task_projection_json,
+      central_ack_message = excluded.central_ack_message`,
+    snapshot.id,
+    lot.centralProductId,
+    lot.lotIdentity.identitySource,
+    lot.lotIdentity.value,
+    lot.mode,
+    lot.mode === "formal_validity" || lot.mode === "processed_repack_loss" ? lot.expiresAt : null,
+    lot.mode === "formal_validity" ||
+      lot.mode === "processed_repack_loss" ||
+      lot.mode === "flv_inspection" ||
+      lot.mode === "receiving_monitored"
+      ? (lot.receivedAt ?? null)
+      : null,
+    lot.mode === "flv_inspection" ? (lot.qualityInspectionDueAt ?? null) : null,
+    lot.mode === "flv_inspection" ? (lot.qualityWindowDays ?? null) : null,
+    lot.approximateQuantity,
+    lot.initialLocation.kind,
+    lot.initialLocation.kind === "other" ? lot.initialLocation.customName : null,
+    observation.centralObservationId,
+    observation.status,
+    observation.actorLabel,
+    observation.occurredAt,
+    observation.location.kind,
+    observation.location.kind === "other" ? observation.location.customName : null,
+    observation.quantityState,
+    observation.quantityState === "estimated" ? observation.approximateQuantity : null,
+    observation.isCorrection ? 1 : 0,
+    observation.correctionReason ?? null,
+    lot.centralLotId,
+    lot.state,
+    lot.source,
+    JSON.stringify(taskProjection),
+    snapshot.centralAcknowledgementMessage ?? null,
+  );
+
+  await db.runAsync(
+    `INSERT INTO capture_observations (
+      id, lot_id, status, actor_label, occurred_at, location_kind, location_custom_name,
+      quantity_state, approximate_quantity, is_correction, correction_reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      actor_label = excluded.actor_label,
+      occurred_at = excluded.occurred_at,
+      location_kind = excluded.location_kind,
+      location_custom_name = excluded.location_custom_name,
+      quantity_state = excluded.quantity_state,
+      approximate_quantity = excluded.approximate_quantity,
+      is_correction = excluded.is_correction,
+      correction_reason = excluded.correction_reason`,
+    observation.centralObservationId,
+    lot.centralLotId,
+    observation.status,
+    observation.actorLabel,
+    observation.occurredAt,
+    observation.location.kind,
+    observation.location.kind === "other" ? observation.location.customName : null,
+    observation.quantityState,
+    observation.quantityState === "estimated" ? observation.approximateQuantity : null,
+    observation.isCorrection ? 1 : 0,
+    observation.correctionReason ?? null,
   );
 }
 
@@ -3774,6 +3988,26 @@ function parseCentralSyncState(value: string | null): CaptureProductRecord["cent
   return undefined;
 }
 
+function parseCentralPackageSource(value: string | null): CaptureLotSnapshot["centralSource"] {
+  if (value === "central" || value === "local_cache" || value === "pending_central") {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseStoredTaskProjection(value: string | null): CaptureLotSnapshot["taskProjection"] {
+  if (value === null) {
+    return undefined;
+  }
+
+  try {
+    return parseCentralLotTaskProjectionSummary(JSON.parse(value));
+  } catch {
+    return undefined;
+  }
+}
+
 function mapCentralActiveTask(
   task: ActiveTaskSnippet,
   lotsById: ReadonlyMap<string, CentralLotSnippet>,
@@ -3861,6 +4095,162 @@ function centralObservationIdFor(centralLotId: string): string {
   return `central-observation:${safeLocalIdentifier(centralLotId, 90)}`;
 }
 
+function centralLotIdempotencyKey(productId: string, lot: CaptureLotInput): string {
+  return [
+    "mobile-lot",
+    productId,
+    lot.identity.identitySource,
+    safeLocalIdentifier(lot.identity.value, 48),
+    lot.mode,
+    lot.initialLocation.kind,
+  ].join(":");
+}
+
+function centralLotSnapshotToSnippet(lot: CentralLotSnapshot): CentralLotSnippet {
+  return {
+    centralLotId: lot.centralLotId,
+    centralProductId: lot.centralProductId,
+    productDisplayName: lot.productDisplayName,
+    lotIdentity: lot.lotIdentity,
+    mode: lot.mode,
+    currentLocation: lot.currentObservation.location,
+    state: lot.state,
+    source: lot.source,
+    ...(lot.riskState === undefined ? {} : { riskState: lot.riskState }),
+    ...(lot.mode === "formal_validity" || lot.mode === "processed_repack_loss"
+      ? { expiresAt: lot.expiresAt }
+      : {}),
+    ...(lot.mode === "formal_validity" ||
+    lot.mode === "processed_repack_loss" ||
+    lot.mode === "flv_inspection" ||
+    lot.mode === "receiving_monitored"
+      ? { receivedAt: lot.receivedAt }
+      : {}),
+    ...(lot.mode === "flv_inspection" && lot.qualityInspectionDueAt !== undefined
+      ? { qualityInspectionDueAt: lot.qualityInspectionDueAt }
+      : {}),
+    approximateQuantity: lot.approximateQuantity,
+    updatedAt: lot.updatedAt,
+  };
+}
+
+function centralActiveTaskSnippetFromWriteResponse(
+  response: CentralLotWriteResponse,
+): ActiveTaskSnippet {
+  if (response.taskProjection.attention !== "active_task") {
+    throw new Error("Central write response has no active task projection.");
+  }
+
+  return {
+    centralTaskId: response.taskProjection.centralTaskId,
+    activeKey: response.taskProjection.activeKey,
+    centralLotId: response.lot.centralLotId,
+    productDisplayName: response.lot.productDisplayName,
+    currentLocation: response.lot.currentObservation.location,
+    riskState: response.taskProjection.riskState,
+    severity: response.taskProjection.severity,
+    requiredResolution: response.taskProjection.requiredResolution,
+    state: response.lot.state,
+    source: response.lot.source,
+    ownerLabel: response.taskProjection.ownerLabel,
+    updatedAt: response.taskProjection.updatedAt,
+  };
+}
+
+function centralLotSnapshotToLocal(
+  lot: CentralLotSnapshot,
+  acknowledgementMessage: string | undefined,
+): CaptureLotSnapshot {
+  return {
+    ...centralLotSnapshotInput(lot),
+    id: lot.centralLotId,
+    productDisplayName: lot.productDisplayName,
+    currentObservation: centralObservationToLocal(lot),
+    centralLotId: lot.centralLotId,
+    centralSyncState: lot.state,
+    centralSource: lot.source,
+    taskProjection: lot.taskProjection,
+    centralAcknowledgementMessage:
+      acknowledgementMessage ??
+      (lot.state === "synchronized"
+        ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+        : "Lote salvo com estado central visivel apos preparar turno."),
+  };
+}
+
+function centralLotSnapshotInput(lot: CentralLotSnapshot): CaptureLotInput {
+  const base = {
+    productId: lot.centralProductId,
+    identity: lot.lotIdentity,
+    approximateQuantity: lot.approximateQuantity,
+    initialLocation: lot.initialLocation,
+  };
+
+  if (lot.mode === "formal_validity") {
+    return {
+      ...base,
+      mode: "formal_validity",
+      expiresAt: lot.expiresAt,
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+    };
+  }
+
+  if (lot.mode === "processed_repack_loss") {
+    return {
+      ...base,
+      mode: "processed_repack_loss",
+      expiresAt: lot.expiresAt,
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+    };
+  }
+
+  if (lot.mode === "flv_inspection") {
+    return {
+      ...base,
+      mode: "flv_inspection",
+      receivedAt: lot.receivedAt,
+      ...(lot.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+      ...(lot.qualityWindowDays === undefined ? {} : { qualityWindowDays: lot.qualityWindowDays }),
+    };
+  }
+
+  return {
+    ...base,
+    mode: "receiving_monitored",
+    receivedAt: lot.receivedAt,
+  };
+}
+
+function centralObservationToLocal(lot: CentralLotSnapshot): CaptureObservationRecord {
+  const base = {
+    id: lot.currentObservation.centralObservationId,
+    lotId: lot.centralLotId,
+    status: lot.currentObservation.status,
+    actorLabel: lot.currentObservation.actorLabel,
+    occurredAt: lot.currentObservation.occurredAt,
+    location: lot.currentObservation.location,
+    isCorrection: lot.currentObservation.isCorrection,
+    ...(lot.currentObservation.correctionReason === undefined
+      ? {}
+      : { correctionReason: lot.currentObservation.correctionReason }),
+  };
+
+  if (lot.currentObservation.quantityState === "estimated") {
+    return {
+      ...base,
+      quantityState: "estimated",
+      approximateQuantity: lot.currentObservation.approximateQuantity,
+    };
+  }
+
+  return {
+    ...base,
+    quantityState: "not_estimable",
+  };
+}
+
 function safeLocalIdentifier(value: string, maxLength: number): string {
   const normalized = value.replace(/[^a-zA-Z0-9:_-]/g, "-");
   return normalized.length === 0 ? "central" : normalized.slice(0, maxLength);
@@ -3869,6 +4259,9 @@ function safeLocalIdentifier(value: string, maxLength: number): string {
 function mapLotSnapshot(row: LotRow): CaptureLotSnapshot {
   const initialLocation = mapLocation(row.initial_location_kind, row.initial_location_custom_name);
   const lot = parseStoredLot(row, initialLocation);
+  const centralSyncState = parseCentralSyncState(row.central_sync_state);
+  const centralSource = parseCentralPackageSource(row.central_source);
+  const taskProjection = parseStoredTaskProjection(row.task_projection_json);
   const currentObservation = mapObservation({
     id: row.current_observation_id,
     lot_id: row.id,
@@ -3888,6 +4281,13 @@ function mapLotSnapshot(row: LotRow): CaptureLotSnapshot {
     id: row.id,
     productDisplayName: row.product_display_name,
     currentObservation,
+    ...(row.central_lot_id === null ? {} : { centralLotId: row.central_lot_id }),
+    ...(centralSyncState === undefined ? {} : { centralSyncState }),
+    ...(centralSource === undefined ? {} : { centralSource }),
+    ...(taskProjection === undefined ? {} : { taskProjection }),
+    ...(row.central_ack_message === null
+      ? {}
+      : { centralAcknowledgementMessage: row.central_ack_message }),
   };
 }
 

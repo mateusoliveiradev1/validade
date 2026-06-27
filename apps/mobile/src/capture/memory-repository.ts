@@ -11,7 +11,9 @@ import {
   type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
+  type CentralLotSnapshot,
   type CentralLotSnippet,
+  type CentralLotWriteResponse,
   type CentralProductSnippet,
   type DevicePushRegistrationCommand,
   type FutureAttentionRecord,
@@ -83,6 +85,8 @@ import {
   parseMarkdownWorkflowRecord,
   parseAlertDeliveryResult,
   parseAlertDeviceRegistration,
+  parseCentralLotCreateRequest,
+  parseCentralLotWriteResponse,
   parseLotId,
   parseLotInput,
   parseObservationInput,
@@ -430,12 +434,18 @@ export function createMemoryCaptureRepository(
     );
   }
 
-  function saveLot(input: SaveLotInput): Promise<CaptureLotSnapshot> {
+  async function saveLot(input: SaveLotInput): Promise<CaptureLotSnapshot> {
     const lot = parseLotInput(input.lot);
     const product = products.get(lot.productId);
 
     if (product === undefined) {
       throw new Error(`Cannot save a lot for an unknown product: ${lot.productId}`);
+    }
+
+    const centrallySaved = await trySaveLotCentrally(lot, product, input.actorLabel);
+
+    if (centrallySaved !== null) {
+      return centrallySaved;
     }
 
     const lotId = nextGeneratedId(dependencies);
@@ -449,12 +459,60 @@ export function createMemoryCaptureRepository(
       id: lotId,
       productDisplayName: product.displayName,
       currentObservation: observation,
+      centralSyncState: "local",
+      centralSource: "local_cache",
+      centralAcknowledgementMessage:
+        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     };
 
     lots.set(lotId, snapshot);
     observations.set(lotId, [observation]);
 
-    return Promise.resolve(snapshot);
+    return snapshot;
+  }
+
+  async function trySaveLotCentrally(
+    lot: CaptureLotInput,
+    product: CaptureProductRecord,
+    actorLabel: string,
+  ): Promise<CaptureLotSnapshot | null> {
+    if (dependencies.createCentralLot === undefined || product.centralProductId === undefined) {
+      return null;
+    }
+
+    if (prepareTurnCacheStatus?.state !== "ready" || prepareTurnCacheStatus.source !== "central") {
+      return null;
+    }
+
+    try {
+      const centralLot = parseLotInput({ ...lot, productId: product.centralProductId });
+      const request = parseCentralLotCreateRequest({
+        lot: centralLot,
+        actorLabel,
+        occurredAt: dependencies.clock(),
+        idempotencyKey: centralLotIdempotencyKey(product.centralProductId, lot),
+      });
+      const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
+      const snapshot = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+      const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
+        [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
+      ]);
+
+      lots.set(snapshot.id, snapshot);
+      observations.set(snapshot.id, [snapshot.currentObservation]);
+
+      if (response.taskProjection.attention === "active_task") {
+        const task = centralActiveTaskToLocal(
+          centralActiveTaskSnippetFromWriteResponse(response),
+          lotsById,
+        );
+        todayTasks.set(task.id, task);
+      }
+
+      return snapshot;
+    } catch {
+      return null;
+    }
   }
 
   function appendObservation(
@@ -1731,6 +1789,155 @@ export function createMemoryCaptureRepository(
       id: lot.centralLotId,
       productDisplayName: lot.productDisplayName,
       currentObservation: observation,
+      centralLotId: lot.centralLotId,
+      centralSyncState: lot.state,
+      centralSource: lot.source,
+      centralAcknowledgementMessage:
+        lot.state === "synchronized"
+          ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+          : "Leitura central armazenada neste aparelho.",
+    };
+  }
+
+  function centralLotSnapshotToLocal(
+    lot: CentralLotSnapshot,
+    acknowledgementMessage: string | undefined,
+  ): CaptureLotSnapshot {
+    return {
+      ...centralLotSnapshotInput(lot),
+      id: lot.centralLotId,
+      productDisplayName: lot.productDisplayName,
+      currentObservation: centralObservationToLocal(lot),
+      centralLotId: lot.centralLotId,
+      centralSyncState: lot.state,
+      centralSource: lot.source,
+      taskProjection: lot.taskProjection,
+      centralAcknowledgementMessage:
+        acknowledgementMessage ??
+        (lot.state === "synchronized"
+          ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+          : "Lote salvo com estado central visivel apos preparar turno."),
+    };
+  }
+
+  function centralLotSnapshotInput(lot: CentralLotSnapshot): CaptureLotInput {
+    const base = {
+      productId: lot.centralProductId,
+      identity: lot.lotIdentity,
+      approximateQuantity: lot.approximateQuantity,
+      initialLocation: lot.initialLocation,
+    };
+
+    if (lot.mode === "formal_validity") {
+      return {
+        ...base,
+        mode: "formal_validity",
+        expiresAt: lot.expiresAt,
+        ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      };
+    }
+
+    if (lot.mode === "processed_repack_loss") {
+      return {
+        ...base,
+        mode: "processed_repack_loss",
+        expiresAt: lot.expiresAt,
+        ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      };
+    }
+
+    if (lot.mode === "flv_inspection") {
+      return {
+        ...base,
+        mode: "flv_inspection",
+        receivedAt: lot.receivedAt,
+        ...(lot.qualityInspectionDueAt === undefined
+          ? {}
+          : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+        ...(lot.qualityWindowDays === undefined
+          ? {}
+          : { qualityWindowDays: lot.qualityWindowDays }),
+      };
+    }
+
+    return {
+      ...base,
+      mode: "receiving_monitored",
+      receivedAt: lot.receivedAt,
+    };
+  }
+
+  function centralObservationToLocal(lot: CentralLotSnapshot): CaptureObservationRecord {
+    const base = {
+      id: lot.currentObservation.centralObservationId,
+      lotId: lot.centralLotId,
+      status: lot.currentObservation.status,
+      actorLabel: lot.currentObservation.actorLabel,
+      occurredAt: lot.currentObservation.occurredAt,
+      location: lot.currentObservation.location,
+      isCorrection: lot.currentObservation.isCorrection,
+      ...(lot.currentObservation.correctionReason === undefined
+        ? {}
+        : { correctionReason: lot.currentObservation.correctionReason }),
+    };
+
+    if (lot.currentObservation.quantityState === "estimated") {
+      return {
+        ...base,
+        quantityState: "estimated",
+        approximateQuantity: lot.currentObservation.approximateQuantity,
+      };
+    }
+
+    return {
+      ...base,
+      quantityState: "not_estimable",
+    };
+  }
+
+  function centralLotSnapshotToSnippet(lot: CentralLotSnapshot): CentralLotSnippet {
+    return {
+      centralLotId: lot.centralLotId,
+      centralProductId: lot.centralProductId,
+      productDisplayName: lot.productDisplayName,
+      lotIdentity: lot.lotIdentity,
+      mode: lot.mode,
+      currentLocation: lot.currentObservation.location,
+      state: lot.state,
+      source: lot.source,
+      ...(lot.riskState === undefined ? {} : { riskState: lot.riskState }),
+      ...(lot.mode === "formal_validity" || lot.mode === "processed_repack_loss"
+        ? { expiresAt: lot.expiresAt }
+        : {}),
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      ...(lot.mode === "flv_inspection" && lot.qualityInspectionDueAt !== undefined
+        ? { qualityInspectionDueAt: lot.qualityInspectionDueAt }
+        : {}),
+      approximateQuantity: lot.approximateQuantity,
+      updatedAt: lot.updatedAt,
+    };
+  }
+
+  function centralActiveTaskSnippetFromWriteResponse(
+    response: CentralLotWriteResponse,
+  ): ActiveTaskSnippet {
+    if (response.taskProjection.attention !== "active_task") {
+      throw new Error("Central write response has no active task projection.");
+    }
+
+    return {
+      centralTaskId: response.taskProjection.centralTaskId,
+      activeKey: response.taskProjection.activeKey,
+      centralLotId: response.lot.centralLotId,
+      productDisplayName: response.lot.productDisplayName,
+      currentLocation: response.lot.currentObservation.location,
+      riskState: response.taskProjection.riskState,
+      severity: response.taskProjection.severity,
+      requiredResolution: response.taskProjection.requiredResolution,
+      state: response.lot.state,
+      source: response.lot.source,
+      ownerLabel: response.taskProjection.ownerLabel,
+      updatedAt: response.taskProjection.updatedAt,
     };
   }
 
@@ -1852,6 +2059,17 @@ export function createMemoryCaptureRepository(
 
   function centralObservationIdFor(centralLotId: string): string {
     return `central-observation:${centralLotId.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 90)}`;
+  }
+
+  function centralLotIdempotencyKey(productId: string, lot: CaptureLotInput): string {
+    return [
+      "mobile-lot",
+      productId,
+      lot.identity.identitySource,
+      lot.identity.value.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 48),
+      lot.mode,
+      lot.initialLocation.kind,
+    ].join(":");
   }
 
   function snapshotForOfflineAction(action: OfflineActionCommand): {

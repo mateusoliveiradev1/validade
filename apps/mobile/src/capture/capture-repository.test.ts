@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMemoryCaptureRepository } from "./memory-repository";
 
 const categoryRuleProfile = {
@@ -186,5 +186,171 @@ describe("memory capture repository", () => {
     ]);
     expect(productsByCategory).toEqual([product]);
     expect(productsByCategory).not.toContain(otherProduct);
+  });
+
+  it("writes ready central-cache lots through the central API and keeps the projected task visible", async () => {
+    const createCentralLot = vi.fn((request) =>
+      Promise.resolve({
+        requestId: "write-lot-central-ficticio",
+        lot: {
+          centralLotId: "lote-central-alface-001",
+          centralProductId: request.lot.productId,
+          productDisplayName: "Alface Central FICTICIA",
+          lotIdentity: request.lot.identity,
+          mode: "formal_validity" as const,
+          expiresAt: "2030-01-12",
+          receivedAt: "2030-01-10",
+          approximateQuantity: request.lot.approximateQuantity,
+          initialLocation: request.lot.initialLocation,
+          currentObservation: {
+            centralObservationId: "observacao-central-alface-001",
+            centralLotId: "lote-central-alface-001",
+            status: "present" as const,
+            actorLabel: request.actorLabel,
+            occurredAt: request.occurredAt,
+            location: request.lot.initialLocation,
+            quantityState: "estimated" as const,
+            approximateQuantity: request.lot.approximateQuantity,
+            isCorrection: false,
+          },
+          lifecycleStatus: "active" as const,
+          state: "synchronized" as const,
+          source: "central" as const,
+          riskState: "critical" as const,
+          taskProjection: {
+            attention: "active_task" as const,
+            centralTaskId: "tarefa-central-alface-001",
+            activeKey: "lote-central-alface-001:critical:check_presence:root",
+            riskState: "critical" as const,
+            severity: "high" as const,
+            requiredResolution: "check_presence" as const,
+            ownerLabel: "Equipe do turno",
+            updatedAt: "2030-01-10T09:00:00.000Z",
+          },
+          createdAt: "2030-01-10T09:00:00.000Z",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        taskProjection: {
+          attention: "active_task" as const,
+          centralTaskId: "tarefa-central-alface-001",
+          activeKey: "lote-central-alface-001:critical:check_presence:root",
+          riskState: "critical" as const,
+          severity: "high" as const,
+          requiredResolution: "check_presence" as const,
+          ownerLabel: "Equipe do turno",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-central-alface-001",
+          centralLotId: "lote-central-alface-001",
+          state: "synchronized" as const,
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Lote confirmado na central.",
+        },
+      }),
+    );
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "identificador-local-nao-usado",
+      createCentralLot,
+    });
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-central-ficticio",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:00:00.000Z",
+        centralReadAt: "2030-01-10T09:00:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        lastHydratedAt: "2030-01-10T09:00:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: "produto-central-alface-001",
+          displayName: "Alface Central FICTICIA",
+          categoryId: categoryRuleProfile.categoryId,
+          categoryName: "Folhas",
+          categoryRuleProfile: {
+            categoryId: "categoria-ficticia-folhas",
+            mode: "formal_validity",
+            windows: {
+              radarDays: 60,
+              markdownDays: 15,
+              criticalDays: 3,
+              expiredDays: 0,
+            },
+          },
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+      ],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    const saved = await repository.saveLot({
+      lot: {
+        productId: "produto-central-alface-001",
+        identity: { identitySource: "printed", value: "LOTE-CENTRAL-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-12",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 9,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora Central FICTICIA",
+    });
+
+    expect(createCentralLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey:
+          "mobile-lot:produto-central-alface-001:printed:LOTE-CENTRAL-FICTICIO-001:formal_validity:area_de_venda",
+      }),
+    );
+    expect(saved).toMatchObject({
+      id: "lote-central-alface-001",
+      centralLotId: "lote-central-alface-001",
+      centralSyncState: "synchronized",
+      centralSource: "central",
+      centralAcknowledgementMessage: "Lote confirmado na central.",
+    });
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({ id: "lote-central-alface-001" }),
+    ]);
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({
+        id: "tarefa-central-alface-001",
+        lotId: "lote-central-alface-001",
+        requiredResolution: "check_presence",
+      }),
+    ]);
   });
 });

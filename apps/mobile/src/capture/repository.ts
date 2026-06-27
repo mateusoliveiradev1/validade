@@ -2,6 +2,9 @@ import {
   AlertDeliveryResultSchema,
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  CentralLotCreateRequestSchema,
+  CentralLotTaskProjectionSummarySchema,
+  CentralLotWriteResponseSchema,
   DevicePushRegistrationCommandSchema,
   MarkdownApplicationCommandSchema,
   MarkdownApprovalCommandSchema,
@@ -26,6 +29,10 @@ import {
   type CaptureLotInput,
   type CaptureProductInput,
   type AlertDeliveryResult,
+  type CentralLotCreateRequest,
+  type CentralLotTaskProjectionSummary,
+  type CentralLotWriteResponse,
+  type CentralPackageSource,
   type DevicePushRegistrationCommand,
   type EvidenceTarget,
   type EvidenceUploadAck,
@@ -60,6 +67,7 @@ import {
   type TaskRefreshMetadata,
   TaskResolutionCommandSchema,
   TodayTaskRecordSchema,
+  type VisibleCentralSyncState,
   type TaskResolutionCommand,
   type TodayTaskRecord,
 } from "@validade-zero/contracts";
@@ -84,6 +92,7 @@ import {
 export interface CaptureRepositoryDependencies {
   clock: () => string;
   createId: () => string;
+  createCentralLot?: (request: CentralLotCreateRequest) => Promise<CentralLotWriteResponse>;
 }
 
 export type CaptureProductRecord = CaptureProductInput & {
@@ -120,6 +129,11 @@ export type CaptureLotSnapshot = CaptureLotInput & {
   id: string;
   productDisplayName: string;
   currentObservation: CaptureObservationRecord;
+  centralLotId?: string;
+  centralSyncState?: VisibleCentralSyncState;
+  centralSource?: CentralPackageSource;
+  taskProjection?: CentralLotTaskProjectionSummary;
+  centralAcknowledgementMessage?: string;
 };
 
 export type CaptureLotDetail = CaptureLotSnapshot & {
@@ -414,6 +428,22 @@ export function productDraftToLocalRecord(draft: ProductDraftReviewState): Captu
 
 export function parseLotInput(input: CaptureLotInput): CaptureLotInput {
   return CaptureLotInputSchema.parse(input);
+}
+
+export function parseCentralLotCreateRequest(
+  input: CentralLotCreateRequest,
+): CentralLotCreateRequest {
+  return CentralLotCreateRequestSchema.parse(input);
+}
+
+export function parseCentralLotWriteResponse(input: unknown): CentralLotWriteResponse {
+  return CentralLotWriteResponseSchema.parse(input);
+}
+
+export function parseCentralLotTaskProjectionSummary(
+  input: unknown,
+): CentralLotTaskProjectionSummary {
+  return CentralLotTaskProjectionSummarySchema.parse(input);
 }
 
 export function parseObservationInput(input: PhysicalObservationInput): PhysicalObservationInput {

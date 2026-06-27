@@ -32,6 +32,7 @@ import {
   SelectionRow,
   StatusNotice,
 } from "./capture-ui";
+import { centralStateLabel } from "./RecentLotList";
 
 const LOCAL_ACTOR_LABEL = "Colaborador local";
 
@@ -100,10 +101,16 @@ export function LotRegistrationScreen({
       });
       const snapshot = await repository.saveLot({ lot, actorLabel: LOCAL_ACTOR_LABEL });
       setSavedMessage(
-        lotRegisteredCopy(
-          formatLocation(snapshot.currentObservation.location),
-          formatOperationalTime(snapshot.currentObservation.occurredAt),
-        ),
+        [
+          lotRegisteredCopy(
+            formatLocation(snapshot.currentObservation.location),
+            formatOperationalTime(snapshot.currentObservation.occurredAt),
+          ),
+          centralStateLabel(snapshot),
+          snapshot.centralAcknowledgementMessage,
+        ]
+          .filter((message): message is string => message !== undefined && message.length > 0)
+          .join(" "),
       );
       setSaveError(undefined);
       onSaved?.();

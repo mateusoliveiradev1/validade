@@ -103,7 +103,31 @@ export function attention(lot: CaptureLotSnapshot): string | undefined {
   return lot.currentObservation.status === "not_found" ||
     lot.currentObservation.status === "probably_sold_out"
     ? "Presença incerta"
-    : undefined;
+    : centralStateLabel(lot);
+}
+
+export function centralStateLabel(lot: CaptureLotSnapshot): string {
+  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
+    return "Sincronizado com a central";
+  }
+
+  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
+    return "Pendente de central";
+  }
+
+  if (lot.centralSyncState === "conflict") {
+    return "Conflito de sincronizacao";
+  }
+
+  if (lot.centralSyncState === "resolved") {
+    return "Resolvido na central";
+  }
+
+  if (lot.centralSyncState === "discarded") {
+    return "Descartado na central";
+  }
+
+  return "Local neste aparelho";
 }
 
 const styles = StyleSheet.create({

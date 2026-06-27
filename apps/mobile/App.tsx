@@ -15,11 +15,6 @@ import { createFetchSyncTransport } from "./src/capture/http-sync-transport";
 import { createNetInfoNetworkStateProvider } from "./src/capture/network-state";
 import { createSyncEngine } from "./src/capture/sync-engine";
 
-const repository = createSQLiteCaptureRepository({
-  clock: () => new Date().toISOString(),
-  createId: () => `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-});
-
 const defaultAuthClient = createMobileAuthClient();
 
 export default function App({
@@ -56,6 +51,15 @@ function AuthenticatedCaptureApp({
   authClient: MobileAuthClient;
   session: SessionContextResponse;
 }) {
+  const repository = useMemo(
+    () =>
+      createSQLiteCaptureRepository({
+        clock: () => new Date().toISOString(),
+        createId: () => `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        createCentralLot: authClient.createCentralLot.bind(authClient),
+      }),
+    [authClient],
+  );
   const syncEngine = useMemo(
     () =>
       createSyncEngine({
@@ -70,7 +74,7 @@ function AuthenticatedCaptureApp({
         createId: () => `sync-batch-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         deviceId: `validade-zero-mobile:${session.store.storeId}`,
       }),
-    [authClient, session.store.storeId, session.store.storeName],
+    [authClient, repository, session.store.storeId, session.store.storeName],
   );
   const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
 

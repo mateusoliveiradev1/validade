@@ -3,6 +3,8 @@ import {
   AccountAccessErrorResponseSchema,
   AuthenticatedSessionResponseSchema,
   AuthorizationContract,
+  CentralLotCreateRequestSchema,
+  CentralLotWriteResponseSchema,
   FirstAccessActivationRequestSchema,
   InvalidCredentialsResponseSchema,
   InviteValidationResponseSchema,
@@ -16,6 +18,8 @@ import {
   SessionStatusResponseSchema,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
+  type CentralLotCreateRequest,
+  type CentralLotWriteResponse,
   type PrivacyRequest,
   type SessionContextResponse,
   type PrivacyTopicId,
@@ -63,6 +67,7 @@ export interface MobileAuthClient {
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
+  createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
   logout(): Promise<void>;
 }
 
@@ -145,6 +150,15 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       const body = PrepareTurnRequestSchema.parse(input);
       return PrepareTurnResponseSchema.parse(
         await request("/capture/prepare-turn", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+    async createCentralLot(input) {
+      const body = CentralLotCreateRequestSchema.parse(input);
+      return CentralLotWriteResponseSchema.parse(
+        await request("/capture/lots", {
           method: "POST",
           body: JSON.stringify(body),
         }),

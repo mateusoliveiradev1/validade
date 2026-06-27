@@ -4,7 +4,7 @@ import type { AuditTimelineItem } from "@validade-zero/contracts";
 import type { MarkdownRequestReason } from "@validade-zero/domain";
 import { AuditTimeline } from "./AuditTimeline";
 import type { CaptureLotDetail, MarkdownEntryState } from "./repository";
-import { actionLabel, formatQuantity } from "./RecentLotList";
+import { actionLabel, centralStateLabel, formatQuantity } from "./RecentLotList";
 import { formatLocation, formatObservationTimestamp } from "./capture-copy";
 import {
   Field,
@@ -108,6 +108,10 @@ export function LotDetailScreen({
         {formatObservationTimestamp(observation.occurredAt)}
       </Text>
       <Text style={styles.metadata}>{formatQuantity(detail)}</Text>
+      <Text style={styles.metadata}>Estado central: {centralStateLabel(detail)}</Text>
+      {detail.centralAcknowledgementMessage === undefined ? null : (
+        <Text style={styles.metadata}>{detail.centralAcknowledgementMessage}</Text>
+      )}
       {observation.status === "not_found" || observation.status === "probably_sold_out" ? (
         <StatusNotice>
           Presenca incerta: confirme fisicamente este lote antes de trata-lo como seguro.
