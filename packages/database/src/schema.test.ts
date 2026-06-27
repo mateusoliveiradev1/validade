@@ -7,6 +7,7 @@ import {
   authAccountStatusEnum,
   authCredentials,
   authInvites,
+  authLoginAttempts,
   authRecoveryTokens,
   authSessions,
   evidenceAssets,
@@ -40,6 +41,10 @@ const membershipMigrationSql = readFileSync(
 );
 const authMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0005_phase_09_auth.sql"),
+  "utf8",
+);
+const productionHardeningMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0008_phase_10_production_hardening.sql"),
   "utf8",
 );
 
@@ -167,6 +172,7 @@ describe("phase 08 database schema", () => {
     expect(authCredentials.passwordSalt.name).toBe("password_salt");
     expect(authSessions.tokenHash.name).toBe("token_hash");
     expect(authRecoveryTokens.tokenHash.name).toBe("token_hash");
+    expect(authLoginAttempts.identifierHash.name).toBe("identifier_hash");
     expect(privacyRequests.requestBody.name).toBe("request_body");
   });
 
@@ -177,6 +183,20 @@ describe("phase 08 database schema", () => {
     expect(authMigrationSql).toContain("auth_recovery_tokens_expires_consumed_idx");
     expect(authMigrationSql).toContain("privacy_requests_subject_store_idx");
     expect(authMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+  });
+
+  it("hardens staging auth throttling and central relational integrity", () => {
+    expect(productionHardeningMigrationSql).toContain("auth_login_attempts");
+    expect(productionHardeningMigrationSql).toContain("identifier_hash text NOT NULL");
+    expect(productionHardeningMigrationSql).toContain("central_product_drafts_review_status_check");
+    expect(productionHardeningMigrationSql).toContain("'validated'");
+    expect(productionHardeningMigrationSql).toContain("'discarded'");
+    expect(productionHardeningMigrationSql).toContain("central_lots_product_fkey");
+    expect(productionHardeningMigrationSql).toContain("central_observations_lot_fkey");
+    expect(productionHardeningMigrationSql).toContain("central_projected_tasks_lot_fkey");
+    expect(productionHardeningMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
   });

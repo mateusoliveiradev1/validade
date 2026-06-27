@@ -6,7 +6,11 @@ import {
   type SyncCommandRecord,
 } from "@validade-zero/contracts";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
-import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
+import {
+  createAuthRepositoryFromQuery,
+  createInMemoryAuthRepository,
+  createLoginAttemptLimiterFromQuery,
+} from "./auth-repository";
 import {
   createCaptureRepositoryFromQuery,
   createInMemoryCaptureRepository,
@@ -126,6 +130,39 @@ describe("database repositories", () => {
     expect(mutationCount).toBe(0);
     expect(String(captured[0]?.[0])).toContain("where idempotency_key =");
     expect(captured).toHaveLength(1);
+  });
+
+  it("persists login throttling by hashed identifier only", async () => {
+    const captured: Array<{ query: string; values: unknown[] }> = [];
+    const sql = {
+      query(query: string, values: unknown[]) {
+        captured.push({ query, values });
+        if (query.includes("count(*)")) return Promise.resolve([{ attempt_count: 4 }]);
+        return Promise.resolve([]);
+      },
+    } as never;
+    const limiter = createLoginAttemptLimiterFromQuery(sql, {
+      pepper: "test-token-pepper-at-least-16",
+      maxAttempts: 5,
+      windowMs: 15 * 60_000,
+    });
+
+    await expect(
+      limiter.isAllowed("Person@Example.Invalid", new Date("2030-01-10T12:00:00.000Z")),
+    ).resolves.toBe(true);
+    await limiter.recordFailure("Person@Example.Invalid", new Date("2030-01-10T12:01:00.000Z"));
+    await limiter.clear("Person@Example.Invalid");
+
+    const serialized = JSON.stringify(captured);
+    expect(serialized).not.toContain("Person@Example.Invalid");
+    expect(serialized).not.toContain("person@example.invalid");
+    expect(serialized).toMatch(/[0-9a-f]{64}/);
+    expect(captured.some((call) => call.query.includes("insert into auth_login_attempts"))).toBe(
+      true,
+    );
+    expect(captured.some((call) => call.query.includes("delete from auth_login_attempts"))).toBe(
+      true,
+    );
   });
 
   it("queries audit rows with a mandatory store predicate and cursor limit", async () => {

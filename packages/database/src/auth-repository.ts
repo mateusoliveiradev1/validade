@@ -178,6 +178,12 @@ export interface AuthRepository {
   createPrivacyRequest(input: Omit<PrivacyRequestRecord, "status">): Promise<PrivacyRequestReceipt>;
 }
 
+export interface DurableLoginAttemptLimiter {
+  isAllowed(identifier: string, now: Date): Promise<boolean>;
+  recordFailure(identifier: string, now: Date): Promise<void>;
+  clear(identifier: string): Promise<void>;
+}
+
 export interface InMemoryAuthRepository extends AuthRepository {
   readStoredState(): {
     invites: readonly StoredAuthInviteRecord[];
@@ -193,6 +199,71 @@ export function createNeonAuthRepository(input: {
   secrets: AuthRepositorySecrets;
 }): AuthRepository {
   return createAuthRepositoryFromQuery(neon(input.connectionString), input.secrets);
+}
+
+export function createNeonLoginAttemptLimiter(input: {
+  connectionString: string;
+  pepper: string;
+  maxAttempts?: number;
+  windowMs?: number;
+}): DurableLoginAttemptLimiter {
+  assertSecretValue(input.pepper, "Login attempt pepper");
+  return createLoginAttemptLimiterFromQuery(neon(input.connectionString), input);
+}
+
+export function createLoginAttemptLimiterFromQuery(
+  sql: NeonQueryFunction<false, false>,
+  input: {
+    pepper: string;
+    maxAttempts?: number;
+    windowMs?: number;
+  },
+): DurableLoginAttemptLimiter {
+  assertSecretValue(input.pepper, "Login attempt pepper");
+  const maxAttempts = input.maxAttempts ?? 5;
+  const windowMs = input.windowMs ?? 15 * 60_000;
+
+  async function identifierHash(identifier: string): Promise<string> {
+    return hashToken(normalizeIdentifier(identifier), input.pepper);
+  }
+
+  async function prune(now: Date): Promise<void> {
+    const staleBefore = new Date(now.getTime() - windowMs * 2).toISOString();
+    await sql.query(`delete from auth_login_attempts where attempted_at < $1::timestamptz`, [
+      staleBefore,
+    ]);
+  }
+
+  return {
+    async isAllowed(identifier, now) {
+      const hash = await identifierHash(identifier);
+      const windowStart = new Date(now.getTime() - windowMs).toISOString();
+      const rows = (await sql.query(
+        `select count(*)::int as attempt_count
+        from auth_login_attempts
+        where identifier_hash = $1 and attempted_at >= $2::timestamptz`,
+        [hash, windowStart],
+      )) as Array<{ attempt_count: number }>;
+      return (rows[0]?.attempt_count ?? 0) < maxAttempts;
+    },
+    async recordFailure(identifier, now) {
+      await prune(now);
+      await sql.query(
+        `insert into auth_login_attempts (attempt_id, identifier_hash, attempted_at)
+        values ($1, $2, $3::timestamptz)`,
+        [
+          `login-attempt:${crypto.randomUUID()}`,
+          await identifierHash(identifier),
+          now.toISOString(),
+        ],
+      );
+    },
+    async clear(identifier) {
+      await sql.query(`delete from auth_login_attempts where identifier_hash = $1`, [
+        await identifierHash(identifier),
+      ]);
+    },
+  };
 }
 
 export function createInMemoryAuthRepository(input: {
@@ -1075,8 +1146,13 @@ function constantTimeHexEqual(left: string, right: string): boolean {
 }
 
 function assertSecrets(secrets: AuthRepositorySecrets): void {
-  if (secrets.tokenPepper.length < 16 || secrets.passwordPepper.length < 16) {
-    throw new Error("Authentication peppers must be configured with at least 16 characters.");
+  assertSecretValue(secrets.tokenPepper, "Authentication token pepper");
+  assertSecretValue(secrets.passwordPepper, "Authentication password pepper");
+}
+
+function assertSecretValue(value: string, label: string): void {
+  if (value.length < 16) {
+    throw new Error(`${label} must be configured with at least 16 characters.`);
   }
 }
 

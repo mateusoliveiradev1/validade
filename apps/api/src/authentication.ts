@@ -77,9 +77,9 @@ export interface InMemoryAuthSecurityAuditRecorder extends AuthSecurityAuditReco
 }
 
 export interface LoginAttemptLimiter {
-  isAllowed(identifier: string, now: Date): boolean;
-  recordFailure(identifier: string, now: Date): void;
-  clear(identifier: string): void;
+  isAllowed(identifier: string, now: Date): boolean | Promise<boolean>;
+  recordFailure(identifier: string, now: Date): void | Promise<void>;
+  clear(identifier: string): void | Promise<void>;
 }
 
 export interface AuthenticationRouteDependencies {
@@ -161,7 +161,7 @@ export function registerAuthenticationRoutes(
         401,
       );
     const now = input.now();
-    if (!input.loginAttemptLimiter.isAllowed(parsed.data.identifier, now)) {
+    if (!(await input.loginAttemptLimiter.isAllowed(parsed.data.identifier, now))) {
       return context.json(
         InvalidCredentialsResponseSchema.parse({ error: "invalid_credentials" }),
         429,
@@ -169,7 +169,7 @@ export function registerAuthenticationRoutes(
     }
     const account = await input.repository.verifyPassword(parsed.data);
     if (account === undefined) {
-      input.loginAttemptLimiter.recordFailure(parsed.data.identifier, now);
+      await input.loginAttemptLimiter.recordFailure(parsed.data.identifier, now);
       await input.authSecurityAuditRecorder.record({
         eventId: createId("auth-login-denied"),
         operation: "login",
@@ -182,7 +182,7 @@ export function registerAuthenticationRoutes(
       );
     }
     if (account.status !== "active") {
-      input.loginAttemptLimiter.recordFailure(parsed.data.identifier, now);
+      await input.loginAttemptLimiter.recordFailure(parsed.data.identifier, now);
       await recordAccountDenial(input.authSecurityAuditRecorder, account, now);
       return context.json(
         AccountAccessErrorResponseSchema.parse({
@@ -198,7 +198,7 @@ export function registerAuthenticationRoutes(
         403,
       );
     }
-    input.loginAttemptLimiter.clear(parsed.data.identifier);
+    await input.loginAttemptLimiter.clear(parsed.data.identifier);
     try {
       const session = await createSession(input, account);
       setSessionCookie(context, session.token, session.record.expiresAt);

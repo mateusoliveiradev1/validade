@@ -231,6 +231,22 @@ export const authRecoveryTokens = pgTable(
   ],
 );
 
+export const authLoginAttempts = pgTable(
+  "auth_login_attempts",
+  {
+    attemptId: text("attempt_id").primaryKey(),
+    identifierHash: text("identifier_hash").notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("auth_login_attempts_identifier_attempted_idx").on(
+      table.identifierHash,
+      table.attemptedAt,
+    ),
+    index("auth_login_attempts_attempted_idx").on(table.attemptedAt),
+  ],
+);
+
 export const privacyRequests = pgTable(
   "privacy_requests",
   {
@@ -609,6 +625,8 @@ export type AuthSessionDatabaseRecord = typeof authSessions.$inferSelect;
 export type NewAuthSessionDatabaseRecord = typeof authSessions.$inferInsert;
 export type AuthRecoveryTokenDatabaseRecord = typeof authRecoveryTokens.$inferSelect;
 export type NewAuthRecoveryTokenDatabaseRecord = typeof authRecoveryTokens.$inferInsert;
+export type AuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferSelect;
+export type NewAuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferInsert;
 export type PrivacyRequestDatabaseRecord = typeof privacyRequests.$inferSelect;
 export type NewPrivacyRequestDatabaseRecord = typeof privacyRequests.$inferInsert;
 export type AuditEventRecord = typeof auditEvents.$inferSelect;

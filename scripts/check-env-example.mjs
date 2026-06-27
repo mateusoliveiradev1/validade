@@ -10,6 +10,7 @@ const requiredKeys = [
   "EXPO_PUBLIC_API_URL",
   "SAFE_PROBE_DEFAULT_VALUE",
   "NEON_DATABASE_URL",
+  "EVIDENCE_STORE_MODE",
   "CLOUDFLARE_ACCOUNT_ID",
   "R2_BUCKET_NAME",
   "EXPO_PROJECT_ID",
@@ -25,6 +26,7 @@ const numericKeys = new Set([
   "AUTH_INVITE_TTL_SECONDS",
   "AUTH_RECOVERY_TTL_SECONDS",
 ]);
+const literalExampleValues = new Map([["EVIDENCE_STORE_MODE", new Set(["memory"])]]);
 const safeMarker = /(example|fictici|placeholder|localhost|00000000)/i;
 const secretLike = /(sk_live_|AKIA[0-9A-Z]{16}|-----BEGIN|xox[baprs]-|ghp_[A-Za-z0-9_]{20,})/;
 
@@ -65,6 +67,10 @@ for (const key of requiredKeys) {
     if (!/^\d+$/.test(value) || Number(value) <= 0) {
       failures.push(`${key} must be a positive integer`);
     }
+    continue;
+  }
+
+  if (literalExampleValues.get(key)?.has(value) === true) {
     continue;
   }
 

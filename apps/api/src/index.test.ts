@@ -14,6 +14,22 @@ describe("validade zero API smoke", () => {
     expect(JSON.stringify(body)).not.toMatch(/secret|token|password|database_url/i);
   });
 
+  it("returns a sanitized deep health response when dependencies are incomplete", async () => {
+    const response = await app.request("/health/deep");
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      status: "degraded",
+      service: "validade-zero-api",
+      checks: {
+        database: { ok: false },
+        evidence: { mode: "memory" },
+      },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/secret|token|password|database_url|postgres/i);
+  });
+
   it("writes and returns a safe probe value", async () => {
     const response = await app.request("/probe", {
       method: "POST",

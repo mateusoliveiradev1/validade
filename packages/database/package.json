@@ -28,6 +28,10 @@
       "types": "./src/evidence-repository.ts",
       "import": "./src/evidence-repository.ts"
     },
+    "./health-repository": {
+      "types": "./src/health-repository.ts",
+      "import": "./src/health-repository.ts"
+    },
     "./shift-close-repository": {
       "types": "./src/shift-close-repository.ts",
       "import": "./src/shift-close-repository.ts"

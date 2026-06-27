@@ -2,8 +2,10 @@ import {
   createFakeExpoAlertDeliveryProvider,
   createInMemoryEvidenceStore,
   createLocalProviderRegistry,
+  createR2EvidenceStore,
   type AlertDeliveryProvider,
   type EvidenceStore,
+  type R2BucketLike,
 } from "@validade-zero/adapters";
 import {
   AlertDeliveryResultSchema,
@@ -52,9 +54,11 @@ import type { EvidenceRepository } from "@validade-zero/database/evidence-reposi
 import {
   createInMemoryAuthRepository,
   createNeonAuthRepository,
+  createNeonLoginAttemptLimiter,
   type AuthRepository,
   type AuthRepositorySecrets,
 } from "@validade-zero/database/auth-repository";
+import { checkDatabaseHealth } from "@validade-zero/database/health-repository";
 import {
   createInMemoryMembershipManagementRepository,
   createNeonMembershipRepository,
@@ -148,11 +152,14 @@ export interface SyncCommandApplyContext {
 }
 
 export interface WorkerEnvironment {
+  VALIDADE_ZERO_APP_ENV?: string;
   NEON_DATABASE_URL?: string;
   AUTH_TOKEN_PEPPER?: string;
   AUTH_PASSWORD_PEPPER?: string;
   AUTH_SESSION_TTL_SECONDS?: string;
   AUTH_RECOVERY_TTL_SECONDS?: string;
+  EVIDENCE_STORE_MODE?: string;
+  EVIDENCE_BUCKET?: R2BucketLike;
 }
 
 export function createApiApp(input?: {
@@ -180,6 +187,10 @@ export function createApiApp(input?: {
   sessionTtlSeconds?: number;
   recoveryTtlSeconds?: number;
   commandCenterService?: CommandCenterService;
+  runtimeConfig?: {
+    appEnv?: string;
+    evidenceStoreMode?: "memory" | "r2";
+  };
   now?: () => Date;
 }): Hono {
   const api = new Hono();
@@ -246,6 +257,9 @@ export function createApiApp(input?: {
       ? createInMemoryEvidenceRepository()
       : createDatabaseEvidenceRepository(input.databaseUrl));
   const evidenceStore = input?.evidenceStore ?? createInMemoryEvidenceStore();
+  const evidenceStoreMode = input?.runtimeConfig?.evidenceStoreMode ?? "memory";
+  const appEnv =
+    input?.runtimeConfig?.appEnv ?? (input?.databaseUrl === undefined ? "local" : "production");
   const evidenceService =
     input?.evidenceService ??
     createEvidenceService({
@@ -308,6 +322,46 @@ export function createApiApp(input?: {
     });
 
     return context.json(payload);
+  });
+
+  api.get("/health/deep", async (context) => {
+    const checkedAt = now();
+    const database =
+      input?.databaseUrl === undefined
+        ? {
+            ok: false,
+            checkedAt: checkedAt.toISOString(),
+            missingTables: ["database_not_configured"],
+            missingColumns: [],
+          }
+        : await checkDatabaseHealth({ connectionString: input.databaseUrl, checkedAt }).catch(
+            () => ({
+              ok: false,
+              checkedAt: checkedAt.toISOString(),
+              missingTables: ["database_unavailable"],
+              missingColumns: [],
+            }),
+          );
+    const authConfigured =
+      input?.authSecrets !== undefined &&
+      input.authSecrets.tokenPepper.length >= 16 &&
+      input.authSecrets.passwordPepper.length >= 16;
+    const evidenceOk = appEnv === "local" || evidenceStoreMode === "r2";
+    const status = database.ok && authConfigured && evidenceOk ? "ok" : "degraded";
+
+    return context.json(
+      {
+        status,
+        service: HEALTH_SERVICE_NAME,
+        checkedAt: checkedAt.toISOString(),
+        checks: {
+          database,
+          auth: { ok: authConfigured },
+          evidence: { ok: evidenceOk, mode: evidenceStoreMode },
+        },
+      },
+      status === "ok" ? 200 : 503,
+    );
   });
 
   api.get("/probe", async (context) => {
@@ -2010,13 +2064,16 @@ export function createWorkerApp(
   const databaseUrl = env.NEON_DATABASE_URL?.trim();
   const tokenPepper = env.AUTH_TOKEN_PEPPER;
   const passwordPepper = env.AUTH_PASSWORD_PEPPER;
+  const appEnv = env.VALIDADE_ZERO_APP_ENV?.trim() || "production";
+  const evidenceStore = createEvidenceStoreFromWorkerEnv(env, appEnv);
   if (
     databaseUrl === undefined ||
     databaseUrl.length === 0 ||
     tokenPepper === undefined ||
     tokenPepper.length === 0 ||
     passwordPepper === undefined ||
-    passwordPepper.length === 0
+    passwordPepper.length === 0 ||
+    evidenceStore === undefined
   ) {
     return undefined;
   }
@@ -2024,6 +2081,15 @@ export function createWorkerApp(
   return createApiApp({
     databaseUrl,
     authSecrets: { tokenPepper, passwordPepper },
+    evidenceStore: evidenceStore.store,
+    loginAttemptLimiter: createNeonLoginAttemptLimiter({
+      connectionString: databaseUrl,
+      pepper: tokenPepper,
+    }),
+    runtimeConfig: {
+      appEnv,
+      evidenceStoreMode: evidenceStore.mode,
+    },
     sessionTtlSeconds: parsePositiveSeconds(env.AUTH_SESSION_TTL_SECONDS, 28_800),
     recoveryTtlSeconds: parsePositiveSeconds(env.AUTH_RECOVERY_TTL_SECONDS, 1_800),
   });
@@ -2046,6 +2112,25 @@ function parsePositiveSeconds(value: string | undefined, fallback: number): numb
   if (value === undefined) return fallback;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createEvidenceStoreFromWorkerEnv(
+  env: WorkerEnvironment,
+  appEnv: string,
+): { mode: "memory" | "r2"; store: EvidenceStore } | undefined {
+  const mode = env.EVIDENCE_STORE_MODE?.trim() || (appEnv === "local" ? "memory" : "r2");
+
+  if (mode === "r2") {
+    return env.EVIDENCE_BUCKET === undefined
+      ? undefined
+      : { mode: "r2", store: createR2EvidenceStore(env.EVIDENCE_BUCKET) };
+  }
+
+  if (mode === "memory" && appEnv === "local") {
+    return { mode: "memory", store: createInMemoryEvidenceStore() };
+  }
+
+  return undefined;
 }
 
 async function authorizeRequest(input: {
