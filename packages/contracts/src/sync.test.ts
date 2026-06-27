@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CentralAcknowledgementSchema,
   OfflineActionCommandSchema,
   OfflineCacheStatusSchema,
   SyncCommandRecordSchema,
@@ -282,6 +283,51 @@ describe("offline sync contracts", () => {
           savedAt: occurredAt,
           pendingCommandId: "cmd-ficticio-001",
         },
+      }),
+    ).toThrow();
+  });
+
+  it("separates central acknowledgement from resolved business state", () => {
+    expect(
+      CentralAcknowledgementSchema.parse({
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        acceptedAt: updatedAt,
+        state: "synchronized",
+        centralVersion: 3,
+      }),
+    ).toMatchObject({
+      state: "synchronized",
+    });
+    expect(
+      CentralAcknowledgementSchema.parse({
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        acceptedAt: updatedAt,
+        state: "resolved",
+        centralVersion: 4,
+        resolvedTaskId: "tarefa-ficticia-001",
+      }),
+    ).toMatchObject({
+      state: "resolved",
+      resolvedTaskId: "tarefa-ficticia-001",
+    });
+    expect(() =>
+      CentralAcknowledgementSchema.parse({
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        acceptedAt: updatedAt,
+        state: "local",
+        centralVersion: 4,
+      }),
+    ).toThrow();
+    expect(() =>
+      CentralAcknowledgementSchema.parse({
+        commandId: "cmd-ficticio-001",
+        idempotencyKey: "idem-ficticio-001",
+        acceptedAt: updatedAt,
+        state: "resolved",
+        centralVersion: 4,
       }),
     ).toThrow();
   });

@@ -7,7 +7,7 @@ import {
   TODAY_ACTIONABLE_RISK_STATES,
 } from "@validade-zero/domain";
 import { z } from "zod";
-import { LotIdentitySchema, OperationalLocationSchema } from "./capture";
+import { LotIdentitySchema, OperationalLocationSchema, VisibleCentralSyncStateSchema } from "./capture";
 import {
   MarkdownApplicationCommandSchema,
   MarkdownApprovalCommandSchema,
@@ -256,6 +256,35 @@ export const SyncTransportResultSchema = z.discriminatedUnion("status", [
     .strict(),
 ]);
 
+export const CentralAcknowledgementSchema = z
+  .object({
+    commandId: IdentifierSchema,
+    idempotencyKey: IdentifierSchema,
+    acceptedAt: IsoDateTimeSchema,
+    state: VisibleCentralSyncStateSchema.exclude(["local"]),
+    centralVersion: z.number().int().positive(),
+    resolvedTaskId: IdentifierSchema.optional(),
+    conflictId: IdentifierSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.state === "conflict" && value.conflictId === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["conflictId"],
+        message: "Conflicted central acknowledgements require a conflict id.",
+      });
+    }
+
+    if (value.state === "resolved" && value.resolvedTaskId === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["resolvedTaskId"],
+        message: "Resolved central acknowledgements require the resolved task id.",
+      });
+    }
+  });
+
 export type OfflineCacheStatus = z.infer<typeof OfflineCacheStatusSchema>;
 export type OfflineActionCommand = z.infer<typeof OfflineActionCommandSchema>;
 export type SyncCommandRecord = z.infer<typeof SyncCommandRecordSchema>;
@@ -264,6 +293,7 @@ export type SyncQueueSummary = z.infer<typeof SyncQueueSummarySchema>;
 export type SyncConflictRecord = z.infer<typeof SyncConflictRecordSchema>;
 export type SyncTransportBatch = z.infer<typeof SyncTransportBatchSchema>;
 export type SyncTransportResult = z.infer<typeof SyncTransportResultSchema>;
+export type CentralAcknowledgement = z.infer<typeof CentralAcknowledgementSchema>;
 
 function rejectForbiddenSyncPayloadFields(
   value: unknown,

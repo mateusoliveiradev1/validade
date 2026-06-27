@@ -1,8 +1,16 @@
-import { PHYSICAL_CONFIRMATION_STATUSES, PRODUCT_MODES } from "@validade-zero/domain";
+import {
+  PHYSICAL_CONFIRMATION_STATUSES,
+  PRODUCT_MODES,
+  REQUIRED_RESOLUTIONS,
+  TASK_RESOLUTION_ACTIONS,
+  TODAY_ACTIONABLE_RISK_STATES,
+  TODAY_TASK_SEVERITIES,
+} from "@validade-zero/domain";
 import { z } from "zod";
 
 const RequiredTextSchema = z.string().trim().min(1).max(160);
 const IdentifierSchema = z.string().trim().min(1).max(120);
+const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const IsoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -21,6 +29,27 @@ const RiskWindowsSchema = z
     qualityWindowDays: z.number().int().positive().optional(),
   })
   .strict();
+
+const ForbiddenHydrationFields = [
+  "uri",
+  "base64",
+  "objectKey",
+  "photoUri",
+  "imageBytes",
+] as const;
+
+const CentralRiskStateSchema = z.enum([...TODAY_ACTIONABLE_RISK_STATES, "radar"] as const);
+
+export const CentralPackageSourceSchema = z.enum(["central", "local_cache", "pending_central"]);
+
+export const VisibleCentralSyncStateSchema = z.enum([
+  "local",
+  "pending_central",
+  "synchronized",
+  "conflict",
+  "discarded",
+  "resolved",
+]);
 
 export const CategoryRuleProfileSchema = z
   .object({
@@ -145,6 +174,202 @@ export const PhysicalObservationInputSchema = z
     }
   });
 
+export const PrepareTurnRequestSchema = z
+  .object({
+    deviceId: IdentifierSchema,
+    requestedAt: IsoDateTimeSchema,
+    appVersion: RequiredTextSchema.optional(),
+    localSnapshot: z
+      .object({
+        lastCentralReadAt: IsoDateTimeSchema.optional(),
+        knownProductCount: z.number().int().nonnegative(),
+        knownLotCount: z.number().int().nonnegative(),
+        pendingCommandCount: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export const CentralStoreSnapshotSchema = z
+  .object({
+    storeId: IdentifierSchema,
+    storeName: RequiredTextSchema,
+    centralVersion: z.number().int().positive(),
+    generatedAt: IsoDateTimeSchema,
+    centralReadAt: IsoDateTimeSchema.optional(),
+    source: CentralPackageSourceSchema,
+    readiness: z.enum(["needs_review", "cache_ready", "prepared", "blocked"]),
+    blockers: z.array(RequiredTextSchema),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.readiness === "prepared" && value.source !== "central") {
+      context.addIssue({
+        code: "custom",
+        path: ["readiness"],
+        message: "Prepared turns require a fresh central source.",
+      });
+    }
+
+    if (value.readiness === "prepared" && value.centralReadAt === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["centralReadAt"],
+        message: "Prepared turns require the central read timestamp.",
+      });
+    }
+  });
+
+export const CentralProductSnippetSchema = z
+  .object({
+    centralProductId: IdentifierSchema,
+    displayName: RequiredTextSchema,
+    categoryId: IdentifierSchema,
+    categoryName: RequiredTextSchema,
+    status: z.enum(["validated", "draft", "rejected", "archived"]),
+    state: VisibleCentralSyncStateSchema,
+    source: CentralPackageSourceSchema,
+    updatedAt: IsoDateTimeSchema,
+    gtin: IdentifierSchema.optional(),
+    categoryRuleProfile: CategoryRuleProfileSchema,
+  })
+  .strict();
+
+export const CentralLotSnippetSchema = z
+  .object({
+    centralLotId: IdentifierSchema,
+    centralProductId: IdentifierSchema,
+    productDisplayName: RequiredTextSchema,
+    lotIdentity: LotIdentitySchema,
+    mode: z.enum(PRODUCT_MODES),
+    currentLocation: OperationalLocationSchema,
+    state: VisibleCentralSyncStateSchema,
+    source: CentralPackageSourceSchema,
+    riskState: CentralRiskStateSchema.optional(),
+    expiresAt: IsoDateSchema.optional(),
+    receivedAt: IsoDateSchema.optional(),
+    qualityInspectionDueAt: IsoDateSchema.optional(),
+    approximateQuantity: z.number().nonnegative().optional(),
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+export const ActiveTaskSnippetSchema = z
+  .object({
+    centralTaskId: IdentifierSchema,
+    activeKey: IdentifierSchema,
+    centralLotId: IdentifierSchema,
+    productDisplayName: RequiredTextSchema,
+    currentLocation: OperationalLocationSchema,
+    riskState: z.enum(TODAY_ACTIONABLE_RISK_STATES),
+    severity: z.enum(TODAY_TASK_SEVERITIES),
+    requiredResolution: z.enum(REQUIRED_RESOLUTIONS),
+    state: VisibleCentralSyncStateSchema,
+    source: CentralPackageSourceSchema,
+    ownerLabel: RequiredTextSchema,
+    dueAt: IsoDateTimeSchema.optional(),
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+export const ResolvedTaskHistorySnippetSchema = z
+  .object({
+    centralTaskId: IdentifierSchema,
+    centralLotId: IdentifierSchema,
+    productDisplayName: RequiredTextSchema,
+    lotIdentity: LotIdentitySchema,
+    currentLocation: OperationalLocationSchema,
+    action: z.enum(TASK_RESOLUTION_ACTIONS),
+    actorLabel: RequiredTextSchema,
+    reason: RequiredTextSchema.optional(),
+    resolvedAt: IsoDateTimeSchema,
+    state: z.literal("resolved"),
+    source: z.literal("central"),
+  })
+  .strict();
+
+export const CentralConflictSnippetSchema = z
+  .object({
+    conflictId: IdentifierSchema,
+    commandId: IdentifierSchema,
+    productDisplayName: RequiredTextSchema,
+    lotIdentity: LotIdentitySchema,
+    currentLocation: OperationalLocationSchema,
+    reason: RequiredTextSchema,
+    createdAt: IsoDateTimeSchema,
+    state: z.literal("conflict"),
+    source: z.enum(["central", "pending_central"]),
+  })
+  .strict();
+
+export const DeviceSnapshotSchema = z
+  .object({
+    deviceId: IdentifierSchema,
+    preparedAt: IsoDateTimeSchema.optional(),
+    lastCentralReadAt: IsoDateTimeSchema.optional(),
+    lastHydratedAt: IsoDateTimeSchema.optional(),
+    pendingCommandCount: z.number().int().nonnegative(),
+    conflictCount: z.number().int().nonnegative(),
+    source: CentralPackageSourceSchema,
+  })
+  .strict();
+
+export const PrepareTurnCacheStatusSchema = z
+  .object({
+    state: z.enum(["needs_first_central_read", "ready", "stale", "unavailable"]),
+    source: CentralPackageSourceSchema,
+    updatedAt: IsoDateTimeSchema,
+    lastCentralReadAt: IsoDateTimeSchema.optional(),
+    staleAfterHours: z.number().positive(),
+    productCount: z.number().int().nonnegative(),
+    lotCount: z.number().int().nonnegative(),
+    activeTaskCount: z.number().int().nonnegative(),
+    conflictCount: z.number().int().nonnegative(),
+    resolvedHistoryCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const PrepareTurnResponseSchema = z
+  .object({
+    requestId: IdentifierSchema,
+    store: CentralStoreSnapshotSchema,
+    device: DeviceSnapshotSchema,
+    cache: PrepareTurnCacheStatusSchema,
+    products: z.array(CentralProductSnippetSchema),
+    lots: z.array(CentralLotSnippetSchema),
+    activeTasks: z.array(ActiveTaskSnippetSchema),
+    resolvedHistory: z.array(ResolvedTaskHistorySnippetSchema),
+    conflicts: z.array(CentralConflictSnippetSchema),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    rejectForbiddenHydrationFields(value, context);
+
+    const centralFactCount =
+      value.products.length +
+      value.lots.length +
+      value.activeTasks.length +
+      value.resolvedHistory.length +
+      value.conflicts.length;
+
+    if (centralFactCount === 0 && value.store.readiness === "prepared") {
+      context.addIssue({
+        code: "custom",
+        path: ["store", "readiness"],
+        message: "An empty central package must stay needs_review or cache_ready, never prepared.",
+      });
+    }
+  });
+
+export const CaptureContract = {
+  productInput: CaptureProductInputSchema,
+  lotInput: CaptureLotInputSchema,
+  physicalObservation: PhysicalObservationInputSchema,
+  prepareTurnRequest: PrepareTurnRequestSchema,
+  prepareTurnResponse: PrepareTurnResponseSchema,
+} as const;
+
 export type CategoryRuleProfileInput = z.infer<typeof CategoryRuleProfileSchema>;
 export type ProductRuleOverrideInput = z.infer<typeof ProductRuleOverrideSchema>;
 export type CaptureProductInput = z.infer<typeof CaptureProductInputSchema>;
@@ -152,3 +377,48 @@ export type OperationalLocation = z.infer<typeof OperationalLocationSchema>;
 export type LotIdentity = z.infer<typeof LotIdentitySchema>;
 export type CaptureLotInput = z.infer<typeof CaptureLotInputSchema>;
 export type PhysicalObservationInput = z.infer<typeof PhysicalObservationInputSchema>;
+export type CentralPackageSource = z.infer<typeof CentralPackageSourceSchema>;
+export type VisibleCentralSyncState = z.infer<typeof VisibleCentralSyncStateSchema>;
+export type PrepareTurnRequest = z.infer<typeof PrepareTurnRequestSchema>;
+export type CentralStoreSnapshot = z.infer<typeof CentralStoreSnapshotSchema>;
+export type CentralProductSnippet = z.infer<typeof CentralProductSnippetSchema>;
+export type CentralLotSnippet = z.infer<typeof CentralLotSnippetSchema>;
+export type ActiveTaskSnippet = z.infer<typeof ActiveTaskSnippetSchema>;
+export type ResolvedTaskHistorySnippet = z.infer<typeof ResolvedTaskHistorySnippetSchema>;
+export type CentralConflictSnippet = z.infer<typeof CentralConflictSnippetSchema>;
+export type DeviceSnapshot = z.infer<typeof DeviceSnapshotSchema>;
+export type PrepareTurnCacheStatus = z.infer<typeof PrepareTurnCacheStatusSchema>;
+export type PrepareTurnResponse = z.infer<typeof PrepareTurnResponseSchema>;
+
+function rejectForbiddenHydrationFields(
+  value: unknown,
+  context: z.RefinementCtx,
+  path: (string | number)[] = [],
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      rejectForbiddenHydrationFields(item, context, [...path, index]),
+    );
+    return;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nextPath = [...path, key];
+
+    if (
+      ForbiddenHydrationFields.includes(key as (typeof ForbiddenHydrationFields)[number])
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: nextPath,
+        message: `Prepare-turn payloads must not carry raw evidence/storage field '${key}'.`,
+      });
+    }
+
+    rejectForbiddenHydrationFields(nestedValue, context, nextPath);
+  }
+}
