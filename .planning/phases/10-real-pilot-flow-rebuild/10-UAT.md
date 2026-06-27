@@ -1,6 +1,6 @@
 # Phase 10 Pilot UAT
 
-**Status:** Repository evidence partially passed; installed Android UAT blocked.
+**Status:** Repository evidence and Neon staging migration passed; installed Android UAT blocked.
 **Last updated:** 2026-06-27
 **Data policy:** Fictional fixtures only. No real store, customer, provider URL, signed URL, token, or evidence binary is recorded here.
 
@@ -16,7 +16,7 @@
 | Role/store denial in web shell | Passed | `pnpm.cmd test:e2e:web` |
 | Central shift-close revalidation | Passed | `pnpm.cmd --filter @validade-zero/domain test -- shift-close`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- shift-close capture`; `pnpm.cmd --filter @validade-zero/mobile test -- shift-close` |
 | Final repository gate | Passed | `pnpm.cmd check` -> typecheck, lint, format, tests, smoke tests, build, security, performance |
-| Database schema/migration check | Passed locally; remote apply blocked | `pnpm.cmd --filter @validade-zero/database db:check`; no `NEON_DATABASE_URL` or `DATABASE_URL` in the shell |
+| Database schema/migration check | Passed locally and on Neon staging | `pnpm.cmd --filter @validade-zero/database db:check`; `drizzle-kit push --force` applied the schema to Neon `validadeZero`/`staging` and remote verification found the Phase 10 `central_*` tables and indexes |
 | Native installed-build journey | Blocked | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).` |
 
 ## Manual UAT Checklist
@@ -42,5 +42,6 @@ Use a pilot-safe account and fictional/staging data. Mark each item only after r
 ## Release Truth
 
 - Repository readiness has deterministic evidence for auth gate, prepare-turn composition, product/lot path, Command Center consistency, role/store denial, and central shift-close revalidation.
+- Neon staging migration readiness is passed for branch `br-sparkling-water-aczp28ll`; production migration is not implied by this evidence.
 - Installed Android readiness is **not passed** on 2026-06-27 because no device/emulator is connected for Maestro.
 - Provider readiness is **not passed** until an approved Expo/provider run is executed without committing private URLs, tokens, or build artifacts.

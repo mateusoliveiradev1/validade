@@ -10,7 +10,7 @@ requires:
 provides:
   - Central shift-close revalidation using capture prepare-turn truth.
   - Mobile and web pilot UAT coverage for prepare-turn, product reuse, lot registration, Command Center consistency, and role/store denial.
-  - Final release truth matrix separating repository readiness from Android/provider/remote migration blockers.
+  - Final release truth matrix separating repository readiness and Neon staging migration from Android/provider blockers.
 affects: [phase-10, release-readiness, shift-close, command-center, mobile-uat]
 
 tech-stack:
@@ -40,7 +40,7 @@ key-files:
 key-decisions:
   - "Safe shift close must fail closed on stale, empty, unavailable, active, draft, conflict, discarded, evidence, pending sync, or incomplete checklist blockers."
   - "Repository readiness can be green while Android installed-build and provider readiness remain blocked."
-  - "Remote migration application is not claimed without a configured target database URL."
+  - "Remote migration application is claimed only after a concrete Neon branch apply and remote schema verification."
 
 patterns-established:
   - "Central prepare-turn can be reused as an authoritative read model for final safety gates."
@@ -74,7 +74,7 @@ completed: 2026-06-27
 
 # Phase 10 Plan 06 Summary
 
-**Central shift close now uses capture truth, and Phase 10 closes with repository gates passed plus honest Android/provider/migration blockers.**
+**Central shift close now uses capture truth, and Phase 10 closes with repository gates plus Neon staging migration passed and honest Android/provider blockers.**
 
 ## Performance
 
@@ -88,7 +88,7 @@ completed: 2026-06-27
 
 - Rebuilt shift close as a central safety gate: API default revalidator calls capture `prepareTurn`, domain blockers include central active tasks/drafts/discards/stale reads, and mobile blocks pending unsafe outbox state.
 - Added deterministic UAT coverage for auth gate, prepare-turn, central product reuse, lot registration, Command Center active/resolved consistency, and admin-only role/store denial.
-- Wrote the pilot runbook, UAT record, and final validation matrix with exact pass/block outcomes, including Maestro blocked by zero connected devices and remote migration blocked by missing DB URL.
+- Wrote the pilot runbook, UAT record, and final validation matrix with exact pass/block outcomes, including Maestro blocked by zero connected devices and Neon staging migration verified after the target branch became available.
 
 ## Task Commits
 
@@ -114,7 +114,7 @@ completed: 2026-06-27
 
 - Safe close is not just a UI state: it must re-run central capture truth at API acceptance time.
 - Local or pending unsafe close in the mobile outbox blocks the safe path until it is synchronized.
-- Android, provider, and remote migration checks stay blocked until the environment provides a device/provider run and a database URL.
+- Android and provider checks stay blocked until the environment provides a device/provider run. Remote migration evidence is scoped to Neon `validadeZero` staging (`br-sparkling-water-aczp28ll`).
 
 ## Deviations from Plan
 
@@ -136,17 +136,13 @@ completed: 2026-06-27
 ## Issues Encountered
 
 - `pnpm.cmd test:e2e:mobile` is blocked because Maestro found zero connected devices: `Not enough devices connected (0) to run the requested number of shards (1).`
-- Remote migration apply is blocked because neither `NEON_DATABASE_URL` nor `DATABASE_URL` is set in the shell. `db:check` passed locally.
 - The local git hook attempted automatic push earlier in the phase and GitHub was unreachable; commits remain local.
 
+## Post-Close Migration Application
+
+The Phase 10 database schema was applied to Neon project `validadeZero`, branch `staging` (`br-sparkling-water-aczp28ll`), with `drizzle-kit push --force` using an in-process `NEON_DATABASE_URL`. Remote verification found all 8 `central_*` tables, `central_products.normalized_key` as `NOT NULL`, and the critical unique indexes for normalized products, active projected tasks, and sync command idempotency.
+
 ## User Setup Required
-
-To apply the database migration remotely, provide the target database URL in the shell and run:
-
-```powershell
-$env:NEON_DATABASE_URL="postgres://..."
-pnpm.cmd --filter @validade-zero/database db:push
-```
 
 For Android installed-build UAT, connect an emulator or pilot-safe device, install the controlled APK, then rerun:
 
@@ -165,12 +161,14 @@ pnpm.cmd test:e2e:mobile
 - `pnpm.cmd security`
 - `pnpm.cmd performance:budgets`
 - `pnpm.cmd --filter @validade-zero/database db:check`
+- `drizzle-kit push --force` against Neon `validadeZero` staging (`br-sparkling-water-aczp28ll`)
+- Remote schema verification for Phase 10 `central_*` tables, `central_products.normalized_key`, and critical indexes
 - `pnpm.cmd check`
 - `pnpm.cmd test:e2e:mobile` blocked with zero connected devices
 
 ## Next Phase Readiness
 
-Phase 10 repository work is complete. Release readiness still requires external validation: Android installed-build UAT, provider/push proof on approved infrastructure, and remote migration application against a configured target database URL.
+Phase 10 repository work and Neon staging migration are complete. Release readiness still requires external validation: Android installed-build UAT and provider/push proof on approved infrastructure.
 
 ---
 *Phase: 10-real-pilot-flow-rebuild*

@@ -1,6 +1,6 @@
 # Phase 10 Validation Matrix
 
-**Status:** Repository gates passed; Android/provider/remote migration evidence blocked
+**Status:** Repository gates and Neon staging migration passed; Android/provider evidence blocked
 **Mode:** central-truth pilot UAT
 
 | Area | Required evidence | Gate |
@@ -31,7 +31,7 @@
 | Shift close | Passed in domain/contracts/API/mobile tests with central revalidation | `pnpm.cmd --filter @validade-zero/domain test -- shift-close`; `pnpm.cmd --filter @validade-zero/contracts test -- shift-close`; `pnpm.cmd vitest run --config vitest.config.ts --project api -- shift-close capture`; `pnpm.cmd --filter @validade-zero/mobile test -- shift-close` |
 | Security and data safety | Passed | `pnpm.cmd security`; `pnpm.cmd check` |
 | Final repository gate | Passed | `pnpm.cmd check` -> typecheck, lint, format, 506 tests, 261 smoke tests, build, security, and performance budgets passed |
-| Database migration check | Passed locally; remote apply blocked | `pnpm.cmd --filter @validade-zero/database db:check` passed; `NEON_DATABASE_URL` and `DATABASE_URL` are missing |
+| Database migration check | Passed locally and on Neon staging | `pnpm.cmd --filter @validade-zero/database db:check` passed; `drizzle-kit push --force` applied changes to Neon project `validadeZero`, branch `staging` (`br-sparkling-water-aczp28ll`); verified 8 `central_*` tables, `central_products.normalized_key` as `NOT NULL`, and critical unique indexes |
 | Android pilot reality | Blocked | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).` |
 
 ## Final Phase 10 UAT Script

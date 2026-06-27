@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: Phase 10 complete - repository gates passed; Android/provider/remote migration validation blocked externally
+status: Phase 10 complete - repository gates and Neon staging migration passed; Android/provider validation blocked externally
 stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-06-27T03:56:56.000Z"
+last_updated: "2026-06-27T09:39:05.000Z"
 last_activity: 2026-06-27
 progress:
   total_phases: 10
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 7 | Complete | Offline Sync - 4/4 plans complete and verified |
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates passed; Android/provider/remote migration validation blocked externally |
+| 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 
 ## Active Constraints
 
@@ -56,11 +56,9 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Apply the remote database migration after a target URL is configured, then run installed Android/provider UAT.
+Neon staging migration was applied and verified on branch `br-sparkling-water-aczp28ll`. Next, run installed Android/provider UAT.
 
 ```powershell
-$env:NEON_DATABASE_URL="postgres://..."
-pnpm.cmd --filter @validade-zero/database db:push
 pnpm.cmd test:e2e:mobile
 ```
 
@@ -73,8 +71,8 @@ pnpm.cmd test:e2e:mobile
 - Phase 10 Plan 02 completed: central product search/reuse/draft contracts, idempotent store-scoped catalog repository, authorized API product draft workflow, mobile unified create/reuse flow, and Command Center product draft visibility.
 - Phase 10 Plan 03 completed: central lot creation/observation contracts, durable store-scoped task projection, authorized API lot writes, mobile central-save path, and visible central/local lot cache state.
 - Phase 10 Plan 04 completed: central terminal resolution policy, central sync command application, conflicts/retries/idempotency, mobile resolved-history reconciliation, and migration/schema check against existing 0006 central capture migration.
-- Phase 10 Plan 05 completed: capture-backed Command Center projection, explicit command_center/catalog capabilities, role-scoped web navigation/actions, central active-task alert dispatch, and migration/schema check with remote apply blocked until database URL is provided.
-- Phase 10 Plan 06 completed: central shift-close revalidation, pilot UAT docs, mobile/web release journeys, root gates, security/performance verification, and external blocker record for Android/provider/remote migration.
+- Phase 10 Plan 05 completed: capture-backed Command Center projection, explicit command_center/catalog capabilities, role-scoped web navigation/actions, central active-task alert dispatch, and migration/schema check. Remote apply was later completed on Neon staging.
+- Phase 10 Plan 06 completed: central shift-close revalidation, pilot UAT docs, mobile/web release journeys, root gates, security/performance verification, Neon staging migration application, and external blocker record for Android/provider.
 
 ### Quick Tasks Completed
 
@@ -135,7 +133,7 @@ pnpm.cmd test:e2e:mobile
 | Phase 10 P03 | 210min | 3 tasks | 23 files |
 | Phase 10 P04 | inline | 3 tasks | terminal sync policy, central application, mobile reconciliation, migration check |
 | Phase 10 P05 | inline | 3 tasks | capture-backed Command Center, role/store controls, central alert audience, migration check |
-| Phase 10 P06 | inline | 3 tasks | central shift close, pilot UAT, release truth gate, Android/provider/migration blockers |
+| Phase 10 P06 | inline | 3 tasks | central shift close, pilot UAT, release truth gate, Android/provider blockers |
 
 ## Session
 
@@ -155,7 +153,7 @@ pnpm.cmd test:e2e:mobile
 - [Phase 10]: Command Center read and catalog review use explicit capabilities. - Collaborators can read allowed operational state, leads keep audit/shift authority, and admins can govern catalog/users without implicit shift/task authority.
 - [Phase 10]: Push/escalation dispatch is derived from active central tasks and store-scoped audience registrations. - Delivery is a reminder signal only and never resolves persistent task truth.
 - [Phase 10]: Safe shift close revalidates central capture truth immediately before acceptance. - Prevents stale, local, draft, conflict, discarded, or active-task state from becoming a false safe close.
-- [Phase 10]: Release readiness separates repository gates from Android/provider/remote migration evidence. - `pnpm check` can pass while installed-build and provider validation remain externally blocked.
+- [Phase 10]: Release readiness separates repository gates, Neon staging migration evidence, and Android/provider evidence. - `pnpm check` and staging migration can pass while installed-build and provider validation remain externally blocked.
 - [Phase 10]: Mobile repository construction happens after authentication. - Central lot API calls use the current authenticated session instead of a pre-auth singleton.
 - [Phase 10]: Product search, reuse, and draft creation are one operational path with central duplicate prevention. - Prevents local-only product shortcuts from creating accidental duplicates before lot work.
 - [Phase 10]: Mobile product confirmation no longer forces immediate lot registration. - Keeps product truth and lot lifecycle separate while preserving an explicit `Registrar lote` next step.
