@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { CentralLotCreateRequest, ProductDraftCreateRequest } from "@validade-zero/contracts";
+import {
+  SyncCommandRecordSchema,
+  type CentralLotCreateRequest,
+  type ProductDraftCreateRequest,
+  type SyncCommandRecord,
+} from "@validade-zero/contracts";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
 import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
 import {
@@ -381,6 +386,103 @@ describe("database repositories", () => {
         }),
       ]),
     );
+  });
+
+  it("applies accepted sync commands to central active tasks idempotently", async () => {
+    const task = {
+      ...centralTask("store-1", "task-sync-001"),
+      activeKey: "active-sync-001",
+      centralLotId: "lot-sync-001",
+      riskState: "expired" as const,
+      severity: "critical" as const,
+      requiredResolution: "withdraw_or_loss" as const,
+    };
+    const repository = createInMemoryCaptureRepository({
+      lots: [centralLot("store-1", "lot-sync-001")],
+      tasks: [task],
+    });
+    const command = syncCommandForTask({
+      taskId: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      action: "withdraw",
+      requiredResolution: "withdraw_or_loss",
+      riskState: "expired",
+      idempotencyKey: "sync-central-accepted-001",
+    });
+
+    const first = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const replay = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(first).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: task.centralTaskId,
+          action: "withdraw",
+          resolutionState: "resolved",
+        },
+      },
+    });
+    expect(replay).toEqual(first);
+    expect(prepared.activeTasks).toHaveLength(0);
+    expect(prepared.resolvedHistory).toEqual([
+      expect.objectContaining({
+        centralTaskId: task.centralTaskId,
+        action: "withdraw",
+        state: "resolved",
+      }),
+    ]);
+    expect(repository.readAuditEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "resolve_task.resolved",
+          sanitized: true,
+        }),
+      ]),
+    );
+  });
+
+  it("keeps active central risk visible when a sync command conflicts", async () => {
+    const task = centralTask("store-1", "task-conflict-001");
+    const repository = createInMemoryCaptureRepository({
+      lots: [centralLot("store-1", "lot-store-1")],
+      tasks: [task],
+    });
+    const command = syncCommandForTask({
+      taskId: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      action: "withdraw",
+      requiredResolution: "check_presence",
+      riskState: "critical",
+      idempotencyKey: "sync-central-conflict-001",
+    });
+
+    const result = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(result).toMatchObject({
+      status: "conflict",
+      conflict: {
+        remoteChange: {
+          kind: "critical_command_blocked",
+        },
+      },
+    });
+    expect(prepared.activeTasks).toEqual([
+      expect.objectContaining({
+        centralTaskId: task.centralTaskId,
+      }),
+    ]);
+    expect(prepared.conflicts).toEqual([
+      expect.objectContaining({
+        commandId: command.id,
+        state: "conflict",
+      }),
+    ]);
   });
 
   it("writes central lot, observation, task projection, and audit SQL rows", async () => {
@@ -799,6 +901,65 @@ function centralTask(storeId: string, centralTaskId: string) {
     source: "central" as const,
     ownerLabel: "Equipe do turno",
     updatedAt: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function syncCommandForTask(input: {
+  taskId: string;
+  activeKey: string;
+  lotId: string;
+  action: "withdraw";
+  requiredResolution: SyncCommandRecord["requiredResolution"];
+  riskState: SyncCommandRecord["riskState"];
+  idempotencyKey: string;
+}): SyncCommandRecord {
+  return SyncCommandRecordSchema.parse({
+    id: `command-${input.idempotencyKey}`,
+    idempotencyKey: input.idempotencyKey,
+    kind: "resolve_task",
+    state: "syncing",
+    urgency: input.riskState === "expired" ? "critical" : "high",
+    payload: {
+      kind: "resolve_task",
+      payload: {
+        taskId: input.taskId,
+        action: input.action,
+        actorLabel: "Pessoa Piloto",
+        occurredAt: "2030-01-10T09:15:00.000Z",
+        destination: { kind: "retirada_perda" },
+        evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+      },
+    },
+    taskId: input.taskId,
+    taskActiveKey: input.activeKey,
+    lotId: input.lotId,
+    productDisplayName: "Ovos Brancos FICTICIOS",
+    lotIdentity: {
+      identitySource: "printed",
+      value: "OVOS-FICTICIOS-001",
+    },
+    currentLocation: { kind: "area_de_venda" },
+    riskState: input.riskState,
+    requiredResolution: input.requiredResolution,
+    createdAt: "2030-01-10T09:00:00.000Z",
+    updatedAt: "2030-01-10T09:15:00.000Z",
+    savedAt: "2030-01-10T09:10:00.000Z",
+    firstAttemptedAt: "2030-01-10T09:15:00.000Z",
+    lastAttemptedAt: "2030-01-10T09:15:00.000Z",
+    attemptCount: 1,
+  });
+}
+
+function syncApplyInput(storeId: string, command: SyncCommandRecord) {
+  return {
+    storeId,
+    storeName: "Loja Ficticia Piloto",
+    actorId: "device:aparelho-ficticio-001",
+    actorDisplayName: "Aparelho ficticio",
+    actorRoleSnapshot: "collaborator" as const,
+    deviceId: "aparelho-ficticio-001",
+    command,
+    receivedAt: "2030-01-10T09:16:00.000Z",
   };
 }
 

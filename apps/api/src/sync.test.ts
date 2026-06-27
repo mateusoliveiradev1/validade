@@ -4,6 +4,7 @@ import {
   type SyncCommandRecord,
   type SyncTransportBatch,
 } from "@validade-zero/contracts";
+import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { describe, expect, it } from "vitest";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import { createApiApp, createInMemorySyncCommandService } from "./index";
@@ -117,6 +118,78 @@ describe("sync command API seam", () => {
     expect(second.status).toBe(200);
     expect(secondBody.results).toEqual(firstBody.results);
     expect(service.readResults()).toHaveLength(1);
+  });
+
+  it("applies default sync commands to central capture truth", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      lots: [centralSyncLot("loja-piloto")],
+      tasks: [centralSyncTask("loja-piloto")],
+    });
+    const app = createApiApp({
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+    const response = await postSync(app, createBatch(), "loja-piloto");
+    const body = (await response.json()) as { results: unknown[] };
+    const prepared = await captureRepository.prepareTurn({
+      requestId: "prepare-after-sync",
+      storeId: "loja-piloto",
+      storeName: "Loja Piloto - Staging",
+      actorId: "lead-local",
+      actorDisplayName: "Lideranca local",
+      actorRoleSnapshot: "lead",
+      request: {
+        deviceId: "device-sync-002",
+        requestedAt: NOW,
+        localSnapshot: {
+          knownProductCount: 1,
+          knownLotCount: 1,
+          pendingCommandCount: 0,
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(body.results).toEqual([
+      expect.objectContaining({
+        status: "ack",
+        commandId: "command-sync-001",
+        centralResult: {
+          kind: "resolved_history",
+          history: expect.objectContaining({
+            centralTaskId: "task-sync-001",
+            action: "withdraw",
+            resolutionState: "resolved",
+          }),
+        },
+      }),
+    ]);
+    expect(prepared.activeTasks).toHaveLength(0);
+    expect(prepared.resolvedHistory).toEqual([
+      expect.objectContaining({
+        centralTaskId: "task-sync-001",
+        action: "withdraw",
+        state: "resolved",
+      }),
+    ]);
+  });
+
+  it("conflicts cross-store sync commands without leaking target store details", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      lots: [centralSyncLot("loja-outra")],
+      tasks: [centralSyncTask("loja-outra")],
+    });
+    const app = createApiApp({
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+    const response = await postSync(app, createBatch(), "loja-piloto");
+    const bodyText = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(bodyText).toContain("conflict");
+    expect(bodyText).toContain("task_already_resolved");
+    expect(bodyText).not.toContain("loja-outra");
   });
 
   it("rejects malformed sync batches without stack traces", async () => {
@@ -309,6 +382,45 @@ function createAuthorizedSyncApp(input?: {
       : { syncCommandService: input.syncCommandService }),
     now: () => new Date(NOW),
   });
+}
+
+function centralSyncLot(storeId: string) {
+  return {
+    storeId,
+    centralLotId: "lot-sync-001",
+    centralProductId: `product-${storeId}`,
+    productDisplayName: "Ovos FICTICIOS",
+    lotIdentity: {
+      identitySource: "printed" as const,
+      value: "LOTE-OVOS-SYNC-FICTICIO",
+    },
+    mode: "formal_validity" as const,
+    currentLocation: { kind: "area_de_venda" as const },
+    state: "synchronized" as const,
+    source: "central" as const,
+    riskState: "expired" as const,
+    expiresAt: "2030-01-09",
+    approximateQuantity: 8,
+    updatedAt: "2030-01-10T12:00:00.000Z",
+  };
+}
+
+function centralSyncTask(storeId: string) {
+  return {
+    storeId,
+    centralTaskId: "task-sync-001",
+    activeKey: "active-sync-001",
+    centralLotId: "lot-sync-001",
+    productDisplayName: "Ovos FICTICIOS",
+    currentLocation: { kind: "area_de_venda" as const },
+    riskState: "expired" as const,
+    severity: "critical" as const,
+    requiredResolution: "withdraw_or_loss" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    ownerLabel: "Equipe do turno",
+    updatedAt: "2030-01-10T12:00:00.000Z",
+  };
 }
 
 function readCommandCenter(app: ReturnType<typeof createApiApp>) {

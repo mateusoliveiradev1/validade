@@ -1,5 +1,6 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import {
+  CentralResolvedTaskHistorySchema,
   CentralLotWriteResponseSchema,
   CentralProductAcknowledgementSchema,
   PrepareTurnResponseSchema,
@@ -7,6 +8,8 @@ import {
   ProductDraftCreateResponseSchema,
   ProductDraftReviewResponseSchema,
   ProductSearchResponseSchema,
+  SyncConflictRecordSchema,
+  SyncTransportResultSchema,
   type ActiveTaskSnippet,
   type CaptureLotInput,
   type CentralLotCreateRequest,
@@ -19,6 +22,7 @@ import {
   type CentralConflictSnippet,
   type CentralLotSnippet,
   type CentralProductSnippet,
+  type CentralResolvedTaskHistory,
   type OperationalLocation,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
@@ -35,12 +39,18 @@ import {
   type ProductSearchRequest,
   type ProductSearchResponse,
   type ResolvedTaskHistorySnippet,
+  type SyncCommandRecord,
+  type SyncConflictRecord,
+  type SyncTransportResult,
   type VisibleCentralSyncState,
 } from "@validade-zero/contracts";
 import {
   projectCentralLotTask,
+  resolveCentralTerminalOutcome,
   type CategoryRuleProfile,
   type RiskAssessment,
+  type TaskResolutionAction,
+  type TodayTaskLocation,
 } from "@validade-zero/domain";
 
 export type CaptureActorRoleSnapshot = "collaborator" | "lead" | "admin";
@@ -129,6 +139,17 @@ export interface CentralObservationAppendInput {
   request: CentralObservationAppendRequest;
 }
 
+export interface CentralSyncCommandApplyInput {
+  storeId: string;
+  storeName: string;
+  actorId: string;
+  actorDisplayName: string;
+  actorRoleSnapshot: CaptureActorRoleSnapshot;
+  deviceId: string;
+  command: SyncCommandRecord;
+  receivedAt: string;
+}
+
 export interface CaptureRepository {
   prepareTurn(input: PrepareTurnInput): Promise<PrepareTurnResponse>;
   searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse>;
@@ -136,6 +157,7 @@ export interface CaptureRepository {
   reviewProductDraft(input: ProductDraftReviewInput): Promise<ProductDraftReviewResponse>;
   createLot(input: CentralLotCreateInput): Promise<CentralLotWriteResponse>;
   appendObservation(input: CentralObservationAppendInput): Promise<CentralLotWriteResponse>;
+  applySyncCommand(input: CentralSyncCommandApplyInput): Promise<SyncTransportResult>;
   upsertDeviceSnapshot(input: DeviceSnapshotInput): Promise<void>;
   recordPrepareTurnRejected(input: PrepareTurnDeniedInput): Promise<void>;
 }
@@ -199,6 +221,11 @@ interface TaskRow {
   owner_label: string;
   due_at: string | Date | null;
   updated_at: string | Date;
+}
+
+interface SyncTaskRow extends TaskRow {
+  lot_identity: Record<string, unknown> | string;
+  version: number;
 }
 
 interface ResolvedTaskRow {
@@ -1130,6 +1157,286 @@ export function createCaptureRepositoryFromQuery(
     );
   }
 
+  async function registerCentralSyncCommand(input: CentralSyncCommandApplyInput): Promise<boolean> {
+    const rows = (await sql.query(
+      `insert into central_sync_commands (
+        command_id, idempotency_key, store_id, device_id, kind, state, payload,
+        central_version, created_at, updated_at
+      ) values ($1, $2, $3, $4, $5, 'pending_central', $6::jsonb, 1,
+        $7::timestamptz, $7::timestamptz
+      ) on conflict (idempotency_key) do nothing
+      returning command_id`,
+      [
+        input.command.id,
+        input.command.idempotencyKey,
+        input.storeId,
+        input.deviceId,
+        input.command.kind,
+        JSON.stringify(input.command.payload),
+        input.receivedAt,
+      ],
+    )) as Array<{ command_id: string }>;
+
+    return rows.length > 0;
+  }
+
+  async function selectSyncActiveTask(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<SyncTaskRow | undefined> {
+    const rows = (await sql.query(
+      `select t.central_task_id, t.active_key, t.central_lot_id, t.product_display_name,
+        l.lot_identity, t.current_location, t.risk_state, t.severity, t.required_resolution,
+        t.state, t.owner_label, t.due_at, t.updated_at, t.version
+      from central_projected_tasks t
+      join central_lots l on l.central_lot_id = t.central_lot_id and l.store_id = t.store_id
+      where t.store_id = $1
+        and t.central_task_id = $2
+        and t.active_key = $3
+        and t.status = 'active'
+      limit 1`,
+      [input.storeId, input.command.taskId, input.command.taskActiveKey],
+    )) as SyncTaskRow[];
+
+    return rows[0];
+  }
+
+  async function selectResolvedSyncTask(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<SyncTaskRow | undefined> {
+    const rows = (await sql.query(
+      `select t.central_task_id, t.active_key, t.central_lot_id, t.product_display_name,
+        l.lot_identity, t.current_location, t.risk_state, t.severity, t.required_resolution,
+        t.state, t.owner_label, t.due_at, t.updated_at, t.version
+      from central_projected_tasks t
+      join central_lots l on l.central_lot_id = t.central_lot_id and l.store_id = t.store_id
+      where t.store_id = $1
+        and t.central_task_id = $2
+        and t.active_key = $3
+        and t.status = 'resolved'
+      limit 1`,
+      [input.storeId, input.command.taskId, input.command.taskActiveKey],
+    )) as SyncTaskRow[];
+
+    return rows[0];
+  }
+
+  async function replayCentralSyncCommand(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<SyncTransportResult> {
+    const resolvedTask = await selectResolvedSyncTask(input);
+
+    if (resolvedTask !== undefined) {
+      return buildCentralSyncAckResult(
+        input.command,
+        input.receivedAt,
+        buildResolvedHistoryFromTask({
+          command: input.command,
+          task: resolvedTask,
+          updatedAt: toIso(resolvedTask.updated_at),
+        }),
+      );
+    }
+
+    const conflict = await selectStoredCentralSyncConflict(input);
+    if (conflict !== undefined) {
+      return SyncTransportResultSchema.parse({
+        status: "conflict",
+        commandId: input.command.id,
+        idempotencyKey: input.command.idempotencyKey,
+        conflict,
+      });
+    }
+
+    return SyncTransportResultSchema.parse({
+      status: "retry",
+      commandId: input.command.id,
+      idempotencyKey: input.command.idempotencyKey,
+      retryAfterSeconds: 60,
+      error: "Comando central ainda esta em processamento.",
+    });
+  }
+
+  async function selectStoredCentralSyncConflict(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<SyncConflictRecord | undefined> {
+    const rows = (await sql.query(
+      `select conflict_id, command_id, product_display_name, lot_identity, current_location,
+        reason, created_at, state
+      from central_sync_conflicts
+      where store_id = $1 and command_id = $2 and state = 'conflict'
+      order by created_at desc
+      limit 1`,
+      [input.storeId, input.command.id],
+    )) as ConflictRow[];
+    const row = rows[0];
+    if (row === undefined) return undefined;
+
+    return buildCentralSyncConflict(input.command, {
+      id: row.conflict_id,
+      now: toIso(row.created_at),
+      kind: "task_changed",
+      reason: row.reason,
+      summary: row.reason,
+    });
+  }
+
+  async function persistCentralSyncConflict(
+    input: CentralSyncCommandApplyInput,
+    conflict: SyncConflictRecord,
+  ): Promise<SyncTransportResult> {
+    await sql.query(
+      `insert into central_sync_conflicts (
+        conflict_id, command_id, store_id, product_display_name, lot_identity,
+        current_location, reason, state, created_at
+      ) values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, 'conflict', $8::timestamptz)
+      on conflict (conflict_id) do nothing`,
+      [
+        conflict.id,
+        input.command.id,
+        input.storeId,
+        input.command.productDisplayName,
+        JSON.stringify(input.command.lotIdentity),
+        JSON.stringify(input.command.currentLocation),
+        conflict.reason,
+        conflict.createdAt,
+      ],
+    );
+    await sql.query(
+      `update central_sync_commands
+      set state = 'conflict',
+        updated_at = $1::timestamptz
+      where store_id = $2 and idempotency_key = $3`,
+      [conflict.createdAt, input.storeId, input.command.idempotencyKey],
+    );
+
+    return SyncTransportResultSchema.parse({
+      status: "conflict",
+      commandId: input.command.id,
+      idempotencyKey: input.command.idempotencyKey,
+      conflict,
+    });
+  }
+
+  async function applySyncCommand(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<SyncTransportResult> {
+    const registered = await registerCentralSyncCommand(input);
+    if (!registered) {
+      return replayCentralSyncCommand(input);
+    }
+
+    const task = await selectSyncActiveTask(input);
+    if (task === undefined) {
+      return persistCentralSyncConflict(
+        input,
+        buildCentralSyncConflict(input.command, {
+          now: input.receivedAt,
+          kind: "task_already_resolved",
+          reason: "A tarefa central ja foi resolvida ou mudou de chave ativa.",
+          summary: "A tarefa atual nao esta mais ativa para este aparelho.",
+        }),
+      );
+    }
+
+    const action = commandResolutionAction(input.command);
+    const destination = commandDestination(input.command);
+    const evidenceState = commandEvidenceState(input.command);
+    const policy = resolveCentralTerminalOutcome({
+      taskId: input.command.taskId,
+      lotId: input.command.lotId,
+      productDisplayName: input.command.productDisplayName,
+      lotIdentity: lotIdentityKey(input.command.lotIdentity),
+      currentLocation: parseJson(task.current_location) as TodayTaskLocation,
+      requiredResolution: task.required_resolution,
+      action,
+      actorLabel: commandActorLabel(input.command),
+      occurredAt: commandOccurredAt(input.command),
+      ...(destination === undefined ? {} : { destination }),
+      ...(evidenceState === undefined ? {} : { evidenceState }),
+    });
+
+    if (policy.status === "rejected") {
+      return persistCentralSyncConflict(
+        input,
+        buildCentralSyncConflict(input.command, {
+          now: input.receivedAt,
+          kind: "critical_command_blocked",
+          reason: syncPolicyRejectionReason(policy.reason),
+          summary: syncPolicyRejectionReason(policy.reason),
+        }),
+      );
+    }
+
+    const history = buildResolvedHistoryFromTask({
+      command: input.command,
+      task,
+      updatedAt: input.receivedAt,
+      ...(policy.outcome.nextLocation === undefined
+        ? {}
+        : { nextLocation: policy.outcome.nextLocation }),
+    });
+    const updatedRows = (await sql.query(
+      `update central_projected_tasks
+      set status = 'resolved',
+        state = 'resolved',
+        current_location = $1::jsonb,
+        resolved_at = $2::timestamptz,
+        resolution_action = $3,
+        resolution_reason = $4,
+        actor_label = $5,
+        version = version + 1,
+        updated_at = $6::timestamptz
+      where store_id = $7
+        and central_task_id = $8
+        and active_key = $9
+        and status = 'active'
+        and version = $10
+      returning central_task_id`,
+      [
+        JSON.stringify(history.currentLocation),
+        history.occurredAt,
+        history.action,
+        centralSyncResolutionReason(input.command),
+        history.actorLabel,
+        history.updatedAt,
+        input.storeId,
+        input.command.taskId,
+        input.command.taskActiveKey,
+        task.version,
+      ],
+    )) as Array<{ central_task_id: string }>;
+
+    if (updatedRows.length === 0) {
+      return persistCentralSyncConflict(
+        input,
+        buildCentralSyncConflict(input.command, {
+          now: input.receivedAt,
+          kind: "task_changed",
+          reason: "A tarefa central mudou durante a sincronizacao.",
+          summary: "A versao central da tarefa mudou antes da gravacao.",
+        }),
+      );
+    }
+
+    await sql.query(
+      `update central_lots
+      set current_location = $1::jsonb,
+        updated_at = $2::timestamptz
+      where store_id = $3 and central_lot_id = $4`,
+      [JSON.stringify(history.currentLocation), history.updatedAt, input.storeId, history.lotId],
+    );
+    await sql.query(
+      `update central_sync_commands
+      set state = 'resolved',
+        accepted_at = $1::timestamptz,
+        updated_at = $1::timestamptz
+      where store_id = $2 and idempotency_key = $3`,
+      [input.receivedAt, input.storeId, input.command.idempotencyKey],
+    );
+
+    return buildCentralSyncAckResult(input.command, input.receivedAt, history);
+  }
+
   return {
     async prepareTurn(input) {
       const [productRows, lotRows, taskRows, resolvedRows, conflictRows] = await Promise.all([
@@ -1213,6 +1520,7 @@ export function createCaptureRepositoryFromQuery(
     reviewProductDraft,
     createLot,
     appendObservation,
+    applySyncCommand,
     upsertDeviceSnapshot,
     recordPrepareTurnRejected,
   };
@@ -1237,6 +1545,7 @@ export function createInMemoryCaptureRepository(input?: {
   const resolvedHistory = [...(input?.resolvedHistory ?? [])];
   const conflicts = [...(input?.conflicts ?? [])];
   const auditEvents: Record<string, unknown>[] = [];
+  const syncResultsByIdempotencyKey = new Map<string, SyncTransportResult>();
   const deviceSnapshots = new Map<string, DeviceSnapshotInput>();
   const upsertDeviceSnapshot = (snapshot: DeviceSnapshotInput): Promise<void> => {
     deviceSnapshots.set(`${snapshot.storeId}:${snapshot.deviceId}`, snapshot);
@@ -1752,6 +2061,108 @@ export function createInMemoryCaptureRepository(input?: {
 
       return Promise.resolve(result.response);
     },
+    applySyncCommand(syncInput) {
+      const existing = syncResultsByIdempotencyKey.get(syncInput.command.idempotencyKey);
+      if (existing !== undefined) return Promise.resolve(existing);
+
+      const taskIndex = tasks.findIndex(
+        (task) =>
+          task.storeId === syncInput.storeId &&
+          task.centralTaskId === syncInput.command.taskId &&
+          task.activeKey === syncInput.command.taskActiveKey &&
+          (task.taskStatus ?? "active") === "active",
+      );
+
+      if (taskIndex === -1) {
+        const result = buildCentralSyncConflictResult(syncInput.command, {
+          now: syncInput.receivedAt,
+          kind: "task_already_resolved",
+          reason: "A tarefa central ja foi resolvida ou mudou de chave ativa.",
+          summary: "A tarefa atual nao esta mais ativa para este aparelho.",
+        });
+        conflicts.push(conflictSnippetFromSyncResult(syncInput.storeId, result.conflict));
+        syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
+        auditEvents.push(syncAuditEvent(syncInput, "conflict", result.conflict.reason));
+        return Promise.resolve(result);
+      }
+
+      const task = tasks[taskIndex] as StoredTask;
+      const destination = commandDestination(syncInput.command);
+      const evidenceState = commandEvidenceState(syncInput.command);
+      const policy = resolveCentralTerminalOutcome({
+        taskId: syncInput.command.taskId,
+        lotId: syncInput.command.lotId,
+        productDisplayName: syncInput.command.productDisplayName,
+        lotIdentity: lotIdentityKey(syncInput.command.lotIdentity),
+        currentLocation: task.currentLocation,
+        requiredResolution: task.requiredResolution,
+        action: commandResolutionAction(syncInput.command),
+        actorLabel: commandActorLabel(syncInput.command),
+        occurredAt: commandOccurredAt(syncInput.command),
+        ...(destination === undefined ? {} : { destination }),
+        ...(evidenceState === undefined ? {} : { evidenceState }),
+      });
+
+      if (policy.status === "rejected") {
+        const result = buildCentralSyncConflictResult(syncInput.command, {
+          now: syncInput.receivedAt,
+          kind: "critical_command_blocked",
+          reason: syncPolicyRejectionReason(policy.reason),
+          summary: syncPolicyRejectionReason(policy.reason),
+        });
+        conflicts.push(conflictSnippetFromSyncResult(syncInput.storeId, result.conflict));
+        syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
+        auditEvents.push(syncAuditEvent(syncInput, "conflict", result.conflict.reason));
+        return Promise.resolve(result);
+      }
+
+      const history = buildResolvedHistoryFromStoredTask({
+        command: syncInput.command,
+        task,
+        updatedAt: syncInput.receivedAt,
+        ...(policy.outcome.nextLocation === undefined
+          ? {}
+          : { nextLocation: policy.outcome.nextLocation }),
+      });
+      tasks[taskIndex] = {
+        ...task,
+        currentLocation: history.currentLocation,
+        taskStatus: "resolved",
+        state: "resolved",
+        updatedAt: history.updatedAt,
+      };
+
+      const lotIndex = lots.findIndex(
+        (lot) => lot.storeId === syncInput.storeId && lot.centralLotId === syncInput.command.lotId,
+      );
+      if (lotIndex !== -1) {
+        const lot = lots[lotIndex] as StoredLot;
+        lots[lotIndex] = {
+          ...lot,
+          currentLocation: history.currentLocation,
+          updatedAt: history.updatedAt,
+        };
+      }
+
+      resolvedHistory.unshift({
+        storeId: syncInput.storeId,
+        centralTaskId: history.centralTaskId,
+        centralLotId: history.lotId,
+        productDisplayName: history.productDisplayName,
+        lotIdentity: history.lotIdentity,
+        currentLocation: history.currentLocation,
+        action: history.action,
+        actorLabel: history.actorLabel,
+        resolvedAt: history.occurredAt,
+        state: "resolved",
+        source: "central",
+      });
+      const result = buildCentralSyncAckResult(syncInput.command, syncInput.receivedAt, history);
+      syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
+      auditEvents.push(syncAuditEvent(syncInput, "resolved", "Tarefa central resolvida."));
+
+      return Promise.resolve(result);
+    },
     upsertDeviceSnapshot,
     recordPrepareTurnRejected(denied) {
       auditEvents.push({
@@ -1838,6 +2249,298 @@ function buildPrepareTurnResponse(input: {
     resolvedHistory: input.resolvedHistory.map(stripStoreId),
     conflicts: input.conflicts.map(stripStoreId),
   });
+}
+
+function buildCentralSyncAckResult(
+  command: SyncCommandRecord,
+  syncedAt: string,
+  history: CentralResolvedTaskHistory,
+): Extract<SyncTransportResult, { status: "ack" }> {
+  const result = SyncTransportResultSchema.parse({
+    status: "ack",
+    commandId: command.id,
+    idempotencyKey: command.idempotencyKey,
+    syncedAt,
+    centralResult: {
+      kind: "resolved_history",
+      history,
+    },
+  });
+
+  if (result.status !== "ack") {
+    throw new Error("invalid_central_sync_ack");
+  }
+
+  return result;
+}
+
+function buildCentralSyncConflictResult(
+  command: SyncCommandRecord,
+  input: {
+    now: string;
+    kind: SyncConflictRecord["remoteChange"]["kind"];
+    reason: string;
+    summary: string;
+  },
+): Extract<SyncTransportResult, { status: "conflict" }> {
+  const result = SyncTransportResultSchema.parse({
+    status: "conflict",
+    commandId: command.id,
+    idempotencyKey: command.idempotencyKey,
+    conflict: buildCentralSyncConflict(command, input),
+  });
+
+  if (result.status !== "conflict") {
+    throw new Error("invalid_central_sync_conflict");
+  }
+
+  return result;
+}
+
+function buildCentralSyncConflict(
+  command: SyncCommandRecord,
+  input: {
+    id?: string;
+    now: string;
+    kind: SyncConflictRecord["remoteChange"]["kind"];
+    reason: string;
+    summary: string;
+  },
+): SyncConflictRecord {
+  return SyncConflictRecordSchema.parse({
+    id: input.id ?? `conflict:${command.id}`,
+    commandId: command.id,
+    severity: command.urgency,
+    reason: input.reason,
+    localAction: {
+      commandId: command.id,
+      kind: command.kind,
+      label: commandResolutionAction(command),
+      actorLabel: commandActorLabel(command),
+      occurredAt: commandOccurredAt(command),
+      productDisplayName: command.productDisplayName,
+      lotIdentity: command.lotIdentity,
+      currentLocation: command.currentLocation,
+    },
+    remoteChange: {
+      kind: input.kind,
+      summary: input.summary,
+      changedAt: input.now,
+    },
+    allowedActions: ["keep_local_and_retry", "use_current_task", "discard_offline_action"],
+    createdAt: input.now,
+  });
+}
+
+function buildResolvedHistoryFromTask(input: {
+  command: SyncCommandRecord;
+  task: SyncTaskRow;
+  updatedAt: string;
+  nextLocation?: TodayTaskLocation;
+}): CentralResolvedTaskHistory {
+  return buildCentralResolvedTaskHistory({
+    command: input.command,
+    lotIdentity: parseJson(input.task.lot_identity) as CaptureLotInput["identity"],
+    currentLocation: parseJson(input.task.current_location) as OperationalLocation,
+    updatedAt: input.updatedAt,
+    ...(input.nextLocation === undefined ? {} : { nextLocation: input.nextLocation }),
+  });
+}
+
+function buildResolvedHistoryFromStoredTask(input: {
+  command: SyncCommandRecord;
+  task: StoredTask;
+  updatedAt: string;
+  nextLocation?: TodayTaskLocation;
+}): CentralResolvedTaskHistory {
+  return buildCentralResolvedTaskHistory({
+    command: input.command,
+    lotIdentity: input.command.lotIdentity,
+    currentLocation: input.task.currentLocation,
+    updatedAt: input.updatedAt,
+    ...(input.nextLocation === undefined ? {} : { nextLocation: input.nextLocation }),
+  });
+}
+
+function buildCentralResolvedTaskHistory(input: {
+  command: SyncCommandRecord;
+  lotIdentity: CaptureLotInput["identity"];
+  currentLocation: OperationalLocation;
+  updatedAt: string;
+  nextLocation?: TodayTaskLocation;
+}): CentralResolvedTaskHistory {
+  const action = commandResolutionAction(input.command);
+  const evidence = commandCompletedEvidence(input.command);
+
+  return CentralResolvedTaskHistorySchema.parse({
+    centralTaskId: input.command.taskId,
+    activeKey: input.command.taskActiveKey,
+    lotId: input.command.lotId,
+    productDisplayName: input.command.productDisplayName,
+    lotIdentity: input.lotIdentity,
+    currentLocation: input.nextLocation ?? input.currentLocation,
+    action,
+    actorLabel: commandActorLabel(input.command),
+    occurredAt: commandOccurredAt(input.command),
+    ...(evidence === undefined ? {} : { evidence }),
+    resolutionState: resolutionStateForAction(action),
+    source: "central",
+    updatedAt: input.updatedAt,
+  });
+}
+
+function commandResolutionAction(command: SyncCommandRecord): TaskResolutionAction {
+  if (command.payload.kind === "resolve_task") {
+    return command.payload.payload.action;
+  }
+
+  if (command.payload.kind === "request_markdown") {
+    return "request_markdown";
+  }
+
+  if (command.payload.kind === "decide_markdown") {
+    return command.payload.payload.decision === "approved" ? "approve_markdown" : "reject_markdown";
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return "apply_markdown";
+  }
+
+  return "confirm_markdown_on_shelf";
+}
+
+function commandActorLabel(command: SyncCommandRecord): string {
+  return command.payload.payload.actorLabel;
+}
+
+function commandOccurredAt(command: SyncCommandRecord): string {
+  return command.payload.payload.occurredAt;
+}
+
+function commandDestination(command: SyncCommandRecord): OperationalLocation | undefined {
+  if (
+    command.payload.kind === "resolve_task" &&
+    command.payload.payload.destination !== undefined
+  ) {
+    return command.payload.payload.destination;
+  }
+
+  const action = commandResolutionAction(command);
+  if (action === "withdraw" || action === "record_loss") {
+    return { kind: "retirada_perda" };
+  }
+
+  return undefined;
+}
+
+function commandEvidenceState(
+  command: SyncCommandRecord,
+): "photo_recorded" | "no_photo_reason" | "not_required" | undefined {
+  const evidence = commandEvidence(command);
+  if (evidence === undefined) return "not_required";
+  if (evidence.kind === "photo_recorded") return "photo_recorded";
+  if (evidence.kind === "no_photo_reason") return "no_photo_reason";
+  return undefined;
+}
+
+function commandCompletedEvidence(command: SyncCommandRecord) {
+  const evidence = commandEvidence(command);
+  if (evidence?.kind === "photo_recorded" || evidence?.kind === "no_photo_reason") {
+    return evidence;
+  }
+
+  return undefined;
+}
+
+function commandEvidence(command: SyncCommandRecord) {
+  if (command.payload.kind === "resolve_task") {
+    return command.payload.payload.evidence;
+  }
+
+  if (command.payload.kind === "record_markdown_application") {
+    return command.payload.payload.evidence;
+  }
+
+  if (command.payload.kind === "confirm_markdown_on_shelf") {
+    return command.payload.payload.evidence;
+  }
+
+  return undefined;
+}
+
+function resolutionStateForAction(
+  action: TaskResolutionAction,
+): CentralResolvedTaskHistory["resolutionState"] {
+  if (action === "move_lot") return "moved";
+  if (
+    action === "request_markdown" ||
+    action === "approve_markdown" ||
+    action === "reject_markdown" ||
+    action === "apply_markdown" ||
+    action === "confirm_markdown_on_shelf"
+  ) {
+    return "markdown_stage_completed";
+  }
+
+  return "resolved";
+}
+
+function syncPolicyRejectionReason(reason: string): string {
+  if (reason === "incompatible_action") {
+    return "Acao offline incompativel com a tarefa central atual.";
+  }
+
+  if (reason === "destination_required") {
+    return "Movimentacao offline precisa de destino antes de fechar risco.";
+  }
+
+  return "Evidencia ou motivo sem foto e obrigatorio para esta conclusao.";
+}
+
+function centralSyncResolutionReason(command: SyncCommandRecord): string {
+  return `central_sync:${command.kind}:${commandResolutionAction(command)}`.slice(0, 120);
+}
+
+function conflictSnippetFromSyncResult(
+  storeId: string,
+  conflict: SyncConflictRecord,
+): StoredConflict {
+  return {
+    storeId,
+    conflictId: conflict.id,
+    commandId: conflict.commandId,
+    productDisplayName: conflict.localAction.productDisplayName,
+    lotIdentity: conflict.localAction.lotIdentity,
+    currentLocation: conflict.localAction.currentLocation,
+    reason: conflict.reason,
+    createdAt: conflict.createdAt,
+    state: "conflict",
+    source: "central",
+  };
+}
+
+function syncAuditEvent(
+  input: CentralSyncCommandApplyInput,
+  status: "resolved" | "conflict",
+  summary: string,
+): Record<string, unknown> {
+  return {
+    type: status === "resolved" ? "task.changed" : "sync.changed",
+    storeId: input.storeId,
+    targetType: status === "resolved" ? "task" : "sync_command",
+    targetId: input.command.taskId,
+    targetLabel: input.command.productDisplayName,
+    action: `${input.command.kind}.${status}`,
+    summary,
+    metadata: sanitizeProductAuditMetadata({
+      commandId: input.command.id,
+      idempotencyKey: input.command.idempotencyKey,
+      activeKey: input.command.taskActiveKey,
+      action: commandResolutionAction(input.command),
+      deviceId: input.deviceId,
+    }),
+    sanitized: true,
+  };
 }
 
 function mapProductRow(row: ProductRow): CentralProductSnippet {

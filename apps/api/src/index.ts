@@ -119,11 +119,24 @@ import {
 } from "./shift-close";
 
 export interface SyncCommandService {
-  handleBatch(batch: SyncTransportBatch): Promise<readonly SyncTransportResult[]>;
+  handleBatch(
+    batch: SyncTransportBatch,
+    context?: SyncCommandApplyContext,
+  ): Promise<readonly SyncTransportResult[]>;
 }
 
 export interface InMemorySyncCommandService extends SyncCommandService {
   readResults(): readonly SyncTransportResult[];
+}
+
+export interface SyncCommandApplyContext {
+  storeId: string;
+  storeName: string;
+  deviceId: string;
+  actorId: string;
+  actorDisplayName: string;
+  actorRoleSnapshot: "collaborator" | "lead" | "admin";
+  receivedAt: string;
 }
 
 export interface WorkerEnvironment {
@@ -164,7 +177,6 @@ export function createApiApp(input?: {
   const api = new Hono();
   const providers = createLocalProviderRegistry();
   const now = input?.now ?? (() => new Date());
-  const syncCommandService = input?.syncCommandService ?? createInMemorySyncCommandService();
   const membershipManagementRepository =
     input?.membershipManagementRepository ??
     (input?.databaseUrl === undefined
@@ -245,6 +257,8 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryCaptureRepository()
       : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
+  const syncCommandService =
+    input?.syncCommandService ?? createCentralCaptureSyncCommandService({ captureRepository, now });
   const shiftCloseRepository =
     input?.shiftCloseRepository ??
     (input?.databaseUrl === undefined
@@ -331,7 +345,16 @@ export function createApiApp(input?: {
       return context.json({ error: "invalid_sync_batch" }, 400);
     }
 
-    const results = await syncCommandService.handleBatch(parsed.data);
+    const receivedAt = now().toISOString();
+    const results = await syncCommandService.handleBatch(parsed.data, {
+      storeId,
+      storeName,
+      deviceId: parsed.data.deviceId,
+      actorId: safeAuditIdentifier(`device:${parsed.data.deviceId}`),
+      actorDisplayName: `Aparelho ${parsed.data.deviceId}`.slice(0, 120),
+      actorRoleSnapshot: "collaborator",
+      receivedAt,
+    });
 
     try {
       await recordSyncAuditEvents({
@@ -340,7 +363,7 @@ export function createApiApp(input?: {
         results,
         storeId,
         storeName,
-        receivedAt: now().toISOString(),
+        receivedAt,
       });
     } catch {
       return context.json({ error: "sync_audit_failed" }, 503);
@@ -1479,6 +1502,47 @@ export function createInMemorySyncCommandService(input?: {
     },
     readResults() {
       return results;
+    },
+  };
+}
+
+export function createCentralCaptureSyncCommandService(input: {
+  captureRepository: CaptureRepository;
+  now?: () => Date;
+}): SyncCommandService {
+  const now = input.now ?? (() => new Date());
+
+  return {
+    async handleBatch(batch, context) {
+      const receivedAt = context?.receivedAt ?? now().toISOString();
+      const storeId = context?.storeId ?? "loja-piloto";
+      const storeName = context?.storeName ?? normalizeStoreName(undefined, storeId);
+      const deviceId = context?.deviceId ?? batch.deviceId;
+
+      return Promise.all(
+        batch.commands.map(async (command) => {
+          try {
+            return await input.captureRepository.applySyncCommand({
+              storeId,
+              storeName,
+              actorId: context?.actorId ?? safeAuditIdentifier(`device:${deviceId}`),
+              actorDisplayName: context?.actorDisplayName ?? command.payload.payload.actorLabel,
+              actorRoleSnapshot: context?.actorRoleSnapshot ?? "collaborator",
+              deviceId,
+              command,
+              receivedAt,
+            });
+          } catch {
+            return SyncTransportResultSchema.parse({
+              status: "retry",
+              commandId: command.id,
+              idempotencyKey: command.idempotencyKey,
+              retryAfterSeconds: 60,
+              error: "Falha temporaria ao aplicar comando central.",
+            });
+          }
+        }),
+      );
     },
   };
 }
