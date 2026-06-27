@@ -25,7 +25,7 @@ import type {
   AuthRepository,
   AuthSessionRecord,
 } from "@validade-zero/database/auth-repository";
-import type { Capability } from "@validade-zero/domain";
+import type { AuthorizationRole, Capability } from "@validade-zero/domain";
 import { Hono, type Context } from "hono";
 
 import {
@@ -245,14 +245,19 @@ export function registerAuthenticationRoutes(
         401,
       );
     }
-    const account: AuthAccountRecord = {
+    const account = await input.repository.readAccount({
       subjectId: session.subjectId,
       storeId: session.storeId,
-      identifier: session.subjectId,
-      displayName: session.subjectId,
-      status: "active",
-      passwordUpdatedAt: session.createdAt,
-    };
+    });
+    if (account === undefined || account.status !== "active") {
+      return context.json(
+        AccountAccessErrorResponseSchema.parse({
+          error: "session_expired",
+          canRequestRecovery: true,
+        }),
+        401,
+      );
+    }
     return context.json(await sessionResponse(input, account, session, token, "refreshed"));
   });
 
@@ -346,6 +351,7 @@ export function registerAuthenticationRoutes(
     if (expiresAt <= input.now() || expiresAt.getTime() - input.now().getTime() > 30 * 86_400_000) {
       return context.json({ error: "invalid_invite_expiry" }, 400);
     }
+    const inviteRoles = distinctRoles([parsed.data.role, ...(parsed.data.additionalRoles ?? [])]);
     const membership = await input.membershipService.grant({
       actorContext,
       request: {
@@ -357,6 +363,19 @@ export function registerAuthenticationRoutes(
         idempotencyKey: `membership:${parsed.data.idempotencyKey}`,
       },
     });
+    for (const additionalRole of inviteRoles.filter((role) => role !== parsed.data.role)) {
+      await input.membershipService.grant({
+        actorContext,
+        request: {
+          subjectId: membership.membership.subjectId,
+          displayName: parsed.data.displayName,
+          storeId: parsed.data.storeId,
+          storeName: parsed.data.storeName,
+          role: additionalRole,
+          idempotencyKey: `membership:${parsed.data.idempotencyKey}:${additionalRole}`,
+        },
+      });
+    }
     const token = createToken();
     const receipt = await input.repository.createInvite({
       inviteId: createId("invite"),
@@ -666,6 +685,10 @@ function createToken(): string {
 
 function createId(prefix: string): string {
   return `${prefix}:${crypto.randomUUID()}`;
+}
+
+function distinctRoles(roles: readonly AuthorizationRole[]): readonly AuthorizationRole[] {
+  return [...new Set(roles)];
 }
 
 function bytesToHex(value: Uint8Array): string {

@@ -21,6 +21,26 @@ const ADMIN_CONTEXT = {
   },
 };
 
+const STORE_10_CONTEXT = {
+  ...ADMIN_CONTEXT,
+  store: { storeId: "loja-10", storeName: "Loja 10 - Staging" },
+};
+
+const ADMIN_STORES = {
+  stores: [
+    {
+      store: ADMIN_CONTEXT.store,
+      roles: ["admin"],
+      actions: ADMIN_CONTEXT.actions,
+    },
+    {
+      store: STORE_10_CONTEXT.store,
+      roles: ["admin"],
+      actions: STORE_10_CONTEXT.actions,
+    },
+  ],
+};
+
 const MEMBERSHIP = {
   membershipId: "membership-lead-ficticia",
   subjectId: "lead-ficticio",
@@ -41,16 +61,17 @@ describe("membership administration", () => {
   });
 
   it("shows explicit store and role impact to an administrator", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: string | URL | Request) => {
-        const url = input instanceof Request ? input.url : String(input);
-        if (url.includes("/session/context")) return Promise.resolve(Response.json(ADMIN_CONTEXT));
-        if (url.includes("/memberships?"))
-          return Promise.resolve(Response.json({ items: [MEMBERSHIP] }));
-        return Promise.resolve(Response.json({ membership: MEMBERSHIP, replayed: false }));
-      }),
-    );
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("/session/stores")) return Promise.resolve(Response.json(ADMIN_STORES));
+      if (url.includes("/session/context?storeId=loja-10"))
+        return Promise.resolve(Response.json(STORE_10_CONTEXT));
+      if (url.includes("/session/context")) return Promise.resolve(Response.json(ADMIN_CONTEXT));
+      if (url.includes("/memberships?"))
+        return Promise.resolve(Response.json({ items: [MEMBERSHIP] }));
+      return Promise.resolve(Response.json({ membership: MEMBERSHIP, replayed: false }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<MembershipAdministration />);
 
@@ -64,6 +85,12 @@ describe("membership administration", () => {
         name: `Papel de ${MEMBERSHIP.displayName}`,
       }).value,
     ).toBe("lead");
+    fireEvent.change(screen.getByRole("combobox", { name: "Loja para administrar" }), {
+      target: { value: "loja-10" },
+    });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("storeId=loja-10")),
+    );
   });
 
   it("confirms revocation with person, store, and no-resolution warning", async () => {
@@ -71,6 +98,7 @@ describe("membership administration", () => {
       "fetch",
       vi.fn((input: string | URL | Request) => {
         const url = input instanceof Request ? input.url : String(input);
+        if (url.includes("/session/stores")) return Promise.resolve(Response.json(ADMIN_STORES));
         if (url.includes("/session/context")) return Promise.resolve(Response.json(ADMIN_CONTEXT));
         if (url.includes("/memberships?"))
           return Promise.resolve(Response.json({ items: [MEMBERSHIP] }));

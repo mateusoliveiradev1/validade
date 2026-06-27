@@ -122,6 +122,7 @@ export const CreateInviteRequestSchema = z
     storeId: RequiredIdentifierSchema,
     storeName: RequiredTextSchema,
     role: AuthorizationRoleSchema,
+    additionalRoles: z.array(AuthorizationRoleSchema).max(2).optional(),
     idempotencyKey: IdempotencyKeySchema,
     expiresAt: IsoDateTimeSchema,
   })

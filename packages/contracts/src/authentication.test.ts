@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CreateInviteRequestSchema,
   FirstAccessActivationRequestSchema,
   LoginRequestSchema,
   PrivacyRequestSchema,
@@ -52,6 +53,27 @@ describe("authentication contracts", () => {
       FirstAccessActivationRequestSchema.safeParse({
         token: "invite-token-with-at-least-thirty-two-characters",
         password: "senha-forte-123",
+        capabilities: ["user.manage"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows bounded additional store roles on closed invites", () => {
+    const invite = CreateInviteRequestSchema.parse({
+      identifier: "lider.loja10@example.invalid",
+      displayName: "Lider Loja 10",
+      storeId: "loja-10",
+      storeName: "Loja 10 - Staging",
+      role: "lead",
+      additionalRoles: ["admin"],
+      idempotencyKey: "invite-loja10-lead-admin",
+      expiresAt: "2030-01-17T10:00:00.000Z",
+    });
+
+    expect(invite.additionalRoles).toEqual(["admin"]);
+    expect(
+      CreateInviteRequestSchema.safeParse({
+        ...invite,
         capabilities: ["user.manage"],
       }).success,
     ).toBe(false);

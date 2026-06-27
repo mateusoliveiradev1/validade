@@ -140,6 +140,10 @@ export interface AuthRepository {
     identifier: string;
     password: string;
   }): Promise<AuthAccountRecord | undefined>;
+  readAccount(input: {
+    subjectId: string;
+    storeId: string;
+  }): Promise<AuthAccountRecord | undefined>;
   changeAccountStatus(input: {
     subjectId: string;
     storeId: string;
@@ -387,6 +391,10 @@ export function createInMemoryAuthRepository(input: {
       if (account === undefined) return undefined;
       const valid = await verifyPasswordValue(password, account, input.secrets.passwordPepper);
       return valid ? publicAccount(account) : undefined;
+    },
+    readAccount({ subjectId, storeId }) {
+      const account = credentials.get(accountKey(subjectId, storeId));
+      return Promise.resolve(account === undefined ? undefined : publicAccount(account));
     },
     async changeAccountStatus({ subjectId, storeId, status, occurredAt }) {
       const account = credentials.get(accountKey(subjectId, storeId));
@@ -676,6 +684,16 @@ export function createAuthRepositoryFromQuery(
         secrets.passwordPepper,
       );
       return valid ? mapAccount(row) : undefined;
+    },
+    async readAccount({ subjectId, storeId }) {
+      const rows = (await sql.query(
+        `select ${ACCOUNT_COLUMNS}
+           from auth_credentials
+          where subject_id = $1 and store_id = $2
+          limit 1`,
+        [subjectId, storeId],
+      )) as AuthAccountRow[];
+      return rows[0] === undefined ? undefined : mapAccount(rows[0]);
     },
     async changeAccountStatus({ subjectId, storeId, status, occurredAt }) {
       const rows = (await sql.query(

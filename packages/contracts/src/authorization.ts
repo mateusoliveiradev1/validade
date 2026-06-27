@@ -68,7 +68,7 @@ export const ClientSafeAuthorizationDenialSchema = z
   })
   .strict();
 
-const SessionActionsSchema = z
+export const SessionActionsSchema = z
   .object({
     canReadCommandCenter: z.boolean(),
     canActOnTask: z.boolean(),
@@ -102,6 +102,25 @@ export const SessionContextResponseSchema = z.preprocess(
   normalizeSessionActions,
   SessionContextBaseResponseSchema,
 );
+
+export const SessionStoreAccessSchema = z
+  .object({
+    store: z
+      .object({
+        storeId: RequiredIdentifierSchema,
+        storeName: RequiredTextSchema,
+      })
+      .strict(),
+    roles: z.array(AuthorizationRoleSchema).min(1),
+    actions: SessionActionsSchema,
+  })
+  .strict();
+
+export const SessionStoresResponseSchema = z
+  .object({
+    stores: z.array(SessionStoreAccessSchema),
+  })
+  .strict();
 
 function normalizeSessionActions(input: unknown): unknown {
   if (!isRecord(input) || !isRecord(input.actions)) return input;
@@ -206,6 +225,7 @@ export const AuthorizationContract = {
   actorContext: AuthorizedActorContextSchema,
   denial: ClientSafeAuthorizationDenialSchema,
   sessionContext: SessionContextResponseSchema,
+  sessionStores: SessionStoresResponseSchema,
   protectedCapabilityProbe: ProtectedCapabilityProbeResponseSchema,
   managedMembership: ManagedStoreMembershipSchema,
   createMembership: CreateMembershipRequestSchema,
@@ -223,6 +243,9 @@ export type StoreMembership = z.infer<typeof StoreMembershipSchema>;
 export type AuthorizedActorContext = z.infer<typeof AuthorizedActorContextSchema>;
 export type ClientSafeAuthorizationDenial = z.infer<typeof ClientSafeAuthorizationDenialSchema>;
 export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema>;
+export type SessionActions = z.infer<typeof SessionActionsSchema>;
+export type SessionStoreAccess = z.infer<typeof SessionStoreAccessSchema>;
+export type SessionStoresResponse = z.infer<typeof SessionStoresResponseSchema>;
 export type ProtectedCapabilityProbeResponse = z.infer<
   typeof ProtectedCapabilityProbeResponseSchema
 >;

@@ -61,6 +61,60 @@ describe("authorization API seam", () => {
     });
   });
 
+  it("lists only the signed-in actor store scopes with aggregated actions", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        {
+          subjectId: "owner-local",
+          role: "lead",
+          storeId: "loja-10",
+          storeName: "Loja 10 - Staging",
+          status: "active",
+        },
+        {
+          subjectId: "owner-local",
+          role: "admin",
+          storeId: "loja-10",
+          storeName: "Loja 10 - Staging",
+          status: "active",
+        },
+        {
+          subjectId: "owner-local",
+          role: "admin",
+          storeId: "loja-18",
+          storeName: "Loja 18 - Staging",
+          status: "active",
+        },
+        {
+          subjectId: "other-local",
+          role: "admin",
+          storeId: "loja-23",
+          storeName: "Loja 23 - Staging",
+          status: "active",
+        },
+      ]),
+    });
+
+    const response = await app.request("/session/stores", {
+      headers: { authorization: "Bearer fake:owner-local" },
+    });
+    const body = (await response.json()) as {
+      stores: Array<{
+        store: { storeId: string };
+        roles: string[];
+        actions: { canManageUsers: boolean; canCloseShift: boolean };
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.stores.map((store) => store.store.storeId)).toEqual(["loja-10", "loja-18"]);
+    expect(body.stores[0]).toMatchObject({
+      roles: ["lead", "admin"],
+      actions: { canManageUsers: true, canCloseShift: true },
+    });
+  });
+
   it("denies inactive memberships", async () => {
     const app = createApiApp({
       authProvider: new FakeAuthProvider(),

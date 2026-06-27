@@ -6,6 +6,7 @@ import {
   ManagedStoreMembershipSchema,
   ProtectedCapabilityProbeResponseSchema,
   SessionContextResponseSchema,
+  SessionStoresResponseSchema,
   StoreMembershipSchema,
 } from "./authorization";
 
@@ -96,6 +97,28 @@ describe("authorization contracts", () => {
 
     expect(context.actions.canReadCommandCenter).toBe(true);
     expect(context.actions.canReviewProductDrafts).toBe(false);
+  });
+
+  it("represents store-scoped administration without leaking other stores", () => {
+    const response = SessionStoresResponseSchema.parse({
+      stores: [
+        {
+          store: { storeId: "loja-10", storeName: "Loja 10 - Staging" },
+          roles: ["lead", "admin"],
+          actions: {
+            canReadCommandCenter: true,
+            canActOnTask: true,
+            canReviewProductDrafts: true,
+            canCloseShift: true,
+            canReadStoreAudit: true,
+            canManageUsers: true,
+          },
+        },
+      ],
+    });
+
+    expect(response.stores[0]?.roles).toEqual(["lead", "admin"]);
+    expect(response.stores[0]?.actions.canManageUsers).toBe(true);
   });
 
   it("keeps denial payload client-safe and resource-free", () => {

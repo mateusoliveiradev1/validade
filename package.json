@@ -27,6 +27,7 @@
     "security:ui-release": "node scripts/check-ui-release-readiness.mjs",
     "performance:budgets": "node scripts/check-performance-budgets.mjs",
     "staging:seed-network": "node scripts/seed-staging-network.mjs",
+    "staging:seed-owner": "node scripts/seed-staging-owner.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:smoke && pnpm build && pnpm security && pnpm performance:budgets"
   },
   "devDependencies": {

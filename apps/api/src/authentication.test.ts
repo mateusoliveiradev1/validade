@@ -50,7 +50,11 @@ describe("pilot authentication API", () => {
     const session = await fixture.app.request("/auth/session", {
       headers: { authorization: `Bearer ${activatedBody.sessionToken}` },
     });
+    const refreshedBody = (await session.json()) as {
+      session: { actor: { displayName?: string } };
+    };
     expect(session.status).toBe(200);
+    expect(refreshedBody.session.actor.displayName).toBe("Pessoa Piloto");
 
     const logout = await fixture.app.request("/auth/logout", {
       method: "POST",
@@ -210,7 +214,8 @@ describe("pilot authentication API", () => {
       displayName: "Pessoa Convidada",
       storeId: "store-1",
       storeName: "Loja Ficticia Piloto",
-      role: "collaborator",
+      role: "lead",
+      additionalRoles: ["admin"],
       idempotencyKey: "admin-invite-auth-test",
       expiresAt: "2030-01-17T10:00:00.000Z",
     };
@@ -236,6 +241,13 @@ describe("pilot authentication API", () => {
     const createdBody = (await created.json()) as { inviteId: string; token: string };
     expect(created.status).toBe(201);
     expect(createdBody.token).toHaveLength(64);
+    expect(
+      memberships
+        .readMemberships()
+        .filter((membership) => membership.displayName === "Pessoa Convidada")
+        .map((membership) => membership.role)
+        .sort(),
+    ).toEqual(["admin", "lead"]);
 
     const revoked = await app.request(`/auth/invites/${createdBody.inviteId}/revoke`, {
       method: "POST",

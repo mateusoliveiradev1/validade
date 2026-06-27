@@ -35,6 +35,7 @@ import {
   SafeProbeContract,
   RevokeMembershipRequestSchema,
   SessionContextResponseSchema,
+  SessionStoresResponseSchema,
   ShiftCloseReopenRequestSchema,
   ShiftCloseRequestSchema,
   ShiftHandoffAcknowledgementRequestSchema,
@@ -75,9 +76,11 @@ import {
 } from "@validade-zero/database/capture-repository";
 import type { ShiftCloseRepository } from "@validade-zero/database/shift-close-repository";
 import { createPrivacySafeNotificationContent } from "@validade-zero/domain";
+import { roleAllowsCapability } from "@validade-zero/domain";
 import type {
   AlertAudience,
   AuthenticatedIdentity,
+  AuthorizationRole,
   AuthorizedActorContext,
   AuthorizationDenialReason,
   Capability,
@@ -1347,6 +1350,52 @@ export function createApiApp(input?: {
     }
   });
 
+  api.get("/session/stores", async (context) => {
+    const identity = await authProvider.verify(context.req.raw);
+    if (identity === undefined) {
+      return context.json(
+        AuthorizationContract.denial.parse(toClientSafeDenial({ reason: "unauthenticated" })),
+        403,
+      );
+    }
+
+    const memberships = await membershipRepository.listActiveMemberships(identity.subjectId);
+    const stores = new Map<
+      string,
+      {
+        store: { storeId: string; storeName: string };
+        roles: Set<AuthorizationRole>;
+      }
+    >();
+
+    for (const membership of memberships) {
+      const current = stores.get(membership.storeId) ?? {
+        store: {
+          storeId: membership.storeId,
+          storeName: membership.storeName,
+        },
+        roles: new Set<AuthorizationRole>(),
+      };
+      current.roles.add(membership.role);
+      stores.set(membership.storeId, current);
+    }
+
+    return context.json(
+      SessionStoresResponseSchema.parse({
+        stores: [...stores.values()]
+          .sort((left, right) => left.store.storeName.localeCompare(right.store.storeName, "pt-BR"))
+          .map((entry) => {
+            const roles = [...entry.roles];
+            return {
+              store: entry.store,
+              roles,
+              actions: actionsForRoles(roles),
+            };
+          }),
+      }),
+    );
+  });
+
   api.get("/session/context", async (context) => {
     const identity = await authProvider.verify(context.req.raw);
     const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
@@ -1676,6 +1725,24 @@ function syncAuditSummary(command: SyncCommandRecord, result: SyncTransportResul
   }
 
   return "Acao operacional sincronizada pelo mobile.";
+}
+
+function actionsForRoles(roles: readonly AuthorizationRole[]) {
+  return {
+    canReadCommandCenter: rolesAllowCapability(roles, "command_center.read_store"),
+    canActOnTask: rolesAllowCapability(roles, "task.act"),
+    canReviewProductDrafts: rolesAllowCapability(roles, "catalog.review"),
+    canCloseShift: rolesAllowCapability(roles, "shift.close"),
+    canReadStoreAudit: rolesAllowCapability(roles, "audit.read_store"),
+    canManageUsers: rolesAllowCapability(roles, "user.manage"),
+  };
+}
+
+function rolesAllowCapability(
+  roles: readonly AuthorizationRole[],
+  capability: Capability,
+): boolean {
+  return roles.some((role) => roleAllowsCapability(role, capability));
 }
 
 function normalizeStoreName(value: string | undefined, storeId: string): string {

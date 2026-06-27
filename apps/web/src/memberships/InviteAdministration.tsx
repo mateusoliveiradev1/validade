@@ -23,6 +23,7 @@ import {
 type CreatedInvite = InviteMutationResponse & {
   displayName: string;
   identifier: string;
+  additionalRoles: readonly AuthorizationRole[];
   issuerLabel: string;
   role: AuthorizationRole;
   storeId: string;
@@ -45,6 +46,7 @@ export function InviteAdministration({
   const [identifier, setIdentifier] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<AuthorizationRole>("collaborator");
+  const [grantAccessAdministration, setGrantAccessAdministration] = useState(false);
   const [expiresAt, setExpiresAt] = useState(defaultInviteExpiryLocal);
   const expiryBounds = inviteExpiryBoundsLocal();
   const [invite, setInvite] = useState<CreatedInvite>();
@@ -67,6 +69,7 @@ export function InviteAdministration({
         setMessage("Escolha uma data e hora validas para o convite.");
         return;
       }
+      const additionalRoles = inviteAdditionalRoles(role, grantAccessAdministration);
       const response = await fetch("/auth/invites", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -74,6 +77,7 @@ export function InviteAdministration({
           identifier,
           displayName,
           role,
+          ...(additionalRoles.length === 0 ? {} : { additionalRoles }),
           storeId,
           storeName,
           expiresAt: parsedExpiry.toISOString(),
@@ -83,7 +87,16 @@ export function InviteAdministration({
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(inviteCreateErrorMessage(payload, response.status));
       const receipt = InviteMutationResponseSchema.parse(payload);
-      setInvite({ ...receipt, identifier, displayName, role, storeId, storeName, issuerLabel });
+      setInvite({
+        ...receipt,
+        identifier,
+        displayName,
+        additionalRoles,
+        role,
+        storeId,
+        storeName,
+        issuerLabel,
+      });
       setCopyMessage(undefined);
       setMessage(
         receipt.replayed
@@ -182,12 +195,27 @@ export function InviteAdministration({
           Papel no primeiro acesso
           <Select
             value={role}
-            onChange={(event) => setRole(event.target.value as AuthorizationRole)}
+            onChange={(event) => {
+              const nextRole = event.target.value as AuthorizationRole;
+              setRole(nextRole);
+              if (nextRole === "admin") setGrantAccessAdministration(false);
+            }}
           >
             <option value="collaborator">Colaborador</option>
             <option value="lead">Lideranca</option>
             <option value="admin">Administracao</option>
           </Select>
+          {role === "admin" ? null : (
+            <label className="mt-2 flex items-start gap-2 text-sm font-normal text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-1 size-4"
+                checked={grantAccessAdministration}
+                onChange={(event) => setGrantAccessAdministration(event.target.checked)}
+              />
+              <span>Tambem pode administrar convites e vinculos desta loja</span>
+            </label>
+          )}
         </label>
         <div className="grid gap-1">
           <label htmlFor="invite-expiry" className="text-sm font-semibold">
@@ -227,7 +255,7 @@ export function InviteAdministration({
             <div className="grid gap-1">
               <h3 className="text-base font-semibold">{invite.displayName}</h3>
               <p className="text-sm text-muted-foreground">
-                {invite.identifier} - {roleLabel(invite.role)} - {invite.storeName}
+                {invite.identifier} - {roleSummary(invite)} - {invite.storeName}
               </p>
               <p className="text-sm text-muted-foreground">
                 Expira em {formatDateTime(invite.expiresAt)}.
@@ -323,7 +351,7 @@ export function InviteAdministration({
         <AlertDialog>
           <AlertDialogTitle>Revogar convite de acesso</AlertDialogTitle>
           <AlertDialogDescription>
-            {invite.displayName} nao podera ativar a conta de {roleLabel(invite.role)} em{" "}
+            {invite.displayName} nao podera ativar a conta de {roleSummary(invite)} em{" "}
             {invite.storeName} com este token. O convite expira em{" "}
             {formatDateTime(invite.expiresAt)} e foi emitido por {invite.issuerLabel}.
           </AlertDialogDescription>
@@ -369,6 +397,19 @@ function roleLabel(role: AuthorizationRole): string {
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
   return "Colaborador";
+}
+
+function roleSummary(invite: Pick<CreatedInvite, "role" | "additionalRoles">): string {
+  const roles = [invite.role, ...invite.additionalRoles];
+  return roles.map(roleLabel).join(" + ");
+}
+
+function inviteAdditionalRoles(
+  role: AuthorizationRole,
+  grantAccessAdministration: boolean,
+): readonly AuthorizationRole[] {
+  if (!grantAccessAdministration || role === "admin") return [];
+  return ["admin"];
 }
 
 function formatDateTime(value: string): string {
