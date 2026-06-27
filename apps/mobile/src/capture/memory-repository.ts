@@ -11,6 +11,7 @@ import {
   type AuditTimelineItem,
   type CaptureLotInput,
   type CaptureProductInput,
+  type CentralResolvedTaskHistory,
   type CentralLotSnapshot,
   type CentralLotSnippet,
   type CentralLotWriteResponse,
@@ -28,6 +29,7 @@ import {
   type SyncConflictRecord,
   type SyncQueueSummary,
   type SyncTransportResult,
+  type ResolvedTaskHistorySnippet,
   type TaskAlertStateRecord,
   type TaskResolutionCommand,
   type TodayTaskRecord,
@@ -141,6 +143,10 @@ export function createMemoryCaptureRepository(
   function hydratePrepareTurn(response: PrepareTurnResponse): Promise<void> {
     const prepared = parsePrepareTurnResponse(response);
     const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
+    const activeCentralTaskIds = new Set(prepared.activeTasks.map((task) => task.centralTaskId));
+    const resolvedByTaskId = new Map(
+      prepared.resolvedHistory.map((history) => [history.centralTaskId, history]),
+    );
 
     for (const product of prepared.products) {
       products.set(product.centralProductId, centralProductToLocal(product));
@@ -157,6 +163,11 @@ export function createMemoryCaptureRepository(
       todayTasks.set(record.id, record);
     }
 
+    reconcilePreparedCentralTasks(
+      activeCentralTaskIds,
+      resolvedByTaskId,
+      prepared.store.generatedAt,
+    );
     prepareTurnCacheStatus = parsePrepareTurnCacheStatus(prepared.cache);
 
     return Promise.resolve();
@@ -164,6 +175,21 @@ export function createMemoryCaptureRepository(
 
   function loadPrepareTurnCacheStatus(): Promise<PrepareTurnCacheStatus | null> {
     return Promise.resolve(prepareTurnCacheStatus ?? null);
+  }
+
+  function reconcilePreparedCentralTasks(
+    activeCentralTaskIds: ReadonlySet<string>,
+    resolvedByTaskId: ReadonlyMap<string, ResolvedTaskHistorySnippet>,
+    reconciledAt: string,
+  ): void {
+    for (const [taskId, task] of todayTasks.entries()) {
+      if (task.sync?.state !== "synced" || activeCentralTaskIds.has(taskId)) {
+        continue;
+      }
+
+      const resolved = resolvedByTaskId.get(taskId);
+      todayTasks.set(taskId, resolvedTaskFromCentralHistory(task, resolved, reconciledAt));
+    }
   }
 
   function createProduct(input: CaptureProductInput): Promise<CaptureProductRecord> {
@@ -1565,6 +1591,7 @@ export function createMemoryCaptureRepository(
 
       syncCommands.set(updated.id, updated);
       reconcileLocalAuditEventForSyncResult(parsed, updated);
+      applyCentralSyncApplicationResult(parsed, updated);
       attachSyncMetadata(updated);
 
       return updated;
@@ -2323,6 +2350,78 @@ export function createMemoryCaptureRepository(
     });
 
     localAuditEvents.set(resolutionKey, { ...event, idempotencyKey: resolutionKey });
+  }
+
+  function applyCentralSyncApplicationResult(
+    result: SyncTransportResult,
+    command: SyncCommandRecord,
+  ): void {
+    if (result.status !== "ack" || result.centralResult === undefined) {
+      return;
+    }
+
+    if (result.centralResult.kind === "active_task") {
+      todayTasks.set(result.centralResult.task.id, result.centralResult.task);
+      return;
+    }
+
+    if (result.centralResult.kind !== "resolved_history") {
+      return;
+    }
+
+    const task = todayTasks.get(command.taskId);
+    if (task === undefined) {
+      return;
+    }
+
+    todayTasks.set(
+      task.id,
+      resolvedTaskFromCentralHistory(task, result.centralResult.history, result.syncedAt),
+    );
+  }
+
+  function resolvedTaskFromCentralHistory(
+    task: TodayTaskRecord,
+    history: CentralResolvedTaskHistory | ResolvedTaskHistorySnippet | undefined,
+    resolvedAt: string,
+  ): TodayTaskRecord {
+    const historyAt = history === undefined ? resolvedAt : resolvedHistoryOccurredAt(history);
+    const updatedAt = history === undefined ? resolvedAt : resolvedHistoryUpdatedAt(history);
+    const historyEntry =
+      history === undefined
+        ? undefined
+        : {
+            action: history.action,
+            actorLabel: history.actorLabel,
+            occurredAt: historyAt,
+            ...("evidence" in history && history.evidence !== undefined
+              ? { evidence: history.evidence }
+              : {}),
+          };
+
+    return parseTodayTaskRecord({
+      ...task,
+      status: "resolved",
+      ...(history === undefined ? {} : { currentLocation: history.currentLocation }),
+      resolvedAt: historyAt,
+      updatedAt,
+      resolutionHistory:
+        historyEntry === undefined
+          ? task.resolutionHistory
+          : [...(task.resolutionHistory ?? []), historyEntry],
+    });
+  }
+
+  function resolvedHistoryOccurredAt(
+    history: CentralResolvedTaskHistory | ResolvedTaskHistorySnippet,
+  ): string {
+    return "resolvedAt" in history ? history.resolvedAt : history.occurredAt;
+  }
+
+  function resolvedHistoryUpdatedAt(
+    history: CentralResolvedTaskHistory | ResolvedTaskHistorySnippet,
+  ): string {
+    return "updatedAt" in history ? history.updatedAt : resolvedHistoryOccurredAt(history);
   }
 
   function attachSyncMetadata(command: SyncCommandRecord): void {

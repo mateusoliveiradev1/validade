@@ -199,6 +199,79 @@ describe("offline sync repository behavior", () => {
     ]);
   });
 
+  it("separates transport ack from central business resolution", async () => {
+    const { repository, task } = await createExpiredTask();
+    const command = await repository.saveOfflineAction({
+      kind: "resolve_task",
+      payload: {
+        taskId: task.id,
+        action: "withdraw",
+        actorLabel: "Ana FICTICIA",
+        occurredAt: "2030-01-10T12:10:00.000Z",
+        destination: { kind: "retirada_perda" },
+        evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+      },
+    });
+
+    await repository.applySyncTransportResult({
+      status: "ack",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      syncedAt: "2030-01-10T12:12:00.000Z",
+    });
+
+    await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
+      status: "active",
+      sync: {
+        state: "synced",
+      },
+    });
+
+    await repository.applySyncTransportResult({
+      status: "ack",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      syncedAt: "2030-01-10T12:13:00.000Z",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: task.id,
+          activeKey: task.activeKey,
+          lotId: task.lotId,
+          productDisplayName: task.productDisplayName,
+          lotIdentity: task.lotIdentity,
+          currentLocation: { kind: "retirada_perda" },
+          action: "withdraw",
+          actorLabel: "Ana FICTICIA",
+          occurredAt: "2030-01-10T12:10:00.000Z",
+          evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+          resolutionState: "resolved",
+          source: "central",
+          updatedAt: "2030-01-10T12:13:00.000Z",
+        },
+      },
+    });
+
+    await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
+      status: "resolved",
+      resolvedAt: "2030-01-10T12:10:00.000Z",
+      currentLocation: { kind: "retirada_perda" },
+      resolutionHistory: [
+        expect.objectContaining({
+          action: "withdraw",
+          actorLabel: "Ana FICTICIA",
+        }),
+      ],
+      sync: {
+        state: "synced",
+        lastSyncedAt: "2030-01-10T12:13:00.000Z",
+      },
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: task.id })]),
+    );
+  });
+
   it("supports all offline action kinds without duplicating commands on retry", async () => {
     const { repository, task } = await createExpiredTask();
     const resolveCommand = await repository.saveOfflineAction({
