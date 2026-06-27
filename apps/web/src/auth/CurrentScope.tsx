@@ -12,7 +12,7 @@ type ScopeState =
   | { status: "blocked"; message: string }
   | { status: "error"; message: string };
 
-export function CurrentScope() {
+export function CurrentScope({ storeId }: { storeId?: string } = {}) {
   const [scope, setScope] = useState<ScopeState>({ status: "loading" });
 
   useEffect(() => {
@@ -20,7 +20,8 @@ export function CurrentScope() {
 
     async function loadScope() {
       try {
-        const response = await fetch("/session/context?storeId=loja-piloto");
+        const query = storeId === undefined ? "" : `?storeId=${encodeURIComponent(storeId)}`;
+        const response = await fetch(`/session/context${query}`);
         const payload = (await response.json()) as unknown;
 
         if (cancelled) {
@@ -56,7 +57,7 @@ export function CurrentScope() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storeId]);
 
   if (scope.status === "loading") {
     return (

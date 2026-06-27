@@ -21,6 +21,7 @@ import {
   shiftCloseEligibilityEnum,
   shiftCloseVerdictEnum,
   shiftHandoffs,
+  stores,
   storeMemberships,
 } from "./schema";
 
@@ -50,6 +51,10 @@ const productionHardeningMigrationSql = readFileSync(
 );
 const productionOpsMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0009_phase_10_categories_retention.sql"),
+  "utf8",
+);
+const storeCatalogMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0010_phase_10_store_catalog.sql"),
   "utf8",
 );
 
@@ -216,6 +221,21 @@ describe("phase 08 database schema", () => {
     expect(productionOpsMigrationSql).toContain("INSERT INTO central_categories");
     expect(productionOpsMigrationSql).toContain("central_products_category_fkey");
     expect(productionOpsMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+  });
+
+  it("anchors store tenancy in an explicit store catalog", () => {
+    expect(stores.storeId.name).toBe("store_id");
+    expect(stores.storeCode.name).toBe("store_code");
+    expect(stores.storeName.name).toBe("store_name");
+    expect(storeCatalogMigrationSql).toContain("CREATE TABLE IF NOT EXISTS stores");
+    expect(storeCatalogMigrationSql).toContain("stores_code_uidx");
+    expect(storeCatalogMigrationSql).toContain("store_memberships_store_fkey");
+    expect(storeCatalogMigrationSql).toContain("auth_credentials_store_fkey");
+    expect(storeCatalogMigrationSql).toContain("central_categories_store_fkey");
+    expect(storeCatalogMigrationSql).not.toContain("audit_events_store_fkey");
+    expect(storeCatalogMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
   });

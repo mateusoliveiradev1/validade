@@ -33,7 +33,7 @@ export function MembershipAdministration({
         if (providedSession !== undefined) {
           context = providedSession;
         } else {
-          const contextResponse = await fetch("/session/context?storeId=loja-piloto");
+          const contextResponse = await fetch("/session/context");
           if (!contextResponse.ok)
             throw new Error("Nao foi possivel carregar seu escopo administrativo.");
           const contextPayload: unknown = await contextResponse.json();
@@ -93,7 +93,7 @@ export function MembershipAdministration({
           </h1>
           <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
             Crie o primeiro acesso, acompanhe quem ja esta ativo e ajuste papeis sem abrir cadastro
-            publico fora da loja piloto.
+            publico fora do escopo autorizado.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">

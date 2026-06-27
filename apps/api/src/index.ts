@@ -1349,7 +1349,12 @@ export function createApiApp(input?: {
 
   api.get("/session/context", async (context) => {
     const identity = await authProvider.verify(context.req.raw);
-    const storeId = context.req.query("storeId") ?? "loja-piloto";
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+    const session =
+      requestedStoreId === undefined
+        ? await sessionProvider.readSession(context.req.raw)
+        : undefined;
+    const storeId = requestedStoreId ?? session?.storeId ?? "loja-piloto";
     const commandCenterReadDecision = await authorizationService.authorize({
       identity,
       capability: "command_center.read_store",

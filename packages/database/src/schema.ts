@@ -87,6 +87,22 @@ export const centralTaskStatusEnum = pgEnum("central_task_status", [
   "blocked",
 ]);
 
+export const stores = pgTable(
+  "stores",
+  {
+    storeId: text("store_id").primaryKey(),
+    storeCode: text("store_code").notNull(),
+    storeName: text("store_name").notNull(),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("stores_code_uidx").on(table.storeCode),
+    index("stores_status_name_idx").on(table.status, table.storeName),
+  ],
+);
+
 export const centralCategories = pgTable(
   "central_categories",
   {
@@ -635,6 +651,8 @@ export const centralDeviceSnapshots = pgTable(
 );
 
 export type StoreMembershipRecord = typeof storeMemberships.$inferSelect;
+export type StoreRecord = typeof stores.$inferSelect;
+export type NewStoreRecord = typeof stores.$inferInsert;
 export type NewStoreMembershipRecord = typeof storeMemberships.$inferInsert;
 export type MembershipMutationRecord = typeof membershipMutations.$inferSelect;
 export type NewMembershipMutationRecord = typeof membershipMutations.$inferInsert;

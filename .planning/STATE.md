@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 10
 status: Phase 10 complete - repository gates and Neon staging migration passed; Android/provider validation blocked externally
 stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-06-27T09:39:05.000Z"
-last_activity: 2026-06-27
+last_updated: "2026-06-27T12:58:30.000-03:00"
+last_activity: "2026-06-27 - Completed quick task 260627-hkt: Loja 18 staging UAT infra"
 progress:
   total_phases: 10
   completed_phases: 10
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-27
+**Last activity:** 2026-06-27 - Completed quick task 260627-hkt: Loja 18 staging UAT infra
 
 ## Project Reference
 
@@ -56,10 +56,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Neon staging migration was applied and verified on branch `br-sparkling-water-aczp28ll`. Next, run installed Android/provider UAT.
+Neon staging now has the Loja 18 UAT catalog and store scope applied. Next, run the real web/API UAT for Loja 18 and use the old APK only if it connects to staging.
 
 ```powershell
-pnpm.cmd test:e2e:mobile
+start https://validade-five.vercel.app
 ```
 
 ## Accumulated Context
@@ -89,6 +89,7 @@ pnpm.cmd test:e2e:mobile
 | 260623-rq1 | Corrigir login da API staging no Cloudflare ajustando hash de senha para o limite do Worker e validar conta admin lider | 2026-06-23 | e795458 | Verified | [260623-rq1-corrigir-login-da-api-staging-no-cloudfl](./quick/260623-rq1-corrigir-login-da-api-staging-no-cloudfl/) |
 | 260626-hte | Melhorar painel admin Command Center para explicar vencidos, causas do vencimento, gargalos e proximas acoes com graficos operacionais | 2026-06-26 | local | Verified | [260626-hte-melhorar-painel-admin-command-center-par](./quick/260626-hte-melhorar-painel-admin-command-center-par/) |
 | 260626-i4v | Enriquecer Command Center com causa estruturada de vencimento, trilha de auditoria e dados suficientes para explicar por que venceu | 2026-06-26 | pending-final-batch | Verified | [260626-i4v-enriquecer-command-center-com-causa-estr](./quick/260626-i4v-enriquecer-command-center-com-causa-estr/) |
+| 260627-hkt | Prepare staging for 23-store real UAT with Loja 18 category catalog, no fake products, and web/API store scope cleanup | 2026-06-27 | pending-final-batch | Verified | [260627-hkt-prepare-staging-for-23-store-real-uat-wi](./quick/260627-hkt-prepare-staging-for-23-store-real-uat-wi/) |
 
 ## Performance Metrics
 
