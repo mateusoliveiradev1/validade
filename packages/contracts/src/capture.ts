@@ -230,6 +230,322 @@ export const CentralProductSnippetSchema = z
   })
   .strict();
 
+const NormalizedProductKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .refine(
+    (value) => value === value.toLocaleLowerCase("pt-BR"),
+    "Normalized product keys must be lowercase.",
+  )
+  .refine(
+    (value) => !/\s{2,}/.test(value),
+    "Normalized product keys cannot contain double spaces.",
+  );
+
+const ProductGtinSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{8,14}$/);
+
+export const ProductCatalogSourceSchema = z.enum(["central", "draft_pending_review"]);
+
+export const ProductReviewStatusSchema = z.enum([
+  "validated",
+  "pending_review",
+  "rejected",
+  "discarded",
+]);
+
+export const ProductMatchReasonSchema = z.enum([
+  "exact_normalized_name",
+  "exact_gtin",
+  "similar_name",
+  "similar_category",
+]);
+
+export const ProductDraftOutcomeSchema = z.enum([
+  "reuse_existing",
+  "similar_found",
+  "draft_pending_review",
+  "conflict",
+]);
+
+export const ProductDuplicateReasonSchema = z.enum(["gtin", "normalized_name"]);
+
+export const ProductReviewDecisionSchema = z.enum(["approve", "reject", "merge", "discard"]);
+
+const ProductCatalogItemFields = {
+  centralProductId: IdentifierSchema,
+  displayName: RequiredTextSchema,
+  normalizedKey: NormalizedProductKeySchema,
+  categoryId: IdentifierSchema,
+  categoryName: RequiredTextSchema,
+  categoryRuleProfile: CategoryRuleProfileSchema,
+  source: ProductCatalogSourceSchema,
+  reviewStatus: ProductReviewStatusSchema,
+  syncState: VisibleCentralSyncStateSchema,
+  updatedAt: IsoDateTimeSchema,
+  gtin: ProductGtinSchema.optional(),
+} as const;
+
+export const ProductCatalogItemSchema = z
+  .object(ProductCatalogItemFields)
+  .strict()
+  .superRefine((value, context) => {
+    ensureCategoryProfileMatches(value.categoryId, value.categoryRuleProfile, context);
+    ensureProductReviewStateMatchesSource(value.source, value.reviewStatus, context);
+  });
+
+export const ProductSearchCandidateSchema = z
+  .object({
+    ...ProductCatalogItemFields,
+    matchKind: z.enum(["reusable_central", "similar_candidate", "draft_pending_review"]),
+    matchReasons: z.array(ProductMatchReasonSchema).min(1).max(4),
+    similarityScore: z.number().min(0).max(1).optional(),
+    warning: RequiredTextSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    ensureCategoryProfileMatches(value.categoryId, value.categoryRuleProfile, context);
+    ensureProductReviewStateMatchesSource(value.source, value.reviewStatus, context);
+
+    if (value.matchKind === "similar_candidate" && value.warning === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["warning"],
+        message: "Similar candidates require visible warning copy.",
+      });
+    }
+
+    if (value.matchKind === "draft_pending_review" && value.reviewStatus !== "pending_review") {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewStatus"],
+        message: "Draft pending-review candidates must expose pending_review state.",
+      });
+    }
+  });
+
+export const ProductDraftReviewStateSchema = z
+  .object({
+    draftId: IdentifierSchema,
+    centralProductId: IdentifierSchema,
+    displayName: RequiredTextSchema,
+    normalizedKey: NormalizedProductKeySchema,
+    categoryId: IdentifierSchema,
+    categoryName: RequiredTextSchema,
+    categoryRuleProfile: CategoryRuleProfileSchema,
+    source: z.literal("draft_pending_review"),
+    reviewStatus: ProductReviewStatusSchema,
+    syncState: VisibleCentralSyncStateSchema,
+    requestedByLabel: RequiredTextSchema,
+    requestedAt: IsoDateTimeSchema,
+    similarCandidates: z.array(ProductSearchCandidateSchema).max(5),
+    gtin: ProductGtinSchema.optional(),
+    reviewReason: RequiredTextSchema.optional(),
+    reviewedAt: IsoDateTimeSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    ensureCategoryProfileMatches(value.categoryId, value.categoryRuleProfile, context);
+
+    if (value.reviewStatus !== "pending_review" && value.reviewReason === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewReason"],
+        message: "Reviewed product drafts require a bounded review reason.",
+      });
+    }
+  });
+
+export const ProductSearchRequestSchema = z
+  .object({
+    query: RequiredTextSchema.optional(),
+    gtin: ProductGtinSchema.optional(),
+    categoryId: IdentifierSchema.optional(),
+    requestedAt: IsoDateTimeSchema,
+    includeDrafts: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.query !== undefined || value.gtin !== undefined || value.categoryId !== undefined,
+    "Search by name, GTIN, or category before operating on a product.",
+  );
+
+export const ProductSearchResponseSchema = z
+  .object({
+    requestId: IdentifierSchema,
+    normalizedQuery: NormalizedProductKeySchema.optional(),
+    resultState: z.enum([
+      "reuse_available",
+      "similar_requires_review",
+      "draft_pending_review",
+      "no_safe_reuse",
+    ]),
+    reusableProducts: z.array(ProductSearchCandidateSchema).max(20),
+    similarCandidates: z.array(ProductSearchCandidateSchema).max(10),
+    draft: ProductDraftReviewStateSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.resultState === "reuse_available" && value.reusableProducts.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["reusableProducts"],
+        message: "Reuse-available searches must return at least one reusable product.",
+      });
+    }
+
+    if (value.resultState === "similar_requires_review" && value.similarCandidates.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["similarCandidates"],
+        message: "Similar-review searches must return visible similar candidates.",
+      });
+    }
+
+    if (value.resultState === "draft_pending_review" && value.draft === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["draft"],
+        message: "Draft-pending searches must include the visible draft state.",
+      });
+    }
+  });
+
+export const ProductDraftCreateRequestSchema = z
+  .object({
+    displayName: RequiredTextSchema,
+    categoryId: IdentifierSchema,
+    categoryName: RequiredTextSchema,
+    categoryRuleProfile: CategoryRuleProfileSchema,
+    requestedAt: IsoDateTimeSchema,
+    gtin: ProductGtinSchema.optional(),
+    supplierName: RequiredTextSchema.optional(),
+    reason: RequiredTextSchema.optional(),
+    similarCandidateIds: z.array(IdentifierSchema).max(5).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    ensureCategoryProfileMatches(value.categoryId, value.categoryRuleProfile, context);
+  });
+
+export const CentralProductAcknowledgementSchema = z
+  .object({
+    acknowledgementId: IdentifierSchema,
+    centralProductId: IdentifierSchema,
+    state: z.enum([
+      "reused_existing",
+      "draft_pending_review",
+      "validated",
+      "conflict",
+      "discarded",
+    ]),
+    syncState: VisibleCentralSyncStateSchema,
+    reviewStatus: ProductReviewStatusSchema,
+    acknowledgedAt: IsoDateTimeSchema,
+    message: RequiredTextSchema.optional(),
+  })
+  .strict();
+
+export const ProductDraftCreateResponseSchema = z
+  .object({
+    requestId: IdentifierSchema,
+    normalizedKey: NormalizedProductKeySchema,
+    outcome: ProductDraftOutcomeSchema,
+    duplicateReason: ProductDuplicateReasonSchema.optional(),
+    reusableProduct: ProductCatalogItemSchema.optional(),
+    similarCandidates: z.array(ProductSearchCandidateSchema).max(10),
+    draft: ProductDraftReviewStateSchema.optional(),
+    acknowledgement: CentralProductAcknowledgementSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.outcome === "reuse_existing") {
+      if (value.duplicateReason === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["duplicateReason"],
+          message: "Duplicate reuse responses must identify GTIN or normalized-name reuse.",
+        });
+      }
+
+      if (value.reusableProduct === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["reusableProduct"],
+          message: "Duplicate reuse responses must include the central product to reuse.",
+        });
+      }
+    }
+
+    if (value.outcome === "similar_found" && value.similarCandidates.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["similarCandidates"],
+        message: "Similar-found responses must include visible product candidates.",
+      });
+    }
+
+    if (value.outcome === "draft_pending_review") {
+      if (value.draft === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["draft"],
+          message: "Draft-created responses must expose pending review state.",
+        });
+      }
+
+      if (value.acknowledgement?.state !== "draft_pending_review") {
+        context.addIssue({
+          code: "custom",
+          path: ["acknowledgement"],
+          message: "Draft-created responses require a draft-pending acknowledgement.",
+        });
+      }
+    }
+  });
+
+export const ProductDraftReviewRequestSchema = z
+  .object({
+    draftId: IdentifierSchema,
+    decision: ProductReviewDecisionSchema,
+    reviewedAt: IsoDateTimeSchema,
+    reason: RequiredTextSchema.optional(),
+    mergeIntoCentralProductId: IdentifierSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      (value.decision === "reject" || value.decision === "discard") &&
+      value.reason === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "Rejecting or discarding a draft requires a bounded reason.",
+      });
+    }
+
+    if (value.decision === "merge" && value.mergeIntoCentralProductId === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["mergeIntoCentralProductId"],
+        message: "Merging a draft requires the central product that will receive it.",
+      });
+    }
+  });
+
+export const ProductDraftReviewResponseSchema = z
+  .object({
+    draft: ProductDraftReviewStateSchema,
+    acknowledgement: CentralProductAcknowledgementSchema,
+  })
+  .strict();
+
 export const CentralLotSnippetSchema = z
   .object({
     centralLotId: IdentifierSchema,
@@ -362,6 +678,12 @@ export const CaptureContract = {
   physicalObservation: PhysicalObservationInputSchema,
   prepareTurnRequest: PrepareTurnRequestSchema,
   prepareTurnResponse: PrepareTurnResponseSchema,
+  productSearchRequest: ProductSearchRequestSchema,
+  productSearchResponse: ProductSearchResponseSchema,
+  productDraftCreateRequest: ProductDraftCreateRequestSchema,
+  productDraftCreateResponse: ProductDraftCreateResponseSchema,
+  productDraftReviewRequest: ProductDraftReviewRequestSchema,
+  productDraftReviewResponse: ProductDraftReviewResponseSchema,
 } as const;
 
 export type CategoryRuleProfileInput = z.infer<typeof CategoryRuleProfileSchema>;
@@ -383,6 +705,58 @@ export type CentralConflictSnippet = z.infer<typeof CentralConflictSnippetSchema
 export type DeviceSnapshot = z.infer<typeof DeviceSnapshotSchema>;
 export type PrepareTurnCacheStatus = z.infer<typeof PrepareTurnCacheStatusSchema>;
 export type PrepareTurnResponse = z.infer<typeof PrepareTurnResponseSchema>;
+export type ProductCatalogSource = z.infer<typeof ProductCatalogSourceSchema>;
+export type ProductReviewStatus = z.infer<typeof ProductReviewStatusSchema>;
+export type ProductMatchReason = z.infer<typeof ProductMatchReasonSchema>;
+export type ProductDraftOutcome = z.infer<typeof ProductDraftOutcomeSchema>;
+export type ProductDuplicateReason = z.infer<typeof ProductDuplicateReasonSchema>;
+export type ProductReviewDecision = z.infer<typeof ProductReviewDecisionSchema>;
+export type ProductCatalogItem = z.infer<typeof ProductCatalogItemSchema>;
+export type ProductSearchCandidate = z.infer<typeof ProductSearchCandidateSchema>;
+export type ProductDraftReviewState = z.infer<typeof ProductDraftReviewStateSchema>;
+export type ProductSearchRequest = z.infer<typeof ProductSearchRequestSchema>;
+export type ProductSearchResponse = z.infer<typeof ProductSearchResponseSchema>;
+export type ProductDraftCreateRequest = z.infer<typeof ProductDraftCreateRequestSchema>;
+export type CentralProductAcknowledgement = z.infer<typeof CentralProductAcknowledgementSchema>;
+export type ProductDraftCreateResponse = z.infer<typeof ProductDraftCreateResponseSchema>;
+export type ProductDraftReviewRequest = z.infer<typeof ProductDraftReviewRequestSchema>;
+export type ProductDraftReviewResponse = z.infer<typeof ProductDraftReviewResponseSchema>;
+
+function ensureCategoryProfileMatches(
+  categoryId: string,
+  categoryRuleProfile: CategoryRuleProfileInput,
+  context: z.RefinementCtx,
+): void {
+  if (categoryRuleProfile.categoryId !== categoryId) {
+    context.addIssue({
+      code: "custom",
+      path: ["categoryRuleProfile", "categoryId"],
+      message: "The category rule profile must belong to the selected category.",
+    });
+  }
+}
+
+function ensureProductReviewStateMatchesSource(
+  source: ProductCatalogSource,
+  reviewStatus: ProductReviewStatus,
+  context: z.RefinementCtx,
+): void {
+  if (source === "central" && reviewStatus === "pending_review") {
+    context.addIssue({
+      code: "custom",
+      path: ["reviewStatus"],
+      message: "Central reusable products cannot be hidden pending-review drafts.",
+    });
+  }
+
+  if (source === "draft_pending_review" && reviewStatus === "validated") {
+    context.addIssue({
+      code: "custom",
+      path: ["reviewStatus"],
+      message: "Draft sources must remain visibly pending, rejected, or discarded.",
+    });
+  }
+}
 
 function rejectForbiddenHydrationFields(
   value: unknown,

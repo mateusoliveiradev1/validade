@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
+  ProductDraftCreateRequestSchema,
+  ProductDraftCreateResponseSchema,
+  ProductDraftReviewRequestSchema,
+  ProductSearchResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
+  type ProductCatalogItem,
+  type ProductDraftReviewState,
+  type ProductSearchCandidate,
   type PrepareTurnResponse,
 } from "./capture";
 
@@ -213,4 +220,291 @@ describe("capture runtime contracts", () => {
       ).toThrow();
     },
   );
+
+  it("returns exact central products as explicit reuse candidates", () => {
+    const product = centralProduct({
+      centralProductId: "produto-central-ovos-001",
+      displayName: "Ovos Brancos FICTICIOS",
+      normalizedKey: "ovos brancos ficticios",
+      gtin: "7890000000001",
+    });
+
+    expect(
+      ProductSearchResponseSchema.parse({
+        requestId: "busca-produto-ficticia-001",
+        normalizedQuery: "ovos brancos ficticios",
+        resultState: "reuse_available",
+        reusableProducts: [
+          searchCandidate(product, {
+            matchKind: "reusable_central",
+            matchReasons: ["exact_normalized_name", "exact_gtin"],
+          }),
+        ],
+        similarCandidates: [],
+      }),
+    ).toMatchObject({
+      resultState: "reuse_available",
+      reusableProducts: [{ source: "central", reviewStatus: "validated" }],
+    });
+
+    expect(() =>
+      ProductSearchResponseSchema.parse({
+        requestId: "busca-produto-ficticia-001",
+        resultState: "reuse_available",
+        reusableProducts: [],
+        similarCandidates: [],
+      }),
+    ).toThrow();
+  });
+
+  it("keeps similar-product warnings visible before draft creation", () => {
+    const similar = searchCandidate(centralProduct(), {
+      matchKind: "similar_candidate",
+      matchReasons: ["similar_name", "similar_category"],
+      similarityScore: 0.82,
+      warning: "Produto parecido encontrado. Reutilize se for o mesmo item.",
+    });
+
+    expect(
+      ProductSearchResponseSchema.parse({
+        requestId: "busca-produto-ficticia-002",
+        normalizedQuery: "ovos vermelhos ficticios",
+        resultState: "similar_requires_review",
+        reusableProducts: [],
+        similarCandidates: [similar],
+      }),
+    ).toMatchObject({
+      resultState: "similar_requires_review",
+      similarCandidates: [{ matchKind: "similar_candidate" }],
+    });
+
+    expect(() =>
+      ProductSearchResponseSchema.parse({
+        requestId: "busca-produto-ficticia-002",
+        normalizedQuery: "ovos vermelhos ficticios",
+        resultState: "similar_requires_review",
+        reusableProducts: [],
+        similarCandidates: [
+          searchCandidate(centralProduct(), {
+            matchKind: "similar_candidate",
+            matchReasons: ["similar_name"],
+          }),
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it("requires category profile data and rejects privileged product draft fields", () => {
+    expect(
+      ProductDraftCreateRequestSchema.parse({
+        displayName: "Ovos Caipiras FICTICIOS",
+        categoryId: "categoria-ficticia-ovos",
+        categoryName: "Ovos ficticios",
+        categoryRuleProfile: categoryRuleProfile(),
+        requestedAt: "2030-01-10T09:00:00.000Z",
+        gtin: "7890000000002",
+        reason: "Produto visto no corredor durante o piloto.",
+      }),
+    ).toMatchObject({
+      displayName: "Ovos Caipiras FICTICIOS",
+    });
+
+    expect(() =>
+      ProductDraftCreateRequestSchema.parse({
+        displayName: "Ovos sem categoria FICTICIOS",
+        categoryName: "Ovos ficticios",
+        categoryRuleProfile: categoryRuleProfile(),
+        requestedAt: "2030-01-10T09:00:00.000Z",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      ProductDraftCreateRequestSchema.parse({
+        displayName: "Ovos injetados FICTICIOS",
+        categoryId: "categoria-ficticia-ovos",
+        categoryName: "Ovos ficticios",
+        categoryRuleProfile: categoryRuleProfile(),
+        requestedAt: "2030-01-10T09:00:00.000Z",
+        storeId: "loja-injetada",
+        role: "admin",
+        capability: "catalog.review",
+      }),
+    ).toThrow();
+  });
+
+  it("returns duplicate GTIN and normalized-name cases as explicit reuse outcomes", () => {
+    const product = centralProduct();
+
+    expect(
+      ProductDraftCreateResponseSchema.parse({
+        requestId: "produto-draft-ficticio-001",
+        normalizedKey: product.normalizedKey,
+        outcome: "reuse_existing",
+        duplicateReason: "gtin",
+        reusableProduct: product,
+        similarCandidates: [],
+      }),
+    ).toMatchObject({
+      outcome: "reuse_existing",
+      duplicateReason: "gtin",
+    });
+
+    expect(
+      ProductDraftCreateResponseSchema.parse({
+        requestId: "produto-draft-ficticio-002",
+        normalizedKey: product.normalizedKey,
+        outcome: "reuse_existing",
+        duplicateReason: "normalized_name",
+        reusableProduct: product,
+        similarCandidates: [],
+      }),
+    ).toMatchObject({
+      duplicateReason: "normalized_name",
+    });
+
+    expect(() =>
+      ProductDraftCreateResponseSchema.parse({
+        requestId: "produto-draft-ficticio-003",
+        normalizedKey: product.normalizedKey,
+        outcome: "reuse_existing",
+        reusableProduct: product,
+        similarCandidates: [],
+      }),
+    ).toThrow();
+  });
+
+  it("exposes draft pending review with enough state for mobile and web", () => {
+    const draft = productDraft();
+
+    expect(
+      ProductDraftCreateResponseSchema.parse({
+        requestId: "produto-draft-ficticio-004",
+        normalizedKey: draft.normalizedKey,
+        outcome: "draft_pending_review",
+        similarCandidates: draft.similarCandidates,
+        draft,
+        acknowledgement: {
+          acknowledgementId: "ack-produto-ficticio-001",
+          centralProductId: draft.centralProductId,
+          state: "draft_pending_review",
+          syncState: "pending_central",
+          reviewStatus: "pending_review",
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        },
+      }),
+    ).toMatchObject({
+      outcome: "draft_pending_review",
+      draft: {
+        source: "draft_pending_review",
+        reviewStatus: "pending_review",
+      },
+    });
+
+    expect(() =>
+      ProductDraftCreateResponseSchema.parse({
+        requestId: "produto-draft-ficticio-004",
+        normalizedKey: draft.normalizedKey,
+        outcome: "draft_pending_review",
+        similarCandidates: [],
+        draft,
+      }),
+    ).toThrow();
+  });
+
+  it("bounds review requests and keeps merge/reject decisions explicit", () => {
+    expect(
+      ProductDraftReviewRequestSchema.parse({
+        draftId: "draft-produto-ficticio-001",
+        decision: "approve",
+        reviewedAt: "2030-01-10T10:00:00.000Z",
+      }),
+    ).toMatchObject({
+      decision: "approve",
+    });
+
+    expect(() =>
+      ProductDraftReviewRequestSchema.parse({
+        draftId: "draft-produto-ficticio-001",
+        decision: "reject",
+        reviewedAt: "2030-01-10T10:00:00.000Z",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      ProductDraftReviewRequestSchema.parse({
+        draftId: "draft-produto-ficticio-001",
+        decision: "merge",
+        reviewedAt: "2030-01-10T10:00:00.000Z",
+      }),
+    ).toThrow();
+  });
 });
+
+function categoryRuleProfile() {
+  return {
+    categoryId: "categoria-ficticia-ovos",
+    mode: "formal_validity" as const,
+    windows: {
+      radarDays: 10,
+      markdownDays: 5,
+      criticalDays: 2,
+      expiredDays: 0,
+    },
+  };
+}
+
+function centralProduct(overrides: Partial<ProductCatalogItem> = {}): ProductCatalogItem {
+  return {
+    centralProductId: "produto-central-ficticio-001",
+    displayName: "Ovos Brancos FICTICIOS",
+    normalizedKey: "ovos brancos ficticios",
+    categoryId: "categoria-ficticia-ovos",
+    categoryName: "Ovos ficticios",
+    categoryRuleProfile: categoryRuleProfile(),
+    source: "central",
+    reviewStatus: "validated",
+    syncState: "synchronized",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    gtin: "7890000000001",
+    ...overrides,
+  };
+}
+
+function searchCandidate(
+  product: ProductCatalogItem,
+  overrides: Partial<ProductSearchCandidate> = {},
+): ProductSearchCandidate {
+  return {
+    ...product,
+    matchKind: "reusable_central",
+    matchReasons: ["exact_normalized_name"],
+    ...overrides,
+  };
+}
+
+function productDraft(overrides: Partial<ProductDraftReviewState> = {}): ProductDraftReviewState {
+  return {
+    draftId: "draft-produto-ficticio-001",
+    centralProductId: "produto-draft-ficticio-001",
+    displayName: "Ovos Caipiras FICTICIOS",
+    normalizedKey: "ovos caipiras ficticios",
+    categoryId: "categoria-ficticia-ovos",
+    categoryName: "Ovos ficticios",
+    categoryRuleProfile: categoryRuleProfile(),
+    source: "draft_pending_review",
+    reviewStatus: "pending_review",
+    syncState: "pending_central",
+    requestedByLabel: "Colaborador FICTICIO",
+    requestedAt: "2030-01-10T09:00:00.000Z",
+    similarCandidates: [
+      searchCandidate(centralProduct(), {
+        matchKind: "similar_candidate",
+        matchReasons: ["similar_name"],
+        warning: "Produto parecido encontrado. Reutilize se for o mesmo item.",
+      }),
+    ],
+    gtin: "7890000000002",
+    ...overrides,
+  };
+}
