@@ -1,5 +1,6 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import {
+  CentralLotWriteResponseSchema,
   CentralProductAcknowledgementSchema,
   PrepareTurnResponseSchema,
   ProductCatalogItemSchema,
@@ -7,12 +8,21 @@ import {
   ProductDraftReviewResponseSchema,
   ProductSearchResponseSchema,
   type ActiveTaskSnippet,
+  type CaptureLotInput,
+  type CentralLotCreateRequest,
+  type CentralLotSnapshot,
+  type CentralLotTaskProjectionSummary,
+  type CentralLotWriteResponse,
+  type CentralObservationAppendRequest,
+  type CentralPhysicalObservation,
   type CentralProductAcknowledgement,
   type CentralConflictSnippet,
   type CentralLotSnippet,
   type CentralProductSnippet,
+  type OperationalLocation,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
+  type PhysicalObservationInput,
   type ProductCatalogItem,
   type ProductDraftCreateRequest,
   type ProductDraftCreateResponse,
@@ -27,6 +37,11 @@ import {
   type ResolvedTaskHistorySnippet,
   type VisibleCentralSyncState,
 } from "@validade-zero/contracts";
+import {
+  projectCentralLotTask,
+  type CategoryRuleProfile,
+  type RiskAssessment,
+} from "@validade-zero/domain";
 
 export type CaptureActorRoleSnapshot = "collaborator" | "lead" | "admin";
 
@@ -93,11 +108,34 @@ export interface ProductDraftReviewInput {
   request: ProductDraftReviewRequest;
 }
 
+export interface CentralLotCreateInput {
+  requestId: string;
+  storeId: string;
+  storeName: string;
+  actorId: string;
+  actorDisplayName: string;
+  actorRoleSnapshot: CaptureActorRoleSnapshot;
+  request: CentralLotCreateRequest;
+}
+
+export interface CentralObservationAppendInput {
+  requestId: string;
+  storeId: string;
+  storeName: string;
+  actorId: string;
+  actorDisplayName: string;
+  actorRoleSnapshot: CaptureActorRoleSnapshot;
+  centralLotId: string;
+  request: CentralObservationAppendRequest;
+}
+
 export interface CaptureRepository {
   prepareTurn(input: PrepareTurnInput): Promise<PrepareTurnResponse>;
   searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateInput): Promise<ProductDraftCreateResponse>;
   reviewProductDraft(input: ProductDraftReviewInput): Promise<ProductDraftReviewResponse>;
+  createLot(input: CentralLotCreateInput): Promise<CentralLotWriteResponse>;
+  appendObservation(input: CentralObservationAppendInput): Promise<CentralLotWriteResponse>;
   upsertDeviceSnapshot(input: DeviceSnapshotInput): Promise<void>;
   recordPrepareTurnRejected(input: PrepareTurnDeniedInput): Promise<void>;
 }
@@ -117,10 +155,12 @@ interface ProductRow {
 }
 
 interface LotRow {
+  store_id?: string;
   central_lot_id: string;
   central_product_id: string;
   product_display_name: string;
   lot_identity: Record<string, unknown> | string;
+  lot_identity_key?: string;
   mode: CentralLotSnippet["mode"];
   current_location: Record<string, unknown> | string;
   state: VisibleCentralSyncState;
@@ -130,7 +170,20 @@ interface LotRow {
   received_at: string | null;
   quality_inspection_due_at: string | null;
   approximate_quantity: number | null;
+  created_at?: string | Date;
   updated_at: string | Date;
+}
+
+interface LotProjectionRow extends LotRow {
+  category_id: string;
+  category_name: string;
+  category_rule_profile: Record<string, unknown> | string;
+  observation_id: string | null;
+  observation_actor_display_name: string | null;
+  observation_status: CentralPhysicalObservation["status"] | null;
+  observation_location: Record<string, unknown> | string | null;
+  observation_quantity: Record<string, unknown> | string | null;
+  observation_occurred_at: string | Date | null;
 }
 
 interface TaskRow {
@@ -180,6 +233,42 @@ type StoredTask = ActiveTaskSnippet & {
 };
 type StoredResolved = ResolvedTaskHistorySnippet & { storeId: string };
 type StoredConflict = CentralConflictSnippet & { storeId: string };
+type ActiveCentralTaskProjection = Extract<
+  ReturnType<typeof projectCentralLotTask>,
+  { attention: "active_task" }
+>["task"];
+type CentralObservationQuantity =
+  | { quantityState: "estimated"; approximateQuantity: number }
+  | { quantityState: "not_estimable" };
+
+interface CentralLotProjectionContext {
+  storeId: string;
+  centralLotId: string;
+  centralProductId: string;
+  productDisplayName: string;
+  categoryRuleProfile: CategoryRuleProfile;
+  lotIdentity: CaptureLotInput["identity"];
+  lotIdentityKey: string;
+  mode: CaptureLotInput["mode"];
+  initialLocation: OperationalLocation;
+  currentLocation: OperationalLocation;
+  state: VisibleCentralSyncState;
+  source: CentralLotSnippet["source"];
+  expiresAt?: string;
+  receivedAt?: string;
+  qualityInspectionDueAt?: string;
+  qualityWindowDays?: number;
+  approximateQuantity: number;
+  createdAt: string;
+  updatedAt: string;
+  currentObservation: CentralPhysicalObservation;
+}
+
+interface CentralLotProjectionResult {
+  response: CentralLotWriteResponse;
+  activeTask?: ActiveTaskSnippet;
+  assessment: RiskAssessment;
+}
 
 export function createNeonCaptureRepository(input: {
   connectionString: string;
@@ -318,6 +407,182 @@ export function createCaptureRepositoryFromQuery(
         }),
       ],
     );
+  }
+
+  async function appendLotAudit(input: {
+    requestId: string;
+    storeId: string;
+    storeName: string;
+    actorId: string;
+    actorDisplayName: string;
+    actorRoleSnapshot: CaptureActorRoleSnapshot;
+    centralLotId: string;
+    productDisplayName: string;
+    action: "lot.created" | "lot.observation_appended";
+    summary: string;
+    occurredAt: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await sql.query(
+      `insert into audit_events (
+        event_id, idempotency_key, type, store_id, store_name, actor_id, actor_display_name,
+        actor_role_snapshot, occurred_at, target_type, target_id, target_label, summary,
+        status, metadata, sanitized
+      ) values ($1, $2, 'task.changed', $3, $4, $5, $6, $7, $8::timestamptz,
+        'lot', $9, $10, $11, 'received', $12::jsonb, true
+      ) on conflict (idempotency_key) do nothing`,
+      [
+        `${input.requestId}:audit`,
+        `lot:${input.action}:${input.requestId}`,
+        input.storeId,
+        input.storeName,
+        input.actorId,
+        input.actorDisplayName,
+        input.actorRoleSnapshot,
+        input.occurredAt,
+        input.centralLotId,
+        input.productDisplayName,
+        input.summary,
+        JSON.stringify({
+          action: input.action,
+          ...sanitizeProductAuditMetadata(input.metadata ?? {}),
+        }),
+      ],
+    );
+  }
+
+  async function selectProductForLot(input: {
+    storeId: string;
+    centralProductId: string;
+  }): Promise<ProductCatalogItem | undefined> {
+    const rows = (await sql.query(
+      `select central_product_id, store_id, display_name, normalized_key, category_id,
+        category_name, status, state, gtin, category_rule_profile, updated_at
+      from central_products
+      where store_id = $1 and central_product_id = $2 and status <> 'archived'
+      limit 1`,
+      [input.storeId, input.centralProductId],
+    )) as ProductRow[];
+
+    return rows[0] === undefined ? undefined : mapCatalogProductRow(rows[0]);
+  }
+
+  async function selectLotProjectionContext(input: {
+    storeId: string;
+    centralLotId: string;
+  }): Promise<CentralLotProjectionContext | undefined> {
+    const rows = (await sql.query(
+      `select l.store_id, l.central_lot_id, l.central_product_id, l.product_display_name,
+        l.lot_identity, l.lot_identity_key, l.mode, l.current_location, l.state, l.source,
+        l.risk_state, l.expires_at, l.received_at, l.quality_inspection_due_at,
+        l.approximate_quantity, l.created_at, l.updated_at,
+        p.category_id, p.category_name, p.category_rule_profile,
+        o.observation_id, o.actor_display_name as observation_actor_display_name,
+        o.status as observation_status, o.location as observation_location,
+        o.quantity as observation_quantity, o.occurred_at as observation_occurred_at
+      from central_lots l
+      join central_products p on p.store_id = l.store_id and p.central_product_id = l.central_product_id
+      left join lateral (
+        select observation_id, actor_display_name, status, location, quantity, occurred_at
+        from central_observations
+        where store_id = l.store_id and central_lot_id = l.central_lot_id
+        order by occurred_at desc, created_at desc
+        limit 1
+      ) o on true
+      where l.store_id = $1 and l.central_lot_id = $2
+      limit 1`,
+      [input.storeId, input.centralLotId],
+    )) as LotProjectionRow[];
+
+    return rows[0] === undefined ? undefined : mapLotProjectionRow(rows[0]);
+  }
+
+  async function upsertCentralTaskProjection(input: {
+    context: CentralLotProjectionContext;
+    requestId: string;
+    updatedAt: string;
+  }): Promise<CentralLotProjectionResult> {
+    const result = buildCentralLotProjectionResult({
+      requestId: input.requestId,
+      context: input.context,
+      updatedAt: input.updatedAt,
+    });
+
+    if (result.activeTask !== undefined) {
+      await sql.query(
+        `update central_projected_tasks
+        set status = 'resolved',
+          resolved_at = $1::timestamptz,
+          resolution_reason = 'projection_replaced',
+          actor_label = $2,
+          updated_at = $1::timestamptz
+        where store_id = $3 and central_lot_id = $4 and status = 'active' and active_key <> $5`,
+        [
+          input.updatedAt,
+          input.context.currentObservation.actorLabel,
+          input.context.storeId,
+          input.context.centralLotId,
+          result.activeTask.activeKey,
+        ],
+      );
+      await sql.query(
+        `insert into central_projected_tasks (
+          central_task_id, active_key, store_id, central_lot_id, product_display_name,
+          current_location, risk_state, severity, required_resolution, status, state,
+          owner_label, due_at, version, created_at, updated_at
+        ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 'active',
+          'synchronized', $10, $11::timestamptz, 1, $11::timestamptz, $11::timestamptz
+        )
+        on conflict (store_id, active_key) do update set
+          central_lot_id = excluded.central_lot_id,
+          product_display_name = excluded.product_display_name,
+          current_location = excluded.current_location,
+          risk_state = excluded.risk_state,
+          severity = excluded.severity,
+          required_resolution = excluded.required_resolution,
+          status = 'active',
+          state = 'synchronized',
+          owner_label = excluded.owner_label,
+          due_at = excluded.due_at,
+          resolved_at = null,
+          resolution_action = null,
+          resolution_reason = null,
+          actor_label = null,
+          version = central_projected_tasks.version + 1,
+          updated_at = excluded.updated_at`,
+        [
+          result.activeTask.centralTaskId,
+          result.activeTask.activeKey,
+          input.context.storeId,
+          input.context.centralLotId,
+          input.context.productDisplayName,
+          JSON.stringify(input.context.currentLocation),
+          result.activeTask.riskState,
+          result.activeTask.severity,
+          result.activeTask.requiredResolution,
+          result.activeTask.ownerLabel,
+          input.updatedAt,
+        ],
+      );
+    } else {
+      await sql.query(
+        `update central_projected_tasks
+        set status = 'resolved',
+          resolved_at = $1::timestamptz,
+          resolution_reason = 'projection_no_active_task',
+          actor_label = $2,
+          updated_at = $1::timestamptz
+        where store_id = $3 and central_lot_id = $4 and status = 'active'`,
+        [
+          input.updatedAt,
+          input.context.currentObservation.actorLabel,
+          input.context.storeId,
+          input.context.centralLotId,
+        ],
+      );
+    }
+
+    return result;
   }
 
   async function selectCatalogProducts(input: {
@@ -640,6 +905,231 @@ export function createCaptureRepositoryFromQuery(
     return ProductDraftReviewResponseSchema.parse({ draft, acknowledgement });
   }
 
+  async function createLot(input: CentralLotCreateInput): Promise<CentralLotWriteResponse> {
+    const product = await selectProductForLot({
+      storeId: input.storeId,
+      centralProductId: input.request.lot.productId,
+    });
+
+    if (product === undefined) {
+      throw new Error("central_product_not_found");
+    }
+
+    const occurredAt = new Date(input.request.occurredAt).toISOString();
+    const centralLotId = createStableId(
+      "lot",
+      input.storeId,
+      input.request.idempotencyKey ??
+        `${input.request.lot.productId}:${lotIdentityKey(input.request.lot.identity)}`,
+    );
+    const existingContext = await selectLotProjectionContext({
+      storeId: input.storeId,
+      centralLotId,
+    });
+
+    if (existingContext !== undefined) {
+      const replay = await upsertCentralTaskProjection({
+        context: existingContext,
+        requestId: input.requestId,
+        updatedAt: existingContext.updatedAt,
+      });
+
+      return replay.response;
+    }
+
+    const observation = buildCentralObservation({
+      centralLotId,
+      centralObservationId: createStableId(
+        "obs",
+        input.storeId,
+        `${centralLotId}:${input.request.idempotencyKey ?? occurredAt}:initial`,
+      ),
+      observation: initialObservationFromLot(input.request),
+    });
+    const context = buildLotProjectionContextFromCreate({
+      storeId: input.storeId,
+      centralLotId,
+      lot: input.request.lot,
+      product,
+      observation,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    });
+    const projection = buildCentralLotProjectionResult({
+      requestId: input.requestId,
+      context,
+      updatedAt: occurredAt,
+    });
+
+    await sql.query(
+      `insert into central_lots (
+        central_lot_id, store_id, central_product_id, product_display_name, lot_identity,
+        lot_identity_key, mode, current_location, state, source, risk_state, expires_at,
+        received_at, quality_inspection_due_at, approximate_quantity, version, created_at, updated_at
+      ) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, 'synchronized',
+        'central', $9, $10, $11, $12, $13, 1, $14::timestamptz, $14::timestamptz
+      )
+      on conflict (central_lot_id) do nothing`,
+      [
+        context.centralLotId,
+        context.storeId,
+        context.centralProductId,
+        context.productDisplayName,
+        JSON.stringify(context.lotIdentity),
+        context.lotIdentityKey,
+        context.mode,
+        JSON.stringify(context.currentLocation),
+        centralRiskStateFromAssessment(projection.assessment),
+        context.expiresAt ?? null,
+        context.receivedAt ?? null,
+        context.qualityInspectionDueAt ?? null,
+        context.approximateQuantity,
+        occurredAt,
+      ],
+    );
+    await insertCentralObservation({
+      observation,
+      storeId: input.storeId,
+      actorId: input.actorId,
+    });
+    const result = await upsertCentralTaskProjection({
+      context,
+      requestId: input.requestId,
+      updatedAt: occurredAt,
+    });
+    await appendLotAudit({
+      requestId: input.requestId,
+      storeId: input.storeId,
+      storeName: input.storeName,
+      actorId: input.actorId,
+      actorDisplayName: input.actorDisplayName,
+      actorRoleSnapshot: input.actorRoleSnapshot,
+      centralLotId,
+      productDisplayName: product.displayName,
+      action: "lot.created",
+      summary: "Lote central criado e projetado para a fila operacional.",
+      occurredAt,
+      metadata: {
+        taskAttention: result.response.taskProjection.attention,
+        riskState: result.response.lot.riskState ?? "safe",
+      },
+    });
+
+    return result.response;
+  }
+
+  async function appendObservation(
+    input: CentralObservationAppendInput,
+  ): Promise<CentralLotWriteResponse> {
+    const currentContext = await selectLotProjectionContext({
+      storeId: input.storeId,
+      centralLotId: input.centralLotId,
+    });
+
+    if (currentContext === undefined) {
+      throw new Error("central_lot_not_found");
+    }
+
+    const occurredAt = new Date(input.request.observation.occurredAt).toISOString();
+    const observation = buildCentralObservation({
+      centralLotId: input.centralLotId,
+      centralObservationId: createStableId(
+        "obs",
+        input.storeId,
+        `${input.centralLotId}:${input.request.idempotencyKey ?? occurredAt}`,
+      ),
+      observation: input.request.observation,
+    });
+    const context: CentralLotProjectionContext = {
+      ...currentContext,
+      currentLocation: observation.location,
+      approximateQuantity:
+        observation.quantityState === "estimated"
+          ? observation.approximateQuantity
+          : currentContext.approximateQuantity,
+      currentObservation: observation,
+      updatedAt: occurredAt,
+    };
+    const projection = buildCentralLotProjectionResult({
+      requestId: input.requestId,
+      context,
+      updatedAt: occurredAt,
+    });
+
+    await insertCentralObservation({
+      observation,
+      storeId: input.storeId,
+      actorId: input.actorId,
+    });
+    await sql.query(
+      `update central_lots
+      set current_location = $1::jsonb,
+        approximate_quantity = $2,
+        risk_state = $3,
+        version = version + 1,
+        updated_at = $4::timestamptz
+      where store_id = $5 and central_lot_id = $6`,
+      [
+        JSON.stringify(context.currentLocation),
+        context.approximateQuantity,
+        centralRiskStateFromAssessment(projection.assessment),
+        occurredAt,
+        input.storeId,
+        input.centralLotId,
+      ],
+    );
+    const result = await upsertCentralTaskProjection({
+      context,
+      requestId: input.requestId,
+      updatedAt: occurredAt,
+    });
+    await appendLotAudit({
+      requestId: input.requestId,
+      storeId: input.storeId,
+      storeName: input.storeName,
+      actorId: input.actorId,
+      actorDisplayName: input.actorDisplayName,
+      actorRoleSnapshot: input.actorRoleSnapshot,
+      centralLotId: input.centralLotId,
+      productDisplayName: context.productDisplayName,
+      action: "lot.observation_appended",
+      summary: "Observacao fisica central registrada e tarefa recalculada.",
+      occurredAt,
+      metadata: {
+        observationStatus: observation.status,
+        taskAttention: result.response.taskProjection.attention,
+        riskState: result.response.lot.riskState ?? "safe",
+      },
+    });
+
+    return result.response;
+  }
+
+  async function insertCentralObservation(input: {
+    observation: CentralPhysicalObservation;
+    storeId: string;
+    actorId: string;
+  }): Promise<void> {
+    await sql.query(
+      `insert into central_observations (
+        observation_id, store_id, central_lot_id, actor_id, actor_display_name,
+        status, location, quantity, occurred_at, created_at
+      ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz, $9::timestamptz)
+      on conflict (observation_id) do nothing`,
+      [
+        input.observation.centralObservationId,
+        input.storeId,
+        input.observation.centralLotId,
+        input.actorId,
+        input.observation.actorLabel,
+        input.observation.status,
+        JSON.stringify(input.observation.location),
+        JSON.stringify(quantitySnapshotFromObservation(input.observation)),
+        input.observation.occurredAt,
+      ],
+    );
+  }
+
   return {
     async prepareTurn(input) {
       const [productRows, lotRows, taskRows, resolvedRows, conflictRows] = await Promise.all([
@@ -721,6 +1211,8 @@ export function createCaptureRepositoryFromQuery(
     searchProducts,
     createProductDraft,
     reviewProductDraft,
+    createLot,
+    appendObservation,
     upsertDeviceSnapshot,
     recordPrepareTurnRejected,
   };
@@ -749,6 +1241,98 @@ export function createInMemoryCaptureRepository(input?: {
   const upsertDeviceSnapshot = (snapshot: DeviceSnapshotInput): Promise<void> => {
     deviceSnapshots.set(`${snapshot.storeId}:${snapshot.deviceId}`, snapshot);
     return Promise.resolve();
+  };
+  const productForLot = (
+    storeId: string,
+    centralProductId: string,
+  ): ProductCatalogItem | undefined => {
+    const product = products.find(
+      (item) =>
+        item.storeId === storeId &&
+        item.centralProductId === centralProductId &&
+        item.status !== "archived",
+    );
+
+    return product === undefined ? undefined : toCatalogItem(product);
+  };
+  const contextFromStoredLot = (
+    storeId: string,
+    lot: StoredLot,
+  ): CentralLotProjectionContext | undefined => {
+    const product = productForLot(storeId, lot.centralProductId);
+    if (product === undefined) return undefined;
+
+    return {
+      storeId,
+      centralLotId: lot.centralLotId,
+      centralProductId: lot.centralProductId,
+      productDisplayName: lot.productDisplayName,
+      categoryRuleProfile: toDomainCategoryProfile(product.categoryRuleProfile),
+      lotIdentity: lot.lotIdentity,
+      lotIdentityKey: lotIdentityKey(lot.lotIdentity),
+      mode: lot.mode,
+      initialLocation: lot.currentLocation,
+      currentLocation: lot.currentLocation,
+      state: lot.state,
+      source: lot.source,
+      ...(lot.expiresAt === undefined ? {} : { expiresAt: lot.expiresAt }),
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      ...(lot.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+      approximateQuantity: lot.approximateQuantity ?? 0,
+      createdAt: lot.updatedAt,
+      updatedAt: lot.updatedAt,
+      currentObservation: {
+        centralObservationId: createStableId("obs", storeId, `${lot.centralLotId}:memory`),
+        centralLotId: lot.centralLotId,
+        status: "present",
+        actorLabel: "Leitura central",
+        occurredAt: lot.updatedAt,
+        location: lot.currentLocation,
+        isCorrection: false,
+        quantityState: "estimated",
+        approximateQuantity: lot.approximateQuantity ?? 0,
+      },
+    };
+  };
+  const persistLotProjection = (
+    context: CentralLotProjectionContext,
+    requestId: string,
+    updatedAt: string,
+  ): CentralLotProjectionResult => {
+    const result = buildCentralLotProjectionResult({ requestId, context, updatedAt });
+
+    for (const task of tasks) {
+      if (
+        task.storeId === context.storeId &&
+        task.centralLotId === context.centralLotId &&
+        (task.taskStatus ?? "active") === "active" &&
+        task.activeKey !== result.activeTask?.activeKey
+      ) {
+        task.taskStatus = "resolved";
+      }
+    }
+
+    if (result.activeTask !== undefined) {
+      const taskIndex = tasks.findIndex(
+        (task) =>
+          task.storeId === context.storeId && task.activeKey === result.activeTask?.activeKey,
+      );
+      const storedTask: StoredTask = {
+        ...result.activeTask,
+        storeId: context.storeId,
+        taskStatus: "active",
+      };
+
+      if (taskIndex === -1) {
+        tasks.push(storedTask);
+      } else {
+        tasks[taskIndex] = storedTask;
+      }
+    }
+
+    return result;
   };
 
   return {
@@ -1021,6 +1605,153 @@ export function createInMemoryCaptureRepository(input?: {
         }),
       );
     },
+    createLot(createInput) {
+      const product = productForLot(createInput.storeId, createInput.request.lot.productId);
+
+      if (product === undefined) {
+        return Promise.reject(new Error("central_product_not_found"));
+      }
+
+      const occurredAt = new Date(createInput.request.occurredAt).toISOString();
+      const centralLotId = createStableId(
+        "lot",
+        createInput.storeId,
+        createInput.request.idempotencyKey ??
+          `${createInput.request.lot.productId}:${lotIdentityKey(createInput.request.lot.identity)}`,
+      );
+      const existingLot = lots.find(
+        (lot) => lot.storeId === createInput.storeId && lot.centralLotId === centralLotId,
+      );
+
+      if (existingLot !== undefined) {
+        const existingContext = contextFromStoredLot(createInput.storeId, existingLot);
+        if (existingContext === undefined) {
+          return Promise.reject(new Error("central_product_not_found"));
+        }
+
+        return Promise.resolve(
+          persistLotProjection(existingContext, createInput.requestId, existingContext.updatedAt)
+            .response,
+        );
+      }
+
+      const observation = buildCentralObservation({
+        centralLotId,
+        centralObservationId: createStableId(
+          "obs",
+          createInput.storeId,
+          `${centralLotId}:${createInput.request.idempotencyKey ?? occurredAt}:initial`,
+        ),
+        observation: initialObservationFromLot(createInput.request),
+      });
+      const context = buildLotProjectionContextFromCreate({
+        storeId: createInput.storeId,
+        centralLotId,
+        lot: createInput.request.lot,
+        product,
+        observation,
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      });
+      const result = persistLotProjection(context, createInput.requestId, occurredAt);
+      const riskState = centralRiskStateFromAssessment(result.assessment);
+      lots.push({
+        storeId: createInput.storeId,
+        centralLotId,
+        centralProductId: context.centralProductId,
+        productDisplayName: context.productDisplayName,
+        lotIdentity: context.lotIdentity,
+        mode: context.mode,
+        currentLocation: context.currentLocation,
+        state: "synchronized",
+        source: "central",
+        ...(riskState === null ? {} : { riskState }),
+        ...(context.expiresAt === undefined ? {} : { expiresAt: context.expiresAt }),
+        ...(context.receivedAt === undefined ? {} : { receivedAt: context.receivedAt }),
+        ...(context.qualityInspectionDueAt === undefined
+          ? {}
+          : { qualityInspectionDueAt: context.qualityInspectionDueAt }),
+        approximateQuantity: context.approximateQuantity,
+        updatedAt: occurredAt,
+      });
+      auditEvents.push({
+        type: "task.changed",
+        storeId: createInput.storeId,
+        targetType: "lot",
+        targetId: centralLotId,
+        targetLabel: product.displayName,
+        action: "lot.created",
+        summary: "Lote central criado e projetado para a fila operacional.",
+        sanitized: true,
+      });
+
+      return Promise.resolve(result.response);
+    },
+    appendObservation(observationInput) {
+      const lotIndex = lots.findIndex(
+        (lot) =>
+          lot.storeId === observationInput.storeId &&
+          lot.centralLotId === observationInput.centralLotId,
+      );
+
+      if (lotIndex === -1) {
+        return Promise.reject(new Error("central_lot_not_found"));
+      }
+
+      const currentLot = lots[lotIndex] as StoredLot;
+      const currentContext = contextFromStoredLot(observationInput.storeId, currentLot);
+
+      if (currentContext === undefined) {
+        return Promise.reject(new Error("central_product_not_found"));
+      }
+
+      const occurredAt = new Date(observationInput.request.observation.occurredAt).toISOString();
+      const observation = buildCentralObservation({
+        centralLotId: observationInput.centralLotId,
+        centralObservationId: createStableId(
+          "obs",
+          observationInput.storeId,
+          `${observationInput.centralLotId}:${observationInput.request.idempotencyKey ?? occurredAt}`,
+        ),
+        observation: observationInput.request.observation,
+      });
+      const context: CentralLotProjectionContext = {
+        ...currentContext,
+        currentLocation: observation.location,
+        approximateQuantity:
+          observation.quantityState === "estimated"
+            ? observation.approximateQuantity
+            : currentContext.approximateQuantity,
+        currentObservation: observation,
+        updatedAt: occurredAt,
+      };
+      const result = persistLotProjection(context, observationInput.requestId, occurredAt);
+      const riskState = centralRiskStateFromAssessment(result.assessment);
+      const nextLot: StoredLot = {
+        ...currentLot,
+        currentLocation: context.currentLocation,
+        approximateQuantity: context.approximateQuantity,
+        updatedAt: occurredAt,
+      };
+      if (riskState === null) {
+        delete nextLot.riskState;
+      } else {
+        nextLot.riskState = riskState;
+      }
+      lots[lotIndex] = nextLot;
+      auditEvents.push({
+        type: "task.changed",
+        storeId: observationInput.storeId,
+        targetType: "lot",
+        targetId: observationInput.centralLotId,
+        targetLabel: context.productDisplayName,
+        action: "lot.observation_appended",
+        summary: "Observacao fisica central registrada e tarefa recalculada.",
+        sanitized: true,
+      });
+
+      return Promise.resolve(result.response);
+    },
     upsertDeviceSnapshot,
     recordPrepareTurnRejected(denied) {
       auditEvents.push({
@@ -1207,6 +1938,483 @@ function mapConflictRow(row: ConflictRow): CentralConflictSnippet {
     state: "conflict",
     source: "central",
   } as CentralConflictSnippet;
+}
+
+function mapLotProjectionRow(row: LotProjectionRow): CentralLotProjectionContext {
+  const lotIdentity = parseJson(row.lot_identity) as CaptureLotInput["identity"];
+  const currentLocation = parseJson(row.current_location) as OperationalLocation;
+  const quantity =
+    row.observation_quantity === null
+      ? quantitySnapshotFromApproximate(row.approximate_quantity)
+      : parseObservationQuantity(row.observation_quantity);
+  const observationLocation =
+    row.observation_location === null
+      ? currentLocation
+      : (parseJson(row.observation_location) as OperationalLocation);
+  const approximateQuantity =
+    quantity.quantityState === "estimated"
+      ? quantity.approximateQuantity
+      : (row.approximate_quantity ?? 0);
+  const updatedAt = toIso(row.updated_at);
+  const observationBase = {
+    centralObservationId:
+      row.observation_id ??
+      createStableId("obs", row.store_id ?? "store", `${row.central_lot_id}:legacy`),
+    centralLotId: row.central_lot_id,
+    status: row.observation_status ?? "present",
+    actorLabel: row.observation_actor_display_name ?? "Leitura central",
+    occurredAt: toIso(row.observation_occurred_at ?? row.updated_at),
+    location: observationLocation,
+    isCorrection: false,
+  };
+  const currentObservation: CentralPhysicalObservation =
+    quantity.quantityState === "estimated"
+      ? {
+          ...observationBase,
+          quantityState: "estimated",
+          approximateQuantity: quantity.approximateQuantity,
+        }
+      : {
+          ...observationBase,
+          quantityState: "not_estimable",
+        };
+
+  return {
+    storeId: row.store_id ?? "",
+    centralLotId: row.central_lot_id,
+    centralProductId: row.central_product_id,
+    productDisplayName: row.product_display_name,
+    categoryRuleProfile: toDomainCategoryProfile(
+      parseJson(row.category_rule_profile) as ProductCatalogItem["categoryRuleProfile"],
+    ),
+    lotIdentity,
+    lotIdentityKey: row.lot_identity_key ?? lotIdentityKey(lotIdentity),
+    mode: row.mode,
+    initialLocation: currentLocation,
+    currentLocation,
+    state: row.state,
+    source: row.source,
+    ...(row.expires_at === null ? {} : { expiresAt: row.expires_at }),
+    ...(row.received_at === null ? {} : { receivedAt: row.received_at }),
+    ...(row.quality_inspection_due_at === null
+      ? {}
+      : { qualityInspectionDueAt: row.quality_inspection_due_at }),
+    approximateQuantity,
+    createdAt: toIso(row.created_at ?? row.updated_at),
+    updatedAt,
+    currentObservation,
+  };
+}
+
+function buildLotProjectionContextFromCreate(input: {
+  storeId: string;
+  centralLotId: string;
+  lot: CaptureLotInput;
+  product: ProductCatalogItem;
+  observation: CentralPhysicalObservation;
+  createdAt: string;
+  updatedAt: string;
+}): CentralLotProjectionContext {
+  return {
+    storeId: input.storeId,
+    centralLotId: input.centralLotId,
+    centralProductId: input.product.centralProductId,
+    productDisplayName: input.product.displayName,
+    categoryRuleProfile: toDomainCategoryProfile(input.product.categoryRuleProfile),
+    lotIdentity: input.lot.identity,
+    lotIdentityKey: lotIdentityKey(input.lot.identity),
+    mode: input.lot.mode,
+    initialLocation: input.lot.initialLocation,
+    currentLocation: input.observation.location,
+    state: "synchronized",
+    source: "central",
+    ...dateFieldsFromLot(input.lot),
+    approximateQuantity: input.lot.approximateQuantity,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+    currentObservation: input.observation,
+  };
+}
+
+function buildCentralLotProjectionResult(input: {
+  requestId: string;
+  context: CentralLotProjectionContext;
+  updatedAt: string;
+}): CentralLotProjectionResult {
+  const projected = projectCentralLotTask({
+    currentDate: input.updatedAt.slice(0, 10),
+    currentTimestamp: input.updatedAt,
+    lotId: input.context.centralLotId,
+    productDisplayName: input.context.productDisplayName,
+    lotIdentity: input.context.lotIdentity.value,
+    currentLocation: input.context.currentLocation,
+    lot: riskLotFromContext(input.context),
+    categoryProfile: input.context.categoryRuleProfile,
+    lastPhysicalObservation: {
+      status: input.context.currentObservation.status,
+      observedAt: input.context.currentObservation.occurredAt,
+      quantityState: input.context.currentObservation.quantityState,
+      ...(input.context.currentObservation.quantityState === "estimated"
+        ? { approximateQuantity: input.context.currentObservation.approximateQuantity }
+        : {}),
+    },
+  });
+  const activeTask =
+    projected.attention === "active_task"
+      ? activeTaskSnippetFromProjection({
+          centralTaskId: createStableId("task", input.context.storeId, projected.task.activeKey),
+          context: input.context,
+          task: projected.task,
+          updatedAt: input.updatedAt,
+        })
+      : undefined;
+  const taskProjection = taskProjectionSummaryFromProjection({
+    projected,
+    updatedAt: input.updatedAt,
+    ...(activeTask === undefined ? {} : { activeTask }),
+  });
+  const lot = buildCentralLotSnapshot({
+    context: input.context,
+    taskProjection,
+    assessment: projected.assessment,
+  });
+
+  return {
+    response: CentralLotWriteResponseSchema.parse({
+      requestId: input.requestId,
+      lot,
+      taskProjection,
+      acknowledgement: {
+        acknowledgementId: `${input.requestId}:ack`,
+        centralLotId: input.context.centralLotId,
+        state: "synchronized",
+        acknowledgedAt: input.updatedAt,
+        message: "Lote sincronizado com a central. Verifique se ainda existe bloqueio operacional.",
+      },
+    }),
+    ...(activeTask === undefined ? {} : { activeTask }),
+    assessment: projected.assessment,
+  };
+}
+
+function buildCentralLotSnapshot(input: {
+  context: CentralLotProjectionContext;
+  taskProjection: CentralLotTaskProjectionSummary;
+  assessment: RiskAssessment;
+}): CentralLotSnapshot {
+  const riskState = centralRiskStateFromAssessment(input.assessment);
+  const base = {
+    centralLotId: input.context.centralLotId,
+    centralProductId: input.context.centralProductId,
+    productDisplayName: input.context.productDisplayName,
+    lotIdentity: input.context.lotIdentity,
+    approximateQuantity: input.context.approximateQuantity,
+    initialLocation: input.context.initialLocation,
+    currentObservation: input.context.currentObservation,
+    lifecycleStatus: "active" as const,
+    state: input.context.state,
+    source: input.context.source,
+    ...(riskState === null ? {} : { riskState }),
+    taskProjection: input.taskProjection,
+    createdAt: input.context.createdAt,
+    updatedAt: input.context.updatedAt,
+  };
+
+  if (input.context.mode === "formal_validity") {
+    return {
+      ...base,
+      mode: "formal_validity",
+      expiresAt: input.context.expiresAt ?? input.context.updatedAt.slice(0, 10),
+      ...(input.context.receivedAt === undefined ? {} : { receivedAt: input.context.receivedAt }),
+    };
+  }
+
+  if (input.context.mode === "processed_repack_loss") {
+    return {
+      ...base,
+      mode: "processed_repack_loss",
+      expiresAt: input.context.expiresAt ?? input.context.updatedAt.slice(0, 10),
+      ...(input.context.receivedAt === undefined ? {} : { receivedAt: input.context.receivedAt }),
+    };
+  }
+
+  if (input.context.mode === "flv_inspection") {
+    return {
+      ...base,
+      mode: "flv_inspection",
+      receivedAt: input.context.receivedAt ?? input.context.updatedAt.slice(0, 10),
+      ...(input.context.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: input.context.qualityInspectionDueAt }),
+      ...(input.context.qualityWindowDays === undefined
+        ? {}
+        : { qualityWindowDays: input.context.qualityWindowDays }),
+    };
+  }
+
+  return {
+    ...base,
+    mode: "receiving_monitored",
+    receivedAt: input.context.receivedAt ?? input.context.updatedAt.slice(0, 10),
+  };
+}
+
+function activeTaskSnippetFromProjection(input: {
+  centralTaskId: string;
+  context: CentralLotProjectionContext;
+  task: ActiveCentralTaskProjection;
+  updatedAt: string;
+}): ActiveTaskSnippet {
+  return {
+    centralTaskId: input.centralTaskId,
+    activeKey: input.task.activeKey,
+    centralLotId: input.context.centralLotId,
+    productDisplayName: input.context.productDisplayName,
+    currentLocation: input.task.currentLocation,
+    riskState: input.task.riskState,
+    severity: input.task.severity,
+    requiredResolution: input.task.requiredResolution,
+    state: "synchronized",
+    source: "central",
+    ownerLabel: input.task.ownerLabel,
+    dueAt: input.updatedAt,
+    updatedAt: input.updatedAt,
+  };
+}
+
+function taskProjectionSummaryFromProjection(input: {
+  projected: ReturnType<typeof projectCentralLotTask>;
+  activeTask?: ActiveTaskSnippet;
+  updatedAt: string;
+}): CentralLotTaskProjectionSummary {
+  if (input.projected.attention === "active_task") {
+    if (input.activeTask === undefined) {
+      throw new Error("central_task_projection_missing_active_task");
+    }
+
+    return {
+      attention: "active_task",
+      centralTaskId: input.activeTask.centralTaskId,
+      activeKey: input.activeTask.activeKey,
+      riskState: input.activeTask.riskState,
+      severity: input.activeTask.severity,
+      requiredResolution: input.activeTask.requiredResolution,
+      ownerLabel: input.activeTask.ownerLabel,
+      updatedAt: input.updatedAt,
+    };
+  }
+
+  if (input.projected.attention === "future_attention") {
+    return {
+      attention: "future_attention",
+      riskState: "radar",
+      observedAt: input.updatedAt,
+    };
+  }
+
+  return {
+    attention: "none",
+    riskState: "safe",
+    observedAt: input.updatedAt,
+  };
+}
+
+function initialObservationFromLot(request: CentralLotCreateRequest): PhysicalObservationInput {
+  return {
+    status: "present",
+    actorLabel: request.actorLabel,
+    occurredAt: request.occurredAt,
+    location: request.lot.initialLocation,
+    isCorrection: false,
+    quantityState: "estimated",
+    approximateQuantity: request.lot.approximateQuantity,
+  };
+}
+
+function buildCentralObservation(input: {
+  centralLotId: string;
+  centralObservationId: string;
+  observation: PhysicalObservationInput;
+}): CentralPhysicalObservation {
+  const base = {
+    centralObservationId: input.centralObservationId,
+    centralLotId: input.centralLotId,
+    status: input.observation.status,
+    actorLabel: input.observation.actorLabel,
+    occurredAt: input.observation.occurredAt,
+    location: input.observation.location,
+    isCorrection: input.observation.isCorrection,
+    ...(input.observation.correctionReason === undefined
+      ? {}
+      : { correctionReason: input.observation.correctionReason }),
+  };
+
+  if (input.observation.quantityState === "estimated") {
+    return {
+      ...base,
+      quantityState: "estimated",
+      approximateQuantity: input.observation.approximateQuantity,
+    };
+  }
+
+  return {
+    ...base,
+    quantityState: "not_estimable",
+  };
+}
+
+function quantitySnapshotFromObservation(
+  observation: CentralPhysicalObservation,
+): CentralObservationQuantity {
+  return observation.quantityState === "estimated"
+    ? { quantityState: "estimated", approximateQuantity: observation.approximateQuantity }
+    : { quantityState: "not_estimable" };
+}
+
+function quantitySnapshotFromApproximate(
+  approximateQuantity: number | null,
+): CentralObservationQuantity {
+  return approximateQuantity === null
+    ? { quantityState: "not_estimable" }
+    : { quantityState: "estimated", approximateQuantity };
+}
+
+function parseObservationQuantity(
+  value: Record<string, unknown> | string,
+): CentralObservationQuantity {
+  const parsed = parseJson(value);
+  if (
+    parsed.quantityState === "estimated" &&
+    typeof parsed.approximateQuantity === "number" &&
+    parsed.approximateQuantity >= 0
+  ) {
+    return {
+      quantityState: "estimated",
+      approximateQuantity: parsed.approximateQuantity,
+    };
+  }
+
+  return { quantityState: "not_estimable" };
+}
+
+function toDomainCategoryProfile(
+  profile: ProductCatalogItem["categoryRuleProfile"],
+): CategoryRuleProfile {
+  const windows: NonNullable<CategoryRuleProfile["windows"]> = {};
+
+  if (profile.windows?.radarDays !== undefined) windows.radarDays = profile.windows.radarDays;
+  if (profile.windows?.markdownDays !== undefined) {
+    windows.markdownDays = profile.windows.markdownDays;
+  }
+  if (profile.windows?.criticalDays !== undefined) {
+    windows.criticalDays = profile.windows.criticalDays;
+  }
+  if (profile.windows?.expiredDays !== undefined) {
+    windows.expiredDays = profile.windows.expiredDays;
+  }
+  if (profile.windows?.qualityWindowDays !== undefined) {
+    windows.qualityWindowDays = profile.windows.qualityWindowDays;
+  }
+
+  return {
+    categoryId: profile.categoryId,
+    mode: profile.mode,
+    ...(Object.keys(windows).length === 0 ? {} : { windows }),
+    ...(profile.maxPhysicalConfirmationAgeHours === undefined
+      ? {}
+      : { maxPhysicalConfirmationAgeHours: profile.maxPhysicalConfirmationAgeHours }),
+  };
+}
+
+function riskLotFromContext(
+  context: CentralLotProjectionContext,
+): Parameters<typeof projectCentralLotTask>[0]["lot"] {
+  if (context.mode === "formal_validity") {
+    return {
+      mode: "formal_validity",
+      productId: context.centralProductId,
+      lotCode: context.lotIdentity.value,
+      ...(context.expiresAt === undefined ? {} : { expiresAt: context.expiresAt }),
+    };
+  }
+
+  if (context.mode === "processed_repack_loss") {
+    return {
+      mode: "processed_repack_loss",
+      productId: context.centralProductId,
+      lotCode: context.lotIdentity.value,
+      ...(context.expiresAt === undefined ? {} : { expiresAt: context.expiresAt }),
+    };
+  }
+
+  if (context.mode === "flv_inspection") {
+    return {
+      mode: "flv_inspection",
+      productId: context.centralProductId,
+      lotCode: context.lotIdentity.value,
+      ...(context.receivedAt === undefined ? {} : { receivedAt: context.receivedAt }),
+      ...(context.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: context.qualityInspectionDueAt }),
+      ...(context.qualityWindowDays === undefined
+        ? {}
+        : { qualityWindowDays: context.qualityWindowDays }),
+    };
+  }
+
+  return {
+    mode: "receiving_monitored",
+    productId: context.centralProductId,
+    lotCode: context.lotIdentity.value,
+    ...(context.receivedAt === undefined ? {} : { receivedAt: context.receivedAt }),
+  };
+}
+
+function dateFieldsFromLot(
+  lot: CaptureLotInput,
+): Partial<
+  Pick<
+    CentralLotProjectionContext,
+    "expiresAt" | "receivedAt" | "qualityInspectionDueAt" | "qualityWindowDays"
+  >
+> {
+  if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
+    return {
+      expiresAt: lot.expiresAt,
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+    };
+  }
+
+  if (lot.mode === "flv_inspection") {
+    const qualityInspectionDueAt =
+      lot.qualityInspectionDueAt ?? deriveDateAfterDays(lot.receivedAt, lot.qualityWindowDays);
+
+    return {
+      receivedAt: lot.receivedAt,
+      ...(lot.qualityWindowDays === undefined ? {} : { qualityWindowDays: lot.qualityWindowDays }),
+      ...(qualityInspectionDueAt === undefined ? {} : { qualityInspectionDueAt }),
+    };
+  }
+
+  return { receivedAt: lot.receivedAt };
+}
+
+function deriveDateAfterDays(startDate: string, days: number | undefined): string | undefined {
+  if (days === undefined) return undefined;
+  const date = new Date(`${startDate}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return undefined;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function centralRiskStateFromAssessment(
+  assessment: RiskAssessment,
+): CentralLotSnippet["riskState"] | null {
+  return assessment.state === "safe" ? null : assessment.state;
+}
+
+function lotIdentityKey(identity: CaptureLotInput["identity"]): string {
+  return `${identity.identitySource}:${identity.value}`.toLocaleLowerCase("pt-BR");
 }
 
 function stripStoreId<TItem>(item: TItem): Omit<TItem, "storeId"> {

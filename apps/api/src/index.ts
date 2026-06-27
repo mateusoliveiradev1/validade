@@ -10,6 +10,9 @@ import {
   AuditEventRecordSchema,
   AuthorizationContract,
   ChangeMembershipRoleRequestSchema,
+  CentralLotCreateRequestSchema,
+  CentralLotWriteResponseSchema,
+  CentralObservationAppendRequestSchema,
   CreateMembershipRequestSchema,
   EvidenceExceptionalAccessRequestSchema,
   EvidenceInvalidationRequestSchema,
@@ -570,6 +573,131 @@ export function createApiApp(input?: {
       }
 
       return context.json({ error: "product_review_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/lots", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = CentralLotCreateRequestSchema.safeParse(rawPayload);
+    const requestId = createLotWriteRequestId(
+      "create",
+      parsed.success ? parsed.data.lot.productId : "invalid",
+      parsed.success ? parsed.data.idempotencyKey : undefined,
+    );
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_central_lot_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "central_lot",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.createLot({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        actorId: actorContext.identity.subjectId,
+        actorDisplayName: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
+        request: parsed.data,
+      });
+
+      return context.json(CentralLotWriteResponseSchema.parse(response));
+    } catch (error) {
+      if (error instanceof Error && error.message === "central_product_not_found") {
+        return context.json({ error: "central_product_not_found" }, 404);
+      }
+
+      return context.json({ error: "central_lot_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/lots/:lotId/observations", async (context) => {
+    const centralLotId = context.req.param("lotId");
+    const rawPayload = await parseJsonBody(context);
+    const parsed = CentralObservationAppendRequestSchema.safeParse(rawPayload);
+    const requestId = createLotWriteRequestId(
+      "observation",
+      centralLotId,
+      parsed.success ? parsed.data.idempotencyKey : undefined,
+    );
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_central_observation_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "central_observation",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const response = await captureRepository.appendObservation({
+        requestId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        actorId: actorContext.identity.subjectId,
+        actorDisplayName: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
+        centralLotId,
+        request: parsed.data,
+      });
+
+      return context.json(CentralLotWriteResponseSchema.parse(response));
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message === "central_lot_not_found" || error.message === "central_product_not_found")
+      ) {
+        return context.json({ error: "central_lot_not_found" }, 404);
+      }
+
+      return context.json({ error: "central_observation_unavailable" }, 503);
     }
   });
 
@@ -1408,6 +1536,18 @@ function createPrepareTurnRequestId(deviceId: string): string {
 function createProductCatalogRequestId(kind: string, value: string): string {
   const valuePart = safeAuditIdentifier(value).slice(0, 48);
   return `catalog:${kind}:${Date.now().toString(36)}:${valuePart}`.slice(0, 120);
+}
+
+function createLotWriteRequestId(
+  kind: "create" | "observation",
+  value: string,
+  idempotencyKey: string | undefined,
+): string {
+  const stablePart = safeAuditIdentifier(idempotencyKey ?? value).slice(0, 48);
+  return `lot:${kind}:${idempotencyKey === undefined ? Date.now().toString(36) : "idem"}:${stablePart}`.slice(
+    0,
+    120,
+  );
 }
 
 function roleSnapshotForAudit(

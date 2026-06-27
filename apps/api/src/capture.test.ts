@@ -364,7 +364,138 @@ describe("capture product catalog API", () => {
   });
 });
 
-function prepareTurnRequest() {
+describe("capture central lot API", () => {
+  it("creates a central lot idempotently and exposes it to a second prepare-turn", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto")],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const first = await app.request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(centralLotCreateRequest({ idempotencyKey: "lot-api-idem-001" })),
+    });
+    const firstBody = (await first.json()) as {
+      lot?: { centralLotId?: string };
+      taskProjection?: { attention?: string; riskState?: string };
+    };
+    const replay = await app.request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(centralLotCreateRequest({ idempotencyKey: "lot-api-idem-001" })),
+    });
+    const replayBody = (await replay.json()) as { lot?: { centralLotId?: string } };
+    const secondPrepare = await app.request("/capture/prepare-turn", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(prepareTurnRequest({ deviceId: "device-second-002" })),
+    });
+    const packageBody = (await secondPrepare.json()) as {
+      lots?: unknown[];
+      activeTasks?: Array<{ centralLotId?: string; riskState?: string }>;
+    };
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(firstBody.taskProjection).toMatchObject({
+      attention: "active_task",
+      riskState: "expired",
+    });
+    expect(replayBody.lot?.centralLotId).toBe(firstBody.lot?.centralLotId);
+    expect(secondPrepare.status).toBe(200);
+    expect(packageBody.lots).toHaveLength(1);
+    expect(packageBody.activeTasks).toEqual([
+      expect.objectContaining({
+        centralLotId: firstBody.lot?.centralLotId,
+        riskState: "expired",
+      }),
+    ]);
+  });
+
+  it("does not accept cross-store product or lot ids on central lot writes", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-outra")],
+      lots: [centralLot("loja-outra")],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const createDenied = await app.request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        centralLotCreateRequest({
+          productId: "product-loja-outra",
+          idempotencyKey: "cross-product-idem",
+        }),
+      ),
+    });
+    const observationDenied = await app.request("/capture/lots/lot-loja-outra/observations", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        idempotencyKey: "cross-observation-idem",
+        observation: {
+          status: "present",
+          actorLabel: "Pessoa Piloto",
+          occurredAt: NOW,
+          location: { kind: "area_de_venda" },
+          isCorrection: false,
+          quantityState: "estimated",
+          approximateQuantity: 4,
+        },
+      }),
+    });
+
+    expect(createDenied.status).toBe(404);
+    expect(await createDenied.json()).toEqual({ error: "central_product_not_found" });
+    expect(observationDenied.status).toBe(404);
+    expect(await observationDenied.json()).toEqual({ error: "central_lot_not_found" });
+  });
+
+  it("rejects forged store scope in central lot bodies", async () => {
+    const response = await createApiApp().request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        ...centralLotCreateRequest(),
+        storeId: "loja-injetada",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+});
+
+function prepareTurnRequest(overrides: Record<string, unknown> = {}) {
   return {
     deviceId: "device-pilot-001",
     requestedAt: NOW,
@@ -375,6 +506,7 @@ function prepareTurnRequest() {
       knownLotCount: 1,
       pendingCommandCount: 2,
     },
+    ...overrides,
   };
 }
 
@@ -402,6 +534,33 @@ function productDraftRequest(overrides: Record<string, unknown> = {}) {
     },
     requestedAt: NOW,
     ...overrides,
+  };
+}
+
+function centralLotCreateRequest(overrides: Record<string, unknown> = {}) {
+  const { productId, lot, ...requestOverrides } = overrides;
+  const defaultLot = {
+    productId: typeof productId === "string" ? productId : "product-loja-piloto",
+    identity: {
+      identitySource: "printed",
+      value: "LOTE-MORANGO-EXPIRADO",
+    },
+    approximateQuantity: 5,
+    initialLocation: { kind: "area_de_venda" },
+    mode: "formal_validity",
+    expiresAt: "2030-01-09",
+    receivedAt: "2030-01-08",
+  };
+
+  return {
+    lot:
+      typeof lot === "object" && lot !== null && !Array.isArray(lot)
+        ? { ...defaultLot, ...lot }
+        : defaultLot,
+    actorLabel: "Pessoa Piloto",
+    occurredAt: NOW,
+    idempotencyKey: "lot-api-idem-default",
+    ...requestOverrides,
   };
 }
 

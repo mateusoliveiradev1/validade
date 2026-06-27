@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProductDraftCreateRequest } from "@validade-zero/contracts";
+import type { CentralLotCreateRequest, ProductDraftCreateRequest } from "@validade-zero/contracts";
 import { createAuditRepositoryFromQuery } from "./audit-repository";
 import { createAuthRepositoryFromQuery, createInMemoryAuthRepository } from "./auth-repository";
 import {
@@ -326,6 +326,103 @@ describe("database repositories", () => {
     expect(String(auditQuery?.[0])).toContain("true");
   });
 
+  it("rejects central lot writes for unknown or cross-store products", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [centralProduct("store-2", "produto-cross-store")],
+    });
+
+    await expect(
+      repository.createLot(
+        centralLotCreateInput("store-1", {
+          lot: { ...centralLotCreateRequest().lot, productId: "produto-cross-store" },
+        }),
+      ),
+    ).rejects.toThrow("central_product_not_found");
+    await expect(
+      repository.createLot(
+        centralLotCreateInput("store-1", {
+          lot: { ...centralLotCreateRequest().lot, productId: "produto-desconhecido" },
+        }),
+      ),
+    ).rejects.toThrow("central_product_not_found");
+  });
+
+  it("creates central lots idempotently and exposes their projected task on prepare-turn", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [centralProduct("store-1", "produto-store-1")],
+    });
+
+    const first = await repository.createLot(
+      centralLotCreateInput("store-1", {
+        request: { ...centralLotCreateRequest(), idempotencyKey: "lote-idem-001" },
+      }),
+    );
+    const replay = await repository.createLot(
+      centralLotCreateInput("store-1", {
+        request: { ...centralLotCreateRequest(), idempotencyKey: "lote-idem-001" },
+      }),
+    );
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(replay.lot.centralLotId).toBe(first.lot.centralLotId);
+    expect(prepared.lots).toHaveLength(1);
+    expect(prepared.activeTasks).toHaveLength(1);
+    expect(prepared.activeTasks[0]).toMatchObject({
+      centralLotId: first.lot.centralLotId,
+      riskState: "expired",
+      requiredResolution: "withdraw_or_loss",
+    });
+    expect(repository.readAuditEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetType: "lot",
+          action: "lot.created",
+          sanitized: true,
+        }),
+      ]),
+    );
+  });
+
+  it("writes central lot, observation, task projection, and audit SQL rows", async () => {
+    const captured: unknown[][] = [];
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+        if (
+          strings.includes("from central_products") &&
+          !strings.includes("join central_products")
+        ) {
+          return Promise.resolve([centralProductRow()]);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    const response = await repository.createLot(centralLotCreateInput("store-1"));
+
+    expect(response.taskProjection).toMatchObject({
+      attention: "active_task",
+      riskState: "expired",
+    });
+    expect(captured.some(([query]) => String(query).includes("insert into central_lots"))).toBe(
+      true,
+    );
+    expect(
+      captured.some(([query]) => String(query).includes("insert into central_observations")),
+    ).toBe(true);
+    expect(
+      captured.some(([query]) => String(query).includes("insert into central_projected_tasks")),
+    ).toBe(true);
+    const auditQuery = captured.find(([query]) =>
+      String(query).includes("insert into audit_events"),
+    );
+    expect(String(auditQuery?.[0])).toContain("'lot'");
+    expect(String(auditQuery?.[0])).toContain("sanitized");
+    expect(String(auditQuery?.[0])).toContain("true");
+  });
+
   it("deduplicates pilot invites and rejects expired invite tokens", async () => {
     const repository = createInMemoryAuthRepository({
       memberships: createMemberships(),
@@ -602,6 +699,49 @@ function productDraftInput(storeId: string, overrides: Partial<ProductDraftCreat
       requestedAt: "2030-01-10T09:00:00.000Z",
       ...overrides,
     },
+  };
+}
+
+function centralLotCreateInput(
+  storeId: string,
+  overrides: {
+    request?: CentralLotCreateRequest;
+    lot?: CentralLotCreateRequest["lot"];
+  } = {},
+) {
+  const request = overrides.request ?? {
+    ...centralLotCreateRequest(),
+    ...(overrides.lot === undefined ? {} : { lot: overrides.lot }),
+  };
+
+  return {
+    requestId: `lot-${storeId}-${request.idempotencyKey ?? "default"}`,
+    storeId,
+    storeName: "Loja Ficticia Piloto",
+    actorId: "subject-1",
+    actorDisplayName: "Pessoa Piloto",
+    actorRoleSnapshot: "lead" as const,
+    request,
+  };
+}
+
+function centralLotCreateRequest(): CentralLotCreateRequest {
+  return {
+    lot: {
+      productId: "produto-store-1",
+      identity: {
+        identitySource: "printed",
+        value: "LOTE-EXPIRADO-FICTICIO",
+      },
+      approximateQuantity: 7,
+      initialLocation: { kind: "area_de_venda" },
+      mode: "formal_validity",
+      expiresAt: "2030-01-09",
+      receivedAt: "2030-01-08",
+    },
+    actorLabel: "Pessoa Piloto",
+    occurredAt: "2030-01-10T09:00:00.000Z",
+    idempotencyKey: "lote-idem-default",
   };
 }
 
