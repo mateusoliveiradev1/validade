@@ -13,6 +13,22 @@ const projection = {
     title: "Area de venda com bloqueios",
     detail: "Ha riscos que precisam de acao fisica antes de confirmar seguranca.",
   },
+  centralSnapshot: {
+    source: "central",
+    readiness: "blocked",
+    cacheState: "ready",
+    productCount: 2,
+    draftProductCount: 1,
+    lotCount: 1,
+    activeTaskCount: 1,
+    conflictCount: 1,
+    discardedActionCount: 1,
+    resolvedHistoryCount: 1,
+    pendingCommandCount: 0,
+    lastCentralReadAt: "2030-01-10T12:00:00.000Z",
+    lastHydratedAt: "2030-01-10T12:00:00.000Z",
+    blockers: ["Conflito de sincronizacao exige revisao."],
+  },
   criticalLots: [
     {
       lotId: "lot-001",
@@ -111,6 +127,9 @@ describe("CommandCenter", () => {
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
+    expect(screen.getByText("Foto da central")).toBeTruthy();
+    expect(screen.getByText("1 lote central")).toBeTruthy();
+    expect(screen.getByText("1 produto em rascunho")).toBeTruthy();
     expect(screen.getByText("Por que venceu")).toBeTruthy();
     expect(screen.getByText("Grafico de gargalos")).toBeTruthy();
     expect(screen.getByText("Prazo formal ja passou")).toBeTruthy();

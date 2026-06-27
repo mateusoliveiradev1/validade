@@ -44,6 +44,12 @@ export function createInMemoryCommandCenterService(input?: {
             detail:
               "Ainda nao ha uma leitura central suficiente para confirmar a seguranca. Confira as tarefas no dispositivo da operacao.",
           },
+          centralSnapshot: emptyCentralSnapshot({
+            blockers: ["Ainda nao ha uma leitura central suficiente para confirmar a seguranca."],
+            cacheState: "unavailable",
+            readiness: "needs_review",
+            source: "pending_central",
+          }),
           criticalLots: [],
           overdueTasks: [],
           pendingMarkdowns: [],
@@ -125,6 +131,12 @@ export function createAuditBackedCommandCenterService(input: {
             detail:
               "Ainda nao ha uma leitura central suficiente para confirmar a seguranca. Confira as tarefas no dispositivo da operacao.",
           },
+          centralSnapshot: emptyCentralSnapshot({
+            blockers: ["Ainda nao ha uma leitura central suficiente para confirmar a seguranca."],
+            cacheState: "unavailable",
+            readiness: "needs_review",
+            source: "pending_central",
+          }),
           criticalLots: [],
           overdueTasks: [],
           pendingMarkdowns: [],
@@ -187,12 +199,52 @@ export function createAuditBackedCommandCenterService(input: {
                   "A leitura central recebeu a ultima acao enviada pelo app mobile desta loja.",
               };
 
+      const projectedProductDrafts = uniqueBy(
+        pendingProductDraftEvents.map((event) => ({
+          draftId: event.target.id,
+          label: event.target.label ?? "Produto em revisao",
+          reviewStatus: "pending_review" as const,
+          detail: productDraftDetail(event),
+          similarCount: metadataNumber(event, "similarCandidateCount") ?? 0,
+          requestedByLabel: event.actor.displayName,
+          createdAt: event.occurredAt,
+        })),
+        (item) => item.draftId,
+      );
+
       return CommandCenterProjectionSchema.parse({
         storeId: scope.storeId,
         storeName: scope.storeName,
         refreshedAt: now().toISOString(),
         freshness: "current",
         verdict,
+        centralSnapshot: {
+          source: "central",
+          readiness:
+            verdict.state === "blocked"
+              ? "blocked"
+              : verdict.state === "needs_review"
+                ? "needs_review"
+                : "prepared",
+          cacheState: "ready",
+          productCount: projectedProductDrafts.length,
+          draftProductCount: projectedProductDrafts.length,
+          lotCount: uniqueBy(
+            criticalEvents,
+            (event) => metadataText(event, "lotId") ?? event.target.id,
+          ).length,
+          activeTaskCount: retryEvents.length + pendingMarkdownEvents.length,
+          conflictCount: conflictEvents.length,
+          discardedActionCount: 0,
+          resolvedHistoryCount: 0,
+          pendingCommandCount: 0,
+          lastCentralReadAt: now().toISOString(),
+          lastHydratedAt: now().toISOString(),
+          blockers:
+            verdict.state === "safe"
+              ? []
+              : ["Leitura baseada em eventos de auditoria com pendencias operacionais."],
+        },
         criticalLots: uniqueBy(
           criticalEvents.map((event) => ({
             lotId: metadataText(event, "lotId") ?? event.target.id,
@@ -219,18 +271,7 @@ export function createAuditBackedCommandCenterService(input: {
           })),
           (item) => item.markdownId,
         ),
-        pendingProductDrafts: uniqueBy(
-          pendingProductDraftEvents.map((event) => ({
-            draftId: event.target.id,
-            label: event.target.label ?? "Produto em revisao",
-            reviewStatus: "pending_review" as const,
-            detail: productDraftDetail(event),
-            similarCount: metadataNumber(event, "similarCandidateCount") ?? 0,
-            requestedByLabel: event.actor.displayName,
-            createdAt: event.occurredAt,
-          })),
-          (item) => item.draftId,
-        ),
+        pendingProductDrafts: projectedProductDrafts,
         pendingEvidence: [],
         syncConflicts: conflictEvents.map((event) => ({
           conflictId: metadataText(event, "conflictId") ?? event.eventId,
@@ -261,6 +302,12 @@ function failClosedProjection(
       detail:
         "O Command Center nao recebeu a verdade central de captura. Confira a operacao no mobile antes de liberar a area.",
     },
+    centralSnapshot: emptyCentralSnapshot({
+      blockers: ["Command Center nao recebeu a verdade central de captura."],
+      cacheState: "unavailable",
+      readiness: "needs_review",
+      source: "pending_central",
+    }),
     criticalLots: [],
     overdueTasks: [],
     pendingMarkdowns: [],
@@ -299,9 +346,8 @@ function projectionFromCentralPrepareTurn(
     prepared.store.source === "central" && prepared.store.centralReadAt !== undefined
       ? "current"
       : "stale";
-  const hasCentralFacts =
-    prepared.products.length +
-      prepared.lots.length +
+  const hasOperationalFacts =
+    prepared.lots.length +
       prepared.activeTasks.length +
       prepared.resolvedHistory.length +
       prepared.conflicts.length >
@@ -320,11 +366,16 @@ function projectionFromCentralPrepareTurn(
     freshness,
     verdict: centralVerdict({
       freshness,
-      hasCentralFacts,
+      hasOperationalFacts,
       blockerCount,
       conflictCount: syncConflicts.length,
       activeTaskCount: prepared.activeTasks.length,
       storeBlockers: prepared.store.blockers,
+    }),
+    centralSnapshot: centralSnapshotFromPrepared(prepared, {
+      discardedActionCount: discardedActions.length,
+      draftProductCount: pendingProductDrafts.length,
+      syncConflictCount: syncConflicts.length,
     }),
     criticalLots: criticalTasks.map((task) => criticalLotFromCentralTask(task, lotsById)),
     overdueTasks: prepared.activeTasks.map(taskFromCentralTask),
@@ -341,13 +392,13 @@ function projectionFromCentralPrepareTurn(
 
 function centralVerdict(input: {
   freshness: CommandCenterProjection["freshness"];
-  hasCentralFacts: boolean;
+  hasOperationalFacts: boolean;
   blockerCount: number;
   conflictCount: number;
   activeTaskCount: number;
   storeBlockers: readonly string[];
 }): CommandCenterProjection["verdict"] {
-  if (input.freshness !== "current" || !input.hasCentralFacts) {
+  if (input.freshness !== "current" || !input.hasOperationalFacts) {
     return {
       state: "needs_review",
       title: "Area de venda precisa de conferencia",
@@ -385,6 +436,58 @@ function centralVerdict(input: {
     state: "safe",
     title: "Area de venda segura agora",
     detail: "A leitura central esta atual e nao ha tarefas, conflitos ou pendencias abertas.",
+  };
+}
+
+function emptyCentralSnapshot(input: {
+  blockers: readonly string[];
+  cacheState: CommandCenterProjection["centralSnapshot"]["cacheState"];
+  readiness: CommandCenterProjection["centralSnapshot"]["readiness"];
+  source: CommandCenterProjection["centralSnapshot"]["source"];
+}): CommandCenterProjection["centralSnapshot"] {
+  return {
+    source: input.source,
+    readiness: input.readiness,
+    cacheState: input.cacheState,
+    productCount: 0,
+    draftProductCount: 0,
+    lotCount: 0,
+    activeTaskCount: 0,
+    conflictCount: 0,
+    discardedActionCount: 0,
+    resolvedHistoryCount: 0,
+    pendingCommandCount: 0,
+    blockers: [...input.blockers],
+  };
+}
+
+function centralSnapshotFromPrepared(
+  prepared: PrepareTurnResponse,
+  counts: {
+    discardedActionCount: number;
+    draftProductCount: number;
+    syncConflictCount: number;
+  },
+): CommandCenterProjection["centralSnapshot"] {
+  return {
+    source: prepared.store.source,
+    readiness: prepared.store.readiness,
+    cacheState: prepared.cache.state,
+    productCount: prepared.cache.productCount,
+    draftProductCount: counts.draftProductCount,
+    lotCount: prepared.cache.lotCount,
+    activeTaskCount: prepared.cache.activeTaskCount,
+    conflictCount: counts.syncConflictCount,
+    discardedActionCount: counts.discardedActionCount,
+    resolvedHistoryCount: prepared.cache.resolvedHistoryCount,
+    pendingCommandCount: prepared.device.pendingCommandCount,
+    ...(prepared.cache.lastCentralReadAt === undefined
+      ? {}
+      : { lastCentralReadAt: prepared.cache.lastCentralReadAt }),
+    ...(prepared.device.lastHydratedAt === undefined
+      ? {}
+      : { lastHydratedAt: prepared.device.lastHydratedAt }),
+    blockers: [...prepared.store.blockers],
   };
 }
 

@@ -160,6 +160,8 @@ function CommandCenterProjectionView({
         </p>
       </section>
 
+      <CentralSnapshotPanel snapshot={projection.centralSnapshot} />
+
       <CommandCenterInsightPanel
         canOpenAudit={canOpenAudit}
         insight={insight}
@@ -291,6 +293,117 @@ function CommandCenterProjectionView({
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
         />
       </div>
+    </div>
+  );
+}
+
+function CentralSnapshotPanel({
+  snapshot,
+}: {
+  snapshot: CommandCenterProjection["centralSnapshot"];
+}) {
+  const syncIssueCount = snapshot.conflictCount + snapshot.discardedActionCount;
+  const noCentralLots = snapshot.lotCount === 0;
+  const tone = centralSnapshotTone(snapshot);
+
+  return (
+    <section
+      className="grid gap-4 rounded-lg border border-border bg-card p-4"
+      aria-label="Foto da central"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-primary">Foto da central</p>
+          <h2 className="text-xl font-semibold leading-6">
+            {noCentralLots ? "Nenhum lote salvo na central" : "Dados centrais recebidos"}
+          </h2>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            {noCentralLots
+              ? "Outro aparelho que abrir esta loja agora tambem vera 0 lotes, porque a central nao tem lote salvo para esta loja."
+              : "Estes numeros vieram da leitura central usada pelo Command Center, nao de dados locais do navegador."}
+          </p>
+        </div>
+        <Badge tone={tone}>{centralSnapshotStatusLabel(snapshot)}</Badge>
+      </div>
+
+      <div className="grid overflow-hidden rounded-md border border-border sm:grid-cols-2 xl:grid-cols-4">
+        <CentralSnapshotMetric
+          label="Produtos"
+          value={countLabel(snapshot.productCount, "produto central", "produtos centrais")}
+          detail={countLabel(
+            snapshot.draftProductCount,
+            "produto em rascunho",
+            "produtos em rascunho",
+          )}
+        />
+        <CentralSnapshotMetric
+          label="Lotes"
+          value={countLabel(snapshot.lotCount, "lote central", "lotes centrais")}
+          detail={
+            noCentralLots
+              ? "Nenhum lote central disponivel para sincronizar."
+              : "Lotes que realmente chegaram na central."
+          }
+        />
+        <CentralSnapshotMetric
+          label="Tarefas"
+          value={countLabel(snapshot.activeTaskCount, "tarefa ativa", "tarefas ativas")}
+          detail={`${countLabel(snapshot.resolvedHistoryCount, "resolucao central", "resolucoes centrais")} no historico`}
+        />
+        <CentralSnapshotMetric
+          label="Sync"
+          value={countLabel(syncIssueCount, "pendencia de sync", "pendencias de sync")}
+          detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pelo leitor`}
+        />
+      </div>
+
+      <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-3">
+        <p>
+          <span className="font-medium text-foreground">Origem: </span>
+          {centralSourceLabel(snapshot.source)}
+        </p>
+        <p>
+          <span className="font-medium text-foreground">Cache: </span>
+          {cacheStateLabel(snapshot.cacheState)}
+        </p>
+        <p>
+          <span className="font-medium text-foreground">Ultima leitura: </span>
+          {snapshot.lastCentralReadAt === undefined
+            ? "sem leitura central confirmada"
+            : formatDateTime(snapshot.lastCentralReadAt)}
+        </p>
+      </div>
+
+      {snapshot.blockers.length === 0 ? null : (
+        <div className="grid gap-2 border-t border-border pt-3">
+          <p className="text-sm font-medium">Bloqueios declarados pela central</p>
+          <ul className="grid gap-1 text-sm leading-5 text-muted-foreground">
+            {snapshot.blockers.map((blocker) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CentralSnapshotMetric({
+  detail,
+  label,
+  value,
+}: {
+  detail: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid gap-1 border-b border-border p-3 last:border-b-0 sm:border-r xl:border-b-0">
+      <p className="text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="text-lg font-semibold leading-6">{value}</p>
+      <p className="text-xs leading-5 text-muted-foreground">{detail}</p>
     </div>
   );
 }
@@ -866,6 +979,59 @@ function verdictTone(
 
 function verdictLabel(state: CommandCenterProjection["verdict"]["state"]): string {
   return state === "safe" ? "Segura" : state === "blocked" ? "Bloqueada" : "Conferencia necessaria";
+}
+
+function centralSnapshotTone(
+  snapshot: CommandCenterProjection["centralSnapshot"],
+): "success" | "warning" | "critical" {
+  if (
+    snapshot.readiness === "blocked" ||
+    snapshot.activeTaskCount > 0 ||
+    snapshot.conflictCount > 0 ||
+    snapshot.discardedActionCount > 0
+  ) {
+    return "critical";
+  }
+
+  if (
+    snapshot.source !== "central" ||
+    snapshot.cacheState !== "ready" ||
+    snapshot.lotCount === 0 ||
+    snapshot.draftProductCount > 0 ||
+    snapshot.pendingCommandCount > 0 ||
+    snapshot.blockers.length > 0
+  ) {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function centralSnapshotStatusLabel(snapshot: CommandCenterProjection["centralSnapshot"]): string {
+  if (snapshot.lotCount === 0) return "Sem lote central";
+  if (snapshot.readiness === "blocked") return "Central bloqueada";
+  if (snapshot.cacheState !== "ready" || snapshot.source !== "central") return "Leitura incompleta";
+  if (snapshot.readiness === "needs_review" || snapshot.draftProductCount > 0) {
+    return "Conferencia necessaria";
+  }
+  return "Central atual";
+}
+
+function centralSourceLabel(source: CommandCenterProjection["centralSnapshot"]["source"]): string {
+  if (source === "central") return "leitura central";
+  if (source === "local_cache") return "cache local";
+  return "pendente de central";
+}
+
+function cacheStateLabel(state: CommandCenterProjection["centralSnapshot"]["cacheState"]): string {
+  if (state === "ready") return "pronto";
+  if (state === "stale") return "desatualizado";
+  if (state === "unavailable") return "indisponivel";
+  return "aguardando primeira leitura central";
+}
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 function formatDateTime(value: string): string {

@@ -111,6 +111,25 @@ export const CommandCenterResolvedHistorySchema = z
   })
   .strict();
 
+export const CommandCenterCentralSnapshotSchema = z
+  .object({
+    source: z.enum(["central", "local_cache", "pending_central"]),
+    readiness: z.enum(["needs_review", "cache_ready", "prepared", "blocked"]),
+    cacheState: z.enum(["needs_first_central_read", "ready", "stale", "unavailable"]),
+    productCount: z.number().int().nonnegative(),
+    draftProductCount: z.number().int().nonnegative(),
+    lotCount: z.number().int().nonnegative(),
+    activeTaskCount: z.number().int().nonnegative(),
+    conflictCount: z.number().int().nonnegative(),
+    discardedActionCount: z.number().int().nonnegative(),
+    resolvedHistoryCount: z.number().int().nonnegative(),
+    pendingCommandCount: z.number().int().nonnegative(),
+    lastCentralReadAt: IsoDateTimeSchema.optional(),
+    lastHydratedAt: IsoDateTimeSchema.optional(),
+    blockers: z.array(RequiredTextSchema),
+  })
+  .strict();
+
 export const CommandCenterPendingShiftSchema = z
   .object({
     closureId: IdentifierSchema,
@@ -135,6 +154,7 @@ export const CommandCenterProjectionSchema = z
     refreshedAt: IsoDateTimeSchema,
     freshness: z.enum(["current", "stale"]),
     verdict: CommandCenterVerdictSchema,
+    centralSnapshot: CommandCenterCentralSnapshotSchema,
     criticalLots: z.array(CommandCenterCriticalLotSchema),
     overdueTasks: z.array(CommandCenterTaskSchema),
     pendingMarkdowns: z.array(CommandCenterMarkdownSchema),

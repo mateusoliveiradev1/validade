@@ -75,6 +75,22 @@ export const commandCenterProjection = {
     title: "Area de venda com bloqueios",
     detail: "Ha riscos que precisam de acao fisica antes de confirmar seguranca.",
   },
+  centralSnapshot: {
+    source: "central",
+    readiness: "blocked",
+    cacheState: "ready",
+    productCount: 1,
+    draftProductCount: 0,
+    lotCount: 1,
+    activeTaskCount: 1,
+    conflictCount: 0,
+    discardedActionCount: 0,
+    resolvedHistoryCount: 1,
+    pendingCommandCount: 0,
+    lastCentralReadAt: "2030-01-10T12:00:00.000Z",
+    lastHydratedAt: "2030-01-10T12:00:00.000Z",
+    blockers: ["Ha risco vencido ainda sem confirmacao fisica."],
+  },
   criticalLots: [
     {
       lotId: "lot-ficticio-001",

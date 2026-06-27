@@ -17,6 +17,22 @@ const projection = {
     title: "Area de venda com bloqueios",
     detail: "Ha riscos que precisam de acao fisica antes de confirmar seguranca.",
   },
+  centralSnapshot: {
+    source: "central",
+    readiness: "blocked",
+    cacheState: "ready",
+    productCount: 2,
+    draftProductCount: 1,
+    lotCount: 1,
+    activeTaskCount: 1,
+    conflictCount: 1,
+    discardedActionCount: 1,
+    resolvedHistoryCount: 1,
+    pendingCommandCount: 0,
+    lastCentralReadAt: "2030-01-10T12:00:00.000Z",
+    lastHydratedAt: "2030-01-10T12:00:00.000Z",
+    blockers: ["Conflito de sincronizacao exige revisao."],
+  },
   criticalLots: [
     {
       lotId: "lot-critico-001",
@@ -147,6 +163,7 @@ describe("Command Center API", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       verdict: { state: "blocked" },
+      centralSnapshot: { lotCount: 1, draftProductCount: 1 },
       criticalLots: [{ lotId: "lot-critico-001", cause: { code: "formal_expiry_passed" } }],
       pendingProductDrafts: [{ draftId: "product-draft-001", reviewStatus: "pending_review" }],
       pendingEvidence: [{ state: "failed" }],
@@ -224,6 +241,11 @@ describe("Command Center API", () => {
     });
 
     expect(result.verdict.state).toBe("needs_review");
+    expect(result.centralSnapshot).toMatchObject({
+      productCount: 1,
+      draftProductCount: 1,
+      lotCount: 0,
+    });
     expect(result.pendingProductDrafts).toEqual([
       {
         draftId: "central-product-001",
@@ -248,6 +270,14 @@ describe("Command Center API", () => {
     expect(body).toMatchObject({
       freshness: "current",
       verdict: { state: "blocked", title: "Conflito de sincronizacao bloqueia a seguranca" },
+      centralSnapshot: {
+        productCount: 1,
+        draftProductCount: 1,
+        lotCount: 1,
+        activeTaskCount: 1,
+        conflictCount: 1,
+        discardedActionCount: 1,
+      },
       criticalLots: [
         {
           lotId: "lot-central-001",
@@ -284,6 +314,7 @@ describe("Command Center API", () => {
       headers: { authorization: "Bearer fake:lead-local" },
     });
     const body = (await response.json()) as {
+      centralSnapshot?: { cacheState?: string; lotCount?: number };
       freshness?: string;
       verdict?: { state?: string; title?: string };
       criticalLots?: unknown[];
@@ -296,7 +327,49 @@ describe("Command Center API", () => {
         state: "needs_review",
         title: "Area de venda precisa de conferencia",
       },
+      centralSnapshot: {
+        cacheState: "needs_first_central_read",
+        lotCount: 0,
+      },
       criticalLots: [],
+    });
+  });
+
+  it("does not mark product catalog without central lots as safe", async () => {
+    const app = createCentralCaptureApp({
+      captureRepository: createInMemoryCaptureRepository({
+        products: [
+          {
+            storeId: "loja-piloto",
+            centralProductId: "product-validated-central-001",
+            displayName: "Abacaxi FICTICIO",
+            categoryId: "cat-flv",
+            categoryName: "FLV",
+            status: "validated",
+            state: "synchronized",
+            source: "central",
+            updatedAt: "2030-01-10T11:00:00.000Z",
+            categoryRuleProfile: { categoryId: "cat-flv", mode: "formal_validity" },
+          },
+        ],
+      }),
+    });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      verdict: {
+        state: "needs_review",
+        title: "Area de venda precisa de conferencia",
+      },
+      centralSnapshot: {
+        productCount: 1,
+        draftProductCount: 0,
+        lotCount: 0,
+      },
     });
   });
 });
