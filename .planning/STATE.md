@@ -61,7 +61,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-verify-work 7
+$gsd-verify-work 9
 ```
 
 ## Accumulated Context
@@ -92,6 +92,7 @@ $gsd-verify-work 7
 - v1.0 milestone audit completed: `v1.0-MILESTONE-AUDIT.md` status is `gaps_found` because 14 v1 requirements are checked in `REQUIREMENTS.md` and present in summaries but absent from every phase `VERIFICATION.md`; repo gates and web E2E passed, Android/provider/camera/physical UAT remain external blockers.
 - Phase 3 formal verification closure completed: `03-VERIFICATION.md` now links CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, and LOC-03 to existing summaries, UAT, security, and current repository gates.
 - Phase 6 formal verification closure completed: `06-VERIFICATION.md` now links MRK-01, MRK-02, MRK-03, and MRK-04 to existing summaries, UAT, validation, and current repository gates.
+- Phase 7 formal verification closure completed: `07-VERIFICATION.md` now links SYN-01, SYN-02, and SYN-03 to existing summaries, validation, historical native smoke, and current repository gates while preserving the missing conversational UAT/current-device blocker.
 
 ### Quick Tasks Completed
 
