@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 11
-status: Ready to execute Phase 11 - mobile visual polish and emulator validation planned with 4 plans
-stopped_at: Phase 11 planned
-last_updated: "2026-06-28T03:28:00.031Z"
+status: Phase 11 in progress - 11-01 complete, 11-02 ready
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-06-28T03:49:10.681Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 49
-  completed_plans: 45
+  completed_plans: 46
   percent: 91
 ---
 
@@ -45,7 +45,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
-| 11 | Planned | Mobile Visual Polish and Emulator Validation - 4 plans ready for execution |
+| 11 | In Progress | Mobile Visual Polish and Emulator Validation - 1/4 plans executed; shared mobile status and Hoje cockpit complete |
 
 ## Active Constraints
 
@@ -57,7 +57,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Execute Phase 11. The plan improves the mobile app's visual quality while preserving the operational design system, and includes Android emulator validation with screenshots and smoke/UAT evidence for the key mobile flows.
+Continue Phase 11 from Plan 02. The next plan polishes product search, lot registration, terminal resolution, sync/conflict, and shift close using the shared mobile status system from 11-01.
 
 ```powershell
 $gsd-execute-phase 11
@@ -76,6 +76,7 @@ $gsd-execute-phase 11
 - Phase 10 Plan 06 completed: central shift-close revalidation, pilot UAT docs, mobile/web release journeys, root gates, security/performance verification, Neon staging migration application, and external blocker record for Android/provider.
 - Phase 11 added: Mobile Visual Polish and Emulator Validation
 - Phase 11 planned: 4 sequential plans for shared mobile status polish, full critical-flow polish, installed Android/Maestro evidence, and release truth/provider blocker reconciliation.
+- Phase 11 Plan 01 completed: typed mobile status vocabulary, semantic StatusNotice tones, prepare-turn non-safe local fallback, and Hoje first-viewport central/local/sync hierarchy.
 
 ### Quick Tasks Completed
 
@@ -140,15 +141,19 @@ $gsd-execute-phase 11
 | Phase 10 P04 | inline | 3 tasks | terminal sync policy, central application, mobile reconciliation, migration check |
 | Phase 10 P05 | inline | 3 tasks | capture-backed Command Center, role/store controls, central alert audience, migration check |
 | Phase 10 P06 | inline | 3 tasks | central shift close, pilot UAT, release truth gate, Android/provider blockers |
+| Phase 11 P01 | 13 min | 3 tasks | 13 files |
 
 ## Session
 
-**Last session:** 2026-06-28T01:33:47.432Z
-**Stopped at:** Phase 11 planned
-**Resume file:** .planning/phases/11-mobile-visual-polish-and-emulator-validation/11-01-PLAN.md
+**Last session:** 2026-06-28T03:49:10.667Z
+**Stopped at:** Completed 11-01-PLAN.md
+**Resume file:** .planning/phases/11-mobile-visual-polish-and-emulator-validation/11-02-PLAN.md
 
 ## Decisions
 
+- [Phase 11]: Synced transport is neutral and not proven safe. - Only central operational resolution or safe-close proof can use proven-safe success semantics.
+- [Phase 11]: Hoje shows central/local/sync state directly under the sales-area verdict. - The operator sees truth status before explanatory copy, metrics, or actions.
+- [Phase 11]: Prepare-turn local cache remains secondary and explicitly non-safe. - Local cache can continue visible work but cannot declare a safe central read.
 - [Phase 10]: Central lot write-through is gated by a ready central prepare-turn cache. - Degraded operation can still capture locally, but it remains visibly pending instead of claiming central acknowledgement.
 - [Phase 10]: Mobile lot saves persist the returned central id, source, sync state, task projection, and acknowledgement copy locally. - Keeps recent/detail/Hoje views aligned with second-device prepare-turn truth.
 - [Phase 10]: Task projection is recalculated on lot and observation writes, while terminal action sync remains reserved for the next plan. - Avoids resolving critical work before the terminal slice enforces compatible outcomes.
