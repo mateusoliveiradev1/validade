@@ -66,3 +66,4 @@ Unsafe close:
 - Use only fictional/staging data in repository fixtures and docs.
 - Do not commit real store names, customer data, tokens, connection strings, signed URLs, Expo build URLs, push tokens, raw photos, or device file URIs.
 - Installed-build UAT belongs in the controlled release record. The public repo may record pass/block status and sanitized command output only.
+- For the current Android/provider/camera status, read `.planning/phases/11-mobile-visual-polish-and-emulator-validation/11-UAT.md` and `docs/release/v1-readiness.md`. Older emulator/APK PASS records are historical unless the Phase 11 matrix marks the current gate as passed.

@@ -31,14 +31,18 @@ Official Expo references checked on 2026-06-23:
 ## Build
 
 1. Use an approved Expo session on the local machine. Do not place a token, account identifier, project URL, or build URL in this repository.
-2. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`.
-3. For remote push validation, configure the ignored Firebase Android file as an EAS `file` variable named `GOOGLE_SERVICES_JSON` in the same build environment. Do not commit the JSON file or paste its contents in logs.
-4. Configure the privacy officer contact for the pilot build with `EXPO_PUBLIC_PRIVACY_CONTACT` in the same EAS environment (not committed to Git). When unset, the app shows a generic leadership/administration fallback.
-5. Run the staging APK build from `apps/mobile`:
+2. Build only from the approved Expo project for `@liiiraak1ng/validade-zero` and the Android package declared by this app. An APK from another project, package, or credential set is not provider proof.
+3. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`.
+4. For remote push validation, configure the ignored Firebase Android file as an EAS `file` variable named `GOOGLE_SERVICES_JSON` in the same build environment. Do not commit the JSON file or paste its contents in logs.
+   - Expo Go is not proof of Android remote push readiness.
+   - Local mocks, local ignored `google-services.json`, or a sync-only APK without approved Firebase/FCM credentials are not provider proof.
+   - A provider pass requires an approved native APK/device/provider run and a public-safe controlled release record.
+5. Configure the privacy officer contact for the pilot build with `EXPO_PUBLIC_PRIVACY_CONTACT` in the same EAS environment (not committed to Git). When unset, the app shows a generic leadership/administration fallback.
+6. Run the staging APK build from `apps/mobile`:
    ```powershell
    pnpm.cmd build:android:staging
    ```
-6. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
+7. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
 
 For a local-only emulator build during development, run Metro with:
 
@@ -54,6 +58,7 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 3. Install with the Android package installer, or use `adb install path-to-pilot.apk` for an emulator/local device workflow.
 4. Open the app and confirm the VZ splash, login, invitation path, Privacy Center (cards open detail screens), and session loading appear before operational work.
 5. Run the Maestro script with `pnpm test:e2e:mobile` when the device is connected.
+6. Record current pass/block status in the controlled release note and in the public-safe Phase 11 UAT matrix. Do not reuse older APK/emulator PASS evidence as current proof.
 
 ## Update And Removal
 
@@ -63,4 +68,6 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 
 ## Current Limitation
 
-The local emulator path has been verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the current release code and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder. Physical-device notification delivery, camera permissions, installation, and offline behavior still require an approved real Android device.
+The historical local emulator path was verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the release code at that time and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder.
+
+The current Phase 11 installed Android gate is blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. Physical-device notification delivery, camera permissions, installation, and offline behavior still require approved Android hardware/provider evidence.

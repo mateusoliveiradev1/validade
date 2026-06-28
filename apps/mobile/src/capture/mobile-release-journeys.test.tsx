@@ -442,9 +442,11 @@ function releaseQueue(): SyncQueueSummary {
   };
 }
 
-function releaseOfflineRepository(input: {
-  saveOfflineAction?: ((command: unknown) => Promise<unknown>) | undefined;
-} = {}): CaptureRepository {
+function releaseOfflineRepository(
+  input: {
+    saveOfflineAction?: ((command: unknown) => Promise<unknown>) | undefined;
+  } = {},
+): CaptureRepository {
   return {
     initialize: () => Promise.resolve(),
     createProduct: () => Promise.reject(new Error("not used")),
@@ -574,9 +576,7 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Preparar turno");
     expect(hydratedCaches).toHaveLength(1);
-    expect(JSON.stringify(tree.toJSON())).toContain(
-      "Pronto para operar com a leitura central.",
-    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Pronto para operar com a leitura central.");
 
     await press(tree, "Registrar lote");
     await act(async () => {
@@ -631,7 +631,9 @@ describe("mobile release journeys", () => {
     await press(tree, "Confirmar retirada");
 
     expect(JSON.stringify(tree.toJSON())).toContain("Responsavel: Colaborador FICTICIO");
-    expect(JSON.stringify(tree.toJSON())).toContain("Transporte central: Sincronizado com a central");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Transporte central: Sincronizado com a central",
+    );
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Resolucao terminal: Resolvido com criterio operacional e confirmacao central",
     );

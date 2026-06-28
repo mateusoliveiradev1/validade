@@ -11,6 +11,8 @@ created: 2026-06-28
 
 Component-level critical-flow coverage is passing with fictional fixtures. Installed Android validation is blocked because no emulator or approved Android device is connected in this run. No Android pass is claimed.
 
+Current release decision: blocked for installed Android, provider push, camera/device, and physical-device UAT proof. Historical emulator/APK evidence remains historical only.
+
 ## Evidence Matrix
 
 | Gate | Status | Evidence |
@@ -28,6 +30,26 @@ Component-level critical-flow coverage is passing with fictional fixtures. Insta
 | Screenshot checkpoint names | Names recorded; screenshots blocked | `.maestro/v1-readiness.yaml` records `phase11-*` checkpoint names. Only `phase11-login-privacy` is reachable by current unauth fixture; all authenticated checkpoints are marked `fixture unavailable`. No raw screenshots committed. |
 | Provider push proof | Blocked externally | Real Android push provider proof requires approved APK/device/provider evidence. Component tests and Expo mocks are not proof. |
 | Camera/device proof | Blocked externally | Permission/no-photo copy is covered by tests; real camera proof requires approved Android hardware. |
+
+## External Provider And Device Gates
+
+| Gate | Status | Pass condition |
+|---|---|---|
+| Remote push provider | Blocked externally | Approved native APK for `@liiiraak1ng/validade-zero`, expected Android package, approved Firebase/FCM credentials through non-committed setup, and a delivered reminder recorded in the controlled release record. |
+| Camera/device proof | Blocked externally | Approved Android hardware run covering permission UX, no-photo fallback, and evidence-sensitive work. |
+| Physical-device UAT | Blocked externally | Controlled install/login/prepare-turn/product-lot/terminal-sync/shift-close walkthrough on approved Android hardware. |
+
+Expo Go, local mocks, local ignored Firebase files, unapproved APK identity, raw screenshots, provider tokens, build URLs, or component tests do not satisfy these gates.
+
+## Final Repository Gates
+
+| Command | Result | Notes |
+|---|---|---|
+| `pnpm.cmd --filter @validade-zero/mobile test capture mobile-release-journeys` | Passed | 31 mobile test files / 162 tests passed with fictional fixtures. |
+| `pnpm.cmd security:evidence` | Passed | Sensitive evidence scan passed for 527 tracked text files after UAT/release docs updates. |
+| `pnpm.cmd check` | Passed | Typecheck, lint, format, 84 test files / 545 tests, 55 smoke files / 287 tests, build, security, and performance budgets passed. |
+| `adb devices` | Blocked | No connected Android target was listed. |
+| `pnpm.cmd test:e2e:mobile` | Blocked | Maestro could not run because 0 devices were connected. |
 
 ## Exact Command Evidence
 

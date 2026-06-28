@@ -10,13 +10,7 @@ import {
 } from "react-native";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
-export type StatusNoticeTone =
-  | "critical"
-  | "warning"
-  | "info"
-  | "neutral"
-  | "success"
-  | "error";
+export type StatusNoticeTone = "critical" | "warning" | "info" | "neutral" | "success" | "error";
 
 export function ScreenHeader({ title, body }: { title: string; body?: string }) {
   return (
@@ -224,9 +218,8 @@ export function StatusNotice({
 }) {
   const normalizedTone = tone === "error" ? "critical" : tone;
   const resolvedRole =
-    accessibilityRole ?? (normalizedTone === "critical" || normalizedTone === "warning"
-      ? "alert"
-      : "text");
+    accessibilityRole ??
+    (normalizedTone === "critical" || normalizedTone === "warning" ? "alert" : "text");
 
   return (
     <View

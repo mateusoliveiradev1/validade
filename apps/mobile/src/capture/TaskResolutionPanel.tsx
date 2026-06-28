@@ -596,7 +596,10 @@ function LocalSaveFeedback({ feedback }: { feedback: string | undefined }) {
 
   return (
     <>
-      <StatusNotice tone={isLocalSave ? local.tone : "warning"} title={isLocalSave ? local.label : "Area ainda bloqueada"}>
+      <StatusNotice
+        tone={isLocalSave ? local.tone : "warning"}
+        title={isLocalSave ? local.label : "Area ainda bloqueada"}
+      >
         {feedback}
       </StatusNotice>
       {isLocalSave ? (

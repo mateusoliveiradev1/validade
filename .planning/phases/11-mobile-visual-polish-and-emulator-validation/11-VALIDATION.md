@@ -1,9 +1,9 @@
 ---
 phase: 11
 slug: mobile-visual-polish-and-emulator-validation
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: completed-with-external-blockers
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-28
 ---
 
@@ -45,8 +45,8 @@ created: 2026-06-28
 | 11-01-02 | 11-01 / 11-02 | 1-2 | P11-STATUS-02 | T11-01 | Shared status vocabulary differentiates conflict, pending central, local, critical, synced, and resolved without relying on color alone. | unit/component | `pnpm.cmd --filter @validade-zero/mobile test -- capture` | Yes | green |
 | 11-02-01 | 11-03 | 3 | P11-ANDROID-03 | T11-02 | Installed Android flow proves login/privacy and the operational critical path on a running emulator/device. | mobile e2e | `pnpm.cmd test:e2e:mobile` | Yes | blocked - no connected Android target; exact output recorded in `11-UAT.md` |
 | 11-02-02 | 11-03 | 3 | P11-SCREENSHOT-04 | T11-03 | Screenshot evidence uses fictional fixtures and excludes real store/customer data, private URLs, tokens, build URLs, raw photos, and device-sensitive information. | e2e + evidence scan | `pnpm.cmd security:evidence` | Yes | blocked - checkpoint names recorded, raw screenshots blocked by missing Android target |
-| 11-03-01 | 11-04 | 4 | P11-TRUTH-05 | T11-04 | Release/UAT truth matrix separates old PASS evidence, current repo readiness, current emulator readiness, and external provider/device blockers. | docs/security | `pnpm.cmd security:evidence` | W0 | pending |
-| 11-03-02 | 11-04 | 4 | P11-PROVIDER-06 | T11-05 | Push/camera physical provider/device evidence is passed only with approved proof or recorded as an external blocker. | manual/device UAT | `pnpm.cmd security:evidence` | Partial / W0 | pending |
+| 11-03-01 | 11-04 | 4 | P11-TRUTH-05 | T11-04 | Release/UAT truth matrix separates old PASS evidence, current repo readiness, current emulator readiness, and external provider/device blockers. | docs/security | `pnpm.cmd security:evidence` | Yes | green - release truth docs reconciled and evidence scan passed |
+| 11-03-02 | 11-04 | 4 | P11-PROVIDER-06 | T11-05 | Push/camera physical provider/device evidence is passed only with approved proof or recorded as an external blocker. | manual/device UAT | `pnpm.cmd security:evidence` | Yes | blocked - approved native APK/device/provider and physical camera proof unavailable; external gates recorded in `11-UAT.md` |
 
 *Status: pending / green / red / flaky*
 
@@ -75,14 +75,14 @@ created: 2026-06-28
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verify commands or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all missing test/evidence references.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency target is below 180 seconds for focused checks.
-- [ ] `pnpm.cmd check` is green before phase verification.
+- [x] All tasks have automated verify commands or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] Wave 0 covers all missing test/evidence references.
+- [x] No watch-mode flags.
+- [x] Feedback latency target is below 180 seconds for focused checks.
+- [x] `pnpm.cmd check` is green before phase verification.
 - [x] `pnpm.cmd test:e2e:mobile` passes on a running Android target, or exact Android target blocker output is recorded.
 - [x] `pnpm.cmd security:evidence` is green after UAT/evidence changes.
-- [ ] `nyquist_compliant: true` is set in frontmatter once Wave 0 is complete and all mappings are covered.
+- [x] `nyquist_compliant: true` is set in frontmatter once Wave 0 is complete and all mappings are covered.
 
-**Approval:** pending
+**Approval:** approved with external Android/provider/camera blockers recorded

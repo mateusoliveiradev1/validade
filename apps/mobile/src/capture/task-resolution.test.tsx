@@ -346,7 +346,9 @@ describe("TaskResolutionPanel", () => {
       "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Responsavel: Colaborador FICTICIO");
-    expect(JSON.stringify(tree.toJSON())).toContain("Transporte central: Sincronizado com a central");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Transporte central: Sincronizado com a central",
+    );
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Resolucao terminal: Resolvido com criterio operacional e confirmacao central",
     );

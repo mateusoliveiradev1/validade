@@ -35,7 +35,7 @@ Never paste a real Expo push token, device token, credential, or provider secret
 Remote Expo push delivery needs environment setup outside the normal repo checks:
 
 - Expo Notifications installed and configured in `apps/mobile/app.json`.
-- A development build or supported native runtime. Android remote push is not available in Expo Go on current SDKs.
+- The approved native APK for `@liiiraak1ng/validade-zero` with the expected Android package. Android remote push is not proven by Expo Go.
 - Device or emulator support for notifications.
 - Valid Expo project id and platform credentials for real remote delivery.
 - A backend store for real task and device-token fan-out.
@@ -47,7 +47,9 @@ Remote Expo push delivery needs environment setup outside the normal repo checks
   file variable. Local native experiments may opt into the ignored
   `apps/mobile/google-services.json` with `VALIDADE_ZERO_USE_LOCAL_FIREBASE=1`.
 
-Phase 5 does not claim production multi-device remote fan-out. The current API/provider seam is fakeable and contract-tested, but durable remote dispatch is blocked until future auth, task sync, roles, and server-side storage work exists.
+Local mocks, local ignored Firebase files, sync-only APKs, Expo Go, and component tests do not prove remote provider readiness. A provider pass requires an approved native APK/device/provider run recorded in the controlled release record without committing tokens, account ids, build URLs, raw device identifiers, or credential values.
+
+Phase 5 did not claim production multi-device remote fan-out. Phase 10/11 added central task truth and stronger release gates, but real Android provider readiness still remains blocked until approved native APK/device/provider evidence is recorded.
 
 If the native build is missing Firebase at runtime, the operator must not see the raw Firebase
 exception. The mobile app degrades to `local_only`: it registers the device as local-only, keeps
@@ -71,6 +73,8 @@ For local scheduled testing with Wrangler, use the scheduled testing route or Wr
 ## Delivery Limits
 
 Expo tickets and receipts help classify provider state, but they are not physical-resolution proof. A successful ticket or receipt can still fail to mean the collaborator saw, understood, or completed the task. The app must continue showing the task until the physical resolution workflow completes.
+
+Even after provider proof passes, push remains a reminder channel only. It never resolves a task, never closes a shift, never makes a synced command safe, and never replaces `Hoje`, central sync, physical confirmation, or Command Center truth.
 
 Provider outcomes should map like this:
 

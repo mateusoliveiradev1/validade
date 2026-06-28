@@ -81,9 +81,7 @@ describe("prepare-turn gate", () => {
 
   it("keeps the loading decision copy visible before Hoje is ready", async () => {
     const repository = createRepository();
-    const prepareTurnClient = vi.fn(
-      () => new Promise<PrepareTurnResponse>(() => undefined),
-    );
+    const prepareTurnClient = vi.fn(() => new Promise<PrepareTurnResponse>(() => undefined));
     const tree = await renderApp(repository, prepareTurnClient);
 
     await press(tree, "Preparar turno");

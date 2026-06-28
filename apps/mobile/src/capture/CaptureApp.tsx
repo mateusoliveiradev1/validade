@@ -626,11 +626,7 @@ function PrepareTurnScreen({
         </View>
       )}
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
-      <PrimaryAction
-        disabled={preparing}
-        label="Preparar turno"
-        onPress={onPrepare}
-      />
+      <PrimaryAction disabled={preparing} label="Preparar turno" onPress={onPrepare} />
       {onStartFirstSetup === undefined ? null : (
         <PrimaryAction label="Iniciar cadastro da loja" onPress={onStartFirstSetup} />
       )}
@@ -666,8 +662,7 @@ function prepareTurnStatusFor(
   if (state === "cache_only") {
     return {
       ...mobileStatusDescriptorFor("local_only"),
-      body:
-        "Leitura local disponivel neste aparelho. Ela nao e leitura central segura; atualize antes de declarar area segura.",
+      body: "Leitura local disponivel neste aparelho. Ela nao e leitura central segura; atualize antes de declarar area segura.",
     };
   }
 

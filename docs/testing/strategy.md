@@ -76,6 +76,7 @@ The remaining release checks are intentionally manual: real auth issuer claims, 
 
 - `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys today-screen offline-sync shift-close` covers the polished component journey with fictional data before installed Android validation.
 - `.maestro/v1-readiness.yaml` is the root `pnpm.cmd test:e2e:mobile` entrypoint for installed Android evidence. It must not assert a direct safe `Hoje` state without `Preparar turno`.
+- Historical emulator/APK PASS evidence is context only. Current installed Android, provider push, camera/device, and physical-device readiness must be read from the Phase 11 UAT matrix and release truth matrix.
 - Screenshot checkpoint names are sanitized evidence labels only: `phase11-login-privacy`, `phase11-preparar-turno`, `phase11-hoje-verdict`, `phase11-product-path`, `phase11-lot-registration`, `phase11-terminal-pending`, `phase11-conflict-sync`, and `phase11-shift-close`.
 - Raw Maestro screenshots, device paths, APK/build URLs, tokens, provider identifiers, and real photos stay local unless a narrow allowlist is reviewed and `pnpm.cmd security:evidence` passes.
 - If no emulator or approved Android device is connected, run `adb devices` and `pnpm.cmd test:e2e:mobile`, record the exact blocked output in `.planning/phases/11-mobile-visual-polish-and-emulator-validation/11-UAT.md`, and keep Android installed validation blocked.

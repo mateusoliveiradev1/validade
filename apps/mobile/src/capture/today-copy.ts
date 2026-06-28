@@ -4,7 +4,10 @@ export const todayCopy = {
   title: "Hoje",
   safeHeader: "Nenhum bloqueio ativo na leitura central",
   safeWithWorkHeader: "Area sem bloqueio critico, ainda ha tarefas do turno",
-  criticalHeader: (_count?: number) => "Area de venda com risco agora",
+  criticalHeader: (count?: number) => {
+    void count;
+    return "Area de venda com risco agora";
+  },
   refresh: "Atualizar tarefas",
   refreshSuccess: (activeTaskCount: number) =>
     activeTaskCount === 0

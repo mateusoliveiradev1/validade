@@ -135,10 +135,9 @@ export function mobileStatusDescriptorFor(key: MobileStatusKey): MobileStatusDes
   return mobileStatusDescriptors[key];
 }
 
-export function sortMobileStatusesByPriority(
-  keys: readonly MobileStatusKey[],
-): MobileStatusKey[] {
+export function sortMobileStatusesByPriority(keys: readonly MobileStatusKey[]): MobileStatusKey[] {
   return [...keys].sort(
-    (left, right) => mobileStatusDescriptors[right].priority - mobileStatusDescriptors[left].priority,
+    (left, right) =>
+      mobileStatusDescriptors[right].priority - mobileStatusDescriptors[left].priority,
   );
 }

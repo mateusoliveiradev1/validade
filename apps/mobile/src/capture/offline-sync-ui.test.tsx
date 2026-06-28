@@ -1,6 +1,10 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { SyncCommandSummary, SyncConflictRecord, SyncQueueSummary } from "@validade-zero/contracts";
+import type {
+  SyncCommandSummary,
+  SyncConflictRecord,
+  SyncQueueSummary,
+} from "@validade-zero/contracts";
 import { SyncConflictPanel, SyncQueueSummary as SyncQueueSummaryView } from "./offline-sync-ui";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
