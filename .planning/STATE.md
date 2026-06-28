@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: null
 status: Awaiting next milestone
 stopped_at: v1.0 archived
-last_updated: "2026-06-28T23:04:17.239Z"
+last_updated: "2026-06-28T23:20:00.000Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-28 - Completed quick task 260628-rmd: Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto
+**Last activity:** 2026-06-28 - Resolved staging prepare-turn failure by applying Phase 12 device readiness migration to Neon staging
 
 ## Project Reference
 
@@ -256,7 +256,7 @@ $gsd-new-milestone
 Phase: Milestone v1.0 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-06-28 - Completed quick task 260628-rmd: Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto
+Last activity: 2026-06-28 - Resolved staging prepare-turn failure by applying Phase 12 device readiness migration to Neon staging
 
 ## Operator Next Steps
 
@@ -268,7 +268,7 @@ Items acknowledged and deferred at milestone close on 2026-06-28:
 
 | Category | Item | Status |
 |----------|------|--------|
-| debug | first-central-read-empty | investigating |
+| debug | first-central-read-empty | resolved |
 | debug | lotes-centrais-nao-persistem | fixing |
 | debug | mobile-perfect-navigation-push | fixing |
 | debug | mobile-web-sync | investigating |
