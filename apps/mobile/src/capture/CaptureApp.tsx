@@ -28,6 +28,7 @@ import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
 import { captureColors } from "./capture-theme";
 import { addHardwareBackPressListener } from "../system/hardware-back";
+import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
 
 type CaptureRoute =
   | { name: "today" }
@@ -607,14 +608,15 @@ function PrepareTurnScreen({
   onUseCache?: (() => void) | undefined;
 }) {
   const preparing = state === "checking" || state === "preparing";
+  const status = prepareTurnStatusFor(state, cache);
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader title="Preparar turno" body={prepareTurnBodyFor(state)} />
-      <View style={styles.preparePanel}>
-        <Text style={styles.prepareTitle}>{prepareTurnTitleFor(state)}</Text>
-        <Text style={styles.prepareBody}>{prepareTurnDetailFor(state, cache)}</Text>
-      </View>
+      <StatusNotice title={prepareTurnTitleFor(state)} tone={status.tone}>
+        {status.body}
+      </StatusNotice>
+      <Text style={styles.prepareBody}>{prepareTurnDetailFor(state, cache)}</Text>
       {cache === null ? null : (
         <View style={styles.prepareMetrics}>
           <Text style={styles.prepareMetric}>{cache.productCount} produtos centrais</Text>
@@ -626,7 +628,7 @@ function PrepareTurnScreen({
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
       <PrimaryAction
         disabled={preparing}
-        label={state === "preparing" ? "Baixando leitura" : "Preparar turno"}
+        label="Preparar turno"
         onPress={onPrepare}
       />
       {onStartFirstSetup === undefined ? null : (
@@ -637,6 +639,46 @@ function PrepareTurnScreen({
       )}
     </ScrollView>
   );
+}
+
+function prepareTurnStatusFor(
+  state: Parameters<typeof PrepareTurnScreen>[0]["state"],
+  cache: PrepareTurnCacheStatus | null,
+): MobileStatusDescriptor {
+  if (state === "checking" || state === "preparing") {
+    return {
+      ...mobileStatusDescriptorFor("syncing"),
+      label: "Preparar turno",
+      body:
+        state === "preparing"
+          ? "Baixando a leitura central da loja..."
+          : "Conferindo se este aparelho ja tem uma leitura central valida.",
+    };
+  }
+
+  if (state === "needs_review") {
+    return {
+      ...mobileStatusDescriptorFor("pending_central"),
+      body: "Leitura central pendente. Atualize antes de declarar area segura.",
+    };
+  }
+
+  if (state === "cache_only") {
+    return {
+      ...mobileStatusDescriptorFor("local_only"),
+      body:
+        "Leitura local disponivel neste aparelho. Ela nao e leitura central segura; atualize antes de declarar area segura.",
+    };
+  }
+
+  if (cache?.state === "ready") {
+    return {
+      ...mobileStatusDescriptorFor("pending_central"),
+      body: "Leitura central pendente. Atualize antes de declarar area segura.",
+    };
+  }
+
+  return mobileStatusDescriptorFor("prepare_blocker");
 }
 
 function isFirstStoreSetupState(cache: PrepareTurnCacheStatus | null): boolean {
@@ -668,8 +710,8 @@ function prepareTurnBodyFor(state: Parameters<typeof PrepareTurnScreen>[0]["stat
   if (state === "cache_only") {
     return "Use a leitura local apenas para continuar o trabalho visivel. Ela nao declara area segura.";
   }
-  if (state === "error") return "Tente preparar novamente antes de operar o turno.";
-  return "Baixe a leitura central da loja antes de abrir Hoje.";
+  if (state === "error") return "Conecte uma vez para preparar o turno neste aparelho.";
+  return "Conecte uma vez para preparar o turno neste aparelho.";
 }
 
 function prepareTurnDetailFor(
@@ -677,7 +719,7 @@ function prepareTurnDetailFor(
   cache: PrepareTurnCacheStatus | null,
 ): string {
   if (cache === null) {
-    return "Nenhuma leitura central esta salva neste aparelho.";
+    return "Nenhuma leitura central esta salva neste aparelho. O cockpit do turno fica bloqueado ate a preparacao ou um fallback local claramente marcado.";
   }
 
   const lastRead =
@@ -685,7 +727,7 @@ function prepareTurnDetailFor(
       ? "sem leitura central confirmada"
       : cache.lastCentralReadAt;
   if (state === "cache_only") {
-    return `Ultima leitura local: ${lastRead}. Confira pendencias antes de qualquer decisao.`;
+    return `Ultima leitura local: ${lastRead}. Entrar com leitura local nao e leitura central segura. Nao declare area segura.`;
   }
 
   return `Ultima leitura central: ${lastRead}. Estado do cache: ${cache.state}.`;
@@ -709,24 +751,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  preparePanel: {
-    backgroundColor: captureColors.surface,
-    borderColor: captureColors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 8,
-    padding: 16,
-  },
-  prepareTitle: {
-    color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 23,
-  },
   prepareBody: {
     color: captureColors.mutedInk,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 24,
   },
   prepareMetrics: {
     flexDirection: "row",
@@ -739,8 +767,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     color: captureColors.ink,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },

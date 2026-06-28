@@ -66,6 +66,7 @@ describe("prepare-turn gate", () => {
     const tree = await renderApp(repository, prepareTurnClient);
 
     expect(textContent(tree)).toContain("Preparar turno");
+    expect(textContent(tree)).not.toContain("Hoje");
     await press(tree, "Preparar turno");
 
     expect(prepareTurnClient).toHaveBeenCalledWith(
@@ -76,6 +77,22 @@ describe("prepare-turn gate", () => {
     );
     expect(textContent(tree)).toContain("Turno preparado pela central");
     expect(textContent(tree)).toContain("Morango FICTICIO");
+  });
+
+  it("keeps the loading decision copy visible before Hoje is ready", async () => {
+    const repository = createRepository();
+    const prepareTurnClient = vi.fn(
+      () => new Promise<PrepareTurnResponse>(() => undefined),
+    );
+    const tree = await renderApp(repository, prepareTurnClient);
+
+    await press(tree, "Preparar turno");
+
+    expect(textContent(tree)).toContain("Baixando a leitura central da loja...");
+    expect(textContent(tree)).not.toContain("Hoje");
+    expect(findButton(tree, "Preparar turno")?.props.accessibilityState).toEqual({
+      disabled: true,
+    });
   });
 
   it("lets a real empty store start product setup without claiming safe area", async () => {
@@ -189,9 +206,7 @@ async function renderApp(
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {
-  const button = tree.root
-    .findAllByType("Pressable")
-    .find((candidate) => candidate.props.accessibilityLabel === label);
+  const button = findButton(tree, label);
   const onPress = button?.props.onPress;
 
   if (typeof onPress !== "function") {
@@ -202,6 +217,12 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
     onPress();
     await flush();
   });
+}
+
+function findButton(tree: ReactTestRenderer, label: string) {
+  return tree.root
+    .findAllByType("Pressable")
+    .find((candidate) => candidate.props.accessibilityLabel === label);
 }
 
 async function changeText(tree: ReactTestRenderer, label: string, value: string): Promise<void> {
