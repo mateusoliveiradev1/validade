@@ -35,6 +35,7 @@ export function createInMemoryCommandCenterService(input?: {
       }
 
       const refreshedAt = now().toISOString();
+      const pilotUat = buildPilotUatChecklist(scope, refreshedAt);
 
       return Promise.resolve(
         CommandCenterProjectionSchema.parse({
@@ -65,7 +66,17 @@ export function createInMemoryCommandCenterService(input?: {
           pendingShiftCloses: [],
           shiftHistory: [],
           devices: [],
-          pilotUat: buildPilotUatChecklist(scope, refreshedAt),
+          pilotUat,
+          pilotBlockers: buildPilotOperationalBlockers({
+            updatedAt: refreshedAt,
+            devices: [],
+            pilotUat,
+            pendingProductDrafts: [],
+            syncConflicts: [],
+            discardedActions: [],
+            pendingShiftCloses: [],
+            centralBlockers: [],
+          }),
         }),
       );
     },
@@ -154,6 +165,9 @@ export function createAuditBackedCommandCenterService(input: {
 
       if (syncEvents.length === 0) {
         const refreshedAt = now().toISOString();
+        const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
+          centralReadBlocked: true,
+        });
 
         return CommandCenterProjectionSchema.parse({
           storeId: scope.storeId,
@@ -183,8 +197,18 @@ export function createAuditBackedCommandCenterService(input: {
           pendingShiftCloses: [],
           shiftHistory: [],
           devices: [],
-          pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
-            centralReadBlocked: true,
+          pilotUat,
+          pilotBlockers: buildPilotOperationalBlockers({
+            updatedAt: refreshedAt,
+            devices: [],
+            pilotUat,
+            pendingProductDrafts: [],
+            syncConflicts: [],
+            discardedActions: [],
+            pendingShiftCloses: [],
+            centralBlockers: [
+              "Ainda nao ha uma leitura central suficiente para confirmar a seguranca.",
+            ],
           }),
         });
       }
@@ -252,6 +276,16 @@ export function createAuditBackedCommandCenterService(input: {
       );
 
       const refreshedAt = now().toISOString();
+      const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
+        centralReadReady: verdict.state !== "blocked",
+        hasOperationalFacts: syncEvents.length > 0,
+        hasActiveBlockers: verdict.state !== "safe",
+      });
+      const syncConflicts = conflictEvents.map((event) => ({
+        conflictId: metadataText(event, "conflictId") ?? event.eventId,
+        label: metadataText(event, "productDisplayName") ?? event.target.label ?? "Acao offline",
+        detail: event.reason ?? "Revise a mudanca atual antes de reenviar.",
+      }));
 
       return CommandCenterProjectionSchema.parse({
         storeId: scope.storeId,
@@ -314,20 +348,25 @@ export function createAuditBackedCommandCenterService(input: {
         ),
         pendingProductDrafts: projectedProductDrafts,
         pendingEvidence: [],
-        syncConflicts: conflictEvents.map((event) => ({
-          conflictId: metadataText(event, "conflictId") ?? event.eventId,
-          label: metadataText(event, "productDisplayName") ?? event.target.label ?? "Acao offline",
-          detail: event.reason ?? "Revise a mudanca atual antes de reenviar.",
-        })),
+        syncConflicts,
         discardedActions: [],
         resolvedHistory: [],
         pendingShiftCloses: [],
         shiftHistory: [],
         devices: [],
-        pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
-          centralReadReady: verdict.state !== "blocked",
-          hasOperationalFacts: syncEvents.length > 0,
-          hasActiveBlockers: verdict.state !== "safe",
+        pilotUat,
+        pilotBlockers: buildPilotOperationalBlockers({
+          updatedAt: refreshedAt,
+          devices: [],
+          pilotUat,
+          pendingProductDrafts: projectedProductDrafts,
+          syncConflicts,
+          discardedActions: [],
+          pendingShiftCloses: [],
+          centralBlockers:
+            verdict.state === "safe"
+              ? []
+              : ["Leitura baseada em eventos de auditoria com pendencias operacionais."],
         }),
       });
     },
@@ -338,6 +377,10 @@ function failClosedProjection(
   scope: { storeId: string; storeName: string },
   refreshedAt: string,
 ): CommandCenterProjection {
+  const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
+    centralReadBlocked: true,
+  });
+
   return CommandCenterProjectionSchema.parse({
     storeId: scope.storeId,
     storeName: scope.storeName,
@@ -366,8 +409,16 @@ function failClosedProjection(
     pendingShiftCloses: [],
     shiftHistory: [],
     devices: [],
-    pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
-      centralReadBlocked: true,
+    pilotUat,
+    pilotBlockers: buildPilotOperationalBlockers({
+      updatedAt: refreshedAt,
+      devices: [],
+      pilotUat,
+      pendingProductDrafts: [],
+      syncConflicts: [],
+      discardedActions: [],
+      pendingShiftCloses: [],
+      centralBlockers: ["Command Center nao recebeu a verdade central de captura."],
     }),
   });
 }
@@ -410,6 +461,25 @@ function projectionFromCentralPrepareTurn(
     syncConflicts.length +
     discardedActions.length +
     prepared.store.blockers.length;
+  const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
+    centralReadReady: freshness === "current" && prepared.store.readiness === "prepared",
+    hasAcceptedPushTest: devices.some((device) =>
+      (device.pushTests ?? []).some((item) => ["provider_accepted", "opened"].includes(item.state)),
+    ),
+    hasActiveBlockers: blockerCount > 0,
+    hasDevice: devices.length > 0,
+    hasOperationalFacts,
+  });
+  const pilotBlockers = buildPilotOperationalBlockers({
+    updatedAt: refreshedAt,
+    devices,
+    pilotUat,
+    pendingProductDrafts,
+    syncConflicts,
+    discardedActions,
+    pendingShiftCloses: [],
+    centralBlockers: prepared.store.blockers,
+  });
 
   return CommandCenterProjectionSchema.parse({
     storeId: scope.storeId,
@@ -440,17 +510,8 @@ function projectionFromCentralPrepareTurn(
     pendingShiftCloses: [],
     shiftHistory: [],
     devices: [...devices],
-    pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
-      centralReadReady: freshness === "current" && prepared.store.readiness === "prepared",
-      hasAcceptedPushTest: devices.some((device) =>
-        (device.pushTests ?? []).some((item) =>
-          ["provider_accepted", "opened"].includes(item.state),
-        ),
-      ),
-      hasActiveBlockers: blockerCount > 0,
-      hasDevice: devices.length > 0,
-      hasOperationalFacts,
-    }),
+    pilotUat,
+    pilotBlockers,
   });
 }
 
@@ -621,6 +682,232 @@ function buildPilotUatChecklist(
     updatedAt,
     steps,
   };
+}
+
+type PilotOperationalBlocker = CommandCenterProjection["pilotBlockers"][number];
+
+function buildPilotOperationalBlockers(input: {
+  updatedAt: string;
+  devices: readonly CommandCenterProjection["devices"][number][];
+  pilotUat: CommandCenterProjection["pilotUat"];
+  pendingProductDrafts: CommandCenterProjection["pendingProductDrafts"];
+  syncConflicts: CommandCenterProjection["syncConflicts"];
+  discardedActions: CommandCenterProjection["discardedActions"];
+  pendingShiftCloses: CommandCenterProjection["pendingShiftCloses"];
+  centralBlockers: readonly string[];
+}): PilotOperationalBlocker[] {
+  const blockers: PilotOperationalBlocker[] = [];
+
+  if (input.devices.length === 0) {
+    blockers.push({
+      blockerId: "device:none",
+      category: "device",
+      severity: "critical",
+      ownership: "operator",
+      label: "Nenhum aparelho aprovado",
+      cause: "Nenhum aparelho do piloto apareceu na leitura central desta loja.",
+      nextAction: "Entrar no APK aprovado, preparar turno e atualizar o Command Center.",
+      evidenceReferenceLabel: "Sem aparelho aprovado",
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [deviceIndex, device] of input.devices.entries()) {
+    for (const [blockerIndex, blocker] of device.blockers.entries()) {
+      blockers.push({
+        blockerId: `device:${deviceIndex}:${blocker.code}:${blockerIndex}`,
+        category: blockerCategoryForDevice(blocker.code),
+        severity: blockerSeverityForDevice(blocker.code, blocker.severity),
+        ownership: blockerOwnershipForDevice(blocker.code),
+        label: blocker.label,
+        cause: blocker.detail,
+        nextAction: blocker.nextAction,
+        affectedLabel: `${device.deviceLabel} - ${device.deviceIdMasked}`,
+        updatedAt: input.updatedAt,
+      });
+    }
+
+    for (const [pushIndex, pushTest] of (device.pushTests ?? []).entries()) {
+      if (
+        !["provider_failed", "token_invalid", "permission_denied", "local_only"].includes(
+          pushTest.state,
+        )
+      ) {
+        continue;
+      }
+
+      blockers.push({
+        blockerId: `push:${deviceIndex}:${pushTest.state}:${pushIndex}`,
+        category: "push",
+        severity: pushTest.state === "local_only" ? "external" : "critical",
+        ownership: pushTest.state === "local_only" ? "external" : "operator",
+        label: pushTestStateBlockerLabel(pushTest.state),
+        cause: pushTest.detail,
+        nextAction: pushTest.nextAction,
+        affectedLabel: `${device.deviceLabel} - ${device.deviceIdMasked}`,
+        evidenceReferenceLabel: "Timeline de teste seguro",
+        updatedAt: input.updatedAt,
+      });
+    }
+  }
+
+  for (const [index, step] of input.pilotUat.steps.entries()) {
+    if (step.state !== "blocked" && step.state !== "external_blocked") continue;
+
+    blockers.push({
+      blockerId: `uat:${step.stepId}:${index}`,
+      category: blockerCategoryForUatStep(step.stepId),
+      severity: step.state === "external_blocked" ? "external" : "critical",
+      ownership: step.state === "external_blocked" ? "external" : "operator",
+      label: step.label,
+      cause: step.cause ?? "Etapa UAT ainda nao esta pronta para o go/no-go.",
+      nextAction: step.nextAction ?? step.actionLabel,
+      affectedLabel: step.ownerLabel,
+      evidenceReferenceLabel: step.evidenceReferenceLabel,
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [index, draft] of input.pendingProductDrafts.entries()) {
+    blockers.push({
+      blockerId: `product-review:${index}`,
+      category: "product_review",
+      severity: "warning",
+      ownership: "operator",
+      label: "Produto pendente de revisao",
+      cause: draft.detail,
+      nextAction: "Revisar ou validar o rascunho antes de tratar o catalogo como pronto.",
+      affectedLabel: draft.label,
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [index, conflict] of input.syncConflicts.entries()) {
+    blockers.push({
+      blockerId: `sync-conflict:${index}`,
+      category: "sync",
+      severity: "critical",
+      ownership: "operator",
+      label: "Conflito de sincronizacao",
+      cause: conflict.detail,
+      nextAction: "Revisar conflito antes de declarar o piloto pronto.",
+      affectedLabel: conflict.label,
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [index, action] of input.discardedActions.entries()) {
+    blockers.push({
+      blockerId: `discarded:${index}`,
+      category: "sync",
+      severity: "warning",
+      ownership: "operator",
+      label: "Acao descartada pela central",
+      cause: action.reason,
+      nextAction: "Confirmar que a acao descartada nao deixou trabalho fisico pendente.",
+      affectedLabel: action.label,
+      evidenceReferenceLabel: action.discardedAt,
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [index, close] of input.pendingShiftCloses.entries()) {
+    blockers.push({
+      blockerId: `shift-close:${index}`,
+      category: "shift_close",
+      severity: "critical",
+      ownership: "operator",
+      label: "Fechamento inseguro pendente",
+      cause: `${close.blockerCount} bloqueio(s) impedem fechamento seguro.`,
+      nextAction: "Revalidar central e concluir pendencias antes do fechamento seguro.",
+      affectedLabel: close.label,
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  for (const [index, blocker] of input.centralBlockers.entries()) {
+    blockers.push({
+      blockerId: `central:${index}`,
+      category: "sync",
+      severity: "critical",
+      ownership: "operator",
+      label: "Leitura central bloqueada",
+      cause: blocker,
+      nextAction: "Preparar turno, revisar conflitos e atualizar o Command Center.",
+      evidenceReferenceLabel: "Bloqueio central",
+      updatedAt: input.updatedAt,
+    });
+  }
+
+  return blockers.sort(comparePilotOperationalBlockers).slice(0, 32);
+}
+
+function comparePilotOperationalBlockers(
+  left: PilotOperationalBlocker,
+  right: PilotOperationalBlocker,
+): number {
+  const rank: Record<PilotOperationalBlocker["severity"], number> = {
+    critical: 0,
+    external: 1,
+    warning: 2,
+  };
+  const severityDiff = rank[left.severity] - rank[right.severity];
+  if (severityDiff !== 0) return severityDiff;
+  const categoryDiff = left.category.localeCompare(right.category);
+  if (categoryDiff !== 0) return categoryDiff;
+  return left.blockerId.localeCompare(right.blockerId);
+}
+
+function blockerCategoryForDevice(
+  code: CommandCenterProjection["devices"][number]["blockers"][number]["code"],
+): PilotOperationalBlocker["category"] {
+  if (code === "invalid_store_or_user") return "membership";
+  if (code === "stale_critical_sync" || code === "missing_first_central_read") return "sync";
+  if (code === "push_required_without_push") return "push";
+  if (code === "camera_required_without_camera") return "camera";
+  if (code === "incompatible_build" || code === "old_build_attention") return "build";
+  if (code === "pending_product_review") return "product_review";
+  if (code === "unsafe_shift_close") return "shift_close";
+  return "device";
+}
+
+function blockerSeverityForDevice(
+  code: CommandCenterProjection["devices"][number]["blockers"][number]["code"],
+  severity: CommandCenterProjection["devices"][number]["blockers"][number]["severity"],
+): PilotOperationalBlocker["severity"] {
+  if (code === "push_required_without_push" || code === "camera_required_without_camera") {
+    return severity === "blocking" ? "critical" : "external";
+  }
+
+  return severity === "blocking" ? "critical" : "warning";
+}
+
+function blockerOwnershipForDevice(
+  code: CommandCenterProjection["devices"][number]["blockers"][number]["code"],
+): PilotOperationalBlocker["ownership"] {
+  if (code === "push_required_without_push" || code === "camera_required_without_camera") {
+    return "external";
+  }
+
+  return "operator";
+}
+
+function blockerCategoryForUatStep(
+  stepId: CommandCenterProjection["pilotUat"]["steps"][number]["stepId"],
+): PilotOperationalBlocker["category"] {
+  if (stepId === "safe_push_test") return "push";
+  if (stepId === "camera_evidence_or_fallback") return "camera";
+  if (stepId === "shift_close") return "shift_close";
+  return "uat";
+}
+
+function pushTestStateBlockerLabel(
+  state: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>[number]["state"],
+): string {
+  if (state === "provider_failed") return "Provider recusou teste seguro";
+  if (state === "token_invalid") return "Token do aparelho invalido";
+  if (state === "permission_denied") return "Permissao de push negada";
+  return "Push remoto ainda nao provado";
 }
 
 function centralVerdict(input: {

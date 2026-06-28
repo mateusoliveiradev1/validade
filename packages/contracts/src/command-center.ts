@@ -335,6 +335,43 @@ export const PilotUatChecklistSchema = z
     }
   });
 
+export const PilotOperationalBlockerCategorySchema = z.enum([
+  "device",
+  "membership",
+  "sync",
+  "push",
+  "camera",
+  "build",
+  "product_review",
+  "shift_close",
+  "uat",
+  "evidence",
+]);
+
+export const PilotOperationalBlockerSchema = z
+  .object({
+    blockerId: IdentifierSchema,
+    category: PilotOperationalBlockerCategorySchema,
+    severity: z.enum(["critical", "warning", "external"]),
+    ownership: z.enum(["repo", "operator", "external"]),
+    label: PublicSafeTextSchema,
+    cause: PublicSafeTextSchema,
+    nextAction: PublicSafeTextSchema,
+    affectedLabel: PublicSafeTextSchema.optional(),
+    evidenceReferenceLabel: PublicSafeTextSchema.optional(),
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.severity === "external" && value.ownership !== "external") {
+      context.addIssue({
+        code: "custom",
+        path: ["ownership"],
+        message: "External blockers must be owned by an external action.",
+      });
+    }
+  });
+
 export const CommandCenterProjectionSchema = z
   .object({
     storeId: IdentifierSchema,
@@ -355,6 +392,7 @@ export const CommandCenterProjectionSchema = z
     shiftHistory: z.array(CommandCenterShiftHistorySchema),
     devices: z.array(PilotDeviceReadinessSchema),
     pilotUat: PilotUatChecklistSchema,
+    pilotBlockers: z.array(PilotOperationalBlockerSchema).max(32),
   })
   .strict();
 
@@ -366,6 +404,7 @@ export type PilotUatChecklist = z.infer<typeof PilotUatChecklistSchema>;
 export type PilotUatStep = z.infer<typeof PilotUatStepSchema>;
 export type PilotUatStepId = z.infer<typeof PilotUatStepIdSchema>;
 export type PilotUatStepState = z.infer<typeof PilotUatStepStateSchema>;
+export type PilotOperationalBlocker = z.infer<typeof PilotOperationalBlockerSchema>;
 
 export interface ResolvePilotBuildCompatibilityInput {
   appVersion?: string | undefined;

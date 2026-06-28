@@ -83,6 +83,8 @@ O Command Center agora mostra `UAT Loja 18` como checklist operacional. Use o pa
 8. Validar camera ou fallback sem foto em Android aprovado.
 9. Fechar turno somente depois de revalidacao central e remocao de bloqueios.
 
+Depois de cada etapa, revisar tambem `Bloqueios do piloto`. Um passo da checklist pode estar pendente por acao do operador, mas rollout fisico continua bloqueado quando o painel mostra severidade `Critico` ou `Externo` para aparelho, provider push, camera, build, produto, conflito, descarte, fechamento ou evidencia.
+
 Estados permitidos no registro publico: `pending`, `passed`, `blocked` e `external_blocked`. Para `blocked` ou `external_blocked`, registre causa e proxima acao. Nao registre produto real, lote real, foto, serial de aparelho, token, provider ticket, build URL ou link privado no repositorio publico.
 
 ## Passa somente se
@@ -94,9 +96,11 @@ Estados permitidos no registro publico: `pending`, `passed`, `blocked` e `extern
 - Uma conta fora da Loja 18 nao ve dados da Loja 18.
 - Command Center e preparo de turno convergem para os mesmos produtos/lotes centrais.
 - A checklist `UAT Loja 18` mostra produto/lote real como passed somente depois de entrada real do usuario, nunca por fixture, seed ou dado `FICTICIO`.
+- `Bloqueios do piloto` nao mostra bloqueio critico ou externo sem resolucao registrada e evidencia publica segura.
 
 ## Limites conhecidos
 
 - O APK antigo nao ganha picker de categorias sem build novo.
 - Fotos/evidencias continuam sem binario real ate R2 ou alternativa de storage ser ativado.
 - Push real em aparelho depende do APK/build/provider; web/API nao provam entrega push do Android.
+- Enquanto `adb devices` nao listar um alvo aprovado e `pnpm.cmd test:e2e:mobile` nao passar, Android instalado, provider push, camera e UAT fisico seguem bloqueados externamente.

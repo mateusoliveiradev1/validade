@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CommandCenterProjectionSchema,
+  PilotOperationalBlockerSchema,
   PilotUatChecklistSchema,
   PilotDeviceReadinessSchema,
   resolvePilotBuildCompatibility,
@@ -77,6 +78,7 @@ describe("Command Center contracts", () => {
       shiftHistory: [],
       devices: [],
       pilotUat: pilotUatChecklist(),
+      pilotBlockers: [pilotBlocker()],
     });
 
     expect(parsed.criticalLots[0]?.cause).toMatchObject({
@@ -282,6 +284,28 @@ describe("Command Center contracts", () => {
       }),
     ).toThrow();
   });
+
+  it("keeps operational pilot blockers causal, owned, and public-safe", () => {
+    expect(PilotOperationalBlockerSchema.parse(pilotBlocker())).toMatchObject({
+      category: "push",
+      severity: "external",
+      ownership: "external",
+    });
+
+    expect(() =>
+      PilotOperationalBlockerSchema.parse({
+        ...pilotBlocker(),
+        ownership: "operator",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotOperationalBlockerSchema.parse({
+        ...pilotBlocker(),
+        evidenceReferenceLabel: "https://expo.dev/build/secret-token",
+      }),
+    ).toThrow();
+  });
 });
 
 function deviceReadiness(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -416,4 +440,20 @@ function pilotUatChecklist(overrides: Partial<PilotUatChecklist> = {}): PilotUat
     ],
     ...overrides,
   });
+}
+
+function pilotBlocker(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    blockerId: "blocker-push-provider",
+    category: "push",
+    severity: "external",
+    ownership: "external",
+    label: "Provider push sem prova atual",
+    cause: "Sem aparelho Android aprovado nesta execucao.",
+    nextAction: "Executar teste seguro em aparelho aprovado.",
+    affectedLabel: "Teste seguro de push",
+    evidenceReferenceLabel: "Provider bloqueado externamente",
+    updatedAt: "2030-01-10T12:00:00.000Z",
+    ...overrides,
+  };
 }

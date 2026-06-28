@@ -14,9 +14,11 @@ test("Command Center answers safety first and keeps the operational funnel in or
   ).toBeVisible();
   await expect(page.getByText("Manga FICTICIA - lote MAN-001")).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toBeVisible();
+  await expect(page.getByText("Bloqueios do piloto")).toBeVisible();
+  await expect(page.getByText("Provider push sem prova atual")).toBeVisible();
   await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
   await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
-  await expect(page.getByText("Provider bloqueado externamente")).toBeVisible();
+  await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
   await expect(page.getByRole("navigation", { name: "Navegacao principal" })).toBeVisible();
   await expect(page.getByText("Ambiente seguro para desenvolvimento")).toHaveCount(0);
   await page.keyboard.press("Tab");

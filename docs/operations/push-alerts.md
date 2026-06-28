@@ -10,6 +10,18 @@ Phase 5 adds push and escalation pressure to the existing "Hoje" task flow. Push
 - Leadership acknowledgement means "received the charge"; it does not silence or close the task.
 - If push is denied, unavailable, pending, or failed, the task list stays usable and the team must charge manually when needed.
 
+## Phase 12 Safe Push Test
+
+The Command Center safe push test is a diagnostic and reminder-channel check. It records who triggered the test, the target device label, the provider/token/permission/open state, the evidence label, and the next action. It does not create, resolve, reopen, silence, or mark any operational task safe.
+
+`Bloqueios do piloto` treats push states as rollout readiness inputs:
+
+- `provider_failed`, `token_invalid`, and `permission_denied` are operator/action blockers until the channel is repaired and retested.
+- `local_only` is an external rollout blocker for remote push proof; the device can still show local reminders, but that is not provider delivery.
+- `delivered`, `sent`, or `opened` can support readiness only when recorded from an approved native APK/device/provider run.
+
+Provider proof must remain public-safe. Record sanitized status and next action only; never commit raw push tokens, provider tickets, dashboard links, Firebase files, build URLs, device identifiers, or real operator details.
+
 ## Privacy
 
 Lock-screen content must stay privacy-safe. It can include action, product, and location, for example:
@@ -49,7 +61,7 @@ Remote Expo push delivery needs environment setup outside the normal repo checks
 
 Local mocks, local ignored Firebase files, sync-only APKs, Expo Go, and component tests do not prove remote provider readiness. A provider pass requires an approved native APK/device/provider run recorded in the controlled release record without committing tokens, account ids, build URLs, raw device identifiers, or credential values.
 
-Phase 5 did not claim production multi-device remote fan-out. Phase 10/11 added central task truth and stronger release gates, but real Android provider readiness still remains blocked until approved native APK/device/provider evidence is recorded.
+Phase 5 did not claim production multi-device remote fan-out. Phase 10/11 added central task truth and stronger release gates; Phase 12 adds safe push-test authority, timeline, and blocker synthesis. Real Android provider readiness still remains blocked until approved native APK/device/provider evidence is recorded.
 
 If the native build is missing Firebase at runtime, the operator must not see the raw Firebase
 exception. The mobile app degrades to `local_only`: it registers the device as local-only, keeps

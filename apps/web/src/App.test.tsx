@@ -95,6 +95,7 @@ describe("authenticated web shell", () => {
               shiftHistory: [],
               devices: [],
               pilotUat: pilotUatChecklist("loja-ficticia", "Loja Ficticia Piloto"),
+              pilotBlockers: [],
             }),
           );
         }

@@ -14,6 +14,12 @@ Approved Phase 12 public build identity:
 
 This label is the public-safe compatibility anchor used by the mobile app and Command Center. It is not an install URL, dashboard URL, provider ticket, account identifier, token, or credential.
 
+## Current Go/No-Go
+
+Current install rollout is blocked externally. The repo can build and identify the approved Phase 12 artifact, but the public record still lacks a connected approved Android target, a current Maestro pass, provider push delivery/open proof, camera or approved fallback proof, and the physical Loja 18 UAT walkthrough.
+
+The public release record may say only that the approved artifact label is `phase-12-staging-apk-120`. It must not include the APK URL, dashboard URL, Expo account details, provider ticket, device serial, push token, Firebase file, or private links.
+
 Official Expo references checked on 2026-06-23:
 
 - EAS internal distribution provides a controlled install URL for approved testers: https://docs.expo.dev/build/internal-distribution/
@@ -67,8 +73,9 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 2. Confirm Android permits installation from the approved source for that device.
 3. Install with the Android package installer, or use `adb install path-to-pilot.apk` for an emulator/local device workflow.
 4. Open the app and confirm the VZ splash, login, invitation path, Privacy Center (cards open detail screens), and session loading appear before operational work.
-5. Run the Maestro script with `pnpm test:e2e:mobile` when the device is connected.
-6. Record current pass/block status in the controlled release note and in the public-safe Phase 11 UAT matrix. Do not reuse older APK/emulator PASS evidence as current proof.
+5. Open Command Center and confirm the device reports build compatibility as `atual` against `phase-12-staging-apk-120`. `desatualizado`, `desconhecido`, or `incompativel` blocks pilot rollout even if sync still works.
+6. Run the Maestro script with `pnpm.cmd test:e2e:mobile` when the device is connected.
+7. Record current pass/block status in the controlled release note and in the public-safe Phase 12 UAT matrix. Do not reuse older APK/emulator PASS evidence as current proof.
 
 ## Update And Removal
 
@@ -80,4 +87,4 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 
 The historical local emulator path was verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the release code at that time and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder.
 
-Phase 12 stops shipping the pilot as `0.0.0`: the repo now configures mobile `0.12.0`, Android `versionCode` `120`, and the approved staging artifact label `phase-12-staging-apk-120`. The current installed Android gate is still blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. Physical-device notification delivery, camera permissions, installation, and offline behavior still require approved Android hardware/provider evidence.
+Phase 12 stops shipping the pilot as `0.0.0`: the repo now configures mobile `0.12.0`, Android `versionCode` `120`, and the approved staging artifact label `phase-12-staging-apk-120`. The current installed Android gate is still blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. In the latest public run, `adb devices` listed no attached devices and Maestro reported `Not enough devices connected (0) to run the requested number of shards (1).` Physical-device notification delivery, camera permissions, installation, offline behavior, and the complete Loja 18 UAT loop still require approved Android hardware/provider evidence.

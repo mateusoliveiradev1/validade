@@ -166,7 +166,39 @@ export const commandCenterProjection = {
     },
   ],
   pilotUat: pilotUatChecklist("loja-ficticia", "Loja Ficticia Piloto"),
+  pilotBlockers: pilotBlockers(),
 } as const;
+
+function pilotBlockers() {
+  const updatedAt = "2030-01-10T12:00:00.000Z";
+
+  return [
+    {
+      blockerId: "push-provider-external",
+      category: "push",
+      severity: "external",
+      ownership: "external",
+      label: "Provider push sem prova atual",
+      cause: "Provider Android real nao foi provado nesta execucao.",
+      nextAction: "Conectar aparelho aprovado e repetir teste seguro.",
+      affectedLabel: "Teste seguro de push",
+      evidenceReferenceLabel: "Provider bloqueado externamente",
+      updatedAt,
+    },
+    {
+      blockerId: "shift-close-blocked",
+      category: "shift_close",
+      severity: "critical",
+      ownership: "operator",
+      label: "Fechamento inseguro pendente",
+      cause: "Ha etapas UAT pendentes.",
+      nextAction: "Concluir etapas pendentes antes do fechamento seguro.",
+      affectedLabel: "Fechamento de turno",
+      evidenceReferenceLabel: "Fechamento bloqueado",
+      updatedAt,
+    },
+  ];
+}
 
 function pilotUatChecklist(storeId: string, storeName: string) {
   const updatedAt = "2030-01-10T12:00:00.000Z";

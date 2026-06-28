@@ -80,3 +80,28 @@ The remaining release checks are intentionally manual: real auth issuer claims, 
 - Screenshot checkpoint names are sanitized evidence labels only: `phase11-login-privacy`, `phase11-preparar-turno`, `phase11-hoje-verdict`, `phase11-product-path`, `phase11-lot-registration`, `phase11-terminal-pending`, `phase11-conflict-sync`, and `phase11-shift-close`.
 - Raw Maestro screenshots, device paths, APK/build URLs, tokens, provider identifiers, and real photos stay local unless a narrow allowlist is reviewed and `pnpm.cmd security:evidence` passes.
 - If no emulator or approved Android device is connected, run `adb devices` and `pnpm.cmd test:e2e:mobile`, record the exact blocked output in `.planning/phases/11-mobile-visual-polish-and-emulator-validation/11-UAT.md`, and keep Android installed validation blocked.
+
+## Phase 12 pilot readiness
+
+- `pnpm.cmd --filter @validade-zero/contracts test -- command-center alerts capture` covers the readiness contracts, safe push-test contracts, UAT checklist contracts, and pilot blocker schema.
+- `pnpm.cmd vitest run --config vitest.config.ts --project api -- command-center alerts authorization` covers same-store/admin safe push-test authority, Command Center projection, UAT checklist projection, and pilot blocker synthesis.
+- `pnpm.cmd vitest run --config vitest.config.ts --project web -- command-center` covers device readiness, build compatibility, safe push timeline, `UAT Loja 18`, and `Bloqueios do piloto`.
+- `pnpm.cmd --filter @validade-zero/mobile test -- build-info prepare-turn push-alerts` covers installed-build metadata, prepare-turn telemetry, local-only push degradation, and notification copy safety.
+- `pnpm.cmd test:e2e:mobile` remains the installed Android gate for Phase 12. It is not replaced by component, API, or web tests.
+- If no emulator or approved Android device is connected, record the exact blocked output in `.planning/phases/12-pilot-operations-and-device-readiness/12-UAT.md` and keep Android/provider/camera/physical UAT gates externally blocked.
+
+Latest blocked installed-device output:
+
+```text
+adb devices
+List of devices attached
+```
+
+```text
+pnpm.cmd test:e2e:mobile
+You have 0 devices connected, which is not enough to run 1 shards. Missing 1 device(s).
+$ maestro test .maestro/v1-readiness.yaml
+Not enough devices connected (0) to run the requested number of shards (1).
+```
+
+Public evidence rules remain strict: no raw screenshots, real photos, push tokens, Firebase files, build URLs, provider tickets, device serials, real product names, real lot values, credentials, private links, or store/customer-sensitive details in Git.

@@ -44,6 +44,8 @@ If the central read fails, the Command Center fails closed with review-required 
 
 For Loja 18 UAT, leadership also follows the `UAT Loja 18` checklist in the Command Center. The checklist guides prepare-turn, real product input, real lot registration, terminal resolution, second-device convergence, Command Center consistency, safe push test, camera/fallback, and shift close. Product and lot steps pass only with real user-entered Loja 18 data; fictional fixtures and seeds are not UAT proof.
 
+Phase 12 also shows `Bloqueios do piloto`. This section synthesizes device readiness, push diagnostics, build compatibility, guided UAT, product review, sync conflicts, discarded actions, and shift-close blockers into cause, next action, severity, and ownership. It is the go/no-go companion to the sales-area verdict: a safe operational state does not authorize rollout while pilot blockers remain critical or external.
+
 ## Alerts
 
 Push is a reminder channel only. Delivery, open intent, acknowledgement, or provider receipt does not resolve tasks. `Hoje`, central sync, physical confirmation, and Command Center remain the source of truth.
@@ -69,4 +71,4 @@ Unsafe close:
 - Do not commit real store names, customer data, tokens, connection strings, signed URLs, Expo build URLs, push tokens, raw photos, or device file URIs.
 - Installed-build UAT belongs in the controlled release record. The public repo may record pass/block status and sanitized command output only.
 - Guided Loja 18 UAT may record checklist state, blocker cause, next action, and public-safe evidence label only. Real product names, lot values, raw screenshots, photos, private links, and device identifiers stay out of Git.
-- For the current Android/provider/camera status, read `.planning/phases/11-mobile-visual-polish-and-emulator-validation/11-UAT.md` and `docs/release/v1-readiness.md`. Older emulator/APK PASS records are historical unless the Phase 11 matrix marks the current gate as passed.
+- For the current Android/provider/camera status, read `.planning/phases/12-pilot-operations-and-device-readiness/12-UAT.md` and `docs/release/v1-readiness.md`. Older emulator/APK PASS records are historical unless the Phase 12 matrix marks the current gate as passed.

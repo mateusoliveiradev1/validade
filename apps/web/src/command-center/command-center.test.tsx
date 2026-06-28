@@ -116,6 +116,7 @@ const projection = {
     },
   ],
   pilotUat: pilotUatChecklist("loja-piloto", "Loja Ficticia Piloto"),
+  pilotBlockers: pilotBlockers(),
   devices: [
     {
       deviceIdMasked: "moto...001",
@@ -307,6 +308,36 @@ function pilotUatChecklist(storeId: string, storeName: string) {
   };
 }
 
+function pilotBlockers() {
+  const updatedAt = "2030-01-10T12:00:00.000Z";
+
+  return [
+    {
+      blockerId: "push-provider-external",
+      category: "push",
+      severity: "external",
+      ownership: "external",
+      label: "Provider push sem prova atual",
+      cause: "Provider Android real nao foi provado nesta execucao.",
+      nextAction: "Conectar aparelho aprovado e repetir teste seguro.",
+      affectedLabel: "Teste seguro de push",
+      evidenceReferenceLabel: "Provider bloqueado externamente",
+      updatedAt,
+    },
+    {
+      blockerId: "product-review-pending",
+      category: "product_review",
+      severity: "warning",
+      ownership: "operator",
+      label: "Produto pendente de revisao",
+      cause: "Rascunho criado no mobile e aguardando validacao central.",
+      nextAction: "Revisar produto antes de declarar catalogo pronto.",
+      affectedLabel: "Banana Nanica FICTICIA",
+      updatedAt,
+    },
+  ];
+}
+
 describe("CommandCenter", () => {
   afterEach(() => {
     cleanup();
@@ -323,9 +354,12 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Foto da central")).toBeTruthy();
     expect(screen.getByText("Aparelhos do piloto")).toBeTruthy();
     expect(screen.getByText("UAT Loja 18")).toBeTruthy();
+    expect(screen.getByText("Bloqueios do piloto")).toBeTruthy();
+    expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
+    expect(screen.getByText("Revisar produto antes de declarar catalogo pronto.")).toBeTruthy();
     expect(screen.getByText("Produto real da Loja 18")).toBeTruthy();
     expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
-    expect(screen.getByText(/Provider bloqueado externamente/)).toBeTruthy();
+    expect(screen.getAllByText(/Provider bloqueado externamente/).length).toBeGreaterThan(1);
     expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
     expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
     expect(screen.getByText(/phase-12-staging-apk-120/)).toBeTruthy();

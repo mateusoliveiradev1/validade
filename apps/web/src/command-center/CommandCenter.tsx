@@ -198,6 +198,8 @@ function CommandCenterProjectionView({
 
       <PilotUatPanel checklist={projection.pilotUat} />
 
+      <PilotBlockersPanel blockers={projection.pilotBlockers} />
+
       <CommandCenterInsightPanel
         canOpenAudit={canOpenAudit}
         insight={insight}
@@ -330,6 +332,86 @@ function CommandCenterProjectionView({
         />
       </div>
     </div>
+  );
+}
+
+function PilotBlockersPanel({ blockers }: { blockers: CommandCenterProjection["pilotBlockers"] }) {
+  const sorted = [...blockers].sort(comparePilotBlockers);
+  const criticalCount = blockers.filter((blocker) => blocker.severity === "critical").length;
+  const externalCount = blockers.filter((blocker) => blocker.severity === "external").length;
+  const warningCount = blockers.filter((blocker) => blocker.severity === "warning").length;
+
+  return (
+    <section
+      className="grid gap-4 rounded-lg border border-border bg-card p-4"
+      aria-label="Bloqueios do piloto"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-primary">Bloqueios do piloto</p>
+          <h2 className="text-xl font-semibold leading-6">O que impede o go/no-go</h2>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            Consolida aparelho, build, push, UAT, catalogo, sync e fechamento. Um veredito seguro da
+            area nao esconde bloqueios de rollout.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={criticalCount === 0 ? "success" : "critical"}>
+            {criticalCount} critico(s)
+          </Badge>
+          <Badge tone={externalCount === 0 ? "success" : "warning"}>
+            {externalCount} externo(s)
+          </Badge>
+          <Badge tone={warningCount === 0 ? "success" : "warning"}>{warningCount} atencao</Badge>
+        </div>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="rounded-md border border-border bg-accent/10 p-3 text-sm leading-5">
+          Nenhum bloqueio de piloto esta registrado nesta leitura. Ainda assim, rollout exige
+          evidencia Android/provider/camera/UAT aprovada quando essas etapas estiverem no escopo.
+        </div>
+      ) : (
+        <div className="grid">
+          {sorted.map((blocker) => (
+            <div
+              key={blocker.blockerId}
+              className="grid gap-2 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="grid min-w-0 gap-1">
+                  <p className="font-medium">{blocker.label}</p>
+                  <p className="text-sm leading-5 text-muted-foreground">
+                    {pilotBlockerCategoryLabel(blocker.category)} -{" "}
+                    {pilotBlockerOwnershipLabel(blocker.ownership)}
+                  </p>
+                </div>
+                <Badge tone={pilotBlockerTone(blocker.severity)}>
+                  {pilotBlockerSeverityLabel(blocker.severity)}
+                </Badge>
+              </div>
+              <p className="text-sm leading-5">
+                <span className="font-medium">Causa: </span>
+                {blocker.cause}
+              </p>
+              <p className="text-sm leading-5">
+                <span className="font-medium">Agora: </span>
+                {blocker.nextAction}
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground">
+                {blocker.affectedLabel === undefined ? null : (
+                  <span>Afeta: {blocker.affectedLabel}</span>
+                )}
+                {blocker.evidenceReferenceLabel === undefined ? null : (
+                  <span>Evidencia: {blocker.evidenceReferenceLabel}</span>
+                )}
+                <span>Atualizado: {formatDateTime(blocker.updatedAt)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1486,6 +1568,59 @@ function uatStepStateLabel(
   if (state === "blocked") return "Bloqueado";
   if (state === "external_blocked") return "Bloqueio externo";
   return "Pendente";
+}
+
+function comparePilotBlockers(
+  left: CommandCenterProjection["pilotBlockers"][number],
+  right: CommandCenterProjection["pilotBlockers"][number],
+): number {
+  const rank: Record<CommandCenterProjection["pilotBlockers"][number]["severity"], number> = {
+    critical: 0,
+    external: 1,
+    warning: 2,
+  };
+  const severityDiff = rank[left.severity] - rank[right.severity];
+  if (severityDiff !== 0) return severityDiff;
+  return left.category.localeCompare(right.category);
+}
+
+function pilotBlockerTone(
+  severity: CommandCenterProjection["pilotBlockers"][number]["severity"],
+): "success" | "warning" | "critical" | "neutral" {
+  if (severity === "critical") return "critical";
+  if (severity === "external") return "warning";
+  return "neutral";
+}
+
+function pilotBlockerSeverityLabel(
+  severity: CommandCenterProjection["pilotBlockers"][number]["severity"],
+): string {
+  if (severity === "critical") return "Critico";
+  if (severity === "external") return "Externo";
+  return "Atencao";
+}
+
+function pilotBlockerOwnershipLabel(
+  ownership: CommandCenterProjection["pilotBlockers"][number]["ownership"],
+): string {
+  if (ownership === "repo") return "corrigir no repo";
+  if (ownership === "external") return "depende de prova externa";
+  return "acao da operacao";
+}
+
+function pilotBlockerCategoryLabel(
+  category: CommandCenterProjection["pilotBlockers"][number]["category"],
+): string {
+  if (category === "device") return "Aparelho";
+  if (category === "membership") return "Acesso/loja";
+  if (category === "sync") return "Sincronizacao";
+  if (category === "push") return "Push";
+  if (category === "camera") return "Camera";
+  if (category === "build") return "Build";
+  if (category === "product_review") return "Catalogo";
+  if (category === "shift_close") return "Fechamento";
+  if (category === "evidence") return "Evidencia";
+  return "UAT";
 }
 
 function buildCompatibilityTone(

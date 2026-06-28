@@ -122,6 +122,7 @@ const projection = {
     },
   ],
   pilotUat: pilotUatChecklist("loja-piloto", "Loja Ficticia Piloto"),
+  pilotBlockers: pilotBlockers(),
   devices: [
     {
       deviceIdMasked: "moto...001",
@@ -264,6 +265,36 @@ function pilotUatChecklist(storeId: string, storeName: string) {
       },
     ],
   };
+}
+
+function pilotBlockers() {
+  const updatedAt = "2030-01-10T12:00:00.000Z";
+
+  return [
+    {
+      blockerId: "push-provider-external",
+      category: "push",
+      severity: "external",
+      ownership: "external",
+      label: "Provider push sem prova atual",
+      cause: "Provider Android real nao foi provado nesta execucao.",
+      nextAction: "Conectar aparelho aprovado e repetir teste seguro.",
+      affectedLabel: "Teste seguro de push",
+      evidenceReferenceLabel: "Provider bloqueado externamente",
+      updatedAt,
+    },
+    {
+      blockerId: "product-review-pending",
+      category: "product_review",
+      severity: "warning",
+      ownership: "operator",
+      label: "Produto pendente de revisao",
+      cause: "Rascunho criado no mobile e aguardando validacao central.",
+      nextAction: "Revisar produto antes de declarar catalogo pronto.",
+      affectedLabel: "Banana Nanica FICTICIA",
+      updatedAt,
+    },
+  ];
 }
 
 function createApp() {
@@ -585,6 +616,7 @@ describe("Command Center API", () => {
       freshness?: string;
       verdict?: { state?: string; title?: string };
       criticalLots?: unknown[];
+      pilotBlockers?: Array<{ category?: string; label?: string; nextAction?: string }>;
     };
 
     expect(response.status).toBe(200);
@@ -600,6 +632,12 @@ describe("Command Center API", () => {
       },
       criticalLots: [],
     });
+    expect(body.pilotBlockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ category: "device", label: "Nenhum aparelho aprovado" }),
+        expect.objectContaining({ category: "sync", label: "Leitura central bloqueada" }),
+      ]),
+    );
   });
 
   it("does not mark product catalog without central lots as safe", async () => {

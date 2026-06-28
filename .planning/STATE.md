@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Executing Phase 12 - 4/5 plans complete
-stopped_at: Completed 12-04-PLAN.md
-last_updated: "2026-06-28T16:26:50.775Z"
+status: Phase 12 complete with external blockers
+stopped_at: Completed 12-05-PLAN.md
+last_updated: "2026-06-28T16:43:25.208Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 54
-  completed_plans: 53
-  percent: 98
+  completed_plans: 54
+  percent: 100
 ---
 
 # Project State: Validade Zero
@@ -46,7 +46,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 | 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
-| 12 | In Progress | Pilot Operations and Device Readiness - 4/5 plans complete; guided Loja 18 UAT checklist and sanitized evidence record verified |
+| 12 | Complete | Pilot Operations and Device Readiness - 5/5 plans complete; repo gates green; Android/provider/camera/physical UAT external blockers recorded |
 
 ## Active Constraints
 
@@ -58,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 12 sequentially with operational blocker synthesis, release docs, and final validation gates.
+Run the milestone audit before any ship/cleanup decision.
 
 ```powershell
-$gsd-execute-phase 12
+$gsd-audit-milestone
 ```
 
 ## Accumulated Context
@@ -88,6 +88,7 @@ $gsd-execute-phase 12
 - Phase 12 Plan 02 completed: safe push-test contracts, same-store lead/admin API authority, sanitized provider/token/permission timeline, and Command Center action that never resolves tasks or proves area segura.
 - Phase 12 Plan 03 completed: pilot versioning moved to `0.12.0`/Android `versionCode` `120`, mobile build-info reports sanitized version/build/env/API truth, and Command Center compares devices against approved staging artifact `phase-12-staging-apk-120`.
 - Phase 12 Plan 04 completed: Command Center now carries the `UAT Loja 18` guided checklist, contract/API/web/E2E tests cover pass/block/external-block states, and `12-UAT.md` records public-safe real-store UAT rules.
+- Phase 12 Plan 05 completed: Command Center now synthesizes `Bloqueios do piloto`, release/UAT/testing docs are reconciled, `12-VALIDATION.md` is nyquist-compliant with explicit external blockers, `pnpm.cmd check` and web E2E passed, and installed Android/provider/camera/physical UAT remain externally blocked.
 
 ### Quick Tasks Completed
 
@@ -160,15 +161,18 @@ $gsd-execute-phase 12
 | Phase 12 P02 | 22 min | 3 tasks | 21 files |
 | Phase 12 P03 | 64 min | 3 tasks | 22 files |
 | Phase 12 P04 | 13 min | 3 tasks | 12 files |
+| Phase 12 P05 | inline | 3 tasks | blocker synthesis, release docs, final gates, external blocker close |
 
 ## Session
 
-**Last session:** 2026-06-28T16:26:50.775Z
-**Stopped at:** Completed 12-04-PLAN.md
-**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-05-PLAN.md
+**Last session:** 2026-06-28T16:43:25.208Z
+**Stopped at:** Completed 12-05-PLAN.md
+**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-05-SUMMARY.md
 
 ## Decisions
 
+- [Phase 12]: Operational blockers are a separate pilot readiness truth, not a replacement for the sales-area verdict. - A safe central state cannot authorize rollout while device/provider/camera/UAT blockers remain critical or external.
+- [Phase 12]: Nyquist completion means every gate has a pass or explicit blocker. - `nyquist_compliant: true` is an honest validation closeout, not a green physical rollout claim.
 - [Phase 12]: Device readiness stays on central_device_snapshots rather than a separate truth island. - Keeps device health tied to central prepare-turn and store scope.
 - [Phase 12]: Device presence means timestamp facts only. - Last foreground, last sync, and last central read do not claim live presence or physical execution.
 - [Phase 12]: Push readiness can be Atencao or Bloqueado depending on the current proof target. - Local-only push is not fatal for non-push steps, but blocks any step proving remote push.
