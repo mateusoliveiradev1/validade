@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CommandCenterProjectionSchema } from "./command-center";
+import { CommandCenterProjectionSchema, PilotDeviceReadinessSchema } from "./command-center";
 
 describe("Command Center contracts", () => {
   it("requires structured cause data for critical lots", () => {
@@ -69,6 +69,7 @@ describe("Command Center contracts", () => {
       ],
       pendingShiftCloses: [],
       shiftHistory: [],
+      devices: [],
     });
 
     expect(parsed.criticalLots[0]?.cause).toMatchObject({
@@ -78,4 +79,139 @@ describe("Command Center contracts", () => {
     });
     expect(parsed.resolvedHistory[0]?.taskId).toBe("task-resolvida-001");
   });
+
+  it("accepts only the three operational pilot device verdicts", () => {
+    for (const verdict of ["apto", "atencao", "bloqueado"] as const) {
+      expect(
+        PilotDeviceReadinessSchema.parse(
+          deviceReadiness({
+            verdict,
+            blockers:
+              verdict === "apto"
+                ? []
+                : [
+                    {
+                      code:
+                        verdict === "bloqueado"
+                          ? "missing_first_central_read"
+                          : "old_build_attention",
+                      label:
+                        verdict === "bloqueado"
+                          ? "Sem primeira leitura central"
+                          : "Build antigo em observacao",
+                      detail:
+                        verdict === "bloqueado"
+                          ? "O aparelho ainda nao recebeu fatos centrais desta loja."
+                          : "O APK ainda sincroniza, mas nao e a versao aprovada do UAT.",
+                      nextAction:
+                        verdict === "bloqueado"
+                          ? "Abrir Preparar turno no aparelho autorizado."
+                          : "Atualizar antes de provar etapa critica do piloto.",
+                      severity: verdict === "bloqueado" ? "blocking" : "warning",
+                    },
+                  ],
+          }),
+        ),
+      ).toMatchObject({ verdict });
+    }
+
+    expect(() =>
+      PilotDeviceReadinessSchema.parse(deviceReadiness({ verdict: "ready" })),
+    ).toThrow();
+  });
+
+  it("keeps pilot device blockers causal and public-safe", () => {
+    const parsed = PilotDeviceReadinessSchema.parse(
+      deviceReadiness({
+        lastCentralReadAt: undefined,
+        pushPermission: "denied",
+        pushProviderState: "token_invalid",
+        cameraPermission: "denied",
+        verdict: "bloqueado",
+        blockers: [
+          {
+            code: "invalid_store_or_user",
+            label: "Usuario ou loja invalida",
+            detail: "A sessao nao confirma uma loja ativa para este aparelho.",
+            nextAction: "Revalidar convite, loja e papel antes do UAT.",
+            severity: "blocking",
+          },
+          {
+            code: "missing_first_central_read",
+            label: "Sem primeira leitura central",
+            detail: "O aparelho ainda nao recebeu produtos, lotes ou tarefas da central.",
+            nextAction: "Abrir Preparar turno com internet e sessao ativa.",
+            severity: "blocking",
+          },
+          {
+            code: "stale_critical_sync",
+            label: "Sync critico desatualizado",
+            detail: "Existe pendencia critica sem leitura recente suficiente.",
+            nextAction: "Sincronizar e revisar conflito antes do piloto.",
+            severity: "blocking",
+          },
+          {
+            code: "push_required_without_push",
+            label: "Push remoto indisponivel",
+            detail: "A etapa atual precisa provar push remoto e o aparelho nao esta pronto.",
+            nextAction: "Conceder permissao, reinstalar APK nativo ou revisar credencial.",
+            severity: "blocking",
+          },
+          {
+            code: "camera_required_without_camera",
+            label: "Camera bloqueada",
+            detail: "A etapa de evidencia exige camera e a permissao esta negada.",
+            nextAction: "Conceder permissao de camera ou registrar bloqueio externo.",
+            severity: "blocking",
+          },
+        ],
+      }),
+    );
+
+    expect(parsed.blockers.map((blocker) => blocker.code)).toEqual([
+      "invalid_store_or_user",
+      "missing_first_central_read",
+      "stale_critical_sync",
+      "push_required_without_push",
+      "camera_required_without_camera",
+    ]);
+    expect(JSON.stringify(parsed)).not.toMatch(/pushToken|expoPushToken|rawDeviceId|buildUrl/i);
+    expect(() =>
+      PilotDeviceReadinessSchema.parse({
+        ...deviceReadiness(),
+        pushToken: "ExpoPushToken[ficticio]",
+      }),
+    ).toThrow();
+  });
 });
+
+function deviceReadiness(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...baseDeviceReadiness(),
+    ...overrides,
+  };
+}
+
+function baseDeviceReadiness() {
+  return {
+    deviceIdMasked: "apar...001",
+    deviceLabel: "Moto G da Lideranca",
+    activeUserLabel: "Lider FICTICIA",
+    storeId: "loja-ficticia",
+    storeName: "Loja Ficticia Piloto",
+    appVersion: "0.12.0",
+    appBuild: "120",
+    environment: "staging",
+    apiTarget: "https://api.ficticia.invalid",
+    lastForegroundAt: "2030-01-10T11:59:00.000Z",
+    lastSyncAt: "2030-01-10T11:58:00.000Z",
+    lastCentralReadAt: "2030-01-10T11:57:00.000Z",
+    pushPermission: "granted" as const,
+    pushProviderState: "remote_ready" as const,
+    cameraPermission: "granted" as const,
+    verdict: "apto" as const,
+    blockers: [],
+    nextAction: "Aparelho apto para iniciar UAT guiado.",
+    updatedAt: "2030-01-10T12:00:00.000Z",
+  };
+}

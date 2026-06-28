@@ -3,6 +3,101 @@ import { z } from "zod";
 const IdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const ShortLabelSchema = z.string().trim().min(1).max(80);
+
+export const PilotDeviceReadinessVerdictSchema = z.enum(["apto", "atencao", "bloqueado"]);
+
+export const PilotDevicePermissionStateSchema = z.enum([
+  "granted",
+  "denied",
+  "not_requested",
+  "unknown",
+]);
+
+export const PilotDevicePushProviderStateSchema = z.enum([
+  "remote_ready",
+  "local_only",
+  "token_registered",
+  "token_invalid",
+  "provider_failed",
+  "not_configured",
+  "unknown",
+]);
+
+export const PilotDeviceBlockerCodeSchema = z.enum([
+  "invalid_store_or_user",
+  "missing_first_central_read",
+  "stale_critical_sync",
+  "push_required_without_push",
+  "camera_required_without_camera",
+  "incompatible_build",
+  "old_build_attention",
+  "pending_product_review",
+  "sync_conflict",
+  "unsafe_shift_close",
+]);
+
+export const PilotDeviceBlockerSchema = z
+  .object({
+    code: PilotDeviceBlockerCodeSchema,
+    label: RequiredTextSchema,
+    detail: RequiredTextSchema,
+    nextAction: RequiredTextSchema,
+    severity: z.enum(["warning", "blocking"]),
+  })
+  .strict();
+
+export const PilotDeviceReadinessSchema = z
+  .object({
+    deviceIdMasked: ShortLabelSchema,
+    deviceLabel: RequiredTextSchema,
+    activeUserLabel: RequiredTextSchema,
+    storeId: IdentifierSchema,
+    storeName: RequiredTextSchema,
+    appVersion: ShortLabelSchema,
+    appBuild: ShortLabelSchema,
+    environment: ShortLabelSchema,
+    apiTarget: RequiredTextSchema,
+    lastForegroundAt: IsoDateTimeSchema.optional(),
+    lastSyncAt: IsoDateTimeSchema.optional(),
+    lastCentralReadAt: IsoDateTimeSchema.optional(),
+    pushPermission: PilotDevicePermissionStateSchema,
+    pushProviderState: PilotDevicePushProviderStateSchema,
+    cameraPermission: PilotDevicePermissionStateSchema,
+    verdict: PilotDeviceReadinessVerdictSchema,
+    blockers: z.array(PilotDeviceBlockerSchema).max(12),
+    nextAction: RequiredTextSchema,
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const hasBlocking = value.blockers.some((blocker) => blocker.severity === "blocking");
+    const hasWarning = value.blockers.some((blocker) => blocker.severity === "warning");
+
+    if (value.verdict === "apto" && value.blockers.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["verdict"],
+        message: "Apto devices cannot carry active blockers.",
+      });
+    }
+
+    if (value.verdict === "bloqueado" && !hasBlocking) {
+      context.addIssue({
+        code: "custom",
+        path: ["blockers"],
+        message: "Bloqueado devices require at least one blocking cause.",
+      });
+    }
+
+    if (value.verdict === "atencao" && (hasBlocking || !hasWarning)) {
+      context.addIssue({
+        code: "custom",
+        path: ["blockers"],
+        message: "Atencao devices require warning causes and no blocking causes.",
+      });
+    }
+  });
 
 export const CommandCenterVerdictSchema = z
   .object({
@@ -165,7 +260,14 @@ export const CommandCenterProjectionSchema = z
     resolvedHistory: z.array(CommandCenterResolvedHistorySchema),
     pendingShiftCloses: z.array(CommandCenterPendingShiftSchema),
     shiftHistory: z.array(CommandCenterShiftHistorySchema),
+    devices: z.array(PilotDeviceReadinessSchema),
   })
   .strict();
 
 export type CommandCenterProjection = z.infer<typeof CommandCenterProjectionSchema>;
+export type PilotDeviceReadiness = z.infer<typeof PilotDeviceReadinessSchema>;
+export type PilotDeviceReadinessVerdict = z.infer<typeof PilotDeviceReadinessVerdictSchema>;
+export type PilotDeviceBlocker = z.infer<typeof PilotDeviceBlockerSchema>;
+export type PilotDeviceBlockerCode = z.infer<typeof PilotDeviceBlockerCodeSchema>;
+export type PilotDevicePermissionState = z.infer<typeof PilotDevicePermissionStateSchema>;
+export type PilotDevicePushProviderState = z.infer<typeof PilotDevicePushProviderStateSchema>;

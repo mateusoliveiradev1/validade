@@ -7,6 +7,12 @@ import {
   TODAY_TASK_SEVERITIES,
 } from "@validade-zero/domain";
 import { z } from "zod";
+import {
+  PilotDeviceBlockerSchema,
+  PilotDevicePermissionStateSchema,
+  PilotDevicePushProviderStateSchema,
+  PilotDeviceReadinessVerdictSchema,
+} from "./command-center";
 
 const RequiredTextSchema = z.string().trim().min(1).max(160);
 const IdentifierSchema = z.string().trim().min(1).max(120);
@@ -298,9 +304,18 @@ export const PrepareTurnRequestSchema = z
     deviceId: IdentifierSchema,
     requestedAt: IsoDateTimeSchema,
     appVersion: RequiredTextSchema.optional(),
+    deviceLabel: RequiredTextSchema.optional(),
+    appBuild: RequiredTextSchema.optional(),
+    environment: RequiredTextSchema.optional(),
+    apiTarget: RequiredTextSchema.optional(),
+    lastForegroundAt: IsoDateTimeSchema.optional(),
+    pushPermission: PilotDevicePermissionStateSchema.optional(),
+    pushProviderState: PilotDevicePushProviderStateSchema.optional(),
+    cameraPermission: PilotDevicePermissionStateSchema.optional(),
     localSnapshot: z
       .object({
         lastCentralReadAt: IsoDateTimeSchema.optional(),
+        lastSyncedAt: IsoDateTimeSchema.optional(),
         knownProductCount: z.number().int().nonnegative(),
         knownLotCount: z.number().int().nonnegative(),
         pendingCommandCount: z.number().int().nonnegative(),
@@ -792,12 +807,27 @@ export const CentralConflictSnippetSchema = z
 export const DeviceSnapshotSchema = z
   .object({
     deviceId: IdentifierSchema,
+    deviceLabel: RequiredTextSchema.optional(),
+    activeUserLabel: RequiredTextSchema.optional(),
+    storeId: IdentifierSchema.optional(),
+    storeName: RequiredTextSchema.optional(),
+    appVersion: RequiredTextSchema.optional(),
+    appBuild: RequiredTextSchema.optional(),
+    environment: RequiredTextSchema.optional(),
+    apiTarget: RequiredTextSchema.optional(),
     preparedAt: IsoDateTimeSchema.optional(),
+    lastForegroundAt: IsoDateTimeSchema.optional(),
+    lastSyncAt: IsoDateTimeSchema.optional(),
     lastCentralReadAt: IsoDateTimeSchema.optional(),
     lastHydratedAt: IsoDateTimeSchema.optional(),
     pendingCommandCount: z.number().int().nonnegative(),
     conflictCount: z.number().int().nonnegative(),
     source: CentralPackageSourceSchema,
+    pushPermission: PilotDevicePermissionStateSchema.optional(),
+    pushProviderState: PilotDevicePushProviderStateSchema.optional(),
+    cameraPermission: PilotDevicePermissionStateSchema.optional(),
+    readinessVerdict: PilotDeviceReadinessVerdictSchema.optional(),
+    readinessBlockers: z.array(PilotDeviceBlockerSchema).max(12).optional(),
   })
   .strict();
 
