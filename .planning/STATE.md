@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Phase 12 added - ready for pilot operations discussion and planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-06-28T14:12:10.798Z"
+status: Ready to execute Phase 12
+stopped_at: Phase 12 planned
+last_updated: "2026-06-28T14:23:18.772Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
   completed_phases: 11
-  total_plans: 49
+  total_plans: 54
   completed_plans: 49
-  percent: 92
+  percent: 91
 ---
 
 # Project State: Validade Zero
@@ -46,7 +46,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 | 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
-| 12 | Not planned | Pilot Operations and Device Readiness - device health, push test, release truth, guided store UAT, and operational blocker visibility |
+| 12 | Planned | Pilot Operations and Device Readiness - 5/5 plans ready for sequential execution |
 
 ## Active Constraints
 
@@ -58,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run the Phase 12 discussion to lock the pilot operations, device-readiness, push-test, release-truth, and guided UAT decisions before planning.
+Execute Phase 12 sequentially to build device readiness, safe push testing, build truth, guided Loja 18 UAT, and pilot blocker visibility.
 
 ```powershell
-$gsd-discuss-phase 12
+$gsd-execute-phase 12
 ```
 
 ## Accumulated Context
@@ -83,6 +83,7 @@ $gsd-discuss-phase 12
 - Phase 11 Plan 04 completed: release truth, install, push, pilot-flow, testing, UAT, and validation docs now separate historical APK/emulator evidence from current repo readiness and external Android/provider/camera blockers; `pnpm.cmd check` passed.
 - Phase 11 verification completed: UAT record is complete as a truthful evidence record, with installed Android, provider push, camera/device, and physical-device proof explicitly acknowledged as external blockers.
 - Phase 12 added: Pilot Operations and Device Readiness for device health, push-test observability, release truth, guided real-store UAT, and blocker visibility before rollout claims.
+- Phase 12 planned: 5 sequential plans for device readiness, safe push-test timeline, installed-build truth, guided Loja 18 UAT, and final blocker/release validation.
 
 ### Quick Tasks Completed
 
@@ -155,8 +156,8 @@ $gsd-discuss-phase 12
 ## Session
 
 **Last session:** 2026-06-28T14:12:10.789Z
-**Stopped at:** Phase 12 context gathered
-**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-CONTEXT.md
+**Stopped at:** Phase 12 planned
+**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-01-PLAN.md
 
 ## Decisions
 

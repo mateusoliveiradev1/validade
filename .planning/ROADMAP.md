@@ -363,10 +363,28 @@ Plans:
 4. A guided real-store UAT checklist covers prepare-turn, product reuse/create, lot registration, terminal resolution, second-device convergence, Command Center consistency, push test, camera/evidence path, and shift close.
 5. Operational failure states explain what is blocking the pilot: no device, stale sync, no push permission, invalid token, no camera permission, wrong store membership, pending product review, conflict, or unsafe shift close.
 
-**Plans:** 0 plans
+**Plans:** 5/5 plans planned
 
 Plans:
-- [ ] TBD (run /gsd-discuss-phase 12 to lock pilot operations context, then /gsd-plan-phase 12)
+**Wave 1**
+
+- [ ] 12-01-PLAN.md - Device readiness model and per-device Command Center panel
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 12-02-PLAN.md - Safe push-test command, provider outcome timeline, and leadership access
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 12-03-PLAN.md - Pilot build metadata, versioning, and installed-build truth
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 12-04-PLAN.md - Guided Loja 18 UAT checklist and sanitized evidence record
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 12-05-PLAN.md - Operational blocker synthesis, release docs, and final validation gates
 
 ## Coverage
 
