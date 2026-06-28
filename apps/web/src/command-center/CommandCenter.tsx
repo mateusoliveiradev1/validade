@@ -1,6 +1,6 @@
 import * as React from "react";
-import type { CommandCenterProjection } from "@validade-zero/contracts";
-import { RefreshCw, Search, Smartphone } from "lucide-react";
+import type { CommandCenterProjection, SafePushTestResult } from "@validade-zero/contracts";
+import { BellRing, RefreshCw, Search, Smartphone } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
@@ -10,11 +10,13 @@ type CommandCenterStatus = "loading" | "ready" | "error";
 
 export function CommandCenter({
   canOpenAudit,
+  canSendPilotPushTest,
   client: providedClient,
   onOpenAudit,
   storeId,
 }: {
   canOpenAudit?: boolean;
+  canSendPilotPushTest?: boolean;
   client?: CommandCenterClient;
   onOpenAudit?: () => void;
   storeId: string;
@@ -39,6 +41,22 @@ export function CommandCenter({
       } catch {
         setStatus("error");
       }
+    },
+    [client, storeId],
+  );
+
+  const sendSafePushTest = React.useCallback(
+    async (device: CommandCenterProjection["devices"][number]) => {
+      const result = await client.sendSafePushTest({
+        storeId,
+        deviceIdMasked: device.deviceIdMasked,
+        deviceLabel: device.deviceLabel,
+      });
+
+      setProjection((current) =>
+        current === undefined ? current : appendSafePushTestResult(current, result),
+      );
+      setLastClientRefreshAt(new Date());
     },
     [client, storeId],
   );
@@ -110,7 +128,9 @@ export function CommandCenter({
       {current === undefined ? null : (
         <CommandCenterProjectionView
           canOpenAudit={canOpenAudit ?? onOpenAudit !== undefined}
+          canSendPilotPushTest={canSendPilotPushTest === true}
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
+          onSendSafePushTest={sendSafePushTest}
           projection={current}
         />
       )}
@@ -120,11 +140,15 @@ export function CommandCenter({
 
 function CommandCenterProjectionView({
   canOpenAudit,
+  canSendPilotPushTest,
   onOpenAudit,
+  onSendSafePushTest,
   projection,
 }: {
   canOpenAudit: boolean;
+  canSendPilotPushTest: boolean;
   onOpenAudit?: () => void;
+  onSendSafePushTest: (device: CommandCenterProjection["devices"][number]) => Promise<void>;
   projection: CommandCenterProjection;
 }) {
   const insight = buildCommandCenterInsight(projection);
@@ -162,7 +186,11 @@ function CommandCenterProjectionView({
 
       <CentralSnapshotPanel snapshot={projection.centralSnapshot} />
 
-      <DeviceReadinessPanel devices={projection.devices} />
+      <DeviceReadinessPanel
+        canSendPilotPushTest={canSendPilotPushTest}
+        devices={projection.devices}
+        onSendSafePushTest={onSendSafePushTest}
+      />
 
       <CommandCenterInsightPanel
         canOpenAudit={canOpenAudit}
@@ -300,10 +328,16 @@ function CommandCenterProjectionView({
 }
 
 function DeviceReadinessPanel({
+  canSendPilotPushTest,
   devices,
+  onSendSafePushTest,
 }: {
+  canSendPilotPushTest: boolean;
   devices: CommandCenterProjection["devices"];
+  onSendSafePushTest: (device: CommandCenterProjection["devices"][number]) => Promise<void>;
 }) {
+  const [pendingDeviceId, setPendingDeviceId] = React.useState<string>();
+  const [failedDeviceId, setFailedDeviceId] = React.useState<string>();
   const sortedDevices = [...devices].sort(compareDeviceReadiness);
   const blockedCount = devices.filter((device) => device.verdict === "bloqueado").length;
   const attentionCount = devices.filter((device) => device.verdict === "atencao").length;
@@ -340,90 +374,199 @@ function DeviceReadinessPanel({
             <p className="font-semibold">Nenhum aparelho aprovado apareceu nesta loja.</p>
           </div>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Entre no APK de staging com convite ativo, abra Preparar turno e volte aqui para
-            validar permissao, build e leitura central.
+            Entre no APK de staging com convite ativo, abra Preparar turno e volte aqui para validar
+            permissao, build e leitura central.
+          </p>
+          <Button className="min-h-12 w-fit" disabled variant="outline">
+            <BellRing className="size-4" aria-hidden="true" />
+            Teste seguro indisponivel
+          </Button>
+          <p className="text-sm leading-5 text-muted-foreground">
+            O teste seguro exige um aparelho registrado aparecendo nesta loja; ele nao resolve
+            tarefa nem prova area segura.
           </p>
         </div>
       ) : (
         <div className="grid gap-2">
-          {sortedDevices.map((device) => (
-            <article
-              key={`${device.storeId}:${device.deviceIdMasked}:${device.updatedAt}`}
-              className="grid gap-3 rounded-md border border-border bg-background p-3"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="grid gap-1">
-                  <h3 className="font-semibold leading-5">{device.deviceLabel}</h3>
-                  <p className="text-sm leading-5 text-muted-foreground">
-                    {device.activeUserLabel} - {device.storeName}
+          {sortedDevices.map((device) => {
+            const disabledReason = pushTestDisabledReason({
+              canSendPilotPushTest,
+              device,
+            });
+            const isSending = pendingDeviceId === device.deviceIdMasked;
+
+            return (
+              <article
+                key={`${device.storeId}:${device.deviceIdMasked}:${device.updatedAt}`}
+                className="grid gap-3 rounded-md border border-border bg-background p-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="grid gap-1">
+                    <h3 className="font-semibold leading-5">{device.deviceLabel}</h3>
+                    <p className="text-sm leading-5 text-muted-foreground">
+                      {device.activeUserLabel} - {device.storeName}
+                    </p>
+                  </div>
+                  <Badge tone={deviceVerdictTone(device.verdict)}>
+                    {deviceVerdictLabel(device.verdict)}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-start gap-3 rounded-md border border-border bg-card p-3">
+                  <Button
+                    className="min-h-11"
+                    disabled={disabledReason !== undefined || isSending}
+                    title={disabledReason}
+                    variant="outline"
+                    onClick={() => {
+                      setFailedDeviceId(undefined);
+                      setPendingDeviceId(device.deviceIdMasked);
+                      void onSendSafePushTest(device)
+                        .catch(() => {
+                          setFailedDeviceId(device.deviceIdMasked);
+                        })
+                        .finally(() => {
+                          setPendingDeviceId((current) =>
+                            current === device.deviceIdMasked ? undefined : current,
+                          );
+                        });
+                    }}
+                  >
+                    <BellRing className="size-4" aria-hidden="true" />
+                    {isSending ? "Enviando teste..." : "Enviar teste seguro"}
+                  </Button>
+                  <div className="grid min-w-0 flex-1 gap-1 text-sm leading-5">
+                    <p className="font-medium">Canal de lembrete, nao execucao fisica.</p>
+                    <p className="text-muted-foreground">
+                      O teste nao resolve tarefa, nao prova area segura e valida apenas o lembrete.
+                    </p>
+                    {disabledReason === undefined ? null : (
+                      <p className="text-muted-foreground">{disabledReason}</p>
+                    )}
+                    {failedDeviceId === device.deviceIdMasked ? (
+                      <p className="text-destructive">
+                        Teste nao enviado. Recarregue o Command Center e tente novamente.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
+                  <p>
+                    <span className="font-medium text-foreground">Build: </span>
+                    {device.appVersion} ({device.appBuild})
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">API: </span>
+                    {device.environment} - {device.apiTarget}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Ultimo foreground: </span>
+                    {optionalDateLabel(device.lastForegroundAt)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Ultima leitura central: </span>
+                    {optionalDateLabel(device.lastCentralReadAt)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Ultimo sync: </span>
+                    {optionalDateLabel(device.lastSyncAt)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Push: </span>
+                    {pushStateLabel(device.pushPermission, device.pushProviderState)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Camera: </span>
+                    {permissionLabel(device.cameraPermission)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Debug seguro: </span>
+                    {device.deviceIdMasked}
                   </p>
                 </div>
-                <Badge tone={deviceVerdictTone(device.verdict)}>
-                  {deviceVerdictLabel(device.verdict)}
-                </Badge>
-              </div>
 
-              <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
-                <p>
-                  <span className="font-medium text-foreground">Build: </span>
-                  {device.appVersion} ({device.appBuild})
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">API: </span>
-                  {device.environment} - {device.apiTarget}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Ultimo foreground: </span>
-                  {optionalDateLabel(device.lastForegroundAt)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Ultima leitura central: </span>
-                  {optionalDateLabel(device.lastCentralReadAt)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Ultimo sync: </span>
-                  {optionalDateLabel(device.lastSyncAt)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Push: </span>
-                  {pushStateLabel(device.pushPermission, device.pushProviderState)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Camera: </span>
-                  {permissionLabel(device.cameraPermission)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Debug seguro: </span>
-                  {device.deviceIdMasked}
-                </p>
-              </div>
-
-              {device.blockers.length === 0 ? (
-                <p className="text-sm leading-5 text-muted-foreground">{device.nextAction}</p>
-              ) : (
-                <div className="grid gap-2 border-t border-border pt-3">
-                  {device.blockers.map((blocker) => (
-                    <div key={`${device.deviceIdMasked}:${blocker.code}`} className="grid gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={blocker.severity === "blocking" ? "critical" : "warning"}>
-                          {blocker.severity === "blocking" ? "Bloqueia" : "Atencao"}
-                        </Badge>
-                        <p className="font-medium">{blocker.label}</p>
+                {device.blockers.length === 0 ? (
+                  <p className="text-sm leading-5 text-muted-foreground">{device.nextAction}</p>
+                ) : (
+                  <div className="grid gap-2 border-t border-border pt-3">
+                    {device.blockers.map((blocker) => (
+                      <div key={`${device.deviceIdMasked}:${blocker.code}`} className="grid gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={blocker.severity === "blocking" ? "critical" : "warning"}>
+                            {blocker.severity === "blocking" ? "Bloqueia" : "Atencao"}
+                          </Badge>
+                          <p className="font-medium">{blocker.label}</p>
+                        </div>
+                        <p className="text-sm leading-5 text-muted-foreground">{blocker.detail}</p>
+                        <p className="text-sm leading-5">
+                          <span className="font-medium">Agora: </span>
+                          {blocker.nextAction}
+                        </p>
                       </div>
-                      <p className="text-sm leading-5 text-muted-foreground">{blocker.detail}</p>
-                      <p className="text-sm leading-5">
-                        <span className="font-medium">Agora: </span>
-                        {blocker.nextAction}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
-          ))}
+                    ))}
+                  </div>
+                )}
+                <PushTestTimeline pushTests={device.pushTests ?? []} />
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
+  );
+}
+
+function PushTestTimeline({
+  pushTests,
+}: {
+  pushTests: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>;
+}) {
+  const sorted = [...pushTests].sort((left, right) =>
+    right.occurredAt.localeCompare(left.occurredAt),
+  );
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="grid gap-2 border-t border-border pt-3" aria-label="Timeline de teste seguro">
+      <div className="grid gap-1">
+        <p className="font-medium">Timeline do teste seguro de push</p>
+        <p className="text-sm leading-5 text-muted-foreground">
+          Nao resolve tarefa, nao prova area segura; valida apenas o canal de lembrete.
+        </p>
+      </div>
+      {sorted.map((item) => (
+        <div key={item.eventId} className="grid gap-1 rounded-md border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-medium">{pushTestStateLabel(item.state)}</p>
+            <Badge tone={pushTestStateTone(item.state)}>{pushTestStateBadge(item.state)}</Badge>
+          </div>
+          <p className="text-sm leading-5 text-muted-foreground">
+            Solicitado por {item.requesterLabel} - {formatDateTime(item.occurredAt)}
+          </p>
+          <div className="grid gap-1 text-sm leading-5 text-muted-foreground md:grid-cols-3">
+            <p>
+              <span className="font-medium text-foreground">Permissao: </span>
+              {pushPermissionOutcomeLabel(item.permissionOutcome)}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Provider: </span>
+              {pushProviderOutcomeLabel(item.providerOutcome)}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Abertura: </span>
+              {pushAppSignalLabel(item.appSignal)}
+            </p>
+          </div>
+          <p className="text-sm leading-5">{item.detail}</p>
+          <p className="text-sm leading-5 text-muted-foreground">
+            <span className="font-medium text-foreground">Agora: </span>
+            {item.nextAction}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1178,6 +1321,25 @@ function compareDeviceReadiness(
   return right.updatedAt.localeCompare(left.updatedAt);
 }
 
+function pushTestDisabledReason(input: {
+  canSendPilotPushTest: boolean;
+  device: CommandCenterProjection["devices"][number];
+}): string | undefined {
+  if (!input.canSendPilotPushTest) {
+    return "Teste seguro exige lideranca/admin ativo nesta loja.";
+  }
+
+  const lacksConfirmedScope = input.device.blockers.some(
+    (blocker) =>
+      blocker.code === "invalid_store_or_user" || blocker.code === "missing_first_central_read",
+  );
+  if (lacksConfirmedScope) {
+    return "Aparelho precisa confirmar usuario, loja e leitura central antes do teste seguro.";
+  }
+
+  return undefined;
+}
+
 function deviceVerdictTone(
   verdict: CommandCenterProjection["devices"][number]["verdict"],
 ): "success" | "warning" | "critical" {
@@ -1186,7 +1348,9 @@ function deviceVerdictTone(
   return "success";
 }
 
-function deviceVerdictLabel(verdict: CommandCenterProjection["devices"][number]["verdict"]): string {
+function deviceVerdictLabel(
+  verdict: CommandCenterProjection["devices"][number]["verdict"],
+): string {
   if (verdict === "bloqueado") return "Bloqueado";
   if (verdict === "atencao") return "Atencao";
   return "Apto";
@@ -1214,6 +1378,92 @@ function pushStateLabel(
   if (provider === "local_only") return `${permissionText}, apenas local`;
   if (provider === "not_configured") return `${permissionText}, provedor nao configurado`;
   return `${permissionText}, provedor desconhecido`;
+}
+
+function pushTestStateTone(
+  state: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>[number]["state"],
+): "success" | "warning" | "critical" {
+  if (state === "provider_accepted" || state === "opened") return "success";
+  if (state === "provider_failed" || state === "token_invalid") return "critical";
+  return "warning";
+}
+
+function pushTestStateBadge(
+  state: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>[number]["state"],
+): string {
+  if (state === "provider_accepted") return "Provider aceitou";
+  if (state === "provider_failed") return "Provider falhou";
+  if (state === "token_invalid") return "Token invalido";
+  if (state === "permission_denied") return "Permissao negada";
+  if (state === "local_only") return "Apenas local";
+  if (state === "opened") return "Aberto no app";
+  return "Sem sinal";
+}
+
+function pushTestStateLabel(
+  state: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>[number]["state"],
+): string {
+  if (state === "provider_accepted") return "Lembrete aceito pelo provider";
+  if (state === "provider_failed") return "Lembrete recusado pelo provider";
+  if (state === "token_invalid") return "Canal do aparelho invalido";
+  if (state === "permission_denied") return "Permissao de push bloqueada";
+  if (state === "local_only") return "Aparelho operando apenas com lembrete local";
+  if (state === "opened") return "Abertura confirmada no app";
+  return "Teste sem sinal confiavel";
+}
+
+function pushPermissionOutcomeLabel(
+  outcome: NonNullable<
+    CommandCenterProjection["devices"][number]["pushTests"]
+  >[number]["permissionOutcome"],
+): string {
+  if (outcome === "granted") return "permitida";
+  if (outcome === "denied") return "negada";
+  if (outcome === "not_requested") return "nao solicitada";
+  return "desconhecida";
+}
+
+function pushProviderOutcomeLabel(
+  outcome: NonNullable<
+    CommandCenterProjection["devices"][number]["pushTests"]
+  >[number]["providerOutcome"],
+): string {
+  if (outcome === "accepted") return "aceitou envio";
+  if (outcome === "failed") return "falhou";
+  if (outcome === "token_invalid") return "token invalido";
+  if (outcome === "not_configured") return "nao configurado";
+  if (outcome === "not_attempted") return "nao tentado";
+  return "desconhecido";
+}
+
+function pushAppSignalLabel(
+  signal: NonNullable<CommandCenterProjection["devices"][number]["pushTests"]>[number]["appSignal"],
+): string {
+  if (signal === "received") return "recebido";
+  if (signal === "opened") return "aberto";
+  if (signal === "not_seen") return "nao visto";
+  return "sem sinal";
+}
+
+function appendSafePushTestResult(
+  projection: CommandCenterProjection,
+  result: SafePushTestResult,
+): CommandCenterProjection {
+  return {
+    ...projection,
+    devices: projection.devices.map((device) => {
+      const nextItems = result.timeline.filter(
+        (item) => item.deviceIdMasked === device.deviceIdMasked,
+      );
+
+      if (nextItems.length === 0) return device;
+
+      return {
+        ...device,
+        pushTests: [...(device.pushTests ?? []), ...nextItems].slice(-10),
+      };
+    }),
+  };
 }
 
 function optionalDateLabel(value: string | undefined): string {

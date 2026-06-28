@@ -306,9 +306,7 @@ export function createApiApp(input?: {
       captureRepository,
       now,
       readPushTests: (deviceIdMasked) =>
-        pilotPushTestTimeline
-          .filter((item) => item.deviceIdMasked === deviceIdMasked)
-          .slice(-10),
+        pilotPushTestTimeline.filter((item) => item.deviceIdMasked === deviceIdMasked).slice(-10),
     });
   const syncCommandService =
     input?.syncCommandService ?? createCentralCaptureSyncCommandService({ captureRepository, now });
@@ -2009,9 +2007,7 @@ function safePushTestNextAction(state: SafePushTestTimelineItem["state"]): strin
   return "Reabrir app no aparelho e repetir o teste seguro.";
 }
 
-function safePushTestFailureReason(
-  state: SafePushTestTimelineItem["state"],
-): string | undefined {
+function safePushTestFailureReason(state: SafePushTestTimelineItem["state"]): string | undefined {
   if (state === "provider_failed") return "provider_failed";
   if (state === "token_invalid") return "token_invalid";
   if (state === "permission_denied") return "permission_denied";

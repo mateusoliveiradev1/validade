@@ -21,6 +21,7 @@ const activeSession = {
       canCloseShift: false,
       canReadStoreAudit: false,
       canManageUsers: false,
+      canSendPilotPushTest: false,
     },
   },
 };
@@ -92,6 +93,7 @@ describe("authenticated web shell", () => {
               resolvedHistory: [],
               pendingShiftCloses: [],
               shiftHistory: [],
+              devices: [],
             }),
           );
         }

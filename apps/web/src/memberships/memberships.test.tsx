@@ -6,7 +6,7 @@ const ADMIN_CONTEXT = {
   actor: { subjectId: "admin-ficticio", displayName: "Administracao Ficticia" },
   store: { storeId: "loja-ficticia", storeName: "Loja Ficticia" },
   activeRole: "admin",
-  capabilities: ["catalog.review", "user.manage"],
+  capabilities: ["catalog.review", "user.manage", "pilot.push_test.send"],
   sessionExpiresAt: "2030-01-11T12:00:00.000Z",
   accountStatus: "active",
   canRequestRecovery: true,
@@ -18,6 +18,7 @@ const ADMIN_CONTEXT = {
     canCloseShift: false,
     canReadStoreAudit: false,
     canManageUsers: true,
+    canSendPilotPushTest: true,
   },
 };
 

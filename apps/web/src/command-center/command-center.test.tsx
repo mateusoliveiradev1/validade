@@ -142,6 +142,52 @@ const projection = {
           severity: "warning",
         },
       ],
+      pushTests: [
+        {
+          eventId: "push-test-provider-accepted",
+          deviceIdMasked: "moto...001",
+          deviceLabel: "Moto G Lideranca",
+          requesterLabel: "Lider FICTICIO",
+          occurredAt: "2030-01-10T11:59:00.000Z",
+          state: "provider_accepted",
+          permissionOutcome: "granted",
+          providerOutcome: "accepted",
+          deliveryAttemptState: "sent",
+          appSignal: "unknown",
+          detail: "Provider aceitou o lembrete de teste.",
+          nextAction: "Pedir abertura do lembrete e conferir sinal no app.",
+        },
+        {
+          eventId: "push-test-provider-failed",
+          deviceIdMasked: "moto...001",
+          deviceLabel: "Moto G Lideranca",
+          requesterLabel: "Lider FICTICIO",
+          occurredAt: "2030-01-10T11:58:00.000Z",
+          state: "provider_failed",
+          permissionOutcome: "granted",
+          providerOutcome: "failed",
+          deliveryAttemptState: "failed",
+          appSignal: "unknown",
+          detail: "Provider recusou o lembrete de teste.",
+          nextAction: "Verificar Expo/provider e tentar novamente.",
+          failureReason: "provider_failed",
+        },
+        {
+          eventId: "push-test-token-invalid",
+          deviceIdMasked: "moto...001",
+          deviceLabel: "Moto G Lideranca",
+          requesterLabel: "Lider FICTICIO",
+          occurredAt: "2030-01-10T11:57:00.000Z",
+          state: "token_invalid",
+          permissionOutcome: "granted",
+          providerOutcome: "token_invalid",
+          deliveryAttemptState: "failed",
+          appSignal: "unknown",
+          detail: "Token do aparelho ficou invalido.",
+          nextAction: "Reabrir o app para renovar token e repetir o teste.",
+          failureReason: "token_invalid",
+        },
+      ],
       nextAction: "Executar teste seguro de push antes do rollout.",
       updatedAt: "2030-01-10T12:00:00.000Z",
     },
@@ -154,7 +200,10 @@ describe("CommandCenter", () => {
   });
 
   it("answers the safety question before rendering the ordered operational funnel", async () => {
-    const client: CommandCenterClient = { read: vi.fn().mockResolvedValue(projection) };
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue(projection),
+      sendSafePushTest: vi.fn(),
+    };
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
@@ -163,6 +212,17 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
     expect(screen.getByText("Push remoto ainda nao provado")).toBeTruthy();
     expect(screen.getByText("Executar teste seguro de push antes do rollout.")).toBeTruthy();
+    expect(screen.getByText("Canal de lembrete, nao execucao fisica.")).toBeTruthy();
+    expect(
+      screen.getAllByText(/nao resolve tarefa, nao prova area segura/i).length,
+    ).toBeGreaterThan(1);
+    expect(screen.getByText("Lembrete aceito pelo provider")).toBeTruthy();
+    expect(screen.getByText("Verificar Expo/provider e tentar novamente.")).toBeTruthy();
+    expect(screen.getByText("Reabrir o app para renovar token e repetir o teste.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enviar teste seguro" })).toHaveProperty(
+      "disabled",
+      true,
+    );
     expect(screen.getByText("1 lote central")).toBeTruthy();
     expect(screen.getByText("1 produto em rascunho")).toBeTruthy();
     expect(screen.getByText("Por que venceu")).toBeTruthy();
@@ -205,7 +265,7 @@ describe("CommandCenter", () => {
 
   it("keeps the recovery action visible when refresh fails", async () => {
     const read = vi.fn().mockRejectedValue(new Error("falha ficticia"));
-    const client: CommandCenterClient = { read };
+    const client: CommandCenterClient = { read, sendSafePushTest: vi.fn() };
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect((await screen.findByRole("alert")).textContent).toContain("Nao foi possivel atualizar");
@@ -215,7 +275,10 @@ describe("CommandCenter", () => {
 
   it("keeps audit actions disabled without store audit capability", async () => {
     const onOpenAudit = vi.fn();
-    const client: CommandCenterClient = { read: vi.fn().mockResolvedValue(projection) };
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue(projection),
+      sendSafePushTest: vi.fn(),
+    };
     render(
       <CommandCenter
         canOpenAudit={false}
@@ -235,5 +298,58 @@ describe("CommandCenter", () => {
     expect(firstButton).toHaveProperty("disabled", true);
     fireEvent.click(firstButton);
     expect(onOpenAudit).not.toHaveBeenCalled();
+  });
+
+  it("sends a safe push test and appends the returned timeline", async () => {
+    const sendSafePushTest = vi.fn().mockResolvedValue({
+      command: {
+        commandId: "pilot-push-test-001",
+        storeId: "loja-piloto",
+        storeName: "Loja Ficticia Piloto",
+        deviceId: "moto...001",
+        deviceLabel: "Moto G Lideranca",
+        requesterSubjectId: "lead-local",
+        requesterLabel: "Lider FICTICIO",
+        requestedAt: "2030-01-10T12:01:00.000Z",
+        message: {
+          title: "Teste Validade Zero",
+          body: "Toque para confirmar canal de lembrete.",
+        },
+      },
+      timeline: [
+        {
+          eventId: "push-test-local-only",
+          deviceIdMasked: "moto...001",
+          deviceLabel: "Moto G Lideranca",
+          requesterLabel: "Lider FICTICIO",
+          occurredAt: "2030-01-10T12:01:00.000Z",
+          state: "local_only",
+          permissionOutcome: "denied",
+          providerOutcome: "not_configured",
+          deliveryAttemptState: "not_attempted",
+          appSignal: "unknown",
+          detail: "Canal local identificado; teste remoto nao foi disparado.",
+          nextAction: "Configurar push remoto e repetir o teste seguro.",
+        },
+      ],
+    });
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue({
+        ...projection,
+        devices: projection.devices.map((device) => ({ ...device, pushTests: [] })),
+      }),
+      sendSafePushTest,
+    };
+    render(<CommandCenter canSendPilotPushTest client={client} storeId="loja-piloto" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar teste seguro" }));
+
+    expect(sendSafePushTest).toHaveBeenCalledWith({
+      storeId: "loja-piloto",
+      deviceIdMasked: "moto...001",
+      deviceLabel: "Moto G Lideranca",
+    });
+    expect(await screen.findByText("Aparelho operando apenas com lembrete local")).toBeTruthy();
+    expect(screen.getByText("Configurar push remoto e repetir o teste seguro.")).toBeTruthy();
   });
 });

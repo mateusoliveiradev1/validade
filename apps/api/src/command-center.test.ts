@@ -392,6 +392,70 @@ describe("Command Center API", () => {
     expect(JSON.stringify(body)).not.toMatch(/android-loja-piloto-001|android-outra-loja-001/i);
   });
 
+  it("projects safe push-test timeline without exposing raw provider or device details", async () => {
+    const captureRepository = createCentralCaptureRepository();
+    await captureRepository.upsertDeviceSnapshot({
+      deviceId: "android-loja-piloto-001",
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+      deviceLabel: "Moto G Lideranca",
+      activeUserLabel: "Lider FICTICIO",
+      appVersion: "0.12.0",
+      appBuild: "120",
+      environment: "staging",
+      apiTarget: "https://api.ficticia.invalid",
+      preparedAt: new Date("2030-01-10T11:40:00.000Z"),
+      lastForegroundAt: new Date("2030-01-10T11:42:00.000Z"),
+      lastSyncAt: new Date("2030-01-10T11:43:00.000Z"),
+      lastCentralReadAt: new Date("2030-01-10T11:44:00.000Z"),
+      lastHydratedAt: new Date("2030-01-10T11:44:00.000Z"),
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+      pushPermission: "granted",
+      pushProviderState: "remote_ready",
+      cameraPermission: "granted",
+      updatedAt: new Date("2030-01-10T11:45:00.000Z"),
+    });
+    const app = createCentralCaptureApp({ captureRepository });
+
+    const pushResponse = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-piloto",
+        deviceIdMasked: "andr...001",
+      }),
+    });
+    const commandCenterResponse = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await commandCenterResponse.json()) as unknown;
+
+    expect(pushResponse.status).toBe(200);
+    expect(commandCenterResponse.status).toBe(200);
+    expect(body).toMatchObject({
+      devices: [
+        {
+          deviceLabel: "Moto G Lideranca",
+          pushTests: [
+            {
+              state: "provider_accepted",
+              providerOutcome: "accepted",
+              deliveryAttemptState: "sent",
+            },
+          ],
+        },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toMatch(
+      /android-loja-piloto-001|ExponentPushToken|providerTicket|rawProvider/i,
+    );
+  });
+
   it("fails closed when central capture has no turn facts", async () => {
     const app = createCentralCaptureApp({
       captureRepository: createInMemoryCaptureRepository(),

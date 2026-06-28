@@ -115,9 +115,7 @@ describe("Command Center contracts", () => {
       ).toMatchObject({ verdict });
     }
 
-    expect(() =>
-      PilotDeviceReadinessSchema.parse(deviceReadiness({ verdict: "ready" })),
-    ).toThrow();
+    expect(() => PilotDeviceReadinessSchema.parse(deviceReadiness({ verdict: "ready" }))).toThrow();
   });
 
   it("keeps pilot device blockers causal and public-safe", () => {

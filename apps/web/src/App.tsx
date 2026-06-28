@@ -163,6 +163,7 @@ export function App() {
         <CommandCenter
           storeId={session.store.storeId}
           canOpenAudit={session.actions.canReadStoreAudit}
+          canSendPilotPushTest={session.actions.canSendPilotPushTest}
           onOpenAudit={() => setRoute("audit")}
         />
       ) : activeRoute === "access" ? (

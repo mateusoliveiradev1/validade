@@ -108,7 +108,7 @@ export function createCaptureBackedCommandCenterService(input: {
           input.readPushTests === undefined
             ? devices
             : devices.map((device) => {
-                const pushTests = input.readPushTests?.(device.deviceIdMasked) ?? [];
+                const pushTests = [...(input.readPushTests?.(device.deviceIdMasked) ?? [])];
                 return pushTests.length === 0 ? device : { ...device, pushTests };
               });
 
@@ -344,7 +344,7 @@ function projectionFromCentralPrepareTurn(
   scope: { storeId: string; storeName: string },
   prepared: PrepareTurnResponse,
   refreshedAt: string,
-  devices: CommandCenterProjection["devices"],
+  devices: readonly CommandCenterProjection["devices"][number][],
 ): CommandCenterProjection {
   const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
   const pendingProductDrafts = prepared.products
@@ -407,7 +407,7 @@ function projectionFromCentralPrepareTurn(
     resolvedHistory: prepared.resolvedHistory.map(resolvedHistoryFromCentral),
     pendingShiftCloses: [],
     shiftHistory: [],
-    devices,
+    devices: [...devices],
   });
 }
 

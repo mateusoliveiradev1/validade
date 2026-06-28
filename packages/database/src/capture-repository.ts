@@ -1849,32 +1849,39 @@ export function createCaptureRepositoryFromQuery(
         deviceId: input.request.deviceId,
         storeId: input.storeId,
         storeName: input.storeName,
-        deviceLabel: input.request.deviceLabel,
         activeUserLabel: input.actorDisplayName,
-        appVersion: input.request.appVersion,
-        appBuild: input.request.appBuild,
-        environment: input.request.environment,
-        apiTarget: input.request.apiTarget,
+        ...(input.request.deviceLabel === undefined
+          ? {}
+          : { deviceLabel: input.request.deviceLabel }),
+        ...(input.request.appVersion === undefined ? {} : { appVersion: input.request.appVersion }),
+        ...(input.request.appBuild === undefined ? {} : { appBuild: input.request.appBuild }),
+        ...(input.request.environment === undefined
+          ? {}
+          : { environment: input.request.environment }),
+        ...(input.request.apiTarget === undefined ? {} : { apiTarget: input.request.apiTarget }),
         preparedAt: new Date(input.request.requestedAt),
-        lastForegroundAt:
-          input.request.lastForegroundAt === undefined
-            ? undefined
-            : new Date(input.request.lastForegroundAt),
-        lastSyncAt:
-          input.request.localSnapshot?.lastSyncedAt === undefined
-            ? undefined
-            : new Date(input.request.localSnapshot.lastSyncedAt),
-        lastCentralReadAt:
-          response.store.centralReadAt === undefined
-            ? undefined
-            : new Date(response.store.centralReadAt),
+        ...(input.request.lastForegroundAt === undefined
+          ? {}
+          : { lastForegroundAt: new Date(input.request.lastForegroundAt) }),
+        ...(input.request.localSnapshot?.lastSyncedAt === undefined
+          ? {}
+          : { lastSyncAt: new Date(input.request.localSnapshot.lastSyncedAt) }),
+        ...(response.store.centralReadAt === undefined
+          ? {}
+          : { lastCentralReadAt: new Date(response.store.centralReadAt) }),
         lastHydratedAt: new Date(input.request.requestedAt),
         pendingCommandCount: input.request.localSnapshot?.pendingCommandCount ?? 0,
         conflictCount: response.conflicts.length,
         source: "central",
-        pushPermission: input.request.pushPermission,
-        pushProviderState: input.request.pushProviderState,
-        cameraPermission: input.request.cameraPermission,
+        ...(input.request.pushPermission === undefined
+          ? {}
+          : { pushPermission: input.request.pushPermission }),
+        ...(input.request.pushProviderState === undefined
+          ? {}
+          : { pushProviderState: input.request.pushProviderState }),
+        ...(input.request.cameraPermission === undefined
+          ? {}
+          : { cameraPermission: input.request.cameraPermission }),
         updatedAt: new Date(input.request.requestedAt),
       });
       await appendPrepareTurnAudit(input, response);
@@ -2055,32 +2062,45 @@ export function createInMemoryCaptureRepository(input?: {
         deviceId: prepareInput.request.deviceId,
         storeId: prepareInput.storeId,
         storeName: prepareInput.storeName,
-        deviceLabel: prepareInput.request.deviceLabel,
         activeUserLabel: prepareInput.actorDisplayName,
-        appVersion: prepareInput.request.appVersion,
-        appBuild: prepareInput.request.appBuild,
-        environment: prepareInput.request.environment,
-        apiTarget: prepareInput.request.apiTarget,
+        ...(prepareInput.request.deviceLabel === undefined
+          ? {}
+          : { deviceLabel: prepareInput.request.deviceLabel }),
+        ...(prepareInput.request.appVersion === undefined
+          ? {}
+          : { appVersion: prepareInput.request.appVersion }),
+        ...(prepareInput.request.appBuild === undefined
+          ? {}
+          : { appBuild: prepareInput.request.appBuild }),
+        ...(prepareInput.request.environment === undefined
+          ? {}
+          : { environment: prepareInput.request.environment }),
+        ...(prepareInput.request.apiTarget === undefined
+          ? {}
+          : { apiTarget: prepareInput.request.apiTarget }),
         preparedAt: new Date(prepareInput.request.requestedAt),
-        lastForegroundAt:
-          prepareInput.request.lastForegroundAt === undefined
-            ? undefined
-            : new Date(prepareInput.request.lastForegroundAt),
-        lastSyncAt:
-          prepareInput.request.localSnapshot?.lastSyncedAt === undefined
-            ? undefined
-            : new Date(prepareInput.request.localSnapshot.lastSyncedAt),
-        lastCentralReadAt:
-          response.store.centralReadAt === undefined
-            ? undefined
-            : new Date(response.store.centralReadAt),
+        ...(prepareInput.request.lastForegroundAt === undefined
+          ? {}
+          : { lastForegroundAt: new Date(prepareInput.request.lastForegroundAt) }),
+        ...(prepareInput.request.localSnapshot?.lastSyncedAt === undefined
+          ? {}
+          : { lastSyncAt: new Date(prepareInput.request.localSnapshot.lastSyncedAt) }),
+        ...(response.store.centralReadAt === undefined
+          ? {}
+          : { lastCentralReadAt: new Date(response.store.centralReadAt) }),
         lastHydratedAt: new Date(prepareInput.request.requestedAt),
         pendingCommandCount: prepareInput.request.localSnapshot?.pendingCommandCount ?? 0,
         conflictCount: response.conflicts.length,
         source: "central",
-        pushPermission: prepareInput.request.pushPermission,
-        pushProviderState: prepareInput.request.pushProviderState,
-        cameraPermission: prepareInput.request.cameraPermission,
+        ...(prepareInput.request.pushPermission === undefined
+          ? {}
+          : { pushPermission: prepareInput.request.pushPermission }),
+        ...(prepareInput.request.pushProviderState === undefined
+          ? {}
+          : { pushProviderState: prepareInput.request.pushProviderState }),
+        ...(prepareInput.request.cameraPermission === undefined
+          ? {}
+          : { cameraPermission: prepareInput.request.cameraPermission }),
         updatedAt: new Date(prepareInput.request.requestedAt),
       });
       auditEvents.push({
@@ -2637,7 +2657,10 @@ function buildPilotDeviceReadiness(
   snapshot: DeviceSnapshotInput,
   input: ListDeviceReadinessInput,
 ): PilotDeviceReadiness {
-  const blockers = [...(snapshot.readinessBlockers ?? []), ...derivedDeviceBlockers(snapshot, input)];
+  const blockers = [
+    ...(snapshot.readinessBlockers ?? []),
+    ...derivedDeviceBlockers(snapshot, input),
+  ];
   const hasBlocking = blockers.some((blocker) => blocker.severity === "blocking");
   const hasWarning = blockers.some((blocker) => blocker.severity === "warning");
   const verdict: PilotDeviceReadinessVerdict =
@@ -2706,7 +2729,8 @@ function derivedDeviceBlockers(
     blockers.push({
       code: "stale_critical_sync",
       label: "Sync critico desatualizado",
-      detail: "Existe comando pendente ou conflito sem leitura recente suficiente para liberar UAT.",
+      detail:
+        "Existe comando pendente ou conflito sem leitura recente suficiente para liberar UAT.",
       nextAction: "Sincronizar o aparelho, revisar conflitos e reler a central.",
       severity: "blocking",
     });
@@ -2778,7 +2802,10 @@ function hasStaleCriticalSync(
   return now.getTime() - lastSyncAt.getTime() > staleMinutes * 60_000;
 }
 
-function comparePilotDeviceReadiness(left: PilotDeviceReadiness, right: PilotDeviceReadiness): number {
+function comparePilotDeviceReadiness(
+  left: PilotDeviceReadiness,
+  right: PilotDeviceReadiness,
+): number {
   const rank: Record<PilotDeviceReadinessVerdict, number> = {
     bloqueado: 0,
     atencao: 1,
@@ -2929,7 +2956,9 @@ function buildPrepareTurnResponse(input: {
       ...(input.input.request.environment === undefined
         ? {}
         : { environment: input.input.request.environment }),
-      ...(input.input.request.apiTarget === undefined ? {} : { apiTarget: input.input.request.apiTarget }),
+      ...(input.input.request.apiTarget === undefined
+        ? {}
+        : { apiTarget: input.input.request.apiTarget }),
       preparedAt: requestedAt,
       ...(input.input.request.lastForegroundAt === undefined
         ? {}
