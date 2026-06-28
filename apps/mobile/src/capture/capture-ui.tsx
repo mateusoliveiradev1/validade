@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  type AccessibilityRole,
   Pressable,
   StyleSheet,
   Text,
@@ -8,6 +9,14 @@ import {
   type KeyboardTypeOptions,
 } from "react-native";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
+
+export type StatusNoticeTone =
+  | "critical"
+  | "warning"
+  | "info"
+  | "neutral"
+  | "success"
+  | "error";
 
 export function ScreenHeader({ title, body }: { title: string; body?: string }) {
   return (
@@ -178,25 +187,50 @@ export function SelectionRow({
 export function StatusNotice({
   children,
   tone = "info",
+  title,
+  accessibilityRole,
 }: {
   children: ReactNode;
-  tone?: "info" | "error" | "success";
+  tone?: StatusNoticeTone;
+  title?: string | undefined;
+  accessibilityRole?: AccessibilityRole | undefined;
 }) {
+  const normalizedTone = tone === "error" ? "critical" : tone;
+  const resolvedRole =
+    accessibilityRole ?? (normalizedTone === "critical" || normalizedTone === "warning"
+      ? "alert"
+      : "text");
+
   return (
     <View
       accessibilityLiveRegion="polite"
-      accessibilityRole="alert"
+      accessibilityRole={resolvedRole}
       style={[
         styles.notice,
-        tone === "error" ? styles.noticeError : undefined,
-        tone === "success" ? styles.noticeSuccess : undefined,
+        normalizedTone === "critical" ? styles.noticeCritical : undefined,
+        normalizedTone === "warning" ? styles.noticeWarning : undefined,
+        normalizedTone === "neutral" ? styles.noticeNeutral : undefined,
+        normalizedTone === "success" ? styles.noticeSuccess : undefined,
       ]}
     >
+      {title === undefined ? null : (
+        <Text
+          style={[
+            styles.noticeTitle,
+            normalizedTone === "critical" ? styles.noticeCriticalText : undefined,
+            normalizedTone === "warning" ? styles.noticeWarningText : undefined,
+            normalizedTone === "success" ? styles.noticeSuccessText : undefined,
+          ]}
+        >
+          {title}
+        </Text>
+      )}
       <Text
         style={[
           styles.noticeText,
-          tone === "error" ? styles.noticeErrorText : undefined,
-          tone === "success" ? styles.noticeSuccessText : undefined,
+          normalizedTone === "critical" ? styles.noticeCriticalText : undefined,
+          normalizedTone === "warning" ? styles.noticeWarningText : undefined,
+          normalizedTone === "success" ? styles.noticeSuccessText : undefined,
         ]}
       >
         {children}
@@ -344,22 +378,43 @@ const styles = StyleSheet.create({
   },
   notice: {
     backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
     padding: 16,
   },
-  noticeError: {
+  noticeCritical: {
     backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  noticeWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
+  noticeNeutral: {
+    backgroundColor: captureColors.surface,
+  },
+  noticeTitle: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
   },
   noticeText: {
     color: captureColors.ink,
     fontSize: 14,
     lineHeight: 20,
   },
-  noticeErrorText: {
+  noticeCriticalText: {
     color: captureColors.critical,
+  },
+  noticeWarningText: {
+    color: captureColors.warningInk,
   },
   noticeSuccess: {
     backgroundColor: captureColors.accentSoft,
+    borderColor: captureColors.accent,
   },
   noticeSuccessText: {
     color: captureColors.accent,

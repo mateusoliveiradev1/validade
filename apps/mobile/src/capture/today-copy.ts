@@ -2,17 +2,17 @@ import type { TodayTaskRecord } from "@validade-zero/contracts";
 
 export const todayCopy = {
   title: "Hoje",
-  safeHeader: "Area de venda segura",
-  safeWithWorkHeader: "Area de venda segura, ainda ha tarefas do turno",
-  criticalHeader: (count: number) => `Area de venda com ${count} risco(s) agora`,
+  safeHeader: "Nenhum bloqueio ativo na leitura central",
+  safeWithWorkHeader: "Area sem bloqueio critico, ainda ha tarefas do turno",
+  criticalHeader: (_count?: number) => "Area de venda com risco agora",
   refresh: "Atualizar tarefas",
   refreshSuccess: (activeTaskCount: number) =>
     activeTaskCount === 0
       ? "Atualizacao concluida. Nenhuma tarefa ativa."
       : `Atualizacao concluida. ${activeTaskCount} ${activeTaskCount === 1 ? "tarefa ativa" : "tarefas ativas"}.`,
-  emptyHeading: "Area de venda segura agora",
+  emptyHeading: "Nenhum bloqueio ativo na leitura central",
   emptyBody:
-    "Nenhum lote exige acao neste momento. Registre um lote novo ou confira os recentes para manter a operacao atualizada.",
+    "A leitura central nao encontrou tarefa critica agora. Registre um lote novo ou confira os recentes antes de fechar o turno.",
   registerLot: "Registrar lote",
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
@@ -25,9 +25,10 @@ export const todayCopy = {
     offlineReady: "Pronto para operar sem internet",
     offlineMode: "Sem internet agora. Usando tarefas salvas neste aparelho.",
     localSaved: "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
-    pending: "Pendente de sincronizacao",
+    pending: "Pendente central. Ainda nao use como confirmacao da loja.",
     syncing: "Sincronizando pendencias",
-    syncedAt: (label: string) => `Sincronizado as ${label}.`,
+    syncedAt: (label: string) =>
+      `Sincronizado com a central as ${label}. Verifique se ainda existe bloqueio operacional.`,
     retry: "Tentar sincronizar novamente",
     reviewConflict: "Revisar conflito",
     keepLocal: "Manter acao local e reenviar",
