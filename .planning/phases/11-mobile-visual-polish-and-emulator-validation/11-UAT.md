@@ -1,8 +1,10 @@
 ---
 phase: 11-mobile-visual-polish-and-emulator-validation
 artifact: UAT
-status: blocked-android-target
+status: complete
 created: 2026-06-28
+verified: 2026-06-28T01:37:48-03:00
+verification_result: complete-with-external-blockers
 ---
 
 # Phase 11 UAT - Mobile Visual Polish And Android Evidence
@@ -12,6 +14,10 @@ created: 2026-06-28
 Component-level critical-flow coverage is passing with fictional fixtures. Installed Android validation is blocked because no emulator or approved Android device is connected in this run. No Android pass is claimed.
 
 Current release decision: blocked for installed Android, provider push, camera/device, and physical-device UAT proof. Historical emulator/APK evidence remains historical only.
+
+## Verification Acceptance
+
+`$gsd-verify-work 11` completed on 2026-06-28T01:37:48-03:00 after the pilot owner acknowledged the external Android/provider/camera blockers and chose to proceed with verification. This marks the UAT record complete as a truthful evidence record; it does not mark installed Android, remote push provider, real camera/device, or physical-device pilot proof as passed.
 
 ## Evidence Matrix
 
@@ -46,7 +52,7 @@ Expo Go, local mocks, local ignored Firebase files, unapproved APK identity, raw
 | Command | Result | Notes |
 |---|---|---|
 | `pnpm.cmd --filter @validade-zero/mobile test capture mobile-release-journeys` | Passed | 31 mobile test files / 162 tests passed with fictional fixtures. |
-| `pnpm.cmd security:evidence` | Passed | Sensitive evidence scan passed for 528 tracked text files after UAT/release docs updates. |
+| `pnpm.cmd security:evidence` | Passed | Sensitive evidence scan passed for 529 tracked text files after UAT/release docs updates. |
 | `pnpm.cmd check` | Passed | Typecheck, lint, format, 84 test files / 545 tests, 55 smoke files / 287 tests, build, security, and performance budgets passed. |
 | `adb devices` | Blocked | No connected Android target was listed. |
 | `pnpm.cmd test:e2e:mobile` | Blocked | Maestro could not run because 0 devices were connected. |
