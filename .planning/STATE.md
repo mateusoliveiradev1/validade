@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 12
-status: Milestone audit rerun: requirements satisfied; external rollout blockers remain
-stopped_at: Updated v1.0-MILESTONE-AUDIT.md
-last_updated: "2026-06-28T20:56:41.848Z"
+current_phase: null
+status: Awaiting next milestone
+stopped_at: v1.0 archived
+last_updated: "2026-06-28T21:56:05.235Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -18,7 +18,7 @@ progress:
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 12
+**Current phase:** None (v1.0 archived)
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -26,10 +26,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-20)
+See: .planning/PROJECT.md (updated 2026-06-28)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 12 — pilot-operations-and-device-readiness
+**Current focus:** Planning the next milestone after v1.0 repository-complete archive.
 
 ## Roadmap Progress
 
@@ -58,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Decide whether to archive v1.0 as repository-complete while carrying external rollout blockers forward, or collect Android/provider/camera/Loja 18 proof and rerun the audit.
+Start the next milestone cycle and decide whether it should focus on external pilot proof, store rollout preparation, or a broader product expansion.
 
 ```powershell
-$gsd-complete-milestone v1.0
+$gsd-new-milestone
 ```
 
 ## Accumulated Context
@@ -174,8 +174,8 @@ $gsd-complete-milestone v1.0
 ## Session
 
 **Last session:** 2026-06-28T16:43:25.208Z
-**Stopped at:** Completed 12-05-PLAN.md
-**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-05-SUMMARY.md
+**Stopped at:** v1.0 archived
+**Resume file:** .planning/MILESTONES.md
 
 ## Decisions
 
@@ -249,3 +249,51 @@ $gsd-complete-milestone v1.0
 - [Phase 03]: Local corrections append observations and refresh only the latest lot snapshot. — This preserves the original physical fact without claiming Phase 8 audit scope.
 - [Phase 03]: Manual product lookup remains the initial mobile path and a candidate must be explicitly confirmed before lot entry. — Barcode assistance comes later and cannot create an implicit registration.
 - [Phase 03]: The lot form uses the Phase 2 risk calculator for immediate operational feedback. — Risk rules stay in the pure domain package instead of being duplicated in React Native.
+
+## Current Position
+
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-28 — Milestone v1.0 completed and archived
+
+## Operator Next Steps
+
+- Start the next milestone with `$gsd-new-milestone`
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-06-28:
+
+| Category | Item | Status |
+|----------|------|--------|
+| debug | first-central-read-empty | investigating |
+| debug | lotes-centrais-nao-persistem | fixing |
+| debug | mobile-perfect-navigation-push | fixing |
+| debug | mobile-web-sync | investigating |
+| debug | uat-refresh-feedback | unknown |
+| debug | uat-today-polish | unknown |
+| quick_task | 260619-a1b-fix-medium-dependabot-alerts-for-qs-and- | missing |
+| quick_task | 260619-tw4-exibir-hor-rios-de-observa-o-sem-segundo | missing |
+| quick_task | 260620-ag5-fechar-gaps-uat-da-fase-4-feedback-de-at | missing |
+| quick_task | 260620-ge8-tornar-os-atalhos-frequentes-e-por-categ | missing |
+| quick_task | 260623-a41-adicionar-react-native-web-para-executar | missing |
+| quick_task | 260623-aif-adaptar-a-autenticacao-web-para-desktop- | missing |
+| quick_task | 260623-b5m-ligar-api-e-web-locais-ao-neon-staging-e | missing |
+| quick_task | 260623-h7v-polir-ui-ux-mobile-do-login-e-da-tela-ho | missing |
+| quick_task | 260623-r8m-configurar-o-apk-android-staging-para-us | missing |
+| quick_task | 260623-rq1-corrigir-login-da-api-staging-no-cloudfl | missing |
+| quick_task | 260624-atx-melhorar-web-ui-ux-com-impeccable-corrig | missing |
+| quick_task | 260624-hpj-corrigir-web-em-producao-command-center- | missing |
+| quick_task | 260624-inv-corrigir-validade-convite-web | missing |
+| quick_task | 260626-hte-melhorar-painel-admin-command-center-par | missing |
+| quick_task | 260626-i4v-enriquecer-command-center-com-causa-estr | missing |
+| quick_task | 260627-hkt-prepare-staging-for-23-store-real-uat-wi | missing |
+| quick_task | 260627-iar-ajustar-rbac-multi-loja-para-dono-admin- | missing |
+| quick_task | 260627-mpa-adicionar-m-ltiplos-identificadores-por- | verified |
+| quick_task | 260627-p0-backend-db-production-hardening | missing |
+| quick_task | 260627-p1-db-production-ops-hardening | missing |
+| quick_task | 260627-qcz-expor-foto-central-real-no-command-center | missing |
+| uat | 09-UAT.md | complete_with_external_blockers |
+| uat | 10-UAT.md | complete_with_external_blockers |
+| uat | 12-UAT.md | complete_with_external_blockers |

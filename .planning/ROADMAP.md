@@ -3,427 +3,126 @@
 **Mode:** Vertical MVP
 **Granularity:** Fine
 **Requirements covered:** 37/37
+**Current status:** v1.0 Repository Complete archived on 2026-06-28
+
+## Milestones
+
+- [x] **v1.0 Repository Complete** - Phases 1-12, 54 plans, shipped 2026-06-28.
+- [ ] **Next milestone** - define with `$gsd-new-milestone`.
 
 ## Phases
+
+<details>
+<summary>v1.0 Repository Complete (Phases 1-12) - shipped 2026-06-28</summary>
 
 ### Phase 1: Engineering Foundation
 
 **Goal:** Establish the monorepo, quality gates, security baseline, and public-repo safety needed for all future work.
-**Mode:** mvp
-**UI hint:** no
-**Requirements:** FND-01, FND-02, FND-03, FND-04, AUD-04
-**Success Criteria**:
-
-1. Repository has pnpm/Turborepo workspace with apps/packages structure and consistent scripts.
-2. TypeScript, linting, formatting, dependency boundaries, test runners, and security checks run from documented commands.
-3. Public repo has safe secret handling, .env examples, and no real operational data.
-4. CI can execute the baseline quality suite.
-
 **Plans:** 5/5 plans complete
-Plans:
-**Wave 1**
-
-- [x] 01-01-PLAN.md - Root workspace and shared package boundaries
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 01-02-PLAN.md - API, web, and mobile smoke skeleton
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 01-03-PLAN.md - Strict typing, linting, env safety, and repo guards
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 01-04-PLAN.md - Test pyramid, safe fixtures, and smoke coverage
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 01-05-PLAN.md - CI, security docs, threat model, and README
 
 ### Phase 2: Domain and Risk Core
 
 **Goal:** Model products, categories, formal validity, quality windows, and risk state calculation as tested domain logic.
-**Mode:** mvp
-**UI hint:** no
-**Requirements:** CAT-04, LOC-04, RSK-01, RSK-02
-**Success Criteria**:
-
-1. Domain package distinguishes formal-validity items from FLV quality-inspection items.
-2. Risk engine computes radar, markdown, critical, expired, and uncertain states from rule profiles.
-3. Critical domain rules have TDD coverage and mutation-ready structure.
-4. Domain logic has no dependency on UI, database, or provider SDKs.
-
 **Plans:** 4/4 plans complete
-Plans:
-**Wave 1**
-
-- [x] 02-01-PLAN.md - Domain test harness and product/rule vocabulary
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 02-02-PLAN.md - Formal-validity and FLV risk-window engine
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 02-03-PLAN.md - Physical presence uncertainty and operational commands
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 02-04-PLAN.md - Scenario matrix, mutation readiness, and boundary verification
 
 ### Phase 3: Mobile Lot Capture
 
 **Goal:** Deliver the first mobile workflow for registering products/lots and confirming physical presence by location.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, LOC-03
-**Success Criteria**:
-
-1. Collaborator can register product and lot data from mobile.
-2. Camera/barcode helps product lookup without becoming mandatory.
-3. Collaborator can move and confirm lots across operational locations.
-4. Last-seen data captures user, time, location, and approximate quantity.
-
 **Plans:** 4/4 plans complete
-
-**Wave 1**
-
-- [x] 03-01-PLAN.md - Runtime-validated capture contracts and durable local SQLite ledger
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 03-02-PLAN.md - Manual product discovery, confirmation, and mode-aware lot registration
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 03-03-PLAN.md - Recent lot list and append-only physical observation workflow
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 03-04-PLAN.md - Optional barcode lookup, accessibility hardening, and mobile smoke coverage
 
 ### Phase 4: Today Task Workflow
 
 **Goal:** Turn calculated risks into the mobile "Hoje" task experience that directs shelf work.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** RSK-03, RSK-04, PSH-03, UI-01, UI-02, UI-03
-**Success Criteria**:
-
-1. Mobile first screen answers whether the sales area is safe.
-2. Tasks show severity, due time, required action, and concrete resolution options.
-3. Copy is direct and operational for store conditions.
-4. Interface supports high contrast, one-hand use, and clear critical states.
-
 **Plans:** 4/4 plans complete
-Plans:
-**Wave 1**
-
-- [x] 04-01-PLAN.md - Task derivation, contracts, and local task repository
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 04-02-PLAN.md - Hoje safety header, task sections, and mobile entry surface
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 04-03-PLAN.md - Compatible task resolution, recheck, and evidence prompt contract
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 04-04-PLAN.md - Overdue/a11y/smoke hardening and full regression evidence
 
 ### Phase 5: Push and Escalation
 
 **Goal:** Add strong reminder and escalation behavior so unresolved risk keeps demanding attention.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** RSK-05, PSH-01, PSH-02, PSH-05
-**Success Criteria**:
-
-1. Assigned collaborators receive push reminders for critical tasks.
-2. Unresolved tasks repeat or escalate according to rule profiles.
-3. Every push maps to a persistent in-app task.
-4. Critical risk remains visible until physically resolved.
-
 **Plans:** 4/4 plans complete
-Plans:
-**Wave 1**
-
-- [x] 05-01-PLAN.md - Alert cadence policy and runtime contracts
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 05-02-PLAN.md - Mobile alert state, Expo channel, and local scheduling
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 05-03-PLAN.md - Hoje alert UI, escalation acknowledgement, and push-open fallback
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 05-04-PLAN.md - API/provider cron seam, smoke, docs, and regression evidence
 
 ### Phase 6: Markdown/Rebaixa Workflow
 
 **Goal:** Track the full markdown lifecycle from request to shelf confirmation with optional evidence.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** MRK-01, MRK-02, MRK-03, MRK-04
-**Success Criteria**:
-
-1. Collaborator can request markdown for eligible lots.
-2. Lead can track requested, approved, applied, and shelf-confirmed states.
-3. Evidence photo can be attached to applied labels or shelf confirmation.
-4. Delayed markdown tasks remain visible and escalate.
-
 **Plans:** 4/4 plans complete
-Plans:
-**Wave 1**
-
-- [x] 06-01-PLAN.md - Domain markdown lifecycle and runtime contracts
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 06-02-PLAN.md - Local markdown workflow repository and alertable stage tasks
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 06-03-PLAN.md - Mobile Hoje, lot-detail, and task-panel markdown flows
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 06-04-PLAN.md - Delayed-stage escalation, accessibility, smoke, and docs
 
 ### Phase 7: Offline Sync
 
 **Goal:** Make core mobile task execution reliable under poor store connectivity.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** SYN-01, SYN-02, SYN-03
-**Success Criteria**:
-
-1. Mobile app caches active tasks and required lot snippets.
-2. Offline actions are queued as idempotent commands.
-3. Sync conflicts are explicit and never silently confirm critical actions.
-4. User can understand which actions are synced and which are pending.
-
 **Plans:** 4/4 plans complete
-Plans:
-**Wave 1**
-
-- [x] 07-01-PLAN.md - Sync contracts and pure offline policy
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 07-02-PLAN.md - Mobile offline cache, outbox, and repository projections
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 07-03-PLAN.md - Connectivity adapter, sync engine, and API transport seam
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 07-04-PLAN.md - Hoje sync UI, conflict review, smoke, docs, and regression
 
 ### Phase 8: Audit, Roles, and Shift Close
 
 **Goal:** Provide leadership visibility, role-based access, evidence control, and shift-close assurance.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** AUD-01, AUD-02, AUD-03, PSH-04
-**Success Criteria**:
-
-1. Audit trail records task lifecycle, evidence, escalation, and resolution events.
-2. Collaborator, lead, and admin roles have distinct permissions.
-3. Evidence assets are stored outside Postgres with controlled access.
-4. Lead can confirm whether the sales area is safe before shift close.
-
-**Plans:** 4/5 plans executed
-Plans:
-**Wave 1**
-
-- [x] 08-01-PLAN.md - Role-aware protected path, durable memberships, and denial auditing
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 08-02-PLAN.md - Append-only audit producers, mobile timelines, and web workbench
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 08-03-PLAN.md - Offline evidence queue, private R2 lifecycle, and controlled access
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 08-04-PLAN.md - Truthful safe/unsafe shift close, handoff, and immutable reopen
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 08-05-PLAN.md - Membership administration, integrated security/E2E gates, and runbooks
+**Plans:** 5/5 plans complete
 
 ### Phase 9: Impeccable Hardening and v1 Readiness
 
 **Goal:** Run UI/UX/copy, accessibility, security, performance, and E2E hardening before declaring v1 ready.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** UI-04
-**Success Criteria**:
-
-1. Impeccable shape/critique/polish/harden passes are completed for mobile and web surfaces.
-2. Critical journeys have E2E coverage.
-3. Security and public-repo checks pass with no known critical issues.
-4. v1 release criteria are documented with remaining risks.
-
 **Plans:** 5/5 plans complete
-Plans:
-**Wave 1**
-
-- [x] 09-01-PLAN.md - Closed-pilot auth, session, invite, and privacy foundation
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 09-02-PLAN.md - Mobile Android product shell, auth gate, privacy, and polish
-- [x] 09-03-PLAN.md - Web Command Center, shell, invites, and admin polish
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 09-04-PLAN.md - E2E, security, accessibility, and performance release gates
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 09-05-PLAN.md - Impeccable audit, APK readiness, UAT, and release go/no-go
+**Status:** Complete with external rollout blockers.
 
 ### Phase 10: Real Pilot Flow Rebuild
 
-**Goal:** Rebuild the real pilot flows around product creation, lot lifecycle, central sync, access, and resolution truth so a fresh Android install, another phone, and the web Command Center all show the same operational facts.
-**Mode:** mvp
-**UI hint:** yes
-**Requirements:** CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, LOC-03, RSK-03, RSK-04, MRK-01, MRK-02, SYN-01, SYN-02, SYN-03, AUD-01, AUD-02, UI-01, UI-02, UI-03, UI-04
-**Depends on:** Phase 9
-**Success Criteria**:
-
-1. A lot resolved as perda, retirada, rebaixa completed, or no longer in the sales area stops appearing as active risk/task after central acknowledgement, while remaining visible in history/audit with the reason.
-2. Product discovery and product creation are a single clear operational path: operators can create or reuse products without accidental duplicates, confusing shortcuts, or forced extra lot creation.
-3. A newly installed Android app on another phone, using the same invited store access, loads the same central products, lots, tasks, and resolution status instead of local-only data.
-4. Mobile and web use one truth model for pending, synced, conflict, discarded, and resolved states; offline actions never pretend they reached the central store before acknowledgement.
-5. End-to-end UAT covers first access, product creation, lot creation, loss/withdrawal resolution, second-device visibility, and Command Center consistency with real staging data.
-
-**Plans:** 6/6 plans executed
-
-Plans:
-- [x] 10-01-PLAN.md - Central prepare-turn package, store authorization, SQLite hydration, and first-device readiness
-- [x] 10-02-PLAN.md - Central product search, duplicate prevention, draft review, and unified create/reuse flow
-- [x] 10-03-PLAN.md - Central lot lifecycle, observation persistence, task projection, and second-device visibility
-- [x] 10-04-PLAN.md - Terminal resolution, central sync application, conflict/discard taxonomy, resolved history, and migration/schema check
-- [x] 10-05-PLAN.md - Capture-backed Command Center, role/store controls, and central push/escalation audience
-- [x] 10-06-PLAN.md - Central shift-close revalidation, full pilot UAT, release evidence, and blocked-state record
+**Goal:** Rebuild the real pilot flows around product creation, lot lifecycle, central sync, access, and resolution truth.
+**Plans:** 6/6 plans complete
+**Status:** Complete with external Android/provider blockers.
 
 ### Phase 11: Mobile Visual Polish and Emulator Validation
 
-**Goal:** Polish the Android critical mobile flow and validate the installed emulator/device path while preserving Phase 10 central-truth semantics and explicitly recording provider/device blockers.
-**Requirements**: P11-POLISH-01, P11-STATUS-02, P11-ANDROID-03, P11-SCREENSHOT-04, P11-TRUTH-05, P11-PROVIDER-06
-**Depends on:** Phase 10
-**Success Criteria**:
-
-1. Critical mobile screens (`Preparar turno`, `Hoje`, product path, lot registration, terminal resolution, sync/conflict, and shift close) meet the Phase 11 corridor-ready UI contract.
-2. Shared mobile status vocabulary differentiates local, pending central, synced transport, conflict, critical, resolved, safe, provider, and camera states without false safe styling.
-3. `pnpm test:e2e:mobile` passes on a connected installed Android target, or exact blocked output is recorded without substituting component tests.
-4. Phase 11 UAT and release docs separate historical Android evidence, current repo readiness, current emulator/device readiness, screenshots, provider proof, camera proof, and external blockers.
-
+**Goal:** Polish the Android critical mobile flow and validate the installed emulator/device path while preserving central-truth semantics.
 **Plans:** 4/4 plans complete
-
-Plans:
-**Wave 1**
-
-- [x] 11-01-PLAN.md - Shared mobile status system and prepare/Hoje cockpit polish
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 11-02-PLAN.md - Product, lot, terminal, sync, and shift-close visual polish
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 11-03-PLAN.md - Installed Android Maestro journey, screenshots, and UAT record
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 11-04-PLAN.md - Release truth matrix, provider/camera blockers, and final gates
+**Status:** Complete with external device/provider/camera blockers.
 
 ### Phase 12: Pilot Operations and Device Readiness
 
-**Goal:** Turn the closed-pilot build into an observable, supportable store operation by proving which devices, users, push tokens, permissions, app versions, and UAT steps are ready before any real rollout claim.
-**Requirements**: P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, P12-OPS-05
-**Depends on:** Phase 11
-**Success Criteria**:
-
-1. Command Center shows per-device pilot health: app version/build, user, store scope, last sync, push token state, camera permission, push permission, and last foreground time.
-2. Leads/admins can send a safe push test to a selected registered device and see provider/token/permission outcomes without treating push delivery as task resolution.
-3. Mobile and web expose release truth for the installed build, including app version, environment, API target, commit/build identifier, and whether the client is older than the current staging artifact.
-4. A guided real-store UAT checklist covers prepare-turn, product reuse/create, lot registration, terminal resolution, second-device convergence, Command Center consistency, push test, camera/evidence path, and shift close.
-5. Operational failure states explain what is blocking the pilot: no device, stale sync, no push permission, invalid token, no camera permission, wrong store membership, pending product review, conflict, or unsafe shift close.
-
+**Goal:** Turn the closed-pilot build into an observable, supportable store operation with device, user, push, permissions, version and UAT readiness.
 **Plans:** 5/5 plans complete
+**Status:** Complete with external Android/provider/camera/physical UAT blockers.
 
-Plans:
-**Wave 1**
+</details>
 
-- [x] 12-01-PLAN.md - Device readiness model and per-device Command Center panel
+## Milestone Outcome
 
-**Wave 2** *(blocked on Wave 1 completion)*
+The v1.0 milestone delivered the repository-complete closed-pilot spine:
 
-- [x] 12-02-PLAN.md - Safe push-test command, provider outcome timeline, and leadership access
+- Mobile-first lot capture, physical presence, task resolution, markdown/rebaixa, offline queue, audit, roles, evidence controls, shift close, push/escalation semantics, and Command Center visibility.
+- Central truth for product creation/reuse, lot lifecycle, task projection, terminal resolution, second-device convergence, and leadership web views.
+- Pilot readiness surfaces for devices, push-test diagnostics, release metadata, guided Loja 18 UAT, and operational blocker synthesis.
+- Validation artifacts showing all 37 v1 requirements traced through requirements, summaries, and verification records.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+The milestone is not a physical rollout claim. Installed Android, real provider push, real camera/evidence path, and physical Loja 18 UAT remain external proof gates.
 
-- [x] 12-03-PLAN.md - Pilot build metadata, versioning, and installed-build truth
+## Active Planning
 
-**Wave 4** *(blocked on Wave 3 completion)*
+No active phase is open after v1.0. Start the next cycle with:
 
-- [x] 12-04-PLAN.md - Guided Loja 18 UAT checklist and sanitized evidence record
+```powershell
+$gsd-new-milestone
+```
 
-**Wave 5** *(blocked on Wave 4 completion)*
+## Archive
 
-- [x] 12-05-PLAN.md - Operational blocker synthesis, release docs, and final validation gates
+Detailed v1.0 planning history is archived here:
+
+- `.planning/milestones/v1.0-ROADMAP.md`
+- `.planning/milestones/v1.0-REQUIREMENTS.md`
+- `.planning/milestones/v1.0-MILESTONE-AUDIT.md`
+- `.planning/MILESTONES.md`
+
+Phase execution directories remain in `.planning/phases/` for raw history. Use `$gsd-cleanup` later if you want to move them into the milestone archive.
 
 ## Coverage
 
-| Requirement | Phase |
-|-------------|-------|
-| FND-01 | Phase 1 |
-| FND-02 | Phase 1 |
-| FND-03 | Phase 1 |
-| FND-04 | Phase 1 |
-| AUD-04 | Phase 1 |
-| CAT-04 | Phase 2 |
-| LOC-04 | Phase 2 |
-| RSK-01 | Phase 2 |
-| RSK-02 | Phase 2 |
-| CAT-01 | Phase 3 |
-| CAT-02 | Phase 3 |
-| CAT-03 | Phase 3 |
-| LOC-01 | Phase 3 |
-| LOC-02 | Phase 3 |
-| LOC-03 | Phase 3 |
-| RSK-03 | Phase 4 |
-| RSK-04 | Phase 4 |
-| PSH-03 | Phase 4 |
-| UI-01 | Phase 4 |
-| UI-02 | Phase 4 |
-| UI-03 | Phase 4 |
-| RSK-05 | Phase 5 |
-| PSH-01 | Phase 5 |
-| PSH-02 | Phase 5 |
-| PSH-05 | Phase 5 |
-| MRK-01 | Phase 6 |
-| MRK-02 | Phase 6 |
-| MRK-03 | Phase 6 |
-| MRK-04 | Phase 6 |
-| SYN-01 | Phase 7 |
-| SYN-02 | Phase 7 |
-| SYN-03 | Phase 7 |
-| AUD-01 | Phase 8 |
-| AUD-02 | Phase 8 |
-| AUD-03 | Phase 8 |
-| PSH-04 | Phase 8 |
-| UI-04 | Phase 9 |
+Full v1 traceability is archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
+
+| Area | Requirements | Status |
+|------|--------------|--------|
+| Foundation | FND-01..FND-04 | Complete |
+| Catalog and Lots | CAT-01..CAT-04 | Complete |
+| Locations and Presence | LOC-01..LOC-04 | Complete |
+| Risk and Tasks | RSK-01..RSK-05 | Complete |
+| Push and Shift Workflow | PSH-01..PSH-05 | Complete |
+| Markdown / Rebaixa | MRK-01..MRK-04 | Complete |
+| Offline and Sync | SYN-01..SYN-03 | Complete |
+| Audit and Security | AUD-01..AUD-04 | Complete |
+| UI / UX / Copy | UI-01..UI-04 | Complete |
