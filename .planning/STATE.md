@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: 12
 status: Milestone audit gaps found
 stopped_at: Created v1.0-MILESTONE-AUDIT.md
-last_updated: "2026-06-28T17:51:48.837Z"
+last_updated: "2026-06-28T20:44:34.404Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -61,7 +61,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-verify-work 12
+$gsd-audit-milestone
 ```
 
 ## Accumulated Context
@@ -94,6 +94,8 @@ $gsd-verify-work 12
 - Phase 6 formal verification closure completed: `06-VERIFICATION.md` now links MRK-01, MRK-02, MRK-03, and MRK-04 to existing summaries, UAT, validation, and current repository gates.
 - Phase 7 formal verification closure completed: `07-VERIFICATION.md` now links SYN-01, SYN-02, and SYN-03 to existing summaries, validation, historical native smoke, and current repository gates while preserving the missing conversational UAT/current-device blocker.
 - Phase 9 formal verification closure completed: `09-VERIFICATION.md` now links UI-04 to existing summaries, normalized `09-UAT.md`, validation, Impeccable detector output, current repo/web gates, and explicit Android/provider/device external blockers.
+- Phase 10 formal verification closure completed: `10-VERIFICATION.md` now links central truth, product/lot lifecycle, terminal sync, Command Center/RBAC/push, shift close, Neon staging evidence, and explicit Android/provider/device/physical UAT external blockers.
+- Phase 12 formal verification closure completed: `12-VERIFICATION.md` now links P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, and P12-OPS-05 to existing summaries, UAT, validation, current repo/web gates, and explicit Android/provider/camera/physical UAT external blockers.
 
 ### Quick Tasks Completed
 
