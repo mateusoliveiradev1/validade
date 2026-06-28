@@ -5,6 +5,9 @@ import {
   CentralAlertAudienceRegistrationSchema,
   DevicePushRegistrationCommandSchema,
   PushOpenIntentSchema,
+  SafePushTestCommandSchema,
+  SafePushTestResultSchema,
+  SafePushTestTimelineItemSchema,
   TaskAlertStateRecordSchema,
 } from "./alerts";
 
@@ -235,4 +238,124 @@ describe("alert runtime contracts", () => {
       ).toMatchObject({ result, taskId, taskActiveKey });
     }
   });
+
+  it("models safe push-test commands separately from task alerts", () => {
+    expect(SafePushTestCommandSchema.parse(safePushTestCommand())).toMatchObject({
+      deviceId: "aparelho-ficticio-001",
+      requesterLabel: "Lider FICTICIO",
+    });
+
+    expect(() =>
+      SafePushTestCommandSchema.parse({
+        ...safePushTestCommand(),
+        message: {
+          title: "Retirar tarefa agora",
+          body: "Teste",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      SafePushTestCommandSchema.parse({
+        ...safePushTestCommand(),
+        resolvedAt: createdAt,
+      }),
+    ).toThrow();
+    expect(() =>
+      SafePushTestCommandSchema.parse({
+        ...safePushTestCommand(),
+        expoPushToken: "ExpoPushToken[ficticio]",
+      }),
+    ).toThrow();
+  });
+
+  it("covers safe push-test result timeline states without task resolution fields", () => {
+    for (const state of [
+      "permission_denied",
+      "local_only",
+      "provider_accepted",
+      "provider_failed",
+      "token_invalid",
+      "opened",
+      "unknown_no_signal",
+    ] as const) {
+      expect(
+        SafePushTestTimelineItemSchema.parse(
+          safePushTimelineItem({
+            state,
+            providerOutcome:
+              state === "provider_accepted" || state === "opened"
+                ? "accepted"
+                : state === "provider_failed"
+                  ? "failed"
+                  : state === "token_invalid"
+                    ? "token_invalid"
+                    : "not_attempted",
+            deliveryAttemptState:
+              state === "opened"
+                ? "opened"
+                : state === "provider_accepted"
+                  ? "sent"
+                  : state === "provider_failed" || state === "token_invalid"
+                    ? "failed"
+                    : "not_attempted",
+          }),
+        ),
+      ).toMatchObject({ state });
+    }
+
+    const result = SafePushTestResultSchema.parse({
+      command: safePushTestCommand(),
+      timeline: [safePushTimelineItem({ state: "provider_accepted" })],
+    });
+
+    expect(result.timeline[0]?.detail).toContain("canal de lembrete");
+    expect(() =>
+      SafePushTestTimelineItemSchema.parse({
+        ...safePushTimelineItem({ state: "provider_accepted" }),
+        taskStatus: "resolved",
+      }),
+    ).toThrow();
+    expect(() =>
+      SafePushTestTimelineItemSchema.parse({
+        ...safePushTimelineItem({ state: "provider_accepted" }),
+        rawProviderPayload: { token: "ExpoPushToken[ficticio]" },
+      }),
+    ).toThrow();
+  });
 });
+
+function safePushTestCommand(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    commandId: "push-test-ficticio-001",
+    storeId: "loja-ficticia",
+    storeName: "Loja Ficticia",
+    deviceId: "aparelho-ficticio-001",
+    deviceLabel: "Celular da lideranca FICTICIA",
+    requesterSubjectId: "lead-ficticio",
+    requesterLabel: "Lider FICTICIO",
+    requestedAt: createdAt,
+    message: {
+      title: "Teste Validade Zero",
+      body: "Toque para confirmar canal de lembrete.",
+    },
+    ...overrides,
+  };
+}
+
+function safePushTimelineItem(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    eventId: "push-test-evento-001",
+    deviceIdMasked: "apar...001",
+    deviceLabel: "Celular da lideranca FICTICIA",
+    requesterLabel: "Lider FICTICIO",
+    occurredAt: createdAt,
+    state: "provider_accepted",
+    permissionOutcome: "granted",
+    providerOutcome: "accepted",
+    deliveryAttemptState: "sent",
+    appSignal: "unknown",
+    detail: "Provider aceitou o teste; isto valida canal de lembrete, nao execucao fisica.",
+    nextAction: "Aguardar abertura do app ou executar UAT de push no aparelho aprovado.",
+    ...overrides,
+  };
+}

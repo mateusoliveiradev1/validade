@@ -171,6 +171,84 @@ export const PushOpenIntentSchema = z
   })
   .strict();
 
+export const SafePushTestCommandSchema = z
+  .object({
+    commandId: IdentifierSchema,
+    storeId: IdentifierSchema,
+    storeName: RequiredTextSchema,
+    deviceId: IdentifierSchema,
+    deviceLabel: RequiredTextSchema,
+    requesterSubjectId: IdentifierSchema,
+    requesterLabel: RequiredTextSchema,
+    requestedAt: IsoDateTimeSchema,
+    message: z
+      .object({
+        title: RequiredTextSchema,
+        body: RequiredTextSchema,
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const visibleContent = `${value.message.title} ${value.message.body}`.toLocaleLowerCase(
+      "pt-BR",
+    );
+    const forbiddenTerms = ["lote", "task", "tarefa", "perda", "retirada", "resolvida"];
+
+    for (const term of forbiddenTerms) {
+      if (visibleContent.includes(term)) {
+        context.addIssue({
+          code: "custom",
+          path: ["message"],
+          message: "Safe push-test content must not look like a real operational task.",
+        });
+        return;
+      }
+    }
+  });
+
+export const SafePushTestTimelineStateSchema = z.enum([
+  "permission_denied",
+  "local_only",
+  "provider_accepted",
+  "provider_failed",
+  "token_invalid",
+  "opened",
+  "unknown_no_signal",
+]);
+
+export const SafePushTestTimelineItemSchema = z
+  .object({
+    eventId: IdentifierSchema,
+    deviceIdMasked: IdentifierSchema,
+    deviceLabel: RequiredTextSchema,
+    requesterLabel: RequiredTextSchema,
+    occurredAt: IsoDateTimeSchema,
+    state: SafePushTestTimelineStateSchema,
+    permissionOutcome: z.enum(["granted", "denied", "not_requested", "unknown"]),
+    providerOutcome: z.enum([
+      "accepted",
+      "failed",
+      "token_invalid",
+      "not_configured",
+      "not_attempted",
+      "unknown",
+    ]),
+    deliveryAttemptState: z.enum(["not_attempted", "sent", "failed", "opened", "unknown"]),
+    appSignal: z.enum(["received", "opened", "not_seen", "unknown"]).optional(),
+    detail: RequiredTextSchema,
+    nextAction: RequiredTextSchema,
+    failureReason: RequiredTextSchema.optional(),
+  })
+  .strict();
+
+export const SafePushTestResultSchema = z
+  .object({
+    command: SafePushTestCommandSchema,
+    timeline: z.array(SafePushTestTimelineItemSchema).min(1).max(12),
+  })
+  .strict();
+
 export type AlertAudienceContract = z.infer<typeof AlertAudienceSchema>;
 export type AlertAttemptStateContract = z.infer<typeof AlertAttemptStateSchema>;
 export type AlertChannelStateContract = z.infer<typeof AlertChannelStateSchema>;
@@ -183,3 +261,6 @@ export type CentralAlertAudienceRegistration = z.infer<
 export type AlertDispatchCommand = z.infer<typeof AlertDispatchCommandSchema>;
 export type AlertDeliveryResult = z.infer<typeof AlertDeliveryResultSchema>;
 export type PushOpenIntent = z.infer<typeof PushOpenIntentSchema>;
+export type SafePushTestCommand = z.infer<typeof SafePushTestCommandSchema>;
+export type SafePushTestTimelineItem = z.infer<typeof SafePushTestTimelineItemSchema>;
+export type SafePushTestResult = z.infer<typeof SafePushTestResultSchema>;

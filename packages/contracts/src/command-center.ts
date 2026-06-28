@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SafePushTestTimelineItemSchema } from "./alerts";
 
 const IdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(240);
@@ -66,6 +67,7 @@ export const PilotDeviceReadinessSchema = z
     cameraPermission: PilotDevicePermissionStateSchema,
     verdict: PilotDeviceReadinessVerdictSchema,
     blockers: z.array(PilotDeviceBlockerSchema).max(12),
+    pushTests: z.array(SafePushTestTimelineItemSchema).max(10).optional(),
     nextAction: RequiredTextSchema,
     updatedAt: IsoDateTimeSchema,
   })
