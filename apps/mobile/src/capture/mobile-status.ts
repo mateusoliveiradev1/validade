@@ -127,8 +127,8 @@ export const mobileStatusDescriptors = {
   },
 } as const satisfies Record<MobileStatusKey, MobileStatusDescriptor>;
 
-export const mobileStatusPriorityOrder = Object.values(mobileStatusDescriptors)
-  .toSorted((left, right) => right.priority - left.priority)
+export const mobileStatusPriorityOrder = [...Object.values(mobileStatusDescriptors)]
+  .sort((left, right) => right.priority - left.priority)
   .map((descriptor) => descriptor.key);
 
 export function mobileStatusDescriptorFor(key: MobileStatusKey): MobileStatusDescriptor {
