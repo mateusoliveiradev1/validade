@@ -5,8 +5,15 @@ const IdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const ShortLabelSchema = z.string().trim().min(1).max(80);
+const UNKNOWN_BUILD_LABEL = "nao informado";
 
 export const PilotDeviceReadinessVerdictSchema = z.enum(["apto", "atencao", "bloqueado"]);
+export const PilotBuildCompatibilitySchema = z.enum([
+  "atual",
+  "desatualizado",
+  "desconhecido",
+  "incompativel",
+]);
 
 export const PilotDevicePermissionStateSchema = z.enum([
   "granted",
@@ -59,6 +66,10 @@ export const PilotDeviceReadinessSchema = z
     appBuild: ShortLabelSchema,
     environment: ShortLabelSchema,
     apiTarget: RequiredTextSchema,
+    buildCompatibility: PilotBuildCompatibilitySchema,
+    approvedArtifactLabel: ShortLabelSchema,
+    approvedAppVersion: ShortLabelSchema,
+    approvedBuild: ShortLabelSchema,
     lastForegroundAt: IsoDateTimeSchema.optional(),
     lastSyncAt: IsoDateTimeSchema.optional(),
     lastCentralReadAt: IsoDateTimeSchema.optional(),
@@ -269,6 +280,82 @@ export const CommandCenterProjectionSchema = z
 export type CommandCenterProjection = z.infer<typeof CommandCenterProjectionSchema>;
 export type PilotDeviceReadiness = z.infer<typeof PilotDeviceReadinessSchema>;
 export type PilotDeviceReadinessVerdict = z.infer<typeof PilotDeviceReadinessVerdictSchema>;
+export type PilotBuildCompatibility = z.infer<typeof PilotBuildCompatibilitySchema>;
+
+export interface ResolvePilotBuildCompatibilityInput {
+  appVersion?: string | undefined;
+  appBuild?: string | undefined;
+  approvedAppVersion: string;
+  approvedBuild: string;
+}
+
+export function resolvePilotBuildCompatibility(
+  input: ResolvePilotBuildCompatibilityInput,
+): PilotBuildCompatibility {
+  const appVersion = normalizeBuildLabel(input.appVersion);
+  const appBuild = normalizeBuildLabel(input.appBuild);
+  const approvedAppVersion = normalizeBuildLabel(input.approvedAppVersion);
+  const approvedBuild = normalizeBuildLabel(input.approvedBuild);
+
+  if (
+    appVersion === UNKNOWN_BUILD_LABEL ||
+    appVersion === "0.0.0" ||
+    appBuild === UNKNOWN_BUILD_LABEL
+  ) {
+    return "desconhecido";
+  }
+
+  const versionDiff = compareSemver(appVersion, approvedAppVersion);
+  if (versionDiff === undefined) return "desconhecido";
+  if (versionDiff < 0) return "desatualizado";
+  if (versionDiff > 0) return "incompativel";
+
+  const buildDiff = compareBuildNumber(appBuild, approvedBuild);
+  if (buildDiff === undefined) return "desconhecido";
+  if (buildDiff < 0) return "desatualizado";
+  if (buildDiff > 0) return "incompativel";
+  return "atual";
+}
+
+function normalizeBuildLabel(value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? UNKNOWN_BUILD_LABEL : trimmed;
+}
+
+function compareBuildNumber(left: string, right: string): number | undefined {
+  const leftNumber = Number.parseInt(left, 10);
+  const rightNumber = Number.parseInt(right, 10);
+  if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return undefined;
+  return Math.sign(leftNumber - rightNumber);
+}
+
+function compareSemver(left: string, right: string): number | undefined {
+  const leftParts = parseSemver(left);
+  const rightParts = parseSemver(right);
+  if (leftParts === undefined || rightParts === undefined) return undefined;
+
+  for (const index of [0, 1, 2] as const) {
+    const diff = leftParts[index] - rightParts[index];
+    if (diff !== 0) return Math.sign(diff);
+  }
+
+  return 0;
+}
+
+function parseSemver(value: string): readonly [number, number, number] | undefined {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value.trim());
+  if (match === null) return undefined;
+
+  const major = Number.parseInt(match[1] ?? "", 10);
+  const minor = Number.parseInt(match[2] ?? "", 10);
+  const patch = Number.parseInt(match[3] ?? "", 10);
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor) || !Number.isFinite(patch)) {
+    return undefined;
+  }
+
+  return [major, minor, patch];
+}
 export type PilotDeviceBlocker = z.infer<typeof PilotDeviceBlockerSchema>;
 export type PilotDeviceBlockerCode = z.infer<typeof PilotDeviceBlockerCodeSchema>;
 export type PilotDevicePermissionState = z.infer<typeof PilotDevicePermissionStateSchema>;

@@ -72,8 +72,18 @@ export function createCaptureBackedCommandCenterService(input: {
   captureRepository: CaptureRepository;
   now?: () => Date;
   readPushTests?: (deviceIdMasked: string) => readonly SafePushTestTimelineItem[];
+  approvedPilotBuild?: {
+    artifactLabel: string;
+    appVersion: string;
+    build: string;
+  };
 }): CommandCenterService {
   const now = input.now ?? (() => new Date());
+  const approvedPilotBuild = input.approvedPilotBuild ?? {
+    artifactLabel: "phase-12-staging-apk-120",
+    appVersion: "0.12.0",
+    build: "120",
+  };
 
   return {
     async read(scope) {
@@ -103,6 +113,9 @@ export function createCaptureBackedCommandCenterService(input: {
           storeId: scope.storeId,
           storeName: scope.storeName,
           now: now(),
+          approvedArtifactLabel: approvedPilotBuild.artifactLabel,
+          approvedAppVersion: approvedPilotBuild.appVersion,
+          approvedBuild: approvedPilotBuild.build,
         });
         const devicesWithPushTests =
           input.readPushTests === undefined

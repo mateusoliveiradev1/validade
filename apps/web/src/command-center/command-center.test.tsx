@@ -126,6 +126,10 @@ const projection = {
       appBuild: "120",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
+      buildCompatibility: "atual",
+      approvedArtifactLabel: "phase-12-staging-apk-120",
+      approvedAppVersion: "0.12.0",
+      approvedBuild: "120",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       lastCentralReadAt: "2030-01-10T11:56:00.000Z",
@@ -210,6 +214,8 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Foto da central")).toBeTruthy();
     expect(screen.getByText("Aparelhos do piloto")).toBeTruthy();
     expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
+    expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
+    expect(screen.getByText(/phase-12-staging-apk-120/)).toBeTruthy();
     expect(screen.getByText("Push remoto ainda nao provado")).toBeTruthy();
     expect(screen.getByText("Executar teste seguro de push antes do rollout.")).toBeTruthy();
     expect(screen.getByText("Canal de lembrete, nao execucao fisica.")).toBeTruthy();
@@ -238,7 +244,7 @@ describe("CommandCenter", () => {
     expect(screen.getByText(/Retirada confirmada por Lider FICTICIO/)).toBeTruthy();
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
-    expect(text).not.toMatch(/pushToken|expoPushToken|rawDeviceId/i);
+    expect(text).not.toMatch(/pushToken|expoPushToken|rawDeviceId|buildUrl/i);
     expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));

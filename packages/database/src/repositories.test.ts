@@ -303,14 +303,23 @@ describe("database repositories", () => {
     expect(readiness.map((device) => device.verdict)).toEqual(["bloqueado", "apto"]);
     expect(readiness[0]).toMatchObject({
       deviceLabel: "Aparelho sem leitura",
+      buildCompatibility: "desconhecido",
       blockers: expect.arrayContaining([
         expect.objectContaining({ code: "missing_first_central_read" }),
         expect.objectContaining({ code: "push_required_without_push" }),
         expect.objectContaining({ code: "camera_required_without_camera" }),
+        expect.objectContaining({ code: "old_build_attention" }),
       ]),
     });
+    expect(readiness[1]).toMatchObject({
+      deviceLabel: "Moto G Lideranca",
+      buildCompatibility: "atual",
+      approvedArtifactLabel: "phase-12-staging-apk-120",
+      approvedAppVersion: "0.12.0",
+      approvedBuild: "120",
+    });
     expect(JSON.stringify(readiness)).not.toMatch(
-      /device-store-1-ready|device-store-2|pushToken|expoPushToken/i,
+      /device-store-1-ready|device-store-2|pushToken|expoPushToken|buildUrl/i,
     );
   });
 

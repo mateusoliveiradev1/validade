@@ -452,9 +452,19 @@ function DeviceReadinessPanel({
                 </div>
 
                 <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
+                  <p className="flex flex-wrap items-center gap-2">
+                    <span>
+                      <span className="font-medium text-foreground">Build: </span>
+                      {device.appVersion} ({device.appBuild})
+                    </span>
+                    <Badge tone={buildCompatibilityTone(device.buildCompatibility)}>
+                      {buildCompatibilityLabel(device.buildCompatibility)}
+                    </Badge>
+                  </p>
                   <p>
-                    <span className="font-medium text-foreground">Build: </span>
-                    {device.appVersion} ({device.appBuild})
+                    <span className="font-medium text-foreground">APK aprovado: </span>
+                    {device.approvedArtifactLabel} ({device.approvedAppVersion}/
+                    {device.approvedBuild})
                   </p>
                   <p>
                     <span className="font-medium text-foreground">API: </span>
@@ -1354,6 +1364,23 @@ function deviceVerdictLabel(
   if (verdict === "bloqueado") return "Bloqueado";
   if (verdict === "atencao") return "Atencao";
   return "Apto";
+}
+
+function buildCompatibilityTone(
+  state: CommandCenterProjection["devices"][number]["buildCompatibility"],
+): "success" | "warning" | "critical" {
+  if (state === "atual") return "success";
+  if (state === "incompativel") return "critical";
+  return "warning";
+}
+
+function buildCompatibilityLabel(
+  state: CommandCenterProjection["devices"][number]["buildCompatibility"],
+): string {
+  if (state === "atual") return "APK aprovado";
+  if (state === "desatualizado") return "Build antigo";
+  if (state === "incompativel") return "Build incompativel";
+  return "Build desconhecido";
 }
 
 function permissionLabel(

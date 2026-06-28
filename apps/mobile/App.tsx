@@ -14,6 +14,7 @@ import {
 import { createFetchSyncTransport } from "./src/capture/http-sync-transport";
 import { createNetInfoNetworkStateProvider } from "./src/capture/network-state";
 import { createSyncEngine } from "./src/capture/sync-engine";
+import { readMobileBuildInfo } from "./src/build-info";
 
 const defaultAuthClient = createMobileAuthClient();
 
@@ -51,6 +52,8 @@ function AuthenticatedCaptureApp({
   authClient: MobileAuthClient;
   session: SessionContextResponse;
 }) {
+  const apiBaseUrl = useMemo(() => configuredApiBaseUrl(), []);
+  const buildInfo = useMemo(() => readMobileBuildInfo({ apiTarget: apiBaseUrl }), [apiBaseUrl]);
   const repository = useMemo(
     () =>
       createSQLiteCaptureRepository({
@@ -71,7 +74,7 @@ function AuthenticatedCaptureApp({
         repository,
         network: createNetInfoNetworkStateProvider(),
         transport: createFetchSyncTransport({
-          baseUrl: configuredApiBaseUrl(),
+          baseUrl: apiBaseUrl,
           storeId: session.store.storeId,
           storeName: session.store.storeName,
           headers: () => authClient.authHeaders(),
@@ -79,7 +82,7 @@ function AuthenticatedCaptureApp({
         createId: () => `sync-batch-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         deviceId: `validade-zero-mobile:${session.store.storeId}`,
       }),
-    [authClient, repository, session.store.storeId, session.store.storeName],
+    [apiBaseUrl, authClient, repository, session.store.storeId, session.store.storeName],
   );
   const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
   const closeShiftClient = useMemo(() => authClient.closeShift.bind(authClient), [authClient]);
@@ -90,6 +93,7 @@ function AuthenticatedCaptureApp({
       activeRole={session.activeRole}
       actorLabel={session.actor.displayName ?? "Pessoa da operacao"}
       storeId={session.store.storeId}
+      buildInfo={buildInfo}
       syncEngine={syncEngine}
       prepareTurnClient={prepareTurnClient}
       closeShiftClient={closeShiftClient}

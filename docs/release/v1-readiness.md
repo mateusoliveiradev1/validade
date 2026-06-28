@@ -4,11 +4,15 @@
 
 The repository/mobile polish gates are green for Phase 11, but the current installed Android gate is blocked: `adb devices` listed no connected target and `pnpm.cmd test:e2e:mobile` returned `Not enough devices connected (0)`. Older Android/Maestro and EAS evidence is preserved below as historical context; it must not be read as current proof for the Phase 10/11 central-truth flow.
 
+Phase 12 adds public-safe installed-build truth for the next pilot proof cycle: mobile `0.12.0`, Android `versionCode` `120`, environment `staging`, and approved artifact label `phase-12-staging-apk-120`. Command Center compatibility must compare devices against that approved staging artifact, not against every later repo commit. No build URL, provider token, Firebase file, raw device identifier, or dashboard link is public release evidence.
+
 ## Current Release Truth Matrix
 
 | Gate                                  | Current status                              | Evidence                                                                                                                                 | Release meaning                                                                         |
 | ------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Phase 11 mobile polish/component flow | Passed                                      | `pnpm.cmd --filter @validade-zero/mobile test mobile-release-journeys today-screen offline-sync shift-close` passed, 5 files / 39 tests. | Critical copy/status semantics are covered with fictional fixtures.                     |
+| Phase 12 build identity metadata      | Configured in repo                          | `apps/mobile/app.json` and package metadata use `0.12.0`; Android `versionCode` is `120`; approved artifact label is public-safe.        | Enables compatibility checks but does not prove a device installed the APK.             |
+| Command Center build compatibility    | Configured in repo                          | Device readiness carries `atual`, `desatualizado`, `desconhecido`, or `incompativel` against `phase-12-staging-apk-120`.                 | Old APKs can sync while still remaining attention/blocking for rollout proof.           |
 | Evidence hygiene                      | Passed                                      | `pnpm.cmd security:evidence` passed after Phase 11 UAT/docs updates.                                                                     | Public repo evidence remains sanitized.                                                 |
 | Current installed Android target      | Blocked                                     | `adb devices` showed no connected target.                                                                                                | No current emulator/device proof exists.                                                |
 | Current Maestro installed flow        | Blocked                                     | `pnpm.cmd test:e2e:mobile` -> `Not enough devices connected (0) to run the requested number of shards (1).`                              | Component tests do not substitute for installed Android proof.                          |
@@ -33,6 +37,7 @@ Release remains blocked when any current gate below is missing:
 - current installed Android run on an approved emulator or device;
 - current `pnpm.cmd test:e2e:mobile` pass against that target;
 - approved native APK/package/provider proof for remote push when push is in pilot scope;
+- Command Center device compatibility showing the installed APK as `atual` against `phase-12-staging-apk-120`;
 - approved Android hardware camera/no-photo walkthrough when camera proof is in pilot scope;
 - controlled physical-device UAT for install, login, prepare-turn, product/lot, terminal action, sync, push, camera, and shift close.
 

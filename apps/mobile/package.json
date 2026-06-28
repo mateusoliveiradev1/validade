@@ -1,6 +1,6 @@
 {
   "name": "@validade-zero/mobile",
-  "version": "0.0.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "main": "expo/AppEntry",
@@ -22,6 +22,7 @@
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "expo": "^56.0.12",
+    "expo-application": "56.0.3",
     "expo-camera": "~56.0.8",
     "expo-constants": "^56.0.18",
     "expo-modules-core": "56.0.17",

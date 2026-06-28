@@ -41,6 +41,7 @@ import {
   todayCopy,
 } from "./today-copy";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
+import type { MobileBuildInfo } from "../build-info";
 
 const ACTIVE_SECTION_ORDER = [
   "withdraw_now",
@@ -96,6 +97,7 @@ export function TodayScreen({
   highlightedTaskId,
   prepareTurnCacheStatus,
   prepareTurnSource,
+  buildInfo,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -111,6 +113,7 @@ export function TodayScreen({
   highlightedTaskId?: string | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
+  buildInfo?: MobileBuildInfo | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
@@ -510,6 +513,8 @@ export function TodayScreen({
         ) : null}
       </View>
 
+      {buildInfo === undefined ? null : <PilotBuildInfoCard buildInfo={buildInfo} />}
+
       <View style={styles.shiftCloseEntry}>
         <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>
         <Text style={styles.shiftCloseBody}>
@@ -636,6 +641,57 @@ export function TodayScreen({
       )}
     </ScrollView>
   );
+}
+
+function PilotBuildInfoCard({ buildInfo }: { buildInfo: MobileBuildInfo }) {
+  return (
+    <View style={styles.buildInfoCard}>
+      <View style={styles.buildInfoHeader}>
+        <Text style={styles.buildInfoTitle}>Build do piloto</Text>
+        <View
+          style={[
+            styles.buildInfoBadge,
+            buildInfo.buildCompatibility === "atual"
+              ? styles.buildInfoBadgeSuccess
+              : buildInfo.buildCompatibility === "incompativel"
+                ? styles.buildInfoBadgeCritical
+                : styles.buildInfoBadgeWarning,
+          ]}
+        >
+          <Text
+            style={[
+              styles.buildInfoBadgeText,
+              buildInfo.buildCompatibility === "atual"
+                ? styles.buildInfoBadgeSuccessText
+                : buildInfo.buildCompatibility === "incompativel"
+                  ? styles.buildInfoBadgeCriticalText
+                  : undefined,
+            ]}
+          >
+            {pilotBuildCompatibilityLabel(buildInfo.buildCompatibility)}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.buildInfoBody}>
+        Versao {buildInfo.appVersion} ({buildInfo.appBuild}) - {buildInfo.environment}
+      </Text>
+      <View style={styles.buildInfoGrid}>
+        <Text style={styles.buildInfoMeta}>APK aprovado: {buildInfo.approvedArtifactLabel}</Text>
+        <Text style={styles.buildInfoMeta}>
+          Alvo aprovado: {buildInfo.approvedAppVersion} ({buildInfo.approvedBuild})
+        </Text>
+        <Text style={styles.buildInfoMeta}>API: {buildInfo.apiTarget}</Text>
+        <Text style={styles.buildInfoMeta}>Pacote: {buildInfo.packageId}</Text>
+      </View>
+    </View>
+  );
+}
+
+function pilotBuildCompatibilityLabel(state: MobileBuildInfo["buildCompatibility"]): string {
+  if (state === "atual") return "Aprovado";
+  if (state === "desatualizado") return "Atualizar";
+  if (state === "incompativel") return "Incompativel";
+  return "Conferir";
 }
 
 export function TodayTaskRow({
@@ -1100,6 +1156,69 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
+  },
+  buildInfoCard: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.large,
+  },
+  buildInfoHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: captureSpacing.small,
+    justifyContent: "space-between",
+  },
+  buildInfoTitle: {
+    color: captureColors.ink,
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
+  },
+  buildInfoBadge: {
+    borderRadius: captureRadii.small,
+    minHeight: 28,
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.xsmall,
+  },
+  buildInfoBadgeSuccess: {
+    backgroundColor: captureColors.accentSoft,
+  },
+  buildInfoBadgeWarning: {
+    backgroundColor: captureColors.warningSurface,
+  },
+  buildInfoBadgeCritical: {
+    backgroundColor: captureColors.criticalTag,
+  },
+  buildInfoBadgeText: {
+    color: captureColors.warningInk,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  buildInfoBadgeSuccessText: {
+    color: captureColors.accent,
+  },
+  buildInfoBadgeCriticalText: {
+    color: captureColors.critical,
+  },
+  buildInfoBody: {
+    color: captureColors.ink,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  buildInfoGrid: {
+    gap: captureSpacing.xsmall,
+  },
+  buildInfoMeta: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 19,
   },
   taskList: {
     gap: captureSpacing.xlarge,

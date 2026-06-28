@@ -4,6 +4,16 @@ The pilot uses `apps/mobile/eas.json` profiles `pilot` and `staging`, configured
 
 Use `staging` for real-device tests outside the development computer. A staging APK must point to a public staging API URL; `127.0.0.1` and emulator `adb reverse` only work for local development.
 
+Approved Phase 12 public build identity:
+
+- App version: `0.12.0`
+- Android `versionCode`: `120`
+- Environment: `staging`
+- Approved artifact label: `phase-12-staging-apk-120`
+- Approved API target: `https://validade-zero-api-staging.validadezero.workers.dev`
+
+This label is the public-safe compatibility anchor used by the mobile app and Command Center. It is not an install URL, dashboard URL, provider ticket, account identifier, token, or credential.
+
 Official Expo references checked on 2026-06-23:
 
 - EAS internal distribution provides a controlled install URL for approved testers: https://docs.expo.dev/build/internal-distribution/
@@ -32,7 +42,7 @@ Official Expo references checked on 2026-06-23:
 
 1. Use an approved Expo session on the local machine. Do not place a token, account identifier, project URL, or build URL in this repository.
 2. Build only from the approved Expo project for `@liiiraak1ng/validade-zero` and the Android package declared by this app. An APK from another project, package, or credential set is not provider proof.
-3. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`.
+3. Configure the public staging API URL for EAS outside Git, for example through Expo/EAS environment variables with name `EXPO_PUBLIC_API_URL`. Phase 12 also exposes public-safe build metadata through Expo `extra`: `VALIDADE_ZERO_APP_ENV`, `VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL`, `VALIDADE_ZERO_APPROVED_APP_VERSION`, `VALIDADE_ZERO_APPROVED_BUILD`, and `VALIDADE_ZERO_BUILD_REF`.
 4. For remote push validation, configure the ignored Firebase Android file as an EAS `file` variable named `GOOGLE_SERVICES_JSON` in the same build environment. Do not commit the JSON file or paste its contents in logs.
    - Expo Go is not proof of Android remote push readiness.
    - Local mocks, local ignored `google-services.json`, or a sync-only APK without approved Firebase/FCM credentials are not provider proof.
@@ -42,7 +52,7 @@ Official Expo references checked on 2026-06-23:
    ```powershell
    pnpm.cmd build:android:staging
    ```
-7. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information.
+7. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information, and record only the public-safe artifact label above in repo docs.
 
 For a local-only emulator build during development, run Metro with:
 
@@ -70,4 +80,4 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 
 The historical local emulator path was verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the release code at that time and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder.
 
-The current Phase 11 installed Android gate is blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. Physical-device notification delivery, camera permissions, installation, and offline behavior still require approved Android hardware/provider evidence.
+Phase 12 stops shipping the pilot as `0.0.0`: the repo now configures mobile `0.12.0`, Android `versionCode` `120`, and the approved staging artifact label `phase-12-staging-apk-120`. The current installed Android gate is still blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. Physical-device notification delivery, camera permissions, installation, and offline behavior still require approved Android hardware/provider evidence.

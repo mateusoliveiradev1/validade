@@ -132,6 +132,10 @@ const projection = {
       appBuild: "120",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
+      buildCompatibility: "atual",
+      approvedArtifactLabel: "phase-12-staging-apk-120",
+      approvedAppVersion: "0.12.0",
+      approvedBuild: "120",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       pushPermission: "denied",
@@ -385,11 +389,15 @@ describe("Command Center API", () => {
           deviceLabel: "Moto G Lideranca",
           activeUserLabel: "Lider FICTICIO",
           verdict: "apto",
+          buildCompatibility: "atual",
+          approvedArtifactLabel: "phase-12-staging-apk-120",
           lastCentralReadAt: "2030-01-10T11:44:00.000Z",
         },
       ],
     });
-    expect(JSON.stringify(body)).not.toMatch(/android-loja-piloto-001|android-outra-loja-001/i);
+    expect(JSON.stringify(body)).not.toMatch(
+      /android-loja-piloto-001|android-outra-loja-001|buildUrl/i,
+    );
   });
 
   it("projects safe push-test timeline without exposing raw provider or device details", async () => {

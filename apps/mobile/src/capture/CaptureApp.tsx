@@ -29,6 +29,7 @@ import { todayCopy } from "./today-copy";
 import { captureColors } from "./capture-theme";
 import { addHardwareBackPressListener } from "../system/hardware-back";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
+import { readMobileBuildInfo, type MobileBuildInfo } from "../build-info";
 
 type CaptureRoute =
   | { name: "today" }
@@ -59,6 +60,7 @@ export function CaptureApp({
   syncEngine,
   prepareTurnClient,
   closeShiftClient,
+  buildInfo,
   activeRole = "lead",
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
@@ -70,6 +72,7 @@ export function CaptureApp({
   closeShiftClient?:
     | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
     | undefined;
+  buildInfo?: MobileBuildInfo | undefined;
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
@@ -90,6 +93,7 @@ export function CaptureApp({
     () => alertChannel ?? createExpoPushAlertChannel(),
     [alertChannel],
   );
+  const resolvedBuildInfo = useMemo(() => buildInfo ?? readMobileBuildInfo(), [buildInfo]);
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
 
   const navigate = useCallback((route: CaptureRoute): void => {
@@ -207,10 +211,16 @@ export function CaptureApp({
         loadPrepareTurnCache(repository),
         repository.listSyncQueue(),
       ]);
+      const requestedAt = new Date().toISOString();
       const response = await prepareTurnClient({
         deviceId: `validade-zero-mobile:${storeId}`,
-        requestedAt: new Date().toISOString(),
-        appVersion: "phase-10-pilot",
+        deviceLabel: `Android piloto - ${resolvedBuildInfo.packageId}`,
+        requestedAt,
+        appVersion: resolvedBuildInfo.appVersion,
+        appBuild: resolvedBuildInfo.appBuild,
+        environment: resolvedBuildInfo.environment,
+        apiTarget: resolvedBuildInfo.apiTarget,
+        lastForegroundAt: requestedAt,
         localSnapshot: {
           ...(cache?.lastCentralReadAt === undefined
             ? {}
@@ -376,6 +386,7 @@ export function CaptureApp({
           syncEngine={syncEngine}
           prepareTurnCacheStatus={prepareTurnCache}
           prepareTurnSource={prepareTurnSource}
+          buildInfo={resolvedBuildInfo}
           onRegisterLot={() => navigate({ name: "discovery" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {

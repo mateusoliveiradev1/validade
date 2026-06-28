@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CommandCenterProjectionSchema, PilotDeviceReadinessSchema } from "./command-center";
+import {
+  CommandCenterProjectionSchema,
+  PilotDeviceReadinessSchema,
+  resolvePilotBuildCompatibility,
+} from "./command-center";
 
 describe("Command Center contracts", () => {
   it("requires structured cause data for critical lots", () => {
@@ -181,6 +185,38 @@ describe("Command Center contracts", () => {
       }),
     ).toThrow();
   });
+
+  it("compares device build only against the approved staging artifact", () => {
+    const approved = { approvedAppVersion: "0.12.0", approvedBuild: "120" };
+
+    expect(
+      resolvePilotBuildCompatibility({
+        ...approved,
+        appVersion: "0.12.0",
+        appBuild: "120",
+      }),
+    ).toBe("atual");
+    expect(
+      resolvePilotBuildCompatibility({
+        ...approved,
+        appVersion: "0.11.0",
+        appBuild: "110",
+      }),
+    ).toBe("desatualizado");
+    expect(
+      resolvePilotBuildCompatibility({
+        ...approved,
+        appVersion: "0.13.0",
+        appBuild: "130",
+      }),
+    ).toBe("incompativel");
+    expect(
+      resolvePilotBuildCompatibility({
+        ...approved,
+        appVersion: "0.12.0",
+      }),
+    ).toBe("desconhecido");
+  });
 });
 
 function deviceReadiness(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -201,6 +237,10 @@ function baseDeviceReadiness() {
     appBuild: "120",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
+    buildCompatibility: "atual" as const,
+    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedAppVersion: "0.12.0",
+    approvedBuild: "120",
     lastForegroundAt: "2030-01-10T11:59:00.000Z",
     lastSyncAt: "2030-01-10T11:58:00.000Z",
     lastCentralReadAt: "2030-01-10T11:57:00.000Z",

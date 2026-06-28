@@ -13,6 +13,22 @@ export default function appConfig() {
   const localGoogleServicesFile = "./google-services.json";
   const useLocalGoogleServicesFile = process.env.VALIDADE_ZERO_USE_LOCAL_FIREBASE === "1";
   const android = { ...expo.android };
+  const extra = {
+    ...expo.extra,
+    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL ?? expo.extra?.EXPO_PUBLIC_API_URL,
+    VALIDADE_ZERO_APP_ENV:
+      process.env.VALIDADE_ZERO_APP_ENV ?? expo.extra?.VALIDADE_ZERO_APP_ENV ?? "staging",
+    VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL:
+      process.env.VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL ??
+      expo.extra?.VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL,
+    VALIDADE_ZERO_APPROVED_APP_VERSION:
+      process.env.VALIDADE_ZERO_APPROVED_APP_VERSION ??
+      expo.extra?.VALIDADE_ZERO_APPROVED_APP_VERSION,
+    VALIDADE_ZERO_APPROVED_BUILD:
+      process.env.VALIDADE_ZERO_APPROVED_BUILD ?? expo.extra?.VALIDADE_ZERO_APPROVED_BUILD,
+    VALIDADE_ZERO_BUILD_REF:
+      process.env.VALIDADE_ZERO_BUILD_REF ?? expo.extra?.VALIDADE_ZERO_BUILD_REF,
+  };
 
   if (explicitGoogleServicesFile !== undefined && explicitGoogleServicesFile.length > 0) {
     const googleServicesPath = isAbsolute(explicitGoogleServicesFile)
@@ -48,5 +64,6 @@ export default function appConfig() {
   return {
     ...expo,
     android,
+    extra,
   };
 }

@@ -14,6 +14,7 @@ import {
   ProductSearchResponseSchema,
   SyncConflictRecordSchema,
   SyncTransportResultSchema,
+  resolvePilotBuildCompatibility,
   type ActiveTaskSnippet,
   type CaptureLotInput,
   type CentralLotCreateRequest,
@@ -41,6 +42,7 @@ import {
   type ProductDuplicateReason,
   type ProductIdentifier,
   type ProductIdentifierInput,
+  type PilotBuildCompatibility,
   type PilotDeviceBlocker,
   type PilotDevicePermissionState,
   type PilotDevicePushProviderState,
@@ -125,6 +127,9 @@ export interface ListDeviceReadinessInput {
   requireRemotePush?: boolean;
   requireCamera?: boolean;
   staleCriticalSyncMinutes?: number;
+  approvedArtifactLabel?: string;
+  approvedAppVersion?: string;
+  approvedBuild?: string;
 }
 
 export interface ProductSearchInput {
@@ -2657,6 +2662,12 @@ function buildPilotDeviceReadiness(
   snapshot: DeviceSnapshotInput,
   input: ListDeviceReadinessInput,
 ): PilotDeviceReadiness {
+  const approvedBuild = approvedPilotBuildFor(input);
+  const buildCompatibility = deviceBuildCompatibility(snapshot, input);
+  const appVersion = publicReadinessLabel(snapshot.appVersion, "nao informado");
+  const appBuild = publicReadinessLabel(snapshot.appBuild, "nao informado");
+  const environment = publicReadinessLabel(snapshot.environment, "nao informado");
+  const apiTarget = publicApiTargetLabel(snapshot.apiTarget);
   const blockers = [
     ...(snapshot.readinessBlockers ?? []),
     ...derivedDeviceBlockers(snapshot, input),
@@ -2676,10 +2687,14 @@ function buildPilotDeviceReadiness(
     activeUserLabel: snapshot.activeUserLabel ?? "Usuario nao confirmado",
     storeId: snapshot.storeId,
     storeName: snapshot.storeName ?? input.storeName,
-    appVersion: snapshot.appVersion ?? "nao informado",
-    appBuild: snapshot.appBuild ?? "nao informado",
-    environment: snapshot.environment ?? "nao informado",
-    apiTarget: snapshot.apiTarget ?? "API nao informada",
+    appVersion,
+    appBuild,
+    environment,
+    apiTarget,
+    buildCompatibility,
+    approvedArtifactLabel: approvedBuild.artifactLabel,
+    approvedAppVersion: approvedBuild.appVersion,
+    approvedBuild: approvedBuild.build,
     ...(snapshot.lastForegroundAt === undefined
       ? {}
       : { lastForegroundAt: snapshot.lastForegroundAt.toISOString() }),
@@ -2699,11 +2714,63 @@ function buildPilotDeviceReadiness(
   });
 }
 
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "phase-12-staging-apk-120";
+const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
+const DEFAULT_APPROVED_BUILD = "120";
+
+function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
+  artifactLabel: string;
+  appVersion: string;
+  build: string;
+} {
+  return {
+    artifactLabel: shortReadinessLabel(
+      input.approvedArtifactLabel,
+      DEFAULT_APPROVED_ARTIFACT_LABEL,
+    ),
+    appVersion: shortReadinessLabel(input.approvedAppVersion, DEFAULT_APPROVED_APP_VERSION),
+    build: shortReadinessLabel(input.approvedBuild, DEFAULT_APPROVED_BUILD),
+  };
+}
+
+function shortReadinessLabel(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  const resolved = trimmed === undefined || trimmed.length === 0 ? fallback : trimmed;
+  if (/(https?:\/\/|eas:\/\/|token|secret|password)/i.test(resolved)) return fallback;
+  return resolved.length <= 80 ? resolved : `${resolved.slice(0, 36)}...${resolved.slice(-36)}`;
+}
+
+function publicReadinessLabel(value: string | undefined, fallback: string): string {
+  return shortReadinessLabel(value, fallback);
+}
+
+function publicApiTargetLabel(value: string | undefined): string {
+  const trimmed = value?.trim();
+  if (trimmed === undefined || trimmed.length === 0) return "API nao informada";
+  if (/token|secret|password/i.test(trimmed)) return "API nao informada";
+  return trimmed.length <= 240 ? trimmed : `${trimmed.slice(0, 112)}...${trimmed.slice(-112)}`;
+}
+
+function deviceBuildCompatibility(
+  snapshot: DeviceSnapshotInput,
+  input: ListDeviceReadinessInput,
+): PilotBuildCompatibility {
+  const approvedBuild = approvedPilotBuildFor(input);
+
+  return resolvePilotBuildCompatibility({
+    appVersion: snapshot.appVersion,
+    appBuild: snapshot.appBuild,
+    approvedAppVersion: approvedBuild.appVersion,
+    approvedBuild: approvedBuild.build,
+  });
+}
+
 function derivedDeviceBlockers(
   snapshot: DeviceSnapshotInput,
   input: ListDeviceReadinessInput,
 ): PilotDeviceBlocker[] {
   const blockers: PilotDeviceBlocker[] = [];
+  const approvedBuild = approvedPilotBuildFor(input);
 
   if (snapshot.activeUserLabel === undefined || snapshot.storeName === undefined) {
     blockers.push({
@@ -2773,12 +2840,32 @@ function derivedDeviceBlockers(
     });
   }
 
-  if (snapshot.appVersion === undefined || snapshot.appVersion === "0.0.0") {
+  const buildCompatibility = deviceBuildCompatibility(snapshot, input);
+  if (buildCompatibility === "incompativel") {
+    const appVersion = publicReadinessLabel(snapshot.appVersion, "versao desconhecida");
+    const appBuild = publicReadinessLabel(snapshot.appBuild, "build desconhecido");
+    blockers.push({
+      code: "incompatible_build",
+      label: "Build fora do APK aprovado",
+      detail: `Este aparelho informa ${appVersion} (${appBuild}), diferente do APK aprovado ${approvedBuild.appVersion} (${approvedBuild.build}).`,
+      nextAction: `Instalar o artefato ${approvedBuild.artifactLabel} antes de continuar o piloto.`,
+      severity: "blocking",
+    });
+  } else if (buildCompatibility === "desatualizado") {
     blockers.push({
       code: "old_build_attention",
-      label: "Build sem versao piloto",
-      detail: "O aparelho ainda nao informa uma versao de APK aprovada para o piloto.",
-      nextAction: "Instalar o APK de staging aprovado antes de declarar rollout pronto.",
+      label: "Build antigo em observacao",
+      detail: `O aparelho ainda nao esta no APK aprovado ${approvedBuild.appVersion} (${approvedBuild.build}).`,
+      nextAction: `Atualizar para o artefato ${approvedBuild.artifactLabel} antes de declarar rollout pronto.`,
+      severity: "warning",
+    });
+  } else if (buildCompatibility === "desconhecido") {
+    blockers.push({
+      code: "old_build_attention",
+      label: "Build sem identificacao confiavel",
+      detail:
+        "O aparelho nao informa versao e versionCode suficientes para comparar com o APK aprovado.",
+      nextAction: `Reinstalar ou reabrir o APK ${approvedBuild.artifactLabel} e preparar turno novamente.`,
       severity: "warning",
     });
   }

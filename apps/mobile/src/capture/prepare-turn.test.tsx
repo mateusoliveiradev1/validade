@@ -5,6 +5,7 @@ import type { PrepareTurnRequest, PrepareTurnResponse } from "@validade-zero/con
 import { createFakePushAlertChannel } from "./alert-channel";
 import { CaptureApp } from "./CaptureApp";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import type { MobileBuildInfo } from "../build-info";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -72,9 +73,18 @@ describe("prepare-turn gate", () => {
     expect(prepareTurnClient).toHaveBeenCalledWith(
       expect.objectContaining({
         deviceId: "validade-zero-mobile:loja-piloto",
+        deviceLabel: "Android piloto - com.validadezero.app",
+        appVersion: "0.12.0",
+        appBuild: "120",
+        environment: "staging",
+        apiTarget: "https://api.ficticia.invalid",
+        lastForegroundAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         localSnapshot: expect.objectContaining({ pendingCommandCount: 0 }),
       }),
     );
+    expect(textContent(tree)).toContain("Build do piloto");
+    expect(textContent(tree)).toContain("Versao 0.12.0 (120) - staging");
+    expect(textContent(tree)).toContain("APK aprovado: phase-12-staging-apk-120");
     expect(textContent(tree)).toContain("Pronto para operar com a leitura central.");
     expect(textContent(tree)).toContain("Morango FICTICIO");
   });
@@ -189,6 +199,7 @@ async function renderApp(
       <CaptureApp
         alertChannel={createFakePushAlertChannel()}
         prepareTurnClient={prepareTurnClient}
+        buildInfo={pilotBuildInfo()}
         repository={repository}
         storeId="loja-piloto"
       />,
@@ -201,6 +212,21 @@ async function renderApp(
   }
 
   return tree;
+}
+
+function pilotBuildInfo(): MobileBuildInfo {
+  return {
+    appVersion: "0.12.0",
+    appBuild: "120",
+    environment: "staging",
+    apiTarget: "https://api.ficticia.invalid",
+    packageId: "com.validadezero.app",
+    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedAppVersion: "0.12.0",
+    approvedBuild: "120",
+    buildRef: "phase12-public",
+    buildCompatibility: "atual",
+  };
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {
