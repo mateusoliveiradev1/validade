@@ -34,6 +34,9 @@ import {
   PrepareTurnResponseSchema,
   ProtectedCapabilityProbeResponseSchema,
   SafeProbeContract,
+  SafePushTestCommandSchema,
+  SafePushTestResultSchema,
+  SafePushTestTimelineItemSchema,
   RevokeMembershipRequestSchema,
   SessionContextResponseSchema,
   SessionStoresResponseSchema,
@@ -47,6 +50,9 @@ import {
   type AlertDispatchCommand,
   type CentralAlertAudienceRegistration,
   CommandCenterProjectionSchema,
+  type PilotDeviceReadiness,
+  type SafePushTestResult,
+  type SafePushTestTimelineItem,
   type SyncCommandRecord,
   type SyncConflictRecord,
   type SyncTransportBatch,
@@ -88,6 +94,7 @@ import type {
   StoreMembership,
 } from "@validade-zero/domain";
 import { Hono, type Context } from "hono";
+import { z } from "zod";
 import {
   createAuditAccessDeniedRecorder,
   createAuditService,
@@ -171,6 +178,14 @@ export interface WorkerEnvironment {
 }
 
 type EvidenceStoreMode = "memory" | "r2" | "disabled";
+
+const PilotPushTestRequestSchema = z
+  .object({
+    storeId: z.string().trim().min(1).max(160),
+    deviceIdMasked: z.string().trim().min(1).max(80),
+    deviceLabel: z.string().trim().min(1).max(240).optional(),
+  })
+  .strict();
 
 export function createApiApp(input?: {
   syncCommandService?: SyncCommandService;
@@ -284,11 +299,16 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryCaptureRepository()
       : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
+  const pilotPushTestTimeline: SafePushTestTimelineItem[] = [];
   const commandCenterService =
     input?.commandCenterService ??
     createCaptureBackedCommandCenterService({
       captureRepository,
       now,
+      readPushTests: (deviceIdMasked) =>
+        pilotPushTestTimeline
+          .filter((item) => item.deviceIdMasked === deviceIdMasked)
+          .slice(-10),
     });
   const syncCommandService =
     input?.syncCommandService ?? createCentralCaptureSyncCommandService({ captureRepository, now });
@@ -1386,6 +1406,72 @@ export function createApiApp(input?: {
     }
   });
 
+  api.post("/pilot/push-tests", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = PilotPushTestRequestSchema.safeParse(rawPayload);
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_pilot_push_test_request" }, 400);
+    }
+
+    const identity = await authProvider.verify(context.req.raw);
+    const decision = await authorizationService.authorize({
+      identity,
+      capability: "pilot.push_test.send",
+      resourceStoreId: parsed.data.storeId,
+    });
+
+    if (!decision.allowed || decision.context === undefined) {
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity,
+        decision,
+        capability: "pilot.push_test.send",
+        reason: decision.reason ?? "capability_not_allowed",
+        targetType: "pilot_push_test",
+        storeScope: parsed.data.storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const devices = await captureRepository.listDeviceReadiness({
+        storeId: parsed.data.storeId,
+        storeName: decision.context.membership.storeName,
+        now: now(),
+        requireRemotePush: true,
+      });
+      const device = devices.find(
+        (candidate) =>
+          candidate.deviceIdMasked === parsed.data.deviceIdMasked &&
+          (parsed.data.deviceLabel === undefined ||
+            candidate.deviceLabel === parsed.data.deviceLabel),
+      );
+
+      if (device === undefined) {
+        return context.json(
+          {
+            error: "pilot_device_not_registered",
+            message: "Aparelho nao aprovado para esta loja.",
+          },
+          404,
+        );
+      }
+
+      const result = buildSafePilotPushTestResult({
+        device,
+        actorContext: decision.context,
+        requestedAt: now().toISOString(),
+      });
+      pilotPushTestTimeline.push(...result.timeline);
+
+      return context.json(SafePushTestResultSchema.parse(result));
+    } catch {
+      return context.json({ error: "pilot_push_test_unavailable" }, 503);
+    }
+  });
+
   api.get("/session/stores", async (context) => {
     const identity = await authProvider.verify(context.req.raw);
     if (identity === undefined) {
@@ -1471,6 +1557,11 @@ export function createApiApp(input?: {
       capability: "audit.read_store",
       resourceStoreId: storeId,
     });
+    const pushTestDecision = await authorizationService.authorize({
+      identity,
+      capability: "pilot.push_test.send",
+      resourceStoreId: storeId,
+    });
     const decision = commandCenterReadDecision.allowed
       ? commandCenterReadDecision
       : taskDecision.allowed
@@ -1483,7 +1574,9 @@ export function createApiApp(input?: {
               ? shiftCloseDecision
               : auditReadDecision.allowed
                 ? auditReadDecision
-                : commandCenterReadDecision;
+                : pushTestDecision.allowed
+                  ? pushTestDecision
+                  : commandCenterReadDecision;
 
     if (!decision.allowed) {
       const denial = await recordDeniedAccess({
@@ -1521,6 +1614,7 @@ export function createApiApp(input?: {
           canCloseShift: shiftCloseDecision.allowed,
           canReadStoreAudit: auditReadDecision.allowed,
           canManageUsers: userManagementDecision.allowed,
+          canSendPilotPushTest: pushTestDecision.allowed,
         },
       }),
     );
@@ -1771,7 +1865,157 @@ function actionsForRoles(roles: readonly AuthorizationRole[]) {
     canCloseShift: rolesAllowCapability(roles, "shift.close"),
     canReadStoreAudit: rolesAllowCapability(roles, "audit.read_store"),
     canManageUsers: rolesAllowCapability(roles, "user.manage"),
+    canSendPilotPushTest: rolesAllowCapability(roles, "pilot.push_test.send"),
   };
+}
+
+function buildSafePilotPushTestResult(input: {
+  device: PilotDeviceReadiness;
+  actorContext: AuthorizedActorContext;
+  requestedAt: string;
+}): SafePushTestResult {
+  const commandId = safeAuditIdentifier(
+    `pilot-push-test:${input.actorContext.membership.storeId}:${input.device.deviceIdMasked}:${input.requestedAt}`,
+  );
+  const command = SafePushTestCommandSchema.parse({
+    commandId,
+    storeId: input.actorContext.membership.storeId,
+    storeName: input.actorContext.membership.storeName,
+    deviceId: input.device.deviceIdMasked,
+    deviceLabel: input.device.deviceLabel,
+    requesterSubjectId: input.actorContext.identity.subjectId,
+    requesterLabel:
+      input.actorContext.identity.displayName ?? input.actorContext.membership.subjectId,
+    requestedAt: input.requestedAt,
+    message: {
+      title: "Teste Validade Zero",
+      body: "Toque para confirmar canal de lembrete.",
+    },
+  });
+  const state = safePushTestStateForDevice(input.device);
+  const failureReason = safePushTestFailureReason(state);
+  const timeline = SafePushTestTimelineItemSchema.parse({
+    eventId: safeAuditIdentifier(`pilot-push-test-event:${commandId}`),
+    deviceIdMasked: input.device.deviceIdMasked,
+    deviceLabel: input.device.deviceLabel,
+    requesterLabel: command.requesterLabel,
+    occurredAt: input.requestedAt,
+    state,
+    permissionOutcome: safePushTestPermissionOutcome(input.device.pushPermission),
+    providerOutcome: safePushTestProviderOutcome(state, input.device.pushProviderState),
+    deliveryAttemptState: safePushTestDeliveryAttemptState(state),
+    appSignal: "unknown",
+    detail: safePushTestDetail(state),
+    nextAction: safePushTestNextAction(state),
+    ...(failureReason === undefined ? {} : { failureReason }),
+  });
+
+  return SafePushTestResultSchema.parse({
+    command,
+    timeline: [timeline],
+  });
+}
+
+function safePushTestStateForDevice(
+  device: PilotDeviceReadiness,
+): SafePushTestTimelineItem["state"] {
+  if (device.pushPermission === "denied") return "permission_denied";
+  if (device.pushProviderState === "token_invalid") return "token_invalid";
+  if (device.pushProviderState === "provider_failed") return "provider_failed";
+  if (
+    device.pushProviderState === "local_only" ||
+    device.pushProviderState === "not_configured" ||
+    device.pushPermission === "not_requested"
+  ) {
+    return "local_only";
+  }
+  if (
+    device.pushProviderState === "remote_ready" ||
+    device.pushProviderState === "token_registered"
+  ) {
+    return "provider_accepted";
+  }
+
+  return "unknown_no_signal";
+}
+
+function safePushTestPermissionOutcome(
+  permission: PilotDeviceReadiness["pushPermission"],
+): SafePushTestTimelineItem["permissionOutcome"] {
+  if (permission === "granted" || permission === "denied" || permission === "not_requested") {
+    return permission;
+  }
+
+  return "unknown";
+}
+
+function safePushTestProviderOutcome(
+  state: SafePushTestTimelineItem["state"],
+  providerState: PilotDeviceReadiness["pushProviderState"],
+): SafePushTestTimelineItem["providerOutcome"] {
+  if (state === "provider_accepted") return "accepted";
+  if (state === "provider_failed") return "failed";
+  if (state === "token_invalid") return "token_invalid";
+  if (providerState === "local_only" || providerState === "not_configured") {
+    return "not_configured";
+  }
+  if (state === "permission_denied") return "not_attempted";
+
+  return "unknown";
+}
+
+function safePushTestDeliveryAttemptState(
+  state: SafePushTestTimelineItem["state"],
+): SafePushTestTimelineItem["deliveryAttemptState"] {
+  if (state === "provider_accepted") return "sent";
+  if (state === "provider_failed" || state === "token_invalid") return "failed";
+  if (state === "opened") return "opened";
+  if (state === "permission_denied" || state === "local_only") return "not_attempted";
+
+  return "unknown";
+}
+
+function safePushTestDetail(state: SafePushTestTimelineItem["state"]): string {
+  if (state === "permission_denied") {
+    return "Permissao de push negada no aparelho; nenhum lembrete remoto foi enviado.";
+  }
+  if (state === "local_only") {
+    return "Canal local identificado; teste remoto nao foi disparado.";
+  }
+  if (state === "provider_accepted") {
+    return "Provider aceitou o lembrete de teste; isso nao baixa pendencias nem altera fechamento.";
+  }
+  if (state === "provider_failed") {
+    return "Provider recusou o lembrete de teste antes de qualquer confirmacao no aparelho.";
+  }
+  if (state === "token_invalid") {
+    return "Token do aparelho ficou invalido; reabrir o app deve renovar o canal.";
+  }
+  if (state === "opened") {
+    return "Aparelho abriu o lembrete de teste e confirmou sinal no app.";
+  }
+
+  return "Sem sinal confiavel do provider; trate como diagnostico inconclusivo.";
+}
+
+function safePushTestNextAction(state: SafePushTestTimelineItem["state"]): string {
+  if (state === "permission_denied") return "Ativar push no Android e repetir o teste seguro.";
+  if (state === "local_only") return "Configurar push remoto e repetir o teste seguro.";
+  if (state === "provider_accepted") return "Pedir abertura do lembrete e conferir sinal no app.";
+  if (state === "provider_failed") return "Verificar Expo/provider e tentar novamente.";
+  if (state === "token_invalid") return "Reabrir o app para renovar token e repetir o teste.";
+  if (state === "opened") return "Registrar aparelho como canal validado para o piloto.";
+
+  return "Reabrir app no aparelho e repetir o teste seguro.";
+}
+
+function safePushTestFailureReason(
+  state: SafePushTestTimelineItem["state"],
+): string | undefined {
+  if (state === "provider_failed") return "provider_failed";
+  if (state === "token_invalid") return "token_invalid";
+  if (state === "permission_denied") return "permission_denied";
+  return undefined;
 }
 
 function rolesAllowCapability(

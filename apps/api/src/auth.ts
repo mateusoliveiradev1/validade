@@ -283,6 +283,7 @@ export function createSessionContext(decision: AuthorizationDecision) {
       canCloseShift: roleAllowsCapability(role, "shift.close"),
       canReadStoreAudit: roleAllowsCapability(role, "audit.read_store"),
       canManageUsers: roleAllowsCapability(role, "user.manage"),
+      canSendPilotPushTest: roleAllowsCapability(role, "pilot.push_test.send"),
     },
   };
 }

@@ -12,6 +12,7 @@ export const CAPABILITIES = [
   "evidence.invalidate",
   "shift.close",
   "shift.handoff_ack",
+  "pilot.push_test.send",
   "user.manage",
   "role.manage",
   "store.manage",
@@ -88,9 +89,11 @@ const LEAD_CAPABILITIES = [
   "evidence.invalidate",
   "shift.close",
   "shift.handoff_ack",
+  "pilot.push_test.send",
 ] as const satisfies readonly Capability[];
 
 const ADMIN_CAPABILITIES = [
+  "pilot.push_test.send",
   "catalog.review",
   "user.manage",
   "role.manage",

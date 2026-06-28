@@ -25,11 +25,14 @@ describe("authorization matrix", () => {
     expect(roleAllowsCapability("collaborator", "command_center.read_store")).toBe(true);
     expect(roleAllowsCapability("collaborator", "catalog.review")).toBe(false);
     expect(roleAllowsCapability("collaborator", "shift.close")).toBe(false);
+    expect(roleAllowsCapability("collaborator", "pilot.push_test.send")).toBe(false);
     expect(roleAllowsCapability("lead", "shift.close")).toBe(true);
     expect(roleAllowsCapability("lead", "catalog.review")).toBe(true);
+    expect(roleAllowsCapability("lead", "pilot.push_test.send")).toBe(true);
     expect(roleAllowsCapability("lead", "user.manage")).toBe(false);
     expect(roleAllowsCapability("admin", "user.manage")).toBe(true);
     expect(roleAllowsCapability("admin", "catalog.review")).toBe(true);
+    expect(roleAllowsCapability("admin", "pilot.push_test.send")).toBe(true);
     expect(roleAllowsCapability("admin", "command_center.read_store")).toBe(false);
     expect(roleAllowsCapability("admin", "shift.close")).toBe(false);
   });
@@ -82,6 +85,61 @@ describe("authorization matrix", () => {
       allowed: false,
       reason: "capability_not_allowed",
     });
+  });
+
+  it("allows same-store leadership and admin to send pilot push tests", () => {
+    const leadDecision = authorizeStoreCapability({
+      identity,
+      memberships: [leadMembership],
+      capability: "pilot.push_test.send",
+      resourceStoreId: "loja-piloto",
+    });
+    const adminDecision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "admin",
+        },
+      ],
+      capability: "pilot.push_test.send",
+      resourceStoreId: "loja-piloto",
+    });
+
+    expect(leadDecision.allowed).toBe(true);
+    expect(leadDecision.context?.capabilities).toContain("pilot.push_test.send");
+    expect(adminDecision.allowed).toBe(true);
+    expect(adminDecision.context?.capabilities).toContain("pilot.push_test.send");
+  });
+
+  it("denies collaborator push tests without leaking cross-store details", () => {
+    const collaboratorDecision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "collaborator",
+        },
+      ],
+      capability: "pilot.push_test.send",
+      resourceStoreId: "loja-piloto",
+    });
+    const crossStoreDecision = authorizeStoreCapability({
+      identity,
+      memberships: [leadMembership],
+      capability: "pilot.push_test.send",
+      resourceStoreId: "loja-outra",
+    });
+
+    expect(collaboratorDecision).toEqual({
+      allowed: false,
+      reason: "capability_not_allowed",
+    });
+    expect(crossStoreDecision).toEqual({
+      allowed: false,
+      reason: "outside_store_scope",
+    });
+    expect(JSON.stringify(crossStoreDecision)).not.toContain("loja-outra");
   });
 
   it("denies inactive memberships before capability evaluation", () => {

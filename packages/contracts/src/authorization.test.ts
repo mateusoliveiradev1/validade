@@ -53,6 +53,7 @@ describe("authorization contracts", () => {
         "catalog.review",
         "shift.close",
         "audit.read_store",
+        "pilot.push_test.send",
       ],
       sessionExpiresAt: "2026-06-23T12:00:00.000Z",
       accountStatus: "active",
@@ -65,10 +66,12 @@ describe("authorization contracts", () => {
         canCloseShift: true,
         canReadStoreAudit: true,
         canManageUsers: false,
+        canSendPilotPushTest: true,
       },
     });
 
     expect(context.actions.canCloseShift).toBe(true);
+    expect(context.actions.canSendPilotPushTest).toBe(true);
   });
 
   it("backfills newly introduced session actions from server-owned capabilities", () => {
@@ -82,7 +85,13 @@ describe("authorization contracts", () => {
         storeName: "Loja Ficticia Piloto",
       },
       activeRole: "lead",
-      capabilities: ["task.act", "command_center.read_store", "shift.close", "audit.read_store"],
+      capabilities: [
+        "task.act",
+        "command_center.read_store",
+        "shift.close",
+        "audit.read_store",
+        "pilot.push_test.send",
+      ],
       sessionExpiresAt: "2026-06-23T12:00:00.000Z",
       accountStatus: "active",
       canRequestRecovery: true,
@@ -97,6 +106,7 @@ describe("authorization contracts", () => {
 
     expect(context.actions.canReadCommandCenter).toBe(true);
     expect(context.actions.canReviewProductDrafts).toBe(false);
+    expect(context.actions.canSendPilotPushTest).toBe(true);
   });
 
   it("represents store-scoped administration without leaking other stores", () => {
@@ -112,6 +122,7 @@ describe("authorization contracts", () => {
             canCloseShift: true,
             canReadStoreAudit: true,
             canManageUsers: true,
+            canSendPilotPushTest: true,
           },
         },
       ],

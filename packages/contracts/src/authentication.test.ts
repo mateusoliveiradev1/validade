@@ -12,7 +12,13 @@ const session = {
   actor: { subjectId: "subject-1", displayName: "Pessoa piloto" },
   store: { storeId: "store-1", storeName: "Loja Ficticia Piloto" },
   activeRole: "lead" as const,
-  capabilities: ["task.act", "command_center.read_store", "catalog.review", "shift.close"] as const,
+  capabilities: [
+    "task.act",
+    "command_center.read_store",
+    "catalog.review",
+    "shift.close",
+    "pilot.push_test.send",
+  ] as const,
   sessionExpiresAt: "2026-06-23T12:00:00.000Z",
   accountStatus: "active" as const,
   canRequestRecovery: true,
@@ -24,6 +30,7 @@ const session = {
     canCloseShift: true,
     canReadStoreAudit: true,
     canManageUsers: false,
+    canSendPilotPushTest: true,
   },
 };
 

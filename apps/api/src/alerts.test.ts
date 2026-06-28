@@ -1,10 +1,16 @@
 import { createFakeExpoAlertDeliveryProvider } from "@validade-zero/adapters";
-import { AlertDispatchCommandSchema, type AlertDispatchCommand } from "@validade-zero/contracts";
+import {
+  AlertDispatchCommandSchema,
+  type AlertDispatchCommand,
+  type SafePushTestResult,
+} from "@validade-zero/contracts";
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { describe, expect, it } from "vitest";
+import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import {
   createAlertDispatchService,
   createCentralTaskAlertDispatchRepository,
+  createApiApp,
   createInMemoryAlertDispatchRepository,
   createScheduledAlertHandler,
 } from "./index";
@@ -232,6 +238,158 @@ describe("alert dispatch API seam", () => {
       expect.objectContaining({ centralTaskId: "task-central-alert-01" }),
     ]);
   });
+
+  it("allows same-store leadership to run a safe push test without resolving active work", async () => {
+    const { app, captureRepository } = await createPilotPushTestApp();
+
+    const response = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-piloto",
+        deviceIdMasked: "andr...001",
+        deviceLabel: "Moto G Lideranca",
+      }),
+    });
+    const body = (await response.json()) as SafePushTestResult;
+    const preparedAfterTest = await captureRepository.prepareTurn({
+      requestId: "prepare-after-safe-push-test",
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+      actorId: "lead-local",
+      actorDisplayName: "Lideranca local",
+      actorRoleSnapshot: "lead",
+      request: {
+        deviceId: "device-after-safe-push-test",
+        requestedAt: NOW,
+        localSnapshot: {
+          knownProductCount: 0,
+          knownLotCount: 0,
+          pendingCommandCount: 0,
+        },
+      },
+    });
+    const commandCenterResponse = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const commandCenter = (await commandCenterResponse.json()) as {
+      devices?: Array<{ deviceLabel?: string; pushTests?: Array<{ state?: string }> }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      command: {
+        storeId: "loja-piloto",
+        deviceId: "andr...001",
+        message: {
+          title: "Teste Validade Zero",
+        },
+      },
+      timeline: [
+        {
+          state: "provider_accepted",
+          providerOutcome: "accepted",
+          deliveryAttemptState: "sent",
+        },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toMatch(
+      /android-piloto-secret-001|ExponentPushToken|taskResolution|resolveTask|resolvedAt/i,
+    );
+    expect(preparedAfterTest.activeTasks).toEqual([
+      expect.objectContaining({ centralTaskId: "task-central-alert-01" }),
+    ]);
+    expect(
+      commandCenter.devices?.find((device) => device.deviceLabel === "Moto G Lideranca")
+        ?.pushTests?.[0],
+    ).toMatchObject({
+      state: "provider_accepted",
+    });
+  });
+
+  it("allows same-store admin to run the push test without granting Command Center read", async () => {
+    const { app } = await createPilotPushTestApp();
+
+    const pushResponse = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:admin-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-piloto",
+        deviceIdMasked: "andr...001",
+      }),
+    });
+    const commandCenterResponse = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:admin-local" },
+    });
+
+    expect(pushResponse.status).toBe(200);
+    expect(commandCenterResponse.status).toBe(403);
+  });
+
+  it("denies collaborator and cross-store push tests with client-safe errors", async () => {
+    const { app } = await createPilotPushTestApp();
+    const collaboratorResponse = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:collaborator-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-piloto",
+        deviceIdMasked: "andr...001",
+      }),
+    });
+    const crossStoreResponse = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-outra",
+        deviceIdMasked: "andr...001",
+      }),
+    });
+
+    expect(collaboratorResponse.status).toBe(403);
+    expect(crossStoreResponse.status).toBe(403);
+    expect(JSON.stringify(await collaboratorResponse.json())).not.toMatch(
+      /android-piloto-secret-001|ExponentPushToken|loja-outra/i,
+    );
+    expect(JSON.stringify(await crossStoreResponse.json())).not.toMatch(
+      /android-piloto-secret-001|ExponentPushToken|loja-outra/i,
+    );
+  });
+
+  it("does not reveal whether another store has a registered device", async () => {
+    const { app } = await createPilotPushTestApp();
+
+    const response = await app.request("/pilot/push-tests", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        storeId: "loja-piloto",
+        deviceIdMasked: "outr...001",
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      error: "pilot_device_not_registered",
+      message: "Aparelho nao aprovado para esta loja.",
+    });
+    expect(JSON.stringify(body)).not.toMatch(/outra-loja|android-outra-secret-001/i);
+  });
 });
 
 function createDispatchCommand(): AlertDispatchCommand {
@@ -272,5 +430,87 @@ function centralTaskBase(storeId: string) {
     source: "central" as const,
     ownerLabel: "Equipe do turno",
     updatedAt: NOW,
+  };
+}
+
+async function createPilotPushTestApp() {
+  const captureRepository = createInMemoryCaptureRepository({
+    tasks: [
+      centralTask("loja-piloto", {
+        centralTaskId: "task-central-alert-01",
+        activeKey: "active-central-alert-01",
+      }),
+    ],
+  });
+
+  await captureRepository.upsertDeviceSnapshot({
+    deviceId: "android-piloto-secret-001",
+    storeId: "loja-piloto",
+    storeName: "Loja Ficticia Piloto",
+    deviceLabel: "Moto G Lideranca",
+    activeUserLabel: "Lider FICTICIO",
+    appVersion: "0.12.0",
+    appBuild: "120",
+    environment: "staging",
+    apiTarget: "https://api.ficticia.invalid",
+    preparedAt: new Date("2030-01-10T11:40:00.000Z"),
+    lastForegroundAt: new Date("2030-01-10T11:45:00.000Z"),
+    lastSyncAt: new Date("2030-01-10T11:46:00.000Z"),
+    lastCentralReadAt: new Date("2030-01-10T11:47:00.000Z"),
+    lastHydratedAt: new Date("2030-01-10T11:47:00.000Z"),
+    pendingCommandCount: 0,
+    conflictCount: 0,
+    source: "central",
+    pushPermission: "granted",
+    pushProviderState: "remote_ready",
+    cameraPermission: "granted",
+    updatedAt: new Date("2030-01-10T11:48:00.000Z"),
+  });
+  await captureRepository.upsertDeviceSnapshot({
+    deviceId: "android-outra-secret-001",
+    storeId: "loja-outra",
+    storeName: "Outra Loja Ficticia",
+    deviceLabel: "Moto G Outra Loja",
+    activeUserLabel: "Outra lideranca",
+    pendingCommandCount: 0,
+    conflictCount: 0,
+    source: "central",
+    pushPermission: "granted",
+    pushProviderState: "remote_ready",
+    cameraPermission: "granted",
+    lastCentralReadAt: new Date("2030-01-10T11:47:00.000Z"),
+    updatedAt: new Date("2030-01-10T11:48:00.000Z"),
+  });
+
+  return {
+    app: createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        {
+          subjectId: "collaborator-local",
+          role: "collaborator",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+        {
+          subjectId: "lead-local",
+          role: "lead",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+        {
+          subjectId: "admin-local",
+          role: "admin",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+      ]),
+      captureRepository,
+      now: () => new Date(NOW),
+    }),
+    captureRepository,
   };
 }

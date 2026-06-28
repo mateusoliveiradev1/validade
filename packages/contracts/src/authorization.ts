@@ -76,6 +76,7 @@ export const SessionActionsSchema = z
     canCloseShift: z.boolean(),
     canReadStoreAudit: z.boolean(),
     canManageUsers: z.boolean(),
+    canSendPilotPushTest: z.boolean(),
   })
   .strict();
 
@@ -147,6 +148,9 @@ function normalizeSessionActions(input: unknown): unknown {
       canManageUsers:
         getBoolean(input.actions.canManageUsers) ??
         capabilities.includes("user.manage" satisfies DomainCapability),
+      canSendPilotPushTest:
+        getBoolean(input.actions.canSendPilotPushTest) ??
+        capabilities.includes("pilot.push_test.send" satisfies DomainCapability),
     },
   };
 }

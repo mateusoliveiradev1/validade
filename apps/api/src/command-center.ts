@@ -7,6 +7,7 @@ import {
   type CentralProductSnippet,
   type CommandCenterProjection,
   type PrepareTurnResponse,
+  type SafePushTestTimelineItem,
   type ResolvedTaskHistorySnippet,
 } from "@validade-zero/contracts";
 import type { CaptureRepository } from "@validade-zero/database/capture-repository";
@@ -70,6 +71,7 @@ export function createInMemoryCommandCenterService(input?: {
 export function createCaptureBackedCommandCenterService(input: {
   captureRepository: CaptureRepository;
   now?: () => Date;
+  readPushTests?: (deviceIdMasked: string) => readonly SafePushTestTimelineItem[];
 }): CommandCenterService {
   const now = input.now ?? (() => new Date());
 
@@ -102,8 +104,15 @@ export function createCaptureBackedCommandCenterService(input: {
           storeName: scope.storeName,
           now: now(),
         });
+        const devicesWithPushTests =
+          input.readPushTests === undefined
+            ? devices
+            : devices.map((device) => {
+                const pushTests = input.readPushTests?.(device.deviceIdMasked) ?? [];
+                return pushTests.length === 0 ? device : { ...device, pushTests };
+              });
 
-        return projectionFromCentralPrepareTurn(scope, prepared, readAt, devices);
+        return projectionFromCentralPrepareTurn(scope, prepared, readAt, devicesWithPushTests);
       } catch {
         return failClosedProjection(scope, readAt);
       }
