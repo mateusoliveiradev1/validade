@@ -363,7 +363,7 @@ Plans:
 4. A guided real-store UAT checklist covers prepare-turn, product reuse/create, lot registration, terminal resolution, second-device convergence, Command Center consistency, push test, camera/evidence path, and shift close.
 5. Operational failure states explain what is blocking the pilot: no device, stale sync, no push permission, invalid token, no camera permission, wrong store membership, pending product review, conflict, or unsafe shift close.
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 **Wave 1**
@@ -376,7 +376,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 12-03-PLAN.md - Pilot build metadata, versioning, and installed-build truth
+- [x] 12-03-PLAN.md - Pilot build metadata, versioning, and installed-build truth
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
