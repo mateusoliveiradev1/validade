@@ -319,6 +319,37 @@ Plans:
 - [x] 10-05-PLAN.md - Capture-backed Command Center, role/store controls, and central push/escalation audience
 - [x] 10-06-PLAN.md - Central shift-close revalidation, full pilot UAT, release evidence, and blocked-state record
 
+### Phase 11: Mobile Visual Polish and Emulator Validation
+
+**Goal:** Polish the Android critical mobile flow and validate the installed emulator/device path while preserving Phase 10 central-truth semantics and explicitly recording provider/device blockers.
+**Requirements**: P11-POLISH-01, P11-STATUS-02, P11-ANDROID-03, P11-SCREENSHOT-04, P11-TRUTH-05, P11-PROVIDER-06
+**Depends on:** Phase 10
+**Success Criteria**:
+
+1. Critical mobile screens (`Preparar turno`, `Hoje`, product path, lot registration, terminal resolution, sync/conflict, and shift close) meet the Phase 11 corridor-ready UI contract.
+2. Shared mobile status vocabulary differentiates local, pending central, synced transport, conflict, critical, resolved, safe, provider, and camera states without false safe styling.
+3. `pnpm test:e2e:mobile` passes on a connected installed Android target, or exact blocked output is recorded without substituting component tests.
+4. Phase 11 UAT and release docs separate historical Android evidence, current repo readiness, current emulator/device readiness, screenshots, provider proof, camera proof, and external blockers.
+
+**Plans:** 4 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 11-01-PLAN.md - Shared mobile status system and prepare/Hoje cockpit polish
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 11-02-PLAN.md - Product, lot, terminal, sync, and shift-close visual polish
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 11-03-PLAN.md - Installed Android Maestro journey, screenshots, and UAT record
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 11-04-PLAN.md - Release truth matrix, provider/camera blockers, and final gates
+
 ## Coverage
 
 | Requirement | Phase |

@@ -41,12 +41,12 @@ created: 2026-06-28
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 11-01-01 | TBD | 1 | P11-POLISH-01 | T11-01 | Critical-flow screens meet final corridor-ready criteria without changing central truth semantics. | component/a11y | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys mobile-capture.accessibility mobile-product-polish` | Partial / W0 | pending |
-| 11-01-02 | TBD | 1 | P11-STATUS-02 | T11-01 | Shared status vocabulary differentiates conflict, pending central, local, critical, synced, and resolved without relying on color alone. | unit/component | `pnpm.cmd --filter @validade-zero/mobile test -- capture` | Partial / W0 | pending |
-| 11-02-01 | TBD | 2 | P11-ANDROID-03 | T11-02 | Installed Android flow proves login/privacy and the operational critical path on a running emulator/device. | mobile e2e | `pnpm.cmd test:e2e:mobile` | Yes | pending |
-| 11-02-02 | TBD | 2 | P11-SCREENSHOT-04 | T11-03 | Screenshot evidence uses fictional fixtures and excludes real store/customer data, private URLs, tokens, build URLs, raw photos, and device-sensitive information. | e2e + evidence scan | `pnpm.cmd security:evidence` | W0 | pending |
-| 11-03-01 | TBD | 3 | P11-TRUTH-05 | T11-04 | Release/UAT truth matrix separates old PASS evidence, current repo readiness, current emulator readiness, and external provider/device blockers. | docs/security | `pnpm.cmd security:evidence` | W0 | pending |
-| 11-03-02 | TBD | 3 | P11-PROVIDER-06 | T11-05 | Push/camera physical provider/device evidence is passed only with approved proof or recorded as an external blocker. | manual/device UAT | `pnpm.cmd security:evidence` | Partial / W0 | pending |
+| 11-01-01 | 11-01 / 11-02 | 1-2 | P11-POLISH-01 | T11-01 | Critical-flow screens meet final corridor-ready criteria without changing central truth semantics. | component/a11y | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys mobile-capture.accessibility mobile-product-polish` | Partial / W0 | pending |
+| 11-01-02 | 11-01 / 11-02 | 1-2 | P11-STATUS-02 | T11-01 | Shared status vocabulary differentiates conflict, pending central, local, critical, synced, and resolved without relying on color alone. | unit/component | `pnpm.cmd --filter @validade-zero/mobile test -- capture` | Partial / W0 | pending |
+| 11-02-01 | 11-03 | 3 | P11-ANDROID-03 | T11-02 | Installed Android flow proves login/privacy and the operational critical path on a running emulator/device. | mobile e2e | `pnpm.cmd test:e2e:mobile` | Yes | pending |
+| 11-02-02 | 11-03 | 3 | P11-SCREENSHOT-04 | T11-03 | Screenshot evidence uses fictional fixtures and excludes real store/customer data, private URLs, tokens, build URLs, raw photos, and device-sensitive information. | e2e + evidence scan | `pnpm.cmd security:evidence` | W0 | pending |
+| 11-03-01 | 11-04 | 4 | P11-TRUTH-05 | T11-04 | Release/UAT truth matrix separates old PASS evidence, current repo readiness, current emulator readiness, and external provider/device blockers. | docs/security | `pnpm.cmd security:evidence` | W0 | pending |
+| 11-03-02 | 11-04 | 4 | P11-PROVIDER-06 | T11-05 | Push/camera physical provider/device evidence is passed only with approved proof or recorded as an external blocker. | manual/device UAT | `pnpm.cmd security:evidence` | Partial / W0 | pending |
 
 *Status: pending / green / red / flaky*
 
