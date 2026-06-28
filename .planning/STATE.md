@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Milestone audit gaps found
-stopped_at: Created v1.0-MILESTONE-AUDIT.md
-last_updated: "2026-06-28T20:44:34.404Z"
+status: Milestone audit rerun: requirements satisfied; external rollout blockers remain
+stopped_at: Updated v1.0-MILESTONE-AUDIT.md
+last_updated: "2026-06-28T20:56:41.848Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -58,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Close formal verification gaps found by the milestone audit.
+Decide whether to archive v1.0 as repository-complete while carrying external rollout blockers forward, or collect Android/provider/camera/Loja 18 proof and rerun the audit.
 
 ```powershell
-$gsd-audit-milestone
+$gsd-complete-milestone v1.0
 ```
 
 ## Accumulated Context
@@ -96,6 +96,7 @@ $gsd-audit-milestone
 - Phase 9 formal verification closure completed: `09-VERIFICATION.md` now links UI-04 to existing summaries, normalized `09-UAT.md`, validation, Impeccable detector output, current repo/web gates, and explicit Android/provider/device external blockers.
 - Phase 10 formal verification closure completed: `10-VERIFICATION.md` now links central truth, product/lot lifecycle, terminal sync, Command Center/RBAC/push, shift close, Neon staging evidence, and explicit Android/provider/device/physical UAT external blockers.
 - Phase 12 formal verification closure completed: `12-VERIFICATION.md` now links P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, and P12-OPS-05 to existing summaries, UAT, validation, current repo/web gates, and explicit Android/provider/camera/physical UAT external blockers.
+- v1.0 milestone audit rerun completed: all 37 v1 requirements now have traceability through REQUIREMENTS.md, summaries, and VERIFICATION.md; repository and web gates passed; physical rollout remains blocked by external Android/provider/camera/Loja 18 UAT proof.
 
 ### Quick Tasks Completed
 
