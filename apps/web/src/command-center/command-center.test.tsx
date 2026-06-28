@@ -115,6 +115,37 @@ const projection = {
       occurredAt: "2030-01-10T08:00:00.000Z",
     },
   ],
+  devices: [
+    {
+      deviceIdMasked: "moto...001",
+      deviceLabel: "Moto G Lideranca",
+      activeUserLabel: "Lider FICTICIO",
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+      appVersion: "0.12.0",
+      appBuild: "120",
+      environment: "staging",
+      apiTarget: "https://api.ficticia.invalid",
+      lastForegroundAt: "2030-01-10T11:58:00.000Z",
+      lastSyncAt: "2030-01-10T11:57:00.000Z",
+      lastCentralReadAt: "2030-01-10T11:56:00.000Z",
+      pushPermission: "denied",
+      pushProviderState: "local_only",
+      cameraPermission: "granted",
+      verdict: "atencao",
+      blockers: [
+        {
+          code: "push_required_without_push",
+          label: "Push remoto ainda nao provado",
+          detail: "O aparelho pode seguir em etapas sem push remoto.",
+          nextAction: "Executar teste seguro de push antes do rollout.",
+          severity: "warning",
+        },
+      ],
+      nextAction: "Executar teste seguro de push antes do rollout.",
+      updatedAt: "2030-01-10T12:00:00.000Z",
+    },
+  ],
 } as const;
 
 describe("CommandCenter", () => {
@@ -128,6 +159,10 @@ describe("CommandCenter", () => {
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
     expect(screen.getByText("Foto da central")).toBeTruthy();
+    expect(screen.getByText("Aparelhos do piloto")).toBeTruthy();
+    expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
+    expect(screen.getByText("Push remoto ainda nao provado")).toBeTruthy();
+    expect(screen.getByText("Executar teste seguro de push antes do rollout.")).toBeTruthy();
     expect(screen.getByText("1 lote central")).toBeTruthy();
     expect(screen.getByText("1 produto em rascunho")).toBeTruthy();
     expect(screen.getByText("Por que venceu")).toBeTruthy();
@@ -143,6 +178,7 @@ describe("CommandCenter", () => {
     expect(screen.getByText(/Retirada confirmada por Lider FICTICIO/)).toBeTruthy();
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
+    expect(text).not.toMatch(/pushToken|expoPushToken|rawDeviceId/i);
     expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));

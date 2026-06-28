@@ -60,6 +60,7 @@ export function createInMemoryCommandCenterService(input?: {
           resolvedHistory: [],
           pendingShiftCloses: [],
           shiftHistory: [],
+          devices: [],
         }),
       );
     },
@@ -96,7 +97,13 @@ export function createCaptureBackedCommandCenterService(input: {
           },
         });
 
-        return projectionFromCentralPrepareTurn(scope, prepared, readAt);
+        const devices = await input.captureRepository.listDeviceReadiness({
+          storeId: scope.storeId,
+          storeName: scope.storeName,
+          now: now(),
+        });
+
+        return projectionFromCentralPrepareTurn(scope, prepared, readAt, devices);
       } catch {
         return failClosedProjection(scope, readAt);
       }
@@ -147,6 +154,7 @@ export function createAuditBackedCommandCenterService(input: {
           resolvedHistory: [],
           pendingShiftCloses: [],
           shiftHistory: [],
+          devices: [],
         });
       }
 
@@ -282,6 +290,7 @@ export function createAuditBackedCommandCenterService(input: {
         resolvedHistory: [],
         pendingShiftCloses: [],
         shiftHistory: [],
+        devices: [],
       });
     },
   };
@@ -318,6 +327,7 @@ function failClosedProjection(
     resolvedHistory: [],
     pendingShiftCloses: [],
     shiftHistory: [],
+    devices: [],
   });
 }
 
@@ -325,6 +335,7 @@ function projectionFromCentralPrepareTurn(
   scope: { storeId: string; storeName: string },
   prepared: PrepareTurnResponse,
   refreshedAt: string,
+  devices: CommandCenterProjection["devices"],
 ): CommandCenterProjection {
   const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
   const pendingProductDrafts = prepared.products
@@ -387,6 +398,7 @@ function projectionFromCentralPrepareTurn(
     resolvedHistory: prepared.resolvedHistory.map(resolvedHistoryFromCentral),
     pendingShiftCloses: [],
     shiftHistory: [],
+    devices,
   });
 }
 

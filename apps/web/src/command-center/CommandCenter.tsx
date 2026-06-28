@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { CommandCenterProjection } from "@validade-zero/contracts";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, Smartphone } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
@@ -162,6 +162,8 @@ function CommandCenterProjectionView({
 
       <CentralSnapshotPanel snapshot={projection.centralSnapshot} />
 
+      <DeviceReadinessPanel devices={projection.devices} />
+
       <CommandCenterInsightPanel
         canOpenAudit={canOpenAudit}
         insight={insight}
@@ -294,6 +296,134 @@ function CommandCenterProjectionView({
         />
       </div>
     </div>
+  );
+}
+
+function DeviceReadinessPanel({
+  devices,
+}: {
+  devices: CommandCenterProjection["devices"];
+}) {
+  const sortedDevices = [...devices].sort(compareDeviceReadiness);
+  const blockedCount = devices.filter((device) => device.verdict === "bloqueado").length;
+  const attentionCount = devices.filter((device) => device.verdict === "atencao").length;
+  const aptCount = devices.filter((device) => device.verdict === "apto").length;
+
+  return (
+    <section
+      className="grid gap-4 rounded-lg border border-border bg-card p-4"
+      aria-label="Aparelhos do piloto"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-primary">Aparelhos do piloto</p>
+          <h2 className="text-xl font-semibold leading-6">Prontidao por aparelho autorizado</h2>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            Mostra ultima abertura, sync e leitura central. Isto nao e presenca ao vivo.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={blockedCount === 0 ? "success" : "critical"}>
+            {blockedCount} bloqueado(s)
+          </Badge>
+          <Badge tone={attentionCount === 0 ? "success" : "warning"}>
+            {attentionCount} atencao
+          </Badge>
+          <Badge tone={aptCount === 0 ? "warning" : "success"}>{aptCount} apto(s)</Badge>
+        </div>
+      </div>
+
+      {sortedDevices.length === 0 ? (
+        <div className="grid gap-2 rounded-md border border-dashed border-border bg-background p-4">
+          <div className="flex items-center gap-2">
+            <Smartphone className="size-4 text-muted-foreground" aria-hidden="true" />
+            <p className="font-semibold">Nenhum aparelho aprovado apareceu nesta loja.</p>
+          </div>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            Entre no APK de staging com convite ativo, abra Preparar turno e volte aqui para
+            validar permissao, build e leitura central.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          {sortedDevices.map((device) => (
+            <article
+              key={`${device.storeId}:${device.deviceIdMasked}:${device.updatedAt}`}
+              className="grid gap-3 rounded-md border border-border bg-background p-3"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="grid gap-1">
+                  <h3 className="font-semibold leading-5">{device.deviceLabel}</h3>
+                  <p className="text-sm leading-5 text-muted-foreground">
+                    {device.activeUserLabel} - {device.storeName}
+                  </p>
+                </div>
+                <Badge tone={deviceVerdictTone(device.verdict)}>
+                  {deviceVerdictLabel(device.verdict)}
+                </Badge>
+              </div>
+
+              <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
+                <p>
+                  <span className="font-medium text-foreground">Build: </span>
+                  {device.appVersion} ({device.appBuild})
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">API: </span>
+                  {device.environment} - {device.apiTarget}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Ultimo foreground: </span>
+                  {optionalDateLabel(device.lastForegroundAt)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Ultima leitura central: </span>
+                  {optionalDateLabel(device.lastCentralReadAt)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Ultimo sync: </span>
+                  {optionalDateLabel(device.lastSyncAt)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Push: </span>
+                  {pushStateLabel(device.pushPermission, device.pushProviderState)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Camera: </span>
+                  {permissionLabel(device.cameraPermission)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Debug seguro: </span>
+                  {device.deviceIdMasked}
+                </p>
+              </div>
+
+              {device.blockers.length === 0 ? (
+                <p className="text-sm leading-5 text-muted-foreground">{device.nextAction}</p>
+              ) : (
+                <div className="grid gap-2 border-t border-border pt-3">
+                  {device.blockers.map((blocker) => (
+                    <div key={`${device.deviceIdMasked}:${blocker.code}`} className="grid gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={blocker.severity === "blocking" ? "critical" : "warning"}>
+                          {blocker.severity === "blocking" ? "Bloqueia" : "Atencao"}
+                        </Badge>
+                        <p className="font-medium">{blocker.label}</p>
+                      </div>
+                      <p className="text-sm leading-5 text-muted-foreground">{blocker.detail}</p>
+                      <p className="text-sm leading-5">
+                        <span className="font-medium">Agora: </span>
+                        {blocker.nextAction}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1032,6 +1162,62 @@ function cacheStateLabel(state: CommandCenterProjection["centralSnapshot"]["cach
 
 function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function compareDeviceReadiness(
+  left: CommandCenterProjection["devices"][number],
+  right: CommandCenterProjection["devices"][number],
+): number {
+  const rank: Record<CommandCenterProjection["devices"][number]["verdict"], number> = {
+    bloqueado: 0,
+    atencao: 1,
+    apto: 2,
+  };
+  const verdictDiff = rank[left.verdict] - rank[right.verdict];
+  if (verdictDiff !== 0) return verdictDiff;
+  return right.updatedAt.localeCompare(left.updatedAt);
+}
+
+function deviceVerdictTone(
+  verdict: CommandCenterProjection["devices"][number]["verdict"],
+): "success" | "warning" | "critical" {
+  if (verdict === "bloqueado") return "critical";
+  if (verdict === "atencao") return "warning";
+  return "success";
+}
+
+function deviceVerdictLabel(verdict: CommandCenterProjection["devices"][number]["verdict"]): string {
+  if (verdict === "bloqueado") return "Bloqueado";
+  if (verdict === "atencao") return "Atencao";
+  return "Apto";
+}
+
+function permissionLabel(
+  permission: CommandCenterProjection["devices"][number]["cameraPermission"],
+): string {
+  if (permission === "granted") return "permitida";
+  if (permission === "denied") return "negada";
+  if (permission === "not_requested") return "nao solicitada";
+  return "desconhecida";
+}
+
+function pushStateLabel(
+  permission: CommandCenterProjection["devices"][number]["pushPermission"],
+  provider: CommandCenterProjection["devices"][number]["pushProviderState"],
+): string {
+  const permissionText = permissionLabel(permission);
+
+  if (provider === "remote_ready") return `${permissionText}, remoto pronto`;
+  if (provider === "token_registered") return `${permissionText}, token aceito`;
+  if (provider === "token_invalid") return `${permissionText}, token invalido`;
+  if (provider === "provider_failed") return `${permissionText}, provedor falhou`;
+  if (provider === "local_only") return `${permissionText}, apenas local`;
+  if (provider === "not_configured") return `${permissionText}, provedor nao configurado`;
+  return `${permissionText}, provedor desconhecido`;
+}
+
+function optionalDateLabel(value: string | undefined): string {
+  return value === undefined ? "sem registro" : formatDateTime(value);
 }
 
 function formatDateTime(value: string): string {
