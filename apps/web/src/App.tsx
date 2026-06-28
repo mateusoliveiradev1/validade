@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AccountAccessErrorResponseSchema,
   AuthenticatedSessionResponseSchema,
@@ -11,6 +11,7 @@ import { CommandCenter } from "./command-center/CommandCenter";
 import { FirstAccessPage } from "./auth/FirstAccessPage";
 import { LoginPage } from "./auth/LoginPage";
 import { RecoveryPage } from "./auth/RecoveryPage";
+import { createAuthenticatedFetcher } from "./auth/authenticated-fetch";
 import { Skeleton } from "./components/ui/skeleton";
 import { MembershipAdministration } from "./memberships/MembershipAdministration";
 import { PrivacyCenter } from "./privacy/PrivacyCenter";
@@ -18,12 +19,14 @@ import { AppShell, type AppRoute } from "./shell/AppShell";
 
 export function App() {
   const [session, setSession] = useState<SessionContextResponse>();
+  const [sessionToken, setSessionToken] = useState<string>();
   const [inviteToken, setInviteToken] = useState<string>();
   const [screen, setScreen] = useState<
     "loading" | "login" | "first" | "recovery" | "privacy" | "blocked"
   >("loading");
   const [route, setRoute] = useState<AppRoute>("command");
   const [error, setError] = useState<string>();
+  const apiFetch = useMemo(() => createAuthenticatedFetcher(sessionToken), [sessionToken]);
   useEffect(() => {
     const urlInviteToken =
       typeof window === "undefined"
@@ -46,6 +49,7 @@ export function App() {
         }
         const parsed = AuthenticatedSessionResponseSchema.parse(payload);
         setSession(parsed.session);
+        setSessionToken(parsed.sessionToken);
         setScreen("login");
       })
       .catch(() => setScreen("login"));
@@ -66,7 +70,9 @@ export function App() {
       );
       return;
     }
-    setSession(AuthenticatedSessionResponseSchema.parse(payload).session);
+    const parsed = AuthenticatedSessionResponseSchema.parse(payload);
+    setSession(parsed.session);
+    setSessionToken(parsed.sessionToken);
     setScreen("login");
   }
   if (screen === "loading")
@@ -101,7 +107,9 @@ export function App() {
           });
           const payload: unknown = await response.json();
           if (!response.ok) throw new Error("invite");
-          setSession(AuthenticatedSessionResponseSchema.parse(payload).session);
+          const parsed = AuthenticatedSessionResponseSchema.parse(payload);
+          setSession(parsed.session);
+          setSessionToken(parsed.sessionToken);
           setInviteToken(undefined);
           clearInviteUrlParam();
           setScreen("login");
@@ -151,12 +159,13 @@ export function App() {
       onRouteChange={setRoute}
       onOpenPrivacy={() => setScreen("privacy")}
       onLogout={() => {
-        void fetch("/auth/logout", {
+        void apiFetch("/auth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: "{}",
         });
         setSession(undefined);
+        setSessionToken(undefined);
       }}
     >
       {activeRoute === "command" ? (
@@ -164,10 +173,12 @@ export function App() {
           storeId={session.store.storeId}
           canOpenAudit={session.actions.canReadStoreAudit}
           canSendPilotPushTest={session.actions.canSendPilotPushTest}
+          fetcher={apiFetch}
           onOpenAudit={() => setRoute("audit")}
         />
       ) : activeRoute === "access" ? (
         <MembershipAdministration
+          fetcher={apiFetch}
           session={session}
           onOpenInviteActivation={(token) => {
             setInviteToken(token);
@@ -177,6 +188,7 @@ export function App() {
         />
       ) : (
         <AuditWorkbench
+          fetcher={apiFetch}
           initialStoreId={session.store.storeId}
           initialStoreName={session.store.storeName}
         />

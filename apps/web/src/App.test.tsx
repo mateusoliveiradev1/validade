@@ -50,59 +50,57 @@ describe("authenticated web shell", () => {
   });
 
   it("shows the operational shell for an active session", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: string | URL | Request) => {
-        const url = input instanceof Request ? input.url : String(input);
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
 
-        if (url.includes("/command-center")) {
-          return Promise.resolve(
-            Response.json({
-              storeId: "loja-ficticia",
-              storeName: "Loja Ficticia Piloto",
-              refreshedAt: "2030-01-11T11:00:00.000Z",
-              freshness: "current",
-              verdict: {
-                state: "safe",
-                title: "Area de venda segura agora",
-                detail: "Nenhum bloqueio central exige acao neste momento.",
-              },
-              centralSnapshot: {
-                source: "central",
-                readiness: "prepared",
-                cacheState: "ready",
-                productCount: 1,
-                draftProductCount: 0,
-                lotCount: 1,
-                activeTaskCount: 0,
-                conflictCount: 0,
-                discardedActionCount: 0,
-                resolvedHistoryCount: 1,
-                pendingCommandCount: 0,
-                lastCentralReadAt: "2030-01-11T11:00:00.000Z",
-                lastHydratedAt: "2030-01-11T11:00:00.000Z",
-                blockers: [],
-              },
-              criticalLots: [],
-              overdueTasks: [],
-              pendingMarkdowns: [],
-              pendingProductDrafts: [],
-              pendingEvidence: [],
-              syncConflicts: [],
-              discardedActions: [],
-              resolvedHistory: [],
-              pendingShiftCloses: [],
-              shiftHistory: [],
-              devices: [],
-              pilotUat: pilotUatChecklist("loja-ficticia", "Loja Ficticia Piloto"),
-              pilotBlockers: [],
-            }),
-          );
-        }
+      if (url.includes("/command-center")) {
+        return Promise.resolve(
+          Response.json({
+            storeId: "loja-ficticia",
+            storeName: "Loja Ficticia Piloto",
+            refreshedAt: "2030-01-11T11:00:00.000Z",
+            freshness: "current",
+            verdict: {
+              state: "safe",
+              title: "Area de venda segura agora",
+              detail: "Nenhum bloqueio central exige acao neste momento.",
+            },
+            centralSnapshot: {
+              source: "central",
+              readiness: "prepared",
+              cacheState: "ready",
+              productCount: 1,
+              draftProductCount: 0,
+              lotCount: 1,
+              activeTaskCount: 0,
+              conflictCount: 0,
+              discardedActionCount: 0,
+              resolvedHistoryCount: 1,
+              pendingCommandCount: 0,
+              lastCentralReadAt: "2030-01-11T11:00:00.000Z",
+              lastHydratedAt: "2030-01-11T11:00:00.000Z",
+              blockers: [],
+            },
+            criticalLots: [],
+            overdueTasks: [],
+            pendingMarkdowns: [],
+            pendingProductDrafts: [],
+            pendingEvidence: [],
+            syncConflicts: [],
+            discardedActions: [],
+            resolvedHistory: [],
+            pendingShiftCloses: [],
+            shiftHistory: [],
+            devices: [],
+            pilotUat: pilotUatChecklist("loja-ficticia", "Loja Ficticia Piloto"),
+            pilotBlockers: [],
+          }),
+        );
+      }
 
-        return Promise.resolve(Response.json(activeSession));
-      }),
-    );
+      return Promise.resolve(Response.json(activeSession));
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
 
@@ -110,6 +108,14 @@ describe("authenticated web shell", () => {
       expect(screen.getByRole("heading", { name: "Area de venda segura agora?" })).toBeTruthy();
     });
     expect(screen.getByText("Loja Ficticia Piloto")).toBeTruthy();
+    const commandCenterCall = fetchMock.mock.calls.find(([input]) =>
+      (input instanceof Request ? input.url : String(input)).includes("/command-center"),
+    );
+    const commandCenterHeaders = new Headers(
+      commandCenterCall?.[1]?.headers ??
+        (commandCenterCall?.[0] instanceof Request ? commandCenterCall[0].headers : undefined),
+    );
+    expect(commandCenterHeaders.get("authorization")).toBe(`Bearer ${activeSession.sessionToken}`);
     expect(screen.queryByText("Ambiente seguro para desenvolvimento")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir navegacao" }));

@@ -5,6 +5,7 @@ import {
   type AuditQuery,
   type AuditTimelineItem,
 } from "@validade-zero/contracts";
+import type { WebFetcher } from "../auth/authenticated-fetch";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -34,16 +35,17 @@ type WorkbenchStatus = "loading" | "ready" | "error";
 
 export function AuditWorkbench({
   client: providedClient,
+  fetcher,
   initialStoreId = "loja-piloto",
   initialStoreName = "Loja Ficticia Piloto",
 }: {
   client?: AuditClient;
+  fetcher?: WebFetcher;
   initialStoreId?: string;
   initialStoreName?: string;
 }) {
-  const defaultClientRef = React.useRef<AuditClient | undefined>(undefined);
-  defaultClientRef.current ??= createFetchAuditClient();
-  const client = providedClient ?? defaultClientRef.current;
+  const defaultClient = React.useMemo(() => createFetchAuditClient(fetcher), [fetcher]);
+  const client = providedClient ?? defaultClient;
   const isCompact = useCompactAuditLayout();
   const [query, setQuery] = React.useState<AuditQuery>(() =>
     AuditQuerySchema.parse({ storeId: initialStoreId, limit: 25 }),

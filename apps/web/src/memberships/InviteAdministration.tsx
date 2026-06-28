@@ -4,6 +4,7 @@ import {
   type AuthorizationRole,
   type InviteMutationResponse,
 } from "@validade-zero/contracts";
+import type { WebFetcher } from "../auth/authenticated-fetch";
 import {
   AlertDialog,
   AlertDialogDescription,
@@ -31,12 +32,14 @@ type CreatedInvite = InviteMutationResponse & {
 };
 
 export function InviteAdministration({
+  fetcher = fetch,
   issuerLabel,
   onOpenActivation,
   onInviteCreated,
   storeId,
   storeName,
 }: {
+  fetcher?: WebFetcher;
   issuerLabel: string;
   onOpenActivation?: ((token: string) => void) | undefined;
   onInviteCreated: () => void;
@@ -70,7 +73,7 @@ export function InviteAdministration({
         return;
       }
       const additionalRoles = inviteAdditionalRoles(role, grantAccessAdministration);
-      const response = await fetch("/auth/invites", {
+      const response = await fetcher("/auth/invites", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -118,14 +121,17 @@ export function InviteAdministration({
     setSubmitting(true);
     setMessage(undefined);
     try {
-      const response = await fetch(`/auth/invites/${encodeURIComponent(invite.inviteId)}/revoke`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          storeId: invite.storeId,
-          idempotencyKey: `invite:revoke:${invite.inviteId}:${Date.now()}`,
-        }),
-      });
+      const response = await fetcher(
+        `/auth/invites/${encodeURIComponent(invite.inviteId)}/revoke`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            storeId: invite.storeId,
+            idempotencyKey: `invite:revoke:${invite.inviteId}:${Date.now()}`,
+          }),
+        },
+      );
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error("Nao foi possivel revogar o convite agora.");
       const receipt = InviteMutationResponseSchema.parse(payload);

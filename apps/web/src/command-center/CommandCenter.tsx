@@ -5,6 +5,7 @@ import {
   type SafePushTestResult,
 } from "@validade-zero/contracts";
 import { BellRing, RefreshCw, Search, Smartphone } from "lucide-react";
+import type { WebFetcher } from "../auth/authenticated-fetch";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
@@ -16,18 +17,19 @@ export function CommandCenter({
   canOpenAudit,
   canSendPilotPushTest,
   client: providedClient,
+  fetcher,
   onOpenAudit,
   storeId,
 }: {
   canOpenAudit?: boolean;
   canSendPilotPushTest?: boolean;
   client?: CommandCenterClient;
+  fetcher?: WebFetcher;
   onOpenAudit?: () => void;
   storeId: string;
 }) {
-  const clientRef = React.useRef<CommandCenterClient | undefined>(undefined);
-  clientRef.current ??= createFetchCommandCenterClient();
-  const client = providedClient ?? clientRef.current;
+  const defaultClient = React.useMemo(() => createFetchCommandCenterClient(fetcher), [fetcher]);
+  const client = providedClient ?? defaultClient;
   const [status, setStatus] = React.useState<CommandCenterStatus>("loading");
   const [projection, setProjection] = React.useState<CommandCenterProjection>();
   const [lastClientRefreshAt, setLastClientRefreshAt] = React.useState<Date>();

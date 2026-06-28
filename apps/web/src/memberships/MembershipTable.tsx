@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { AuthorizationRole, ManagedStoreMembership } from "@validade-zero/contracts";
+import type { WebFetcher } from "../auth/authenticated-fetch";
 import {
   AlertDialog,
   AlertDialogDescription,
@@ -12,16 +13,18 @@ import { Select } from "../components/ui/select";
 import { Input } from "../components/ui/input";
 
 export function MembershipTable(input: {
+  fetcher?: WebFetcher;
   items: readonly ManagedStoreMembership[];
   onChanged: (membership: ManagedStoreMembership) => void;
 }) {
+  const fetcher = input.fetcher ?? fetch;
   const [pendingRevoke, setPendingRevoke] = useState<ManagedStoreMembership | undefined>();
   const [revokeReason, setRevokeReason] = useState("");
   const revokeTrigger = useRef<HTMLButtonElement>(null);
 
   async function changeRole(membership: ManagedStoreMembership, role: AuthorizationRole) {
     if (membership.role === role) return;
-    const response = await fetch(`/memberships/${membership.membershipId}/role`, {
+    const response = await fetcher(`/memberships/${membership.membershipId}/role`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -38,7 +41,7 @@ export function MembershipTable(input: {
 
   async function confirmRevoke() {
     if (pendingRevoke === undefined) return;
-    const response = await fetch(`/memberships/${pendingRevoke.membershipId}/revoke`, {
+    const response = await fetcher(`/memberships/${pendingRevoke.membershipId}/revoke`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

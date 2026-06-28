@@ -7,6 +7,7 @@ import {
   type SessionContextResponse,
   type SessionStoreAccess,
 } from "@validade-zero/contracts";
+import type { WebFetcher } from "../auth/authenticated-fetch";
 import { Badge } from "../components/ui/badge";
 import { Select } from "../components/ui/select";
 import { MembershipTable } from "./MembershipTable";
@@ -25,9 +26,11 @@ type MembershipState =
   | { status: "error"; message: string };
 
 export function MembershipAdministration({
+  fetcher = fetch,
   onOpenInviteActivation,
   session: providedSession,
 }: {
+  fetcher?: WebFetcher;
   onOpenInviteActivation?: ((token: string) => void) | undefined;
   session?: SessionContextResponse;
 }) {
@@ -45,13 +48,13 @@ export function MembershipAdministration({
         if (providedSession !== undefined) {
           context = providedSession;
         } else {
-          const contextResponse = await fetch("/session/context");
+          const contextResponse = await fetcher("/session/context");
           if (!contextResponse.ok)
             throw new Error("Nao foi possivel carregar seu escopo administrativo.");
           const contextPayload: unknown = await contextResponse.json();
           context = SessionContextResponseSchema.parse(contextPayload);
         }
-        const storesResponse = await fetch("/session/stores");
+        const storesResponse = await fetcher("/session/stores");
         const sessionStores = storesResponse.ok
           ? SessionStoresResponseSchema.parse(await storesResponse.json()).stores
           : [sessionContextToStoreAccess(context)];
@@ -71,12 +74,12 @@ export function MembershipAdministration({
         const targetContext =
           targetStoreId === context.store.storeId
             ? context
-            : await readSessionContextForStore(targetStoreId);
+            : await readSessionContextForStore(targetStoreId, fetcher);
         if (!targetContext.actions.canManageUsers) {
           if (!cancelled) setState({ status: "hidden" });
           return;
         }
-        const membershipsResponse = await fetch(
+        const membershipsResponse = await fetcher(
           `/memberships?storeId=${encodeURIComponent(targetContext.store.storeId)}`,
         );
         if (!membershipsResponse.ok)
@@ -103,7 +106,7 @@ export function MembershipAdministration({
     return () => {
       cancelled = true;
     };
-  }, [providedSession, reloadKey, selectedStoreId]);
+  }, [fetcher, providedSession, reloadKey, selectedStoreId]);
 
   if (state.status === "loading" || state.status === "hidden") return null;
   if (state.status === "error") return <p aria-live="polite">{state.message}</p>;
@@ -161,6 +164,7 @@ export function MembershipAdministration({
         </label>
       ) : null}
       <InviteAdministration
+        fetcher={fetcher}
         storeId={state.context.store.storeId}
         storeName={state.context.store.storeName}
         issuerLabel={state.context.actor.displayName ?? state.context.actor.subjectId}
@@ -169,7 +173,7 @@ export function MembershipAdministration({
           ? {}
           : { onOpenActivation: onOpenInviteActivation })}
       />
-      <MembershipTable items={state.items} onChanged={update} />
+      <MembershipTable fetcher={fetcher} items={state.items} onChanged={update} />
     </section>
   );
 }
@@ -178,8 +182,11 @@ function activeMembershipCount(items: readonly ManagedStoreMembership[]): number
   return items.filter((item) => item.status === "active").length;
 }
 
-async function readSessionContextForStore(storeId: string): Promise<SessionContextResponse> {
-  const response = await fetch(`/session/context?storeId=${encodeURIComponent(storeId)}`);
+async function readSessionContextForStore(
+  storeId: string,
+  fetcher: WebFetcher,
+): Promise<SessionContextResponse> {
+  const response = await fetcher(`/session/context?storeId=${encodeURIComponent(storeId)}`);
   if (!response.ok) throw new Error("Nao foi possivel carregar seu escopo nesta loja.");
   return SessionContextResponseSchema.parse(await response.json());
 }
