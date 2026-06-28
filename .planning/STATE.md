@@ -61,7 +61,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-verify-work 9
+$gsd-verify-work 10
 ```
 
 ## Accumulated Context
@@ -93,6 +93,7 @@ $gsd-verify-work 9
 - Phase 3 formal verification closure completed: `03-VERIFICATION.md` now links CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, and LOC-03 to existing summaries, UAT, security, and current repository gates.
 - Phase 6 formal verification closure completed: `06-VERIFICATION.md` now links MRK-01, MRK-02, MRK-03, and MRK-04 to existing summaries, UAT, validation, and current repository gates.
 - Phase 7 formal verification closure completed: `07-VERIFICATION.md` now links SYN-01, SYN-02, and SYN-03 to existing summaries, validation, historical native smoke, and current repository gates while preserving the missing conversational UAT/current-device blocker.
+- Phase 9 formal verification closure completed: `09-VERIFICATION.md` now links UI-04 to existing summaries, normalized `09-UAT.md`, validation, Impeccable detector output, current repo/web gates, and explicit Android/provider/device external blockers.
 
 ### Quick Tasks Completed
 

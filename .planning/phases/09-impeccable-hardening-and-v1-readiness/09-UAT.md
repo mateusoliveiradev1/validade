@@ -1,3 +1,12 @@
+---
+status: complete_with_external_blockers
+phase: 09-impeccable-hardening-and-v1-readiness
+source: [09-01-SUMMARY.md, 09-02-SUMMARY.md, 09-03-SUMMARY.md, 09-04-SUMMARY.md, 09-05-SUMMARY.md]
+started: 2026-06-22T21:49:50-03:00
+updated: 2026-06-28T16:25:44.6211983-03:00
+external_blockers: [android-device-apk, provider-policy, physical-device-uat]
+---
+
 # Phase 09 Pilot UAT
 
 Run these scenarios with fictional pilot data first. Stop the release decision if an expected truth label is missing or misleading.
