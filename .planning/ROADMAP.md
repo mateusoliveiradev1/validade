@@ -350,6 +350,24 @@ Plans:
 
 - [x] 11-04-PLAN.md - Release truth matrix, provider/camera blockers, and final gates
 
+### Phase 12: Pilot Operations and Device Readiness
+
+**Goal:** Turn the closed-pilot build into an observable, supportable store operation by proving which devices, users, push tokens, permissions, app versions, and UAT steps are ready before any real rollout claim.
+**Requirements**: P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, P12-OPS-05
+**Depends on:** Phase 11
+**Success Criteria**:
+
+1. Command Center shows per-device pilot health: app version/build, user, store scope, last sync, push token state, camera permission, push permission, and last foreground time.
+2. Leads/admins can send a safe push test to a selected registered device and see provider/token/permission outcomes without treating push delivery as task resolution.
+3. Mobile and web expose release truth for the installed build, including app version, environment, API target, commit/build identifier, and whether the client is older than the current staging artifact.
+4. A guided real-store UAT checklist covers prepare-turn, product reuse/create, lot registration, terminal resolution, second-device convergence, Command Center consistency, push test, camera/evidence path, and shift close.
+5. Operational failure states explain what is blocking the pilot: no device, stale sync, no push permission, invalid token, no camera permission, wrong store membership, pending product review, conflict, or unsafe shift close.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 12 to lock pilot operations context, then /gsd-plan-phase 12)
+
 ## Coverage
 
 | Requirement | Phase |

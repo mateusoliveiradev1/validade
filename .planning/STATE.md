@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 11
-status: Phase 11 verified - complete with external Android/provider/camera blockers acknowledged
-stopped_at: Completed $gsd-verify-work 11 with external blockers accepted
-last_updated: "2026-06-28T04:37:48.000Z"
+current_phase: 12
+status: Phase 12 added - ready for pilot operations discussion and planning
+stopped_at: Added Phase 12 roadmap entry for pilot operations and device readiness
+last_updated: "2026-06-28T05:01:12.732-03:00"
 last_activity: 2026-06-28
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 11
   total_plans: 49
   completed_plans: 49
-  percent: 100
+  percent: 92
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 11
+**Current phase:** 12
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 11 - mobile-visual-polish-and-emulator-validation
+**Current focus:** Phase 12 - pilot-operations-and-device-readiness
 
 ## Roadmap Progress
 
@@ -46,6 +46,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 | 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
+| 12 | Not planned | Pilot Operations and Device Readiness - device health, push test, release truth, guided store UAT, and operational blocker visibility |
 
 ## Active Constraints
 
@@ -57,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run the Phase 11 security review before advancing release governance.
+Run the Phase 12 discussion to lock the pilot operations, device-readiness, push-test, release-truth, and guided UAT decisions before planning.
 
 ```powershell
-$gsd-secure-phase 11
+$gsd-discuss-phase 12
 ```
 
 ## Accumulated Context
@@ -81,6 +82,7 @@ $gsd-secure-phase 11
 - Phase 11 Plan 03 completed: mobile release journeys expanded, Maestro checkpoint names updated, `11-UAT.md` created, `security:evidence` passed, and installed Android remained blocked because `adb devices` listed no target and Maestro reported `Not enough devices connected (0)`.
 - Phase 11 Plan 04 completed: release truth, install, push, pilot-flow, testing, UAT, and validation docs now separate historical APK/emulator evidence from current repo readiness and external Android/provider/camera blockers; `pnpm.cmd check` passed.
 - Phase 11 verification completed: UAT record is complete as a truthful evidence record, with installed Android, provider push, camera/device, and physical-device proof explicitly acknowledged as external blockers.
+- Phase 12 added: Pilot Operations and Device Readiness for device health, push-test observability, release truth, guided real-store UAT, and blocker visibility before rollout claims.
 
 ### Quick Tasks Completed
 
