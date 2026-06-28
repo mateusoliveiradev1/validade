@@ -2600,13 +2600,18 @@ async function resolvePrepareTurnScope(input: {
   }
 
   const memberships = await input.membershipRepository.listActiveMemberships(identity.subjectId);
-  const requestedMembership =
+  const sessionStoreId =
     input.requestedStoreId === undefined
+      ? await readSessionStoreId(input.authProvider, input.request, identity.subjectId)
+      : undefined;
+  const requestedOrSessionStoreId = input.requestedStoreId ?? sessionStoreId;
+  const requestedMembership =
+    requestedOrSessionStoreId === undefined
       ? undefined
-      : memberships.find((membership) => membership.storeId === input.requestedStoreId);
+      : memberships.find((membership) => membership.storeId === requestedOrSessionStoreId);
   const targetMembership = requestedMembership ?? memberships[0];
   const targetStoreId =
-    input.requestedStoreId ?? targetMembership?.storeId ?? "loja-nao-autorizada";
+    requestedOrSessionStoreId ?? targetMembership?.storeId ?? "loja-nao-autorizada";
   const decision = await input.authorizationService.authorize({
     identity,
     capability: input.capability,
@@ -2631,6 +2636,22 @@ async function resolvePrepareTurnScope(input: {
       (requestedMembership ?? targetMembership)?.storeName ??
       normalizeStoreName(undefined, targetStoreId),
   };
+}
+
+async function readSessionStoreId(
+  authProvider: AuthProvider,
+  request: Request,
+  subjectId: string,
+): Promise<string | undefined> {
+  if (!canReadSession(authProvider)) return undefined;
+  const session = await authProvider.readSession(request);
+  return session?.subjectId === subjectId ? session.storeId : undefined;
+}
+
+function canReadSession(authProvider: AuthProvider): authProvider is AuthProvider & {
+  readSession(request: Request): Promise<{ subjectId: string; storeId: string } | undefined>;
+} {
+  return typeof (authProvider as { readSession?: unknown }).readSession === "function";
 }
 
 async function authorizeEvidenceRead(input: {

@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: null
 status: Awaiting next milestone
 stopped_at: v1.0 archived
-last_updated: "2026-06-28T23:20:00.000Z"
+last_updated: "2026-06-28T23:33:21.357Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-28 - Resolved staging prepare-turn failure by applying Phase 12 device readiness migration to Neon staging
+**Last activity:** 2026-06-28 - Deployed staging API hotfix for multi-store prepare-turn session scope after Phase 12 schema migration
 
 ## Project Reference
 
@@ -58,9 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 
 ## Next Step
 
-Start the next milestone cycle and decide whether it should focus on external pilot proof, store rollout preparation, or a broader product expansion.
+Retest `Preparar turno` in the installed staging APK. If the APK reaches the empty central read state for Loja 18, start the next milestone cycle and decide whether it should focus on external pilot proof, store rollout preparation, or a broader product expansion.
 
 ```powershell
+# first retest the installed APK, then:
 $gsd-new-milestone
 ```
 
@@ -97,6 +98,7 @@ $gsd-new-milestone
 - Phase 10 formal verification closure completed: `10-VERIFICATION.md` now links central truth, product/lot lifecycle, terminal sync, Command Center/RBAC/push, shift close, Neon staging evidence, and explicit Android/provider/device/physical UAT external blockers.
 - Phase 12 formal verification closure completed: `12-VERIFICATION.md` now links P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, and P12-OPS-05 to existing summaries, UAT, validation, current repo/web gates, and explicit Android/provider/camera/physical UAT external blockers.
 - v1.0 milestone audit rerun completed: all 37 v1 requirements now have traceability through REQUIREMENTS.md, summaries, and VERIFICATION.md; repository and web gates passed; physical rollout remains blocked by external Android/provider/camera/Loja 18 UAT proof.
+- Post-v1.0 staging hotfix completed: Neon `staging` received the Phase 12 device readiness migration, then the deployed API was fixed so prepare-turn prefers the authenticated session store for multi-store subjects instead of falling back to the first active membership; staging Worker `389c468e-12ce-4254-8be6-2e8689fb54ee` is live and database/auth health checks pass.
 
 ### Quick Tasks Completed
 
@@ -256,11 +258,12 @@ $gsd-new-milestone
 Phase: Milestone v1.0 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-06-28 - Resolved staging prepare-turn failure by applying Phase 12 device readiness migration to Neon staging
+Last activity: 2026-06-28 - Deployed staging API hotfix for multi-store prepare-turn session scope after Phase 12 schema migration
 
 ## Operator Next Steps
 
-- Start the next milestone with `$gsd-new-milestone`
+- Retest `Preparar turno` in the installed staging APK.
+- After the APK reaches the Loja 18 empty central-read state, start the next milestone with `$gsd-new-milestone`.
 
 ## Deferred Items
 

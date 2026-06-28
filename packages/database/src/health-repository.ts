@@ -23,6 +23,19 @@ const EXPECTED_COLUMNS = [
   { tableName: "central_products", columnName: "normalized_key" },
   { tableName: "central_product_drafts", columnName: "review_status" },
   { tableName: "auth_login_attempts", columnName: "identifier_hash" },
+  { tableName: "central_device_snapshots", columnName: "device_label" },
+  { tableName: "central_device_snapshots", columnName: "active_user_label" },
+  { tableName: "central_device_snapshots", columnName: "store_name" },
+  { tableName: "central_device_snapshots", columnName: "app_build" },
+  { tableName: "central_device_snapshots", columnName: "environment" },
+  { tableName: "central_device_snapshots", columnName: "api_target" },
+  { tableName: "central_device_snapshots", columnName: "last_foreground_at" },
+  { tableName: "central_device_snapshots", columnName: "last_sync_at" },
+  { tableName: "central_device_snapshots", columnName: "push_permission" },
+  { tableName: "central_device_snapshots", columnName: "push_provider_state" },
+  { tableName: "central_device_snapshots", columnName: "camera_permission" },
+  { tableName: "central_device_snapshots", columnName: "readiness_verdict" },
+  { tableName: "central_device_snapshots", columnName: "readiness_blockers" },
 ] as const;
 
 export interface DatabaseHealthCheckResult {

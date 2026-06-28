@@ -61,6 +61,54 @@ describe("capture prepare-turn API", () => {
     );
   });
 
+  it("prefers the authenticated session store for multi-store prepare-turn without query scope", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-18")],
+      lots: [centralLot("loja-18")],
+      tasks: [centralTask("loja-18")],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+    const app = createApiApp({
+      authProvider: new SessionScopedFakeAuthProvider("warface-admin-lead", "loja-18"),
+      membershipRepository: createInMemoryMembershipRepository([
+        membershipForSubject("warface-admin-lead", "admin", "loja-01", "Loja 01"),
+        membershipForSubject("warface-admin-lead", "lead", "loja-18", "Loja 18 - Staging"),
+      ]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/prepare-turn", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:warface-admin-lead",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(prepareTurnRequest()),
+    });
+    const body = (await response.json()) as {
+      store?: { storeId?: string; storeName?: string; readiness?: string };
+      products?: unknown[];
+      lots?: unknown[];
+      activeTasks?: unknown[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      store: { storeId: "loja-18", storeName: "Loja 18 - Staging", readiness: "prepared" },
+    });
+    expect(body.products).toHaveLength(1);
+    expect(body.lots).toHaveLength(1);
+    expect(body.activeTasks).toHaveLength(1);
+    expect(captureRepository.readDeviceSnapshots()).toContainEqual(
+      expect.objectContaining({
+        deviceId: "device-pilot-001",
+        storeId: "loja-18",
+      }),
+    );
+  });
+
   it("keeps an empty central package in needs-review instead of safe", async () => {
     const app = createApiApp({
       authProvider: new FakeAuthProvider(),
@@ -605,6 +653,27 @@ function centralLotCreateRequest(overrides: Record<string, unknown> = {}) {
   };
 }
 
+class SessionScopedFakeAuthProvider extends FakeAuthProvider {
+  constructor(
+    private readonly subjectId: string,
+    private readonly storeId: string,
+  ) {
+    super(subjectId);
+  }
+
+  readSession() {
+    const instant = new Date(NOW);
+    return Promise.resolve({
+      sessionId: "session-scoped-test",
+      subjectId: this.subjectId,
+      storeId: this.storeId,
+      expiresAt: instant,
+      createdAt: instant,
+      lastSeenAt: instant,
+    });
+  }
+}
+
 function leadMembership(storeId: string) {
   return {
     subjectId: "lead-local",
@@ -631,6 +700,21 @@ function adminMembership(storeId: string) {
     role: "admin" as const,
     storeId,
     storeName: storeId === "loja-piloto" ? "Loja Piloto" : "Loja Outra",
+    status: "active" as const,
+  };
+}
+
+function membershipForSubject(
+  subjectId: string,
+  role: "collaborator" | "lead" | "admin",
+  storeId: string,
+  storeName: string,
+) {
+  return {
+    subjectId,
+    role,
+    storeId,
+    storeName,
     status: "active" as const,
   };
 }
