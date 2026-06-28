@@ -688,17 +688,39 @@ export const centralDeviceSnapshots = pgTable(
   {
     deviceId: text("device_id").notNull(),
     storeId: text("store_id").notNull(),
+    deviceLabel: text("device_label"),
+    activeUserLabel: text("active_user_label"),
+    storeName: text("store_name"),
+    appVersion: text("app_version"),
+    appBuild: text("app_build"),
+    environment: text("environment"),
+    apiTarget: text("api_target"),
     preparedAt: timestamp("prepared_at", { withTimezone: true, mode: "date" }),
+    lastForegroundAt: timestamp("last_foreground_at", { withTimezone: true, mode: "date" }),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true, mode: "date" }),
     lastCentralReadAt: timestamp("last_central_read_at", { withTimezone: true, mode: "date" }),
     lastHydratedAt: timestamp("last_hydrated_at", { withTimezone: true, mode: "date" }),
     pendingCommandCount: integer("pending_command_count").notNull().default(0),
     conflictCount: integer("conflict_count").notNull().default(0),
     source: centralPackageSourceEnum("source").notNull().default("central"),
+    pushPermission: text("push_permission").notNull().default("unknown"),
+    pushProviderState: text("push_provider_state").notNull().default("unknown"),
+    cameraPermission: text("camera_permission").notNull().default("unknown"),
+    readinessVerdict: text("readiness_verdict"),
+    readinessBlockers: jsonb("readiness_blockers")
+      .$type<readonly Record<string, unknown>[]>()
+      .notNull()
+      .default([]),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.deviceId, table.storeId] }),
     index("central_device_snapshots_store_updated_idx").on(table.storeId, table.updatedAt),
+    index("central_device_snapshots_store_readiness_idx").on(
+      table.storeId,
+      table.readinessVerdict,
+      table.updatedAt,
+    ),
   ],
 );
 

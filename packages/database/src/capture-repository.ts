@@ -1,6 +1,8 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import {
   CentralResolvedTaskHistorySchema,
+  PilotDeviceBlockerSchema,
+  PilotDeviceReadinessSchema,
   CentralLotWriteResponseSchema,
   CentralCategoryCatalogItemSchema,
   CentralProductAcknowledgementSchema,
@@ -39,6 +41,11 @@ import {
   type ProductDuplicateReason,
   type ProductIdentifier,
   type ProductIdentifierInput,
+  type PilotDeviceBlocker,
+  type PilotDevicePermissionState,
+  type PilotDevicePushProviderState,
+  type PilotDeviceReadiness,
+  type PilotDeviceReadinessVerdict,
   type ProductReviewStatus,
   type ProductSearchCandidate,
   type ProductSearchRequest,
@@ -88,13 +95,36 @@ export interface PrepareTurnDeniedInput {
 export interface DeviceSnapshotInput {
   deviceId: string;
   storeId: string;
+  storeName?: string;
+  deviceLabel?: string;
+  activeUserLabel?: string;
+  appVersion?: string;
+  appBuild?: string;
+  environment?: string;
+  apiTarget?: string;
   preparedAt?: Date;
+  lastForegroundAt?: Date;
+  lastSyncAt?: Date;
   lastCentralReadAt?: Date;
   lastHydratedAt?: Date;
   pendingCommandCount: number;
   conflictCount: number;
   source: "central" | "local_cache" | "pending_central";
+  pushPermission?: PilotDevicePermissionState;
+  pushProviderState?: PilotDevicePushProviderState;
+  cameraPermission?: PilotDevicePermissionState;
+  readinessVerdict?: PilotDeviceReadinessVerdict;
+  readinessBlockers?: readonly PilotDeviceBlocker[];
   updatedAt: Date;
+}
+
+export interface ListDeviceReadinessInput {
+  storeId: string;
+  storeName: string;
+  now?: Date;
+  requireRemotePush?: boolean;
+  requireCamera?: boolean;
+  staleCriticalSyncMinutes?: number;
 }
 
 export interface ProductSearchInput {
@@ -165,6 +195,7 @@ export interface CaptureRepository {
   appendObservation(input: CentralObservationAppendInput): Promise<CentralLotWriteResponse>;
   applySyncCommand(input: CentralSyncCommandApplyInput): Promise<SyncTransportResult>;
   upsertDeviceSnapshot(input: DeviceSnapshotInput): Promise<void>;
+  listDeviceReadiness(input: ListDeviceReadinessInput): Promise<readonly PilotDeviceReadiness[]>;
   recordPrepareTurnRejected(input: PrepareTurnDeniedInput): Promise<void>;
 }
 
@@ -264,6 +295,32 @@ interface ConflictRow {
   state: "conflict" | "discarded";
 }
 
+interface DeviceSnapshotRow {
+  device_id: string;
+  store_id: string;
+  device_label: string | null;
+  active_user_label: string | null;
+  store_name: string | null;
+  app_version: string | null;
+  app_build: string | null;
+  environment: string | null;
+  api_target: string | null;
+  prepared_at: string | Date | null;
+  last_foreground_at: string | Date | null;
+  last_sync_at: string | Date | null;
+  last_central_read_at: string | Date | null;
+  last_hydrated_at: string | Date | null;
+  pending_command_count: number;
+  conflict_count: number;
+  source: DeviceSnapshotInput["source"];
+  push_permission: string | null;
+  push_provider_state: string | null;
+  camera_permission: string | null;
+  readiness_verdict: string | null;
+  readiness_blockers: unknown;
+  updated_at: string | Date;
+}
+
 type StoredProduct = CentralProductSnippet & { storeId: string; normalizedKey?: string };
 type StoredCategory = CentralCategoryCatalogItem;
 type StoredProductDraft = ProductDraftReviewState & { storeId: string };
@@ -323,29 +380,90 @@ export function createCaptureRepositoryFromQuery(
   async function upsertDeviceSnapshot(input: DeviceSnapshotInput): Promise<void> {
     await sql.query(
       `insert into central_device_snapshots (
-        device_id, store_id, prepared_at, last_central_read_at, last_hydrated_at,
-        pending_command_count, conflict_count, source, updated_at
-      ) values ($1, $2, $3::timestamptz, $4::timestamptz, $5::timestamptz, $6, $7, $8, $9::timestamptz)
+        device_id, store_id, device_label, active_user_label, store_name, app_version, app_build,
+        environment, api_target, prepared_at, last_foreground_at, last_sync_at,
+        last_central_read_at, last_hydrated_at, pending_command_count, conflict_count, source,
+        push_permission, push_provider_state, camera_permission, readiness_verdict,
+        readiness_blockers, updated_at
+      ) values (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+        $10::timestamptz, $11::timestamptz, $12::timestamptz, $13::timestamptz, $14::timestamptz,
+        $15, $16, $17, $18, $19, $20, $21, $22::jsonb, $23::timestamptz
+      )
       on conflict (device_id, store_id) do update set
+        device_label = coalesce(excluded.device_label, central_device_snapshots.device_label),
+        active_user_label = coalesce(
+          excluded.active_user_label,
+          central_device_snapshots.active_user_label
+        ),
+        store_name = coalesce(excluded.store_name, central_device_snapshots.store_name),
+        app_version = coalesce(excluded.app_version, central_device_snapshots.app_version),
+        app_build = coalesce(excluded.app_build, central_device_snapshots.app_build),
+        environment = coalesce(excluded.environment, central_device_snapshots.environment),
+        api_target = coalesce(excluded.api_target, central_device_snapshots.api_target),
         prepared_at = excluded.prepared_at,
+        last_foreground_at = coalesce(
+          excluded.last_foreground_at,
+          central_device_snapshots.last_foreground_at
+        ),
+        last_sync_at = coalesce(excluded.last_sync_at, central_device_snapshots.last_sync_at),
         last_central_read_at = excluded.last_central_read_at,
         last_hydrated_at = excluded.last_hydrated_at,
         pending_command_count = excluded.pending_command_count,
         conflict_count = excluded.conflict_count,
         source = excluded.source,
+        push_permission = excluded.push_permission,
+        push_provider_state = excluded.push_provider_state,
+        camera_permission = excluded.camera_permission,
+        readiness_verdict = excluded.readiness_verdict,
+        readiness_blockers = excluded.readiness_blockers,
         updated_at = excluded.updated_at`,
       [
         input.deviceId,
         input.storeId,
+        input.deviceLabel ?? null,
+        input.activeUserLabel ?? null,
+        input.storeName ?? null,
+        input.appVersion ?? null,
+        input.appBuild ?? null,
+        input.environment ?? null,
+        input.apiTarget ?? null,
         input.preparedAt?.toISOString() ?? null,
+        input.lastForegroundAt?.toISOString() ?? null,
+        input.lastSyncAt?.toISOString() ?? null,
         input.lastCentralReadAt?.toISOString() ?? null,
         input.lastHydratedAt?.toISOString() ?? null,
         input.pendingCommandCount,
         input.conflictCount,
         input.source,
+        input.pushPermission ?? "unknown",
+        input.pushProviderState ?? "unknown",
+        input.cameraPermission ?? "unknown",
+        input.readinessVerdict ?? null,
+        JSON.stringify(input.readinessBlockers ?? []),
         input.updatedAt.toISOString(),
       ],
     );
+  }
+
+  async function listDeviceReadiness(
+    input: ListDeviceReadinessInput,
+  ): Promise<readonly PilotDeviceReadiness[]> {
+    const rows = (await sql.query(
+      `select device_id, store_id, device_label, active_user_label, store_name, app_version,
+        app_build, environment, api_target, prepared_at, last_foreground_at, last_sync_at,
+        last_central_read_at, last_hydrated_at, pending_command_count, conflict_count, source,
+        push_permission, push_provider_state, camera_permission, readiness_verdict,
+        readiness_blockers, updated_at
+      from central_device_snapshots
+      where store_id = $1 and coalesce(app_version, '') <> 'web-command-center'
+      order by updated_at desc`,
+      [input.storeId],
+    )) as DeviceSnapshotRow[];
+
+    return rows
+      .map((row) => buildPilotDeviceReadiness(deviceSnapshotFromRow(row), input))
+      .sort(comparePilotDeviceReadiness);
   }
 
   async function appendPrepareTurnAudit(input: PrepareTurnInput, response: PrepareTurnResponse) {
@@ -1730,12 +1848,33 @@ export function createCaptureRepositoryFromQuery(
       await upsertDeviceSnapshot({
         deviceId: input.request.deviceId,
         storeId: input.storeId,
+        storeName: input.storeName,
+        deviceLabel: input.request.deviceLabel,
+        activeUserLabel: input.actorDisplayName,
+        appVersion: input.request.appVersion,
+        appBuild: input.request.appBuild,
+        environment: input.request.environment,
+        apiTarget: input.request.apiTarget,
         preparedAt: new Date(input.request.requestedAt),
-        lastCentralReadAt: new Date(input.request.requestedAt),
+        lastForegroundAt:
+          input.request.lastForegroundAt === undefined
+            ? undefined
+            : new Date(input.request.lastForegroundAt),
+        lastSyncAt:
+          input.request.localSnapshot?.lastSyncedAt === undefined
+            ? undefined
+            : new Date(input.request.localSnapshot.lastSyncedAt),
+        lastCentralReadAt:
+          response.store.centralReadAt === undefined
+            ? undefined
+            : new Date(response.store.centralReadAt),
         lastHydratedAt: new Date(input.request.requestedAt),
         pendingCommandCount: input.request.localSnapshot?.pendingCommandCount ?? 0,
         conflictCount: response.conflicts.length,
         source: "central",
+        pushPermission: input.request.pushPermission,
+        pushProviderState: input.request.pushProviderState,
+        cameraPermission: input.request.cameraPermission,
         updatedAt: new Date(input.request.requestedAt),
       });
       await appendPrepareTurnAudit(input, response);
@@ -1750,6 +1889,7 @@ export function createCaptureRepositoryFromQuery(
     appendObservation,
     applySyncCommand,
     upsertDeviceSnapshot,
+    listDeviceReadiness,
     recordPrepareTurnRejected,
   };
 }
@@ -1914,12 +2054,33 @@ export function createInMemoryCaptureRepository(input?: {
       await upsertDeviceSnapshot({
         deviceId: prepareInput.request.deviceId,
         storeId: prepareInput.storeId,
+        storeName: prepareInput.storeName,
+        deviceLabel: prepareInput.request.deviceLabel,
+        activeUserLabel: prepareInput.actorDisplayName,
+        appVersion: prepareInput.request.appVersion,
+        appBuild: prepareInput.request.appBuild,
+        environment: prepareInput.request.environment,
+        apiTarget: prepareInput.request.apiTarget,
         preparedAt: new Date(prepareInput.request.requestedAt),
-        lastCentralReadAt: new Date(prepareInput.request.requestedAt),
+        lastForegroundAt:
+          prepareInput.request.lastForegroundAt === undefined
+            ? undefined
+            : new Date(prepareInput.request.lastForegroundAt),
+        lastSyncAt:
+          prepareInput.request.localSnapshot?.lastSyncedAt === undefined
+            ? undefined
+            : new Date(prepareInput.request.localSnapshot.lastSyncedAt),
+        lastCentralReadAt:
+          response.store.centralReadAt === undefined
+            ? undefined
+            : new Date(response.store.centralReadAt),
         lastHydratedAt: new Date(prepareInput.request.requestedAt),
         pendingCommandCount: prepareInput.request.localSnapshot?.pendingCommandCount ?? 0,
         conflictCount: response.conflicts.length,
         source: "central",
+        pushPermission: prepareInput.request.pushPermission,
+        pushProviderState: prepareInput.request.pushProviderState,
+        cameraPermission: prepareInput.request.cameraPermission,
         updatedAt: new Date(prepareInput.request.requestedAt),
       });
       auditEvents.push({
@@ -2439,6 +2600,17 @@ export function createInMemoryCaptureRepository(input?: {
       return Promise.resolve(result);
     },
     upsertDeviceSnapshot,
+    listDeviceReadiness(input) {
+      return Promise.resolve(
+        [...deviceSnapshots.values()]
+          .filter(
+            (snapshot) =>
+              snapshot.storeId === input.storeId && snapshot.appVersion !== "web-command-center",
+          )
+          .map((snapshot) => buildPilotDeviceReadiness(snapshot, input))
+          .sort(comparePilotDeviceReadiness),
+      );
+    },
     recordPrepareTurnRejected(denied) {
       auditEvents.push({
         type: "access.denied",
@@ -2459,6 +2631,249 @@ export function createInMemoryCaptureRepository(input?: {
       return productDrafts;
     },
   };
+}
+
+function buildPilotDeviceReadiness(
+  snapshot: DeviceSnapshotInput,
+  input: ListDeviceReadinessInput,
+): PilotDeviceReadiness {
+  const blockers = [...(snapshot.readinessBlockers ?? []), ...derivedDeviceBlockers(snapshot, input)];
+  const hasBlocking = blockers.some((blocker) => blocker.severity === "blocking");
+  const hasWarning = blockers.some((blocker) => blocker.severity === "warning");
+  const verdict: PilotDeviceReadinessVerdict =
+    hasBlocking || snapshot.readinessVerdict === "bloqueado"
+      ? "bloqueado"
+      : hasWarning || snapshot.readinessVerdict === "atencao"
+        ? "atencao"
+        : "apto";
+
+  return PilotDeviceReadinessSchema.parse({
+    deviceIdMasked: maskDeviceId(snapshot.deviceId),
+    deviceLabel: snapshot.deviceLabel ?? `Aparelho ${maskDeviceId(snapshot.deviceId)}`,
+    activeUserLabel: snapshot.activeUserLabel ?? "Usuario nao confirmado",
+    storeId: snapshot.storeId,
+    storeName: snapshot.storeName ?? input.storeName,
+    appVersion: snapshot.appVersion ?? "nao informado",
+    appBuild: snapshot.appBuild ?? "nao informado",
+    environment: snapshot.environment ?? "nao informado",
+    apiTarget: snapshot.apiTarget ?? "API nao informada",
+    ...(snapshot.lastForegroundAt === undefined
+      ? {}
+      : { lastForegroundAt: snapshot.lastForegroundAt.toISOString() }),
+    ...(snapshot.lastSyncAt === undefined ? {} : { lastSyncAt: snapshot.lastSyncAt.toISOString() }),
+    ...(snapshot.lastCentralReadAt === undefined
+      ? {}
+      : { lastCentralReadAt: snapshot.lastCentralReadAt.toISOString() }),
+    pushPermission: snapshot.pushPermission ?? "unknown",
+    pushProviderState: snapshot.pushProviderState ?? "unknown",
+    cameraPermission: snapshot.cameraPermission ?? "unknown",
+    verdict,
+    blockers,
+    nextAction:
+      blockers[0]?.nextAction ??
+      "Aparelho apto para iniciar o proximo passo do UAT guiado nesta loja.",
+    updatedAt: snapshot.updatedAt.toISOString(),
+  });
+}
+
+function derivedDeviceBlockers(
+  snapshot: DeviceSnapshotInput,
+  input: ListDeviceReadinessInput,
+): PilotDeviceBlocker[] {
+  const blockers: PilotDeviceBlocker[] = [];
+
+  if (snapshot.activeUserLabel === undefined || snapshot.storeName === undefined) {
+    blockers.push({
+      code: "invalid_store_or_user",
+      label: "Usuario ou loja sem confirmacao",
+      detail: "O aparelho nao tem usuario ativo e loja confirmada na ultima leitura central.",
+      nextAction: "Entrar novamente com convite ativo da loja antes do UAT.",
+      severity: "blocking",
+    });
+  }
+
+  if (snapshot.lastCentralReadAt === undefined) {
+    blockers.push({
+      code: "missing_first_central_read",
+      label: "Sem primeira leitura central",
+      detail: "O aparelho ainda nao recebeu produtos, lotes ou tarefas centrais desta loja.",
+      nextAction: "Abrir Preparar turno com internet e sessao ativa.",
+      severity: "blocking",
+    });
+  }
+
+  if (hasStaleCriticalSync(snapshot, input)) {
+    blockers.push({
+      code: "stale_critical_sync",
+      label: "Sync critico desatualizado",
+      detail: "Existe comando pendente ou conflito sem leitura recente suficiente para liberar UAT.",
+      nextAction: "Sincronizar o aparelho, revisar conflitos e reler a central.",
+      severity: "blocking",
+    });
+  }
+
+  if (
+    input.requireRemotePush === true &&
+    (snapshot.pushPermission !== "granted" ||
+      !["remote_ready", "token_registered"].includes(snapshot.pushProviderState ?? "unknown"))
+  ) {
+    blockers.push({
+      code: "push_required_without_push",
+      label: "Push remoto indisponivel",
+      detail: "A etapa atual precisa provar push remoto e este aparelho nao esta pronto.",
+      nextAction: "Conceder permissao, reinstalar o APK nativo ou revisar a credencial de push.",
+      severity: "blocking",
+    });
+  } else if (
+    input.requireRemotePush !== true &&
+    (snapshot.pushPermission === "denied" ||
+      snapshot.pushProviderState === "local_only" ||
+      snapshot.pushProviderState === "not_configured")
+  ) {
+    blockers.push({
+      code: "push_required_without_push",
+      label: "Push remoto ainda nao provado",
+      detail: "O aparelho pode seguir em etapas sem push remoto, mas nao prova cobranca externa.",
+      nextAction: "Manter como atencao ate o teste seguro de push ser executado.",
+      severity: "warning",
+    });
+  }
+
+  if (input.requireCamera === true && snapshot.cameraPermission !== "granted") {
+    blockers.push({
+      code: "camera_required_without_camera",
+      label: "Camera bloqueada",
+      detail: "A etapa de evidencia exige camera e a permissao do aparelho nao esta concedida.",
+      nextAction: "Conceder permissao de camera ou registrar bloqueio externo do aparelho.",
+      severity: "blocking",
+    });
+  }
+
+  if (snapshot.appVersion === undefined || snapshot.appVersion === "0.0.0") {
+    blockers.push({
+      code: "old_build_attention",
+      label: "Build sem versao piloto",
+      detail: "O aparelho ainda nao informa uma versao de APK aprovada para o piloto.",
+      nextAction: "Instalar o APK de staging aprovado antes de declarar rollout pronto.",
+      severity: "warning",
+    });
+  }
+
+  return blockers;
+}
+
+function hasStaleCriticalSync(
+  snapshot: DeviceSnapshotInput,
+  input: ListDeviceReadinessInput,
+): boolean {
+  if (snapshot.pendingCommandCount === 0 && snapshot.conflictCount === 0) return false;
+
+  if (snapshot.conflictCount > 0) return true;
+
+  const staleMinutes = input.staleCriticalSyncMinutes ?? 30;
+  const lastSyncAt = snapshot.lastSyncAt ?? snapshot.lastHydratedAt ?? snapshot.preparedAt;
+  if (lastSyncAt === undefined) return true;
+
+  const now = input.now ?? new Date();
+  return now.getTime() - lastSyncAt.getTime() > staleMinutes * 60_000;
+}
+
+function comparePilotDeviceReadiness(left: PilotDeviceReadiness, right: PilotDeviceReadiness): number {
+  const rank: Record<PilotDeviceReadinessVerdict, number> = {
+    bloqueado: 0,
+    atencao: 1,
+    apto: 2,
+  };
+  const verdictDiff = rank[left.verdict] - rank[right.verdict];
+  if (verdictDiff !== 0) return verdictDiff;
+  return right.updatedAt.localeCompare(left.updatedAt);
+}
+
+function deviceSnapshotFromRow(row: DeviceSnapshotRow): DeviceSnapshotInput {
+  const pushPermission = parsePermissionState(row.push_permission);
+  const pushProviderState = parsePushProviderState(row.push_provider_state);
+  const cameraPermission = parsePermissionState(row.camera_permission);
+
+  return {
+    deviceId: row.device_id,
+    storeId: row.store_id,
+    ...(row.store_name === null ? {} : { storeName: row.store_name }),
+    ...(row.device_label === null ? {} : { deviceLabel: row.device_label }),
+    ...(row.active_user_label === null ? {} : { activeUserLabel: row.active_user_label }),
+    ...(row.app_version === null ? {} : { appVersion: row.app_version }),
+    ...(row.app_build === null ? {} : { appBuild: row.app_build }),
+    ...(row.environment === null ? {} : { environment: row.environment }),
+    ...(row.api_target === null ? {} : { apiTarget: row.api_target }),
+    ...(row.prepared_at === null ? {} : { preparedAt: new Date(row.prepared_at) }),
+    ...(row.last_foreground_at === null
+      ? {}
+      : { lastForegroundAt: new Date(row.last_foreground_at) }),
+    ...(row.last_sync_at === null ? {} : { lastSyncAt: new Date(row.last_sync_at) }),
+    ...(row.last_central_read_at === null
+      ? {}
+      : { lastCentralReadAt: new Date(row.last_central_read_at) }),
+    ...(row.last_hydrated_at === null ? {} : { lastHydratedAt: new Date(row.last_hydrated_at) }),
+    pendingCommandCount: row.pending_command_count,
+    conflictCount: row.conflict_count,
+    source: row.source,
+    ...(pushPermission === undefined ? {} : { pushPermission }),
+    ...(pushProviderState === undefined ? {} : { pushProviderState }),
+    ...(cameraPermission === undefined ? {} : { cameraPermission }),
+    ...(isReadinessVerdict(row.readiness_verdict)
+      ? { readinessVerdict: row.readiness_verdict }
+      : {}),
+    readinessBlockers: parseStoredBlockers(row.readiness_blockers),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+function parseStoredBlockers(value: unknown): PilotDeviceBlocker[] {
+  const raw = typeof value === "string" ? parseJson<unknown>(value) : value;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((item) => PilotDeviceBlockerSchema.safeParse(item))
+    .filter((result): result is { success: true; data: PilotDeviceBlocker } => result.success)
+    .map((result) => result.data);
+}
+
+function parsePermissionState(value: string | null): PilotDevicePermissionState | undefined {
+  if (
+    value === "granted" ||
+    value === "denied" ||
+    value === "not_requested" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parsePushProviderState(value: string | null): PilotDevicePushProviderState | undefined {
+  if (
+    value === "remote_ready" ||
+    value === "local_only" ||
+    value === "token_registered" ||
+    value === "token_invalid" ||
+    value === "provider_failed" ||
+    value === "not_configured" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function isReadinessVerdict(value: string | null): value is PilotDeviceReadinessVerdict {
+  return value === "apto" || value === "atencao" || value === "bloqueado";
+}
+
+function maskDeviceId(deviceId: string): string {
+  const compact = deviceId.trim();
+  if (compact.length <= 6) return "***";
+  return `${compact.slice(0, 4)}...${compact.slice(-3)}`;
 }
 
 function buildPrepareTurnResponse(input: {
@@ -2499,12 +2914,43 @@ function buildPrepareTurnResponse(input: {
     },
     device: {
       deviceId: input.input.request.deviceId,
+      ...(input.input.request.deviceLabel === undefined
+        ? {}
+        : { deviceLabel: input.input.request.deviceLabel }),
+      activeUserLabel: input.input.actorDisplayName,
+      storeId: input.input.storeId,
+      storeName: input.input.storeName,
+      ...(input.input.request.appVersion === undefined
+        ? {}
+        : { appVersion: input.input.request.appVersion }),
+      ...(input.input.request.appBuild === undefined
+        ? {}
+        : { appBuild: input.input.request.appBuild }),
+      ...(input.input.request.environment === undefined
+        ? {}
+        : { environment: input.input.request.environment }),
+      ...(input.input.request.apiTarget === undefined ? {} : { apiTarget: input.input.request.apiTarget }),
       preparedAt: requestedAt,
-      lastCentralReadAt: requestedAt,
+      ...(input.input.request.lastForegroundAt === undefined
+        ? {}
+        : { lastForegroundAt: input.input.request.lastForegroundAt }),
+      ...(input.input.request.localSnapshot?.lastSyncedAt === undefined
+        ? {}
+        : { lastSyncAt: input.input.request.localSnapshot.lastSyncedAt }),
+      ...(centralFactCount > 0 ? { lastCentralReadAt: requestedAt } : {}),
       lastHydratedAt: requestedAt,
       pendingCommandCount: input.input.request.localSnapshot?.pendingCommandCount ?? 0,
       conflictCount: input.conflicts.length,
       source: "central",
+      ...(input.input.request.pushPermission === undefined
+        ? {}
+        : { pushPermission: input.input.request.pushPermission }),
+      ...(input.input.request.pushProviderState === undefined
+        ? {}
+        : { pushProviderState: input.input.request.pushProviderState }),
+      ...(input.input.request.cameraPermission === undefined
+        ? {}
+        : { cameraPermission: input.input.request.cameraPermission }),
     },
     cache: {
       state: centralFactCount > 0 ? "ready" : "needs_first_central_read",

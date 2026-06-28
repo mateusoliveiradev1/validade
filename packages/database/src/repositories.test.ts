@@ -243,6 +243,77 @@ describe("database repositories", () => {
     });
   });
 
+  it("lists pilot device readiness by store without leaking other stores or raw tokens", async () => {
+    const repository = createInMemoryCaptureRepository();
+    await repository.upsertDeviceSnapshot({
+      deviceId: "device-store-1-ready",
+      storeId: "store-1",
+      storeName: "Loja Ficticia 1",
+      deviceLabel: "Moto G Lideranca",
+      activeUserLabel: "Lider FICTICIO",
+      appVersion: "0.12.0",
+      appBuild: "120",
+      environment: "staging",
+      apiTarget: "https://api.ficticia.invalid",
+      preparedAt: new Date("2030-01-10T12:00:00.000Z"),
+      lastForegroundAt: new Date("2030-01-10T12:01:00.000Z"),
+      lastSyncAt: new Date("2030-01-10T12:02:00.000Z"),
+      lastCentralReadAt: new Date("2030-01-10T12:03:00.000Z"),
+      lastHydratedAt: new Date("2030-01-10T12:03:00.000Z"),
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+      pushPermission: "granted",
+      pushProviderState: "remote_ready",
+      cameraPermission: "granted",
+      updatedAt: new Date("2030-01-10T12:04:00.000Z"),
+    });
+    await repository.upsertDeviceSnapshot({
+      deviceId: "device-store-1-blocked",
+      storeId: "store-1",
+      storeName: "Loja Ficticia 1",
+      deviceLabel: "Aparelho sem leitura",
+      activeUserLabel: "Colaborador FICTICIO",
+      pendingCommandCount: 1,
+      conflictCount: 0,
+      source: "central",
+      pushPermission: "denied",
+      pushProviderState: "local_only",
+      cameraPermission: "denied",
+      updatedAt: new Date("2030-01-10T11:00:00.000Z"),
+    });
+    await repository.upsertDeviceSnapshot({
+      deviceId: "device-store-2",
+      storeId: "store-2",
+      storeName: "Loja Ficticia 2",
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+      updatedAt: new Date("2030-01-10T12:00:00.000Z"),
+    });
+
+    const readiness = await repository.listDeviceReadiness({
+      storeId: "store-1",
+      storeName: "Loja Ficticia 1",
+      now: new Date("2030-01-10T12:30:00.000Z"),
+      requireCamera: true,
+      requireRemotePush: true,
+    });
+
+    expect(readiness.map((device) => device.verdict)).toEqual(["bloqueado", "apto"]);
+    expect(readiness[0]).toMatchObject({
+      deviceLabel: "Aparelho sem leitura",
+      blockers: expect.arrayContaining([
+        expect.objectContaining({ code: "missing_first_central_read" }),
+        expect.objectContaining({ code: "push_required_without_push" }),
+        expect.objectContaining({ code: "camera_required_without_camera" }),
+      ]),
+    });
+    expect(JSON.stringify(readiness)).not.toMatch(
+      /device-store-1-ready|device-store-2|pushToken|expoPushToken/i,
+    );
+  });
+
   it("returns deterministic needs-review semantics for empty prepare-turn reads", async () => {
     const repository = createInMemoryCaptureRepository();
 
