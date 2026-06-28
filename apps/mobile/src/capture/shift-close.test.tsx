@@ -148,7 +148,7 @@ describe("ShiftCloseScreen", () => {
 
     expect(JSON.stringify(tree!.toJSON())).toContain("passagem insegura continua disponível");
     expect(
-      tree!.root.findByProps({ accessibilityLabel: "Encerrar turno com área segura" }).props
+      tree!.root.findByProps({ accessibilityLabel: "Encerrar turno com area segura" }).props
         .disabled,
     ).toBe(true);
 
@@ -169,7 +169,7 @@ describe("ShiftCloseScreen", () => {
 
     await act(() => {
       tree!.root
-        .findByProps({ accessibilityLabel: "Encerrar turno com pendências" })
+        .findByProps({ accessibilityLabel: "Encerrar turno com pendencias" })
         .props.onPress();
     });
 

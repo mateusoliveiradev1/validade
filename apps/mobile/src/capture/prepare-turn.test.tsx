@@ -122,10 +122,10 @@ describe("prepare-turn gate", () => {
 
     await changeText(tree, "Buscar produto por nome, codigo ou categoria", "banana prata");
     await press(tree, "Buscar manualmente");
-    await press(tree, "Produto nao esta na lista");
+    await press(tree, "Criar rascunho operacional");
     await changeText(tree, "Nome do produto", "Banana Prata");
     await press(tree, "Frutas");
-    await press(tree, "Criar rascunho e continuar");
+    await press(tree, "Criar rascunho operacional");
 
     expect(textContent(tree)).toContain("Produto salvo na central");
     expect(textContent(tree)).toContain("Preparar turno novamente");

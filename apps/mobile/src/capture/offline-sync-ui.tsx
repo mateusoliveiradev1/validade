@@ -7,8 +7,16 @@ import type {
   SyncQueueSummary as SyncQueueSummaryRecord,
 } from "@validade-zero/contracts";
 import { formatLocation } from "./capture-copy";
-import { Field, PrimaryAction, SecondaryAction, SelectionRow, StatusNotice } from "./capture-ui";
+import {
+  DestructiveAction,
+  Field,
+  PrimaryAction,
+  SecondaryAction,
+  SelectionRow,
+  StatusNotice,
+} from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
+import { mobileStatusDescriptorFor } from "./mobile-status";
 import { formatAlertTime, todayCopy } from "./today-copy";
 
 export function OfflineStatusBand({
@@ -77,7 +85,13 @@ export function OfflineCacheNotice({ status }: { status: OfflineCacheStatus | un
 }
 
 export function PendingSyncNotice() {
-  return <StatusNotice>{todayCopy.sync.localSaved}</StatusNotice>;
+  const local = mobileStatusDescriptorFor("local_only");
+
+  return (
+    <StatusNotice tone={local.tone} title={local.label}>
+      {todayCopy.sync.localSaved}
+    </StatusNotice>
+  );
 }
 
 export function SyncRetryNotice() {
@@ -120,8 +134,10 @@ export function SyncQueueSummary({
         <Text style={styles.queueBody}>{todayCopy.sync.allSyncedBody}</Text>
       ) : (
         <>
-          {queue.hasCriticalConflict ? (
-            <StatusNotice tone="error">{todayCopy.sync.conflict}</StatusNotice>
+          {conflicts.length > 0 ? (
+            <StatusNotice tone="critical" title={mobileStatusDescriptorFor("conflict").label}>
+              {todayCopy.sync.conflict}
+            </StatusNotice>
           ) : null}
           {[...conflicts, ...pending].map((command) => (
             <CommandSyncStatusRow
@@ -150,9 +166,19 @@ export function CommandSyncStatusRow({
   onReviewConflict: (conflictId: string) => void;
 }) {
   const isConflict = command.state === "sync_conflict";
+  const isWarning =
+    command.state === "pending_sync" ||
+    command.state === "sync_failed" ||
+    command.state === "syncing";
 
   return (
-    <View style={[styles.commandRow, isConflict ? styles.commandRowConflict : undefined]}>
+    <View
+      style={[
+        styles.commandRow,
+        isWarning ? styles.commandRowWarning : undefined,
+        isConflict ? styles.commandRowConflict : undefined,
+      ]}
+    >
       <Text style={styles.commandState}>{syncCommandLabel(command)}</Text>
       <Text style={styles.commandTitle}>
         {command.productDisplayName} - lote {command.lotIdentity.value}
@@ -233,13 +259,15 @@ export function SyncConflictPanel({
       ) : null}
       {conflict.allowedActions.includes("discard_offline_action") ? (
         <View style={styles.discardGroup}>
-          <StatusNotice tone="error">{todayCopy.sync.discardConfirmation}</StatusNotice>
+          <StatusNotice tone="critical" title={todayCopy.sync.discardOffline}>
+            {todayCopy.sync.discardConfirmation}
+          </StatusNotice>
           <Field
             label={todayCopy.sync.discardReason}
             value={discardReason}
             onChangeText={setDiscardReason}
           />
-          <PrimaryAction
+          <DestructiveAction
             disabled={!canDiscard}
             label={todayCopy.sync.discardOffline}
             onPress={() =>
@@ -378,6 +406,10 @@ const styles = StyleSheet.create({
   commandRowConflict: {
     backgroundColor: captureColors.criticalSurface,
     borderColor: captureColors.criticalBorder,
+  },
+  commandRowWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
   },
   commandState: {
     color: captureColors.warningInk,

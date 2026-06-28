@@ -224,7 +224,7 @@ export function ShiftCloseScreen({
       )}
       <PrimaryAction
         disabled={!canRequestSafe || isValidating}
-        label={isValidating ? "Validando com o sistema…" : "Encerrar turno com área segura"}
+        label={isValidating ? "Validando com o sistema..." : "Encerrar turno com area segura"}
         onPress={() => void requestSafeClose()}
       />
       {onSafeClose === undefined ? (
@@ -233,9 +233,10 @@ export function ShiftCloseScreen({
         </Text>
       ) : null}
       <View style={[styles.card, styles.unsafeCard]}>
-        <Text style={styles.sectionTitle}>Encerrar turno com pendências</Text>
+        <Text style={styles.sectionTitle}>Encerrar turno com pendencias</Text>
         <Text style={styles.helper}>
-          Não resolve tarefas nem silencia alertas. Define a continuidade da próxima liderança.
+          A area nao esta segura; o trabalho continua no proximo turno. Nao resolve tarefas nem
+          silencia alertas.
         </Text>
         <Field
           label="Motivo"
@@ -263,7 +264,7 @@ export function ShiftCloseScreen({
         />
         <PrimaryAction
           disabled={!canQueueUnsafe}
-          label="Encerrar turno com pendências"
+          label="Encerrar turno com pendencias"
           onPress={() => void queueUnsafeClose()}
         />
       </View>

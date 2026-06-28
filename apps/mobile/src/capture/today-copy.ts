@@ -144,7 +144,7 @@ export const todayCopy = {
   confirmLabels: {
     withdraw: "Confirmar retirada",
     repack: "Confirmar reembalagem",
-    record_loss: "Confirmar perda",
+    record_loss: "Registrar perda",
     confirm_presence: "Confirmar presenca",
     request_markdown: "Solicitar rebaixa",
     approve_markdown: "Aprovar rebaixa",

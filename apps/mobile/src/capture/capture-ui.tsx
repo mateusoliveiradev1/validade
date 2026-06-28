@@ -83,6 +83,33 @@ export function SecondaryAction({
   );
 }
 
+export function DestructiveAction({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.destructiveAction,
+        pressed && !disabled ? styles.destructiveActionPressed : undefined,
+        disabled ? styles.destructiveActionDisabled : undefined,
+      ]}
+    >
+      <Text style={styles.destructiveActionLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function Field({
   label,
   value,
@@ -296,6 +323,27 @@ const styles = StyleSheet.create({
   },
   secondaryActionLabel: {
     color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
+  },
+  destructiveAction: {
+    alignItems: "center",
+    backgroundColor: captureColors.critical,
+    borderRadius: captureRadii.small,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  destructiveActionPressed: {
+    opacity: 0.86,
+  },
+  destructiveActionDisabled: {
+    opacity: 0.56,
+  },
+  destructiveActionLabel: {
+    color: captureColors.onAccent,
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 24,

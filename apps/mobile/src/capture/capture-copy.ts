@@ -9,7 +9,7 @@ export const captureCopy = {
   manualSearch: "Buscar manualmente",
   registerLot: "Registrar lote",
   confirmProduct: "Confirmar produto",
-  createProduct: "Criar rascunho e continuar",
+  createProduct: "Criar rascunho operacional",
   backAndReview: "Voltar e revisar",
   supplierPending: "Fornecedor pendente",
   gtinPending: "GTIN pendente",
@@ -59,7 +59,7 @@ export const reinforcedObservationActions = [
   "probably_sold_out",
 ] as const;
 export const cameraFallbackCopy =
-  "Não foi possível usar a câmera. Você pode buscar o produto por nome ou código.";
+  "Nao foi possivel usar a camera. Registre sem foto ou use a busca manual quando permitido.";
 export const cameraPermissionCopy =
   "Permita a câmera para ler o código. A busca manual continua disponível.";
 export const cameraBlockedCopy =

@@ -10,6 +10,9 @@ describe("mobile product polish", () => {
     const surfaces = [
       source("./CaptureApp.tsx"),
       source("./TodayScreen.tsx"),
+      source("./ProductDiscoveryScreen.tsx"),
+      source("./ProductFormScreen.tsx"),
+      source("./LotRegistrationScreen.tsx"),
       source("./TaskResolutionPanel.tsx"),
       source("./ShiftCloseScreen.tsx"),
       source("./offline-sync-ui.tsx"),
@@ -20,6 +23,26 @@ describe("mobile product polish", () => {
     expect(surfaces).not.toMatch(/smoke|expo default|fake-auth/i);
     expect(surfaces).toContain("captureColors");
     expect(surfaces).toContain("captureSpacing");
+  });
+
+  it("keeps the product-to-lot chain on final copy, tokens, and draft warning", () => {
+    const chain = [
+      source("./ProductDiscoveryScreen.tsx"),
+      source("./ProductFormScreen.tsx"),
+      source("./LotRegistrationScreen.tsx"),
+      source("./capture-copy.ts"),
+      source("./mobile-status.ts"),
+    ].join("\n");
+
+    expect(chain).toContain("Buscar produto por nome, codigo ou categoria");
+    expect(chain).toContain("Usar este produto");
+    expect(chain).toContain("Criar rascunho operacional");
+    expect(chain).toContain(
+      "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+    );
+    expect(chain).toContain("Previa de risco");
+    expect(chain).toContain("Acao salva neste aparelho");
+    expect(chain).not.toMatch(/#F5F7EF|#E6EEE4|#112016|#3F5546|#B42318/);
   });
 
   it("keeps account identity, safety loading, sync, evidence, and close truth explicit", () => {
@@ -37,6 +60,8 @@ describe("mobile product polish", () => {
       "Aguarde a leitura das tarefas antes de concluir que a area esta segura.",
     );
     expect(task).toContain("actorLabel = todayCopy.fallbackActor");
+    expect(copy).toContain('record_loss: "Registrar perda"');
+    expect(copy).not.toContain('record_loss: "Confirmar perda"');
     expect(copy).toContain("Ainda falta sincronizar para confirmacao central.");
     expect(task).toContain('evidence.kind === "photo_pending"');
     expect(shiftClose).toContain("Bloqueios atuais");

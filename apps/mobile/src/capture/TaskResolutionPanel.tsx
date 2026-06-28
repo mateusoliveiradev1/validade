@@ -24,6 +24,7 @@ import type { CaptureRepository } from "./repository";
 import type { EvidenceUploadQueueRecord } from "./repository";
 import { todayActionLabel, todayCopy } from "./today-copy";
 import { captureColors, captureSpacing } from "./capture-theme";
+import { mobileStatusDescriptorFor } from "./mobile-status";
 
 const STANDARD_RESOLUTION_ACTIONS = [
   "withdraw",
@@ -380,7 +381,7 @@ export function TaskResolutionPanel({
       <ScrollView contentContainerStyle={styles.screen}>
         <ConfirmationSheet
           title={todayCopy.confirmationTitle}
-          summary={confirmationSummary(task, selectedAction, evidenceForRecheck())}
+          summary={confirmationSummary(task, selectedAction, evidenceForRecheck(), actorLabel)}
           confirmLabel={todayCopy.confirmLabels[selectedAction]}
           onConfirm={() => void submit()}
           onBack={() => setConfirming(false)}
@@ -589,11 +590,19 @@ function LocalSaveFeedback({ feedback }: { feedback: string | undefined }) {
     return null;
   }
 
+  const local = mobileStatusDescriptorFor("local_only");
+  const pending = mobileStatusDescriptorFor("pending_central");
+  const isLocalSave = feedback === todayCopy.sync.localSaved;
+
   return (
     <>
-      <StatusNotice>{feedback}</StatusNotice>
-      {feedback === todayCopy.sync.localSaved ? (
-        <StatusNotice>{todayCopy.sync.pending}</StatusNotice>
+      <StatusNotice tone={isLocalSave ? local.tone : "warning"} title={isLocalSave ? local.label : "Area ainda bloqueada"}>
+        {feedback}
+      </StatusNotice>
+      {isLocalSave ? (
+        <StatusNotice tone={pending.tone} title={pending.label}>
+          {todayCopy.sync.pending}
+        </StatusNotice>
       ) : null}
     </>
   );
@@ -745,13 +754,22 @@ function confirmationSummary(
   task: TodayTaskRecord,
   action: TaskResolutionAction,
   evidence: EvidencePromptMetadata | undefined,
+  actorLabel: string,
 ): string {
+  const local = mobileStatusDescriptorFor("local_only");
+  const synced = mobileStatusDescriptorFor("synced_transport");
+  const resolved = mobileStatusDescriptorFor("resolved_central");
   const lines = [
     `Produto: ${task.productDisplayName}`,
     `Lote: ${task.lotIdentity.value}`,
     `Local atual: ${formatLocation(task.currentLocation)}`,
-    "Quantidade: nao informada nesta tarefa",
+    `Responsavel: ${actorLabel}`,
     `Acao: ${todayCopy.resolutionOptions[action]}`,
+    evidenceSummary(action, evidence),
+    consequenceSummary(task, action),
+    `Se ficar local: ${local.body}`,
+    `Transporte central: ${synced.label}. ${synced.body}`,
+    `Resolucao terminal: ${resolved.label}. ${resolved.body}`,
   ];
 
   if (action === "withdraw" || action === "record_loss") {
@@ -762,19 +780,46 @@ function confirmationSummary(
     lines.push("Destino: reembalagem com nova identificacao do processado.");
   }
 
-  if (evidence !== undefined) {
-    lines.push(
-      evidence.kind === "no_photo_reason"
-        ? `Evidencia: ${evidence.reason}`
-        : `Evidencia: ${todayCopy.photoEvidence}`,
-    );
-  }
-
-  if (createsSalesAreaRecheck(task, action)) {
-    lines.push(`Consequencia: ${todayCopy.recheckConsequence}`);
-  }
-
   return lines.join("\n");
+}
+
+function evidenceSummary(
+  action: TaskResolutionAction,
+  evidence: EvidencePromptMetadata | undefined,
+): string {
+  if (evidence?.kind === "no_photo_reason") {
+    return `Evidencia sem foto: ${evidence.reason}`;
+  }
+
+  if (evidence !== undefined) {
+    return `Evidencia: ${todayCopy.photoEvidence}`;
+  }
+
+  if (action === "complete_recheck") {
+    return `Evidencia: ${todayCopy.evidenceRequired}`;
+  }
+
+  return "Evidencia: sem foto obrigatoria nesta acao; use motivo sem foto quando a etapa exigir.";
+}
+
+function consequenceSummary(task: TodayTaskRecord, action: TaskResolutionAction): string {
+  if (createsSalesAreaRecheck(task, action)) {
+    return `Consequencia: ${todayCopy.recheckConsequence}`;
+  }
+
+  if (action === "mark_not_found" || action === "mark_probably_sold_out") {
+    return "Consequencia: presenca incerta continua exigindo revisao fisica.";
+  }
+
+  if (action === "complete_recheck") {
+    return "Consequencia: a reconferencia fisica sera enviada antes de sair da fila ativa.";
+  }
+
+  if (action === "move_lot") {
+    return "Consequencia: o local do lote muda, mas riscos ativos continuam visiveis.";
+  }
+
+  return "Consequencia: esta acao nao deve esconder risco ativo sem criterio operacional.";
 }
 
 const styles = StyleSheet.create({
@@ -795,7 +840,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   group: {
-    gap: 8,
+    gap: captureSpacing.small,
   },
   groupTitle: {
     color: captureColors.ink,

@@ -85,7 +85,7 @@ export const mobileStatusDescriptors = {
     tone: "warning",
     priority: 55,
     label: "Camera indisponivel",
-    body: "Registre sem foto ou use a busca manual quando permitido.",
+    body: "Nao foi possivel usar a camera. Registre sem foto ou use a busca manual quando permitido.",
     surface: "notice",
     isProvenSafe: false,
   },

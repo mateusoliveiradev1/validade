@@ -31,7 +31,10 @@ import {
   SecondaryAction,
   SelectionRow,
   StatusNotice,
+  type StatusNoticeTone,
 } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
+import { mobileStatusDescriptorFor } from "./mobile-status";
 import { centralStateLabel } from "./RecentLotList";
 
 const LOCAL_ACTOR_LABEL = "Colaborador local";
@@ -75,6 +78,7 @@ export function LotRegistrationScreen({
     () => calculatePreview(product, mode, identityValue, expiresAt, receivedAt, qualityWindowDays),
     [expiresAt, identityValue, mode, product, qualityWindowDays, receivedAt],
   );
+  const saveConsequence = lotSaveConsequence(product);
 
   function generateInternalIdentity(): void {
     setGeneratedIdentity(`INTERNO-LOCAL-${Date.now().toString(36).toUpperCase()}`);
@@ -230,8 +234,11 @@ export function LotRegistrationScreen({
           }
         />
       ) : null}
-      <StatusNotice>
-        Avaliação operacional: {riskAssessment.state}. Próxima orientação: {riskAssessment.command}.
+      <StatusNotice title="Previa de risco" tone={riskPreviewTone(riskAssessment.state)}>
+        Avaliacao operacional: {riskAssessment.state}. Proxima orientacao: {riskAssessment.command}.
+      </StatusNotice>
+      <StatusNotice tone={saveConsequence.tone} title={saveConsequence.label}>
+        {saveConsequence.body}
       </StatusNotice>
       {saveError === undefined ? null : <StatusNotice tone="error">{saveError}</StatusNotice>}
       <PrimaryAction
@@ -373,6 +380,52 @@ function formatLongDate(value: string): string {
   );
 }
 
+function riskPreviewTone(state: string): "critical" | "warning" | "neutral" {
+  if (state === "expired" || state === "critical") {
+    return "critical";
+  }
+
+  if (state === "markdown" || state === "radar") {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function lotSaveConsequence(product: CaptureProductRecord): {
+  tone: StatusNoticeTone;
+  label: string;
+  body: string;
+} {
+  if (product.reviewStatus === "pending_review") {
+    const pending = mobileStatusDescriptorFor("pending_central");
+
+    return {
+      tone: pending.tone,
+      label: pending.label,
+      body: "Produto em rascunho. O lote entra com risco conservador ate a validacao central.",
+    };
+  }
+
+  if (product.centralProductId !== undefined || product.catalogSource === "central") {
+    const synced = mobileStatusDescriptorFor("synced_transport");
+
+    return {
+      tone: synced.tone,
+      label: synced.label,
+      body: "Depois de registrar, confira o retorno central. Sincronizacao nao remove bloqueio operacional sozinha.",
+    };
+  }
+
+  const local = mobileStatusDescriptorFor("local_only");
+
+  return {
+    tone: local.tone,
+    label: local.label,
+    body: local.body,
+  };
+}
+
 function calculatePreview(
   product: CaptureProductRecord,
   mode: ProductMode,
@@ -509,40 +562,43 @@ function buildLotInput({
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
-    gap: 16,
-    padding: 16,
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
   },
   productSummary: {
-    backgroundColor: "#E6EEE4",
-    gap: 4,
-    padding: 16,
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
+    padding: captureSpacing.large,
   },
   productName: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 25,
   },
   metadata: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
   },
   sectionLabel: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
   },
   locationList: {
-    gap: 8,
+    gap: captureSpacing.small,
   },
   dateGroup: {
-    gap: 4,
+    gap: captureSpacing.xsmall,
   },
   errorText: {
-    color: "#B42318",
+    color: captureColors.critical,
     fontSize: 14,
     lineHeight: 20,
   },

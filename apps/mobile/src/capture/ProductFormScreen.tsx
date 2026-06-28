@@ -18,6 +18,7 @@ import {
   SelectionRow,
   StatusNotice,
 } from "./capture-ui";
+import { captureColors, captureSpacing } from "./capture-theme";
 
 export function ProductFormScreen({
   repository,
@@ -277,21 +278,21 @@ export function ProductFormScreen({
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
-    gap: 16,
-    padding: 16,
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
   },
   sectionLabel: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
   },
   pending: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: -12,
+    marginTop: -captureSpacing.medium,
   },
 });
 

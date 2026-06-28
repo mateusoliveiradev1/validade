@@ -13,7 +13,10 @@ import {
   SecondaryAction,
   SelectionRow,
   StatusNotice,
+  type StatusNoticeTone,
 } from "./capture-ui";
+import { captureColors, captureSpacing } from "./capture-theme";
+import { mobileStatusDescriptorFor } from "./mobile-status";
 import { todayCopy } from "./today-copy";
 
 type EarlyMarkdownReason = Exclude<MarkdownRequestReason, "rule_window">;
@@ -53,6 +56,7 @@ export function LotDetailScreen({
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const observation = detail.currentObservation;
+  const centralStatus = lotCentralStatus(detail);
 
   async function requestRuleWindowMarkdown(): Promise<void> {
     if (onRequestMarkdown === undefined) {
@@ -108,16 +112,18 @@ export function LotDetailScreen({
         {formatObservationTimestamp(observation.occurredAt)}
       </Text>
       <Text style={styles.metadata}>{formatQuantity(detail)}</Text>
-      <Text style={styles.metadata}>Estado central: {centralStateLabel(detail)}</Text>
+      <StatusNotice tone={centralStatus.tone} title={centralStatus.label}>
+        {centralStatus.body}
+      </StatusNotice>
       {detail.centralAcknowledgementMessage === undefined ? null : (
         <Text style={styles.metadata}>{detail.centralAcknowledgementMessage}</Text>
       )}
       {observation.status === "not_found" || observation.status === "probably_sold_out" ? (
-        <StatusNotice>
+        <StatusNotice tone="warning">
           Presenca incerta: confirme fisicamente este lote antes de trata-lo como seguro.
         </StatusNotice>
       ) : (
-        <StatusNotice>Estado fisico atual disponivel para conferencia.</StatusNotice>
+        <StatusNotice tone="neutral">Estado fisico atual disponivel para conferencia.</StatusNotice>
       )}
       <MarkdownEntry
         entryState={markdownEntryState}
@@ -145,6 +151,45 @@ export function LotDetailScreen({
       {auditEvents.length === 0 ? null : <AuditTimeline events={auditEvents} />}
     </ScrollView>
   );
+}
+
+function lotCentralStatus(detail: CaptureLotDetail): {
+  tone: StatusNoticeTone;
+  label: string;
+  body: string;
+} {
+  if (detail.centralSyncState === "conflict") {
+    return mobileStatusDescriptorFor("conflict");
+  }
+
+  if (detail.centralSyncState === "pending_central" || detail.centralSource === "pending_central") {
+    return mobileStatusDescriptorFor("pending_central");
+  }
+
+  if (detail.centralSyncState === "local" || detail.centralSource === "local_cache") {
+    return mobileStatusDescriptorFor("local_only");
+  }
+
+  if (detail.centralSyncState === "resolved") {
+    return mobileStatusDescriptorFor("resolved_central");
+  }
+
+  if (detail.centralSyncState === "discarded") {
+    return {
+      tone: "critical",
+      label: "Descartado na central",
+      body: "Revise o historico antes de tratar este lote como resolvido.",
+    };
+  }
+
+  if (detail.centralSyncState === "synchronized" || detail.centralSource === "central") {
+    return mobileStatusDescriptorFor("synced_transport");
+  }
+
+  return {
+    ...mobileStatusDescriptorFor("local_only"),
+    body: `${centralStateLabel(detail)}. ${mobileStatusDescriptorFor("local_only").body}`,
+  };
 }
 
 function MarkdownEntry({
@@ -243,8 +288,12 @@ function MarkdownEntry({
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
-  metadata: { color: "#3F5546", fontSize: 16, lineHeight: 24 },
-  group: { gap: 8 },
-  label: { color: "#112016", fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  screen: {
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
+  },
+  metadata: { color: captureColors.mutedInk, fontSize: 16, lineHeight: 24 },
+  group: { gap: captureSpacing.small },
+  label: { color: captureColors.ink, fontSize: 14, fontWeight: "600", lineHeight: 20 },
 });

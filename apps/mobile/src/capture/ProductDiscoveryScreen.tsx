@@ -17,6 +17,7 @@ import {
   SelectionRow,
   StatusNotice,
 } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
 export function ProductDiscoveryScreen({
   repository,
@@ -145,14 +146,14 @@ export function ProductDiscoveryScreen({
       />
       <PrimaryAction label={captureCopy.manualSearch} onPress={() => void searchManually()} />
       {onScanCode === undefined ? null : (
-        <SecondaryAction label="Ler código" onPress={onScanCode} />
+        <SecondaryAction label="Ler codigo" onPress={onScanCode} />
       )}
       <View style={styles.shortcuts}>
         <SecondaryAction label={captureCopy.recent} onPress={onOpenRecent ?? (() => undefined)} />
         <SecondaryAction label={captureCopy.frequent} onPress={() => void showFrequentProducts()} />
         <SecondaryAction label={captureCopy.byCategory} onPress={() => void chooseCategory()} />
       </View>
-      <SecondaryAction label="Produto nao esta na lista" onPress={openCreateProduct} />
+      <SecondaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />
       {message === undefined ? null : <StatusNotice>{message}</StatusNotice>}
       {categories.map((category) => (
         <SelectionRow
@@ -180,7 +181,7 @@ export function ProductDiscoveryScreen({
           <Text style={styles.metadata}>Perfil operacional: {resolvedMode}</Text>
           <Text style={styles.metadata}>Modo de trabalho: {productModeLabels[resolvedMode]}</Text>
           {candidate.reviewStatus === "pending_review" ? (
-            <StatusNotice>
+            <StatusNotice tone="warning" title="Rascunho operacional">
               Produto em rascunho. O lote entra com risco conservador ate a validacao.
             </StatusNotice>
           ) : null}
@@ -193,26 +194,29 @@ export function ProductDiscoveryScreen({
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#F5F7EF",
-    gap: 16,
-    padding: 16,
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
   },
   shortcuts: {
-    gap: 8,
+    gap: captureSpacing.small,
   },
   confirmation: {
-    backgroundColor: "#E6EEE4",
-    gap: 8,
-    padding: 16,
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.small,
+    padding: captureSpacing.large,
   },
   confirmationTitle: {
-    color: "#112016",
+    color: captureColors.ink,
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 25,
   },
   metadata: {
-    color: "#3F5546",
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
   },

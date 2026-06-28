@@ -137,7 +137,10 @@ describe("mode-aware lot registration", () => {
       selectDate(tree, "Data de validade", new Date(2030, 0, 15, 12));
     });
 
-    expect(JSON.stringify(tree.toJSON())).toContain("Avaliação operacional");
+    expect(JSON.stringify(tree.toJSON())).toContain("Avaliacao operacional");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+    );
     expect(
       tree.root
         .findAllByType("Pressable")

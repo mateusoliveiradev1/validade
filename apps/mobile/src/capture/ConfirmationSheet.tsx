@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { PrimaryAction, SecondaryAction } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
 export function ConfirmationSheet({
   summary,
@@ -26,7 +27,14 @@ export function ConfirmationSheet({
   );
 }
 const styles = StyleSheet.create({
-  sheet: { backgroundColor: "#E6EEE4", gap: 16, padding: 16 },
-  title: { color: "#112016", fontSize: 20, fontWeight: "600", lineHeight: 25 },
-  body: { color: "#112016", fontSize: 16, lineHeight: 24 },
+  sheet: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
+  },
+  title: { color: captureColors.ink, fontSize: 20, fontWeight: "600", lineHeight: 25 },
+  body: { color: captureColors.ink, fontSize: 16, lineHeight: 24 },
 });
