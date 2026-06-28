@@ -46,7 +46,7 @@ Expo Go, local mocks, local ignored Firebase files, unapproved APK identity, raw
 | Command | Result | Notes |
 |---|---|---|
 | `pnpm.cmd --filter @validade-zero/mobile test capture mobile-release-journeys` | Passed | 31 mobile test files / 162 tests passed with fictional fixtures. |
-| `pnpm.cmd security:evidence` | Passed | Sensitive evidence scan passed for 527 tracked text files after UAT/release docs updates. |
+| `pnpm.cmd security:evidence` | Passed | Sensitive evidence scan passed for 528 tracked text files after UAT/release docs updates. |
 | `pnpm.cmd check` | Passed | Typecheck, lint, format, 84 test files / 545 tests, 55 smoke files / 287 tests, build, security, and performance budgets passed. |
 | `adb devices` | Blocked | No connected Android target was listed. |
 | `pnpm.cmd test:e2e:mobile` | Blocked | Maestro could not run because 0 devices were connected. |

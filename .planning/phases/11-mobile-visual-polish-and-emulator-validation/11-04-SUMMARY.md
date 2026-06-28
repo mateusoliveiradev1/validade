@@ -26,7 +26,7 @@ Reconciled the v1 release truth matrix and closed Phase 11 validation honestly. 
 ## Verification
 
 - `pnpm.cmd --filter @validade-zero/mobile test capture mobile-release-journeys` - passed, 31 files / 162 tests.
-- `pnpm.cmd security:evidence` - passed, 527 tracked text files.
+- `pnpm.cmd security:evidence` - passed, 528 tracked text files.
 - `adb devices` - blocked, zero devices listed.
 - `pnpm.cmd test:e2e:mobile` - blocked, `Not enough devices connected (0)`.
 - `pnpm.cmd check` - passed: typecheck, lint, format, 84 test files / 545 tests, 55 smoke files / 287 tests, build, security, and performance budgets.
