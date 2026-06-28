@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: null
 status: Awaiting next milestone
 stopped_at: v1.0 archived
-last_updated: "2026-06-28T21:56:05.235Z"
+last_updated: "2026-06-28T23:04:17.239Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-28
+**Last activity:** 2026-06-28 - Completed quick task 260628-rmd: Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto
 
 ## Project Reference
 
@@ -116,6 +116,7 @@ $gsd-new-milestone
 | 260627-hkt | Prepare staging for 23-store real UAT with Loja 18 category catalog, no fake products, and web/API store scope cleanup | 2026-06-27 | pending-final-batch | Verified | [260627-hkt-prepare-staging-for-23-store-real-uat-wi](./quick/260627-hkt-prepare-staging-for-23-store-real-uat-wi/) |
 | 260627-iar | Ajustar RBAC multi-loja para dono/admin, convites por loja e nome Mateus Oliveira | 2026-06-27 | 86965264 | Verified | [260627-iar-ajustar-rbac-multi-loja-para-dono-admin-](./quick/260627-iar-ajustar-rbac-multi-loja-para-dono-admin-/) |
 | 260627-mpa | Adicionar multiplos identificadores por produto e fluxo para vincular codigo novo sem duplicar produto | 2026-06-27 | pending | Verified | [260627-mpa-adicionar-m-ltiplos-identificadores-por-](./quick/260627-mpa-adicionar-m-ltiplos-identificadores-por-/) |
+| 260628-rmd | Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto | 2026-06-28 | local | Verified | [260628-rmd-gerar-apk-android-local-atual-para-testa](./quick/260628-rmd-gerar-apk-android-local-atual-para-testa/) |
 
 ## Performance Metrics
 
@@ -255,7 +256,7 @@ $gsd-new-milestone
 Phase: Milestone v1.0 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-06-28 — Milestone v1.0 completed and archived
+Last activity: 2026-06-28 - Completed quick task 260628-rmd: Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto
 
 ## Operator Next Steps
 
