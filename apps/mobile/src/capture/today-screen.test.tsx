@@ -2,6 +2,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 import { describe, expect, it, vi } from "vitest";
 import type {
   OfflineCacheStatus,
+  PrepareTurnCacheStatus,
   SyncConflictRecord,
   SyncCommandSummary,
   SyncQueueSummary,
@@ -328,6 +329,10 @@ function refreshWith(input: {
 async function renderTodayScreen(
   repository: CaptureRepository,
   syncEngine?: SyncEngine,
+  prepareTurn?: {
+    status: PrepareTurnCacheStatus;
+    source: "central" | "local_cache";
+  },
 ): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
 
@@ -338,6 +343,8 @@ async function renderTodayScreen(
         onRegisterLot={() => undefined}
         onOpenRecentLots={() => undefined}
         syncEngine={syncEngine}
+        prepareTurnCacheStatus={prepareTurn?.status}
+        prepareTurnSource={prepareTurn?.source}
         now={() => new Date("2030-01-10T12:00:00.000Z")}
       />,
     );
@@ -351,6 +358,24 @@ async function renderTodayScreen(
   return tree;
 }
 
+function readyPrepareTurnCacheStatus(
+  overrides: Partial<PrepareTurnCacheStatus> = {},
+): PrepareTurnCacheStatus {
+  return {
+    state: "ready",
+    source: "central",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+    staleAfterHours: 4,
+    productCount: 3,
+    lotCount: 2,
+    activeTaskCount: 1,
+    conflictCount: 0,
+    resolvedHistoryCount: 0,
+    ...overrides,
+  };
+}
+
 describe("TodayScreen", () => {
   it("renders the safe empty Hoje entry with registration and recent-lot paths", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));
@@ -358,8 +383,7 @@ describe("TodayScreen", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
-    expect(rendered).toContain("Area de venda segura");
-    expect(rendered).toContain("Area de venda segura agora");
+    expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
     expect(rendered).toContain("Registrar lote");
     expect(rendered).toContain("Conferir lotes recentes");
   });
@@ -369,10 +393,26 @@ describe("TodayScreen", () => {
     const tree = await renderTodayScreen(repository);
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered.indexOf("Area de venda segura")).toBeLessThan(
+    expect(rendered.indexOf("Nenhum bloqueio ativo na leitura central")).toBeLessThan(
       rendered.indexOf("Pronto para operar sem internet"),
     );
     expect(rendered).toContain("Tudo sincronizado neste aparelho");
+  });
+
+  it("renders local-cache prepare state near the verdict without safe styling", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const tree = await renderTodayScreen(repository, undefined, {
+      status: readyPrepareTurnCacheStatus({ source: "local_cache" }),
+      source: "local_cache",
+    });
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered.indexOf("Leitura central local ou pendente")).toBeLessThan(
+      rendered.indexOf("Local"),
+    );
+    expect(rendered).toContain("Leitura local em uso desde");
+    expect(rendered).toContain("Nao declare area segura sem preparar a central.");
+    expect(rendered).not.toContain("Area segura com leitura central");
   });
 
   it("renders offline mode with cached tasks and keeps task paths available", async () => {
@@ -457,7 +497,7 @@ describe("TodayScreen", () => {
     const tree = await renderTodayScreen(repository);
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered).toContain("Pendente de sincronizacao");
+    expect(rendered).toContain("Pendente central. Ainda nao use como confirmacao da loja.");
   });
 
   it("renders critical conflicts before pending commands in the compact queue", async () => {
@@ -881,7 +921,7 @@ describe("TodayScreen", () => {
     const tree = await renderTodayScreen(repository);
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered).toContain("Area de venda com 1 risco(s) agora");
+    expect(rendered).toContain("Area de venda com risco agora");
     expect(rendered).toContain("Reconferir area de venda");
   });
 

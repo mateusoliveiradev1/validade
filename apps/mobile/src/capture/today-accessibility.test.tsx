@@ -130,10 +130,7 @@ function longCriticalTask(): TodayTaskRecord {
       identitySource: "printed",
       value: "LOTE-FICTICIO-COM-IDENTIFICADOR-LONGO-2030-AREA-01",
     },
-    currentLocation: {
-      kind: "other",
-      customName: "ilha promocional ficticia com descricao longa na area de venda",
-    },
+    currentLocation: { kind: "area_de_venda" },
     riskState: "expired",
     severity: "critical",
     dueBucket: "now",
@@ -221,7 +218,7 @@ describe("Today accessibility and copy hardening", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
-    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
     expect(rendered).toContain("Conferir lotes recentes");
@@ -235,7 +232,7 @@ describe("Today accessibility and copy hardening", () => {
     const tree = await renderTodayScreen(createRepository(() => Promise.resolve(refreshWith([]))));
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered.indexOf("Area de venda segura")).toBeLessThan(
+    expect(rendered.indexOf("Nenhum bloqueio ativo na leitura central")).toBeLessThan(
       rendered.indexOf("Pronto para operar sem internet"),
     );
     expect(rendered).toContain("Tudo sincronizado neste aparelho");
@@ -268,7 +265,7 @@ describe("Today accessibility and copy hardening", () => {
     const todaySource = readFileSync(todayPath, "utf8");
     const panelSource = readFileSync(panelPath, "utf8");
 
-    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Area de venda com risco agora");
     expect(rendered).toContain(
       "Produto FICTICIO com nome muito longo para validar quebra de linha no corredor",
     );
@@ -331,7 +328,7 @@ describe("Today accessibility and copy hardening", () => {
 
     expect(source).toContain("Atualizando tarefas");
     expect(source).toContain("disabled={isRefreshing}");
-    expect(source).toContain('StatusNotice tone="success"');
+    expect(source).toContain('mobileStatusDescriptorFor("synced_transport")');
     expect(source).toContain("refreshError");
     expect(source).not.toContain("ActivityIndicator");
   });

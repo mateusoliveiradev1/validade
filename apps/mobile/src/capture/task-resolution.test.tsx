@@ -416,7 +416,9 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Pendente central. Ainda nao use como confirmacao da loja.",
+    );
   });
 
   it("keeps the recheck evidence gate before saving an offline action", async () => {
@@ -701,7 +703,9 @@ describe("TaskResolutionPanel", () => {
     });
     expect(requestMarkdown).not.toHaveBeenCalled();
     expect(resolveTodayTask).not.toHaveBeenCalled();
-    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Pendente central. Ainda nao use como confirmacao da loja.",
+    );
   });
 
   it("approves markdown through the workflow command without resolving the task directly", async () => {
@@ -938,7 +942,9 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Pendente de sincronizacao");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Pendente central. Ainda nao use como confirmacao da loja.",
+    );
   });
 
   it("requires safe evidence metadata before confirming markdown on shelf", async () => {

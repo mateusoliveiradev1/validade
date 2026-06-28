@@ -123,7 +123,9 @@ async function renderJourney(client: MobileAuthClient): Promise<ReactTestRendere
   let tree: ReactTestRenderer | undefined;
   await act(async () => {
     tree = create(
-      <AuthGate authClient={client}>{() => <>Hoje - Area de venda segura</>}</AuthGate>,
+      <AuthGate authClient={client}>
+        {() => <>Hoje - Nenhum bloqueio ativo na leitura central</>}
+      </AuthGate>,
     );
     await Promise.resolve();
   });
@@ -379,7 +381,9 @@ describe("mobile release journeys", () => {
   it("keeps Hoje behind the auth gate and exposes the privacy path before authentication", async () => {
     const tree = await renderJourney(authClient());
     expect(JSON.stringify(tree.toJSON())).toContain("Entrar no Validade Zero");
-    expect(JSON.stringify(tree.toJSON())).not.toContain("Hoje - Area de venda segura");
+    expect(JSON.stringify(tree.toJSON())).not.toContain(
+      "Hoje - Nenhum bloqueio ativo na leitura central",
+    );
 
     const privacy = tree.root
       .findAllByType("Pressable")
@@ -398,7 +402,9 @@ describe("mobile release journeys", () => {
     const tree = await renderJourney(
       authClient({ readSession: () => Promise.resolve(activeSession()) }),
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Hoje - Area de venda segura");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Hoje - Nenhum bloqueio ativo na leitura central",
+    );
   });
 
   it("prepares central truth, reuses a central product, and registers a lot in the native chain", async () => {
@@ -431,7 +437,9 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Preparar turno");
     expect(hydratedCaches).toHaveLength(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Turno preparado pela central");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Pronto para operar com a leitura central.",
+    );
 
     await press(tree, "Registrar lote");
     await act(async () => {

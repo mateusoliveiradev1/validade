@@ -292,7 +292,7 @@ describe("Hoje push alert UI", () => {
     const tree = await renderToday({ repository, alertChannel: channel });
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered.indexOf("Area de venda com 1 risco(s) agora")).toBeLessThan(
+    expect(rendered.indexOf("Area de venda com risco agora")).toBeLessThan(
       rendered.indexOf("Alertas ajudam a cobrar"),
     );
     expect(channel.requestedPermissionCount).toBe(0);

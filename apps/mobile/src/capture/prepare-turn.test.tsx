@@ -75,7 +75,7 @@ describe("prepare-turn gate", () => {
         localSnapshot: expect.objectContaining({ pendingCommandCount: 0 }),
       }),
     );
-    expect(textContent(tree)).toContain("Turno preparado pela central");
+    expect(textContent(tree)).toContain("Pronto para operar com a leitura central.");
     expect(textContent(tree)).toContain("Morango FICTICIO");
   });
 

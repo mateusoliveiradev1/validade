@@ -489,7 +489,7 @@ describe("Validade Zero mobile smoke", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
-    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
     expect(rendered).toContain("Ativar alertas do turno");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
@@ -547,11 +547,11 @@ describe("Validade Zero mobile smoke", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
-    expect(rendered).toContain("Area de venda segura");
+    expect(rendered).toContain("Area sem bloqueio critico, ainda ha tarefas do turno");
     expect(rendered).toContain("Sem internet agora. Usando tarefas salvas neste aparelho.");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
-    expect(rendered).toContain("Pendente de sincronizacao");
+    expect(rendered).toContain("Pendente central. Ainda nao use como confirmacao da loja.");
   });
 
   it("requests eligible markdown from lot detail with the rule-window reason", async () => {

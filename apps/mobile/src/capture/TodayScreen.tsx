@@ -40,6 +40,7 @@ import {
   todayActionLabel,
   todayCopy,
 } from "./today-copy";
+import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
 
 const ACTIVE_SECTION_ORDER = [
   "withdraw_now",
@@ -51,13 +52,34 @@ const ACTIVE_SECTION_ORDER = [
 function prepareTurnNotice(
   status: PrepareTurnCacheStatus,
   source: "central" | "local_cache" | undefined,
-): string {
+): MobileStatusDescriptor {
   const readAt = status.lastCentralReadAt ?? status.updatedAt;
-  if (source === "central" && status.state === "ready") {
-    return `Turno preparado pela central em ${readAt}. ${status.activeTaskCount} tarefas ativas.`;
+
+  if (status.conflictCount > 0) {
+    return {
+      ...mobileStatusDescriptorFor("conflict"),
+      body: `${status.conflictCount} conflito(s) na leitura central. Revise antes de declarar area segura.`,
+    };
   }
 
-  return `Leitura local em uso desde ${readAt}. Nao declare area segura sem preparar a central.`;
+  if (source === "central" && status.state === "ready") {
+    return {
+      ...mobileStatusDescriptorFor("synced_transport"),
+      body: `Pronto para operar com a leitura central. Ultima leitura: ${readAt}. ${status.activeTaskCount} tarefas ativas.`,
+    };
+  }
+
+  if (source === "local_cache") {
+    return {
+      ...mobileStatusDescriptorFor("local_only"),
+      body: `Leitura local em uso desde ${readAt}. Nao declare area segura sem preparar a central.`,
+    };
+  }
+
+  return {
+    ...mobileStatusDescriptorFor("pending_central"),
+    body: `Leitura central pendente. Atualize antes de declarar area segura. Ultima leitura conhecida: ${readAt}.`,
+  };
 }
 
 export function TodayScreen({
@@ -387,6 +409,10 @@ export function TodayScreen({
   const centralPackageReady =
     prepareTurnSource === undefined ||
     (prepareTurnSource === "central" && prepareTurnCacheStatus?.state === "ready");
+  const centralNotice =
+    prepareTurnCacheStatus === undefined || prepareTurnCacheStatus === null
+      ? undefined
+      : prepareTurnNotice(prepareTurnCacheStatus, prepareTurnSource);
   const heroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
@@ -414,6 +440,20 @@ export function TodayScreen({
       >
         <Text style={styles.heroKicker}>{todayCopy.title}</Text>
         <Text style={styles.safetyVerdict}>{verdict}</Text>
+        <View style={styles.heroStatusStack}>
+          {centralNotice === undefined ? null : (
+            <StatusNotice title={centralNotice.label} tone={centralNotice.tone}>
+              {centralNotice.body}
+            </StatusNotice>
+          )}
+          <OfflineStatusBand
+            disabled={isSyncing || syncEngine === undefined}
+            queue={syncQueue}
+            status={offlineStatus}
+            onRetry={() => void manualSync()}
+          />
+          <OfflineCacheNotice status={offlineStatus} />
+        </View>
         <Text style={styles.safetyBody}>
           {!centralPackageReady
             ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
@@ -469,19 +509,6 @@ export function TodayScreen({
           <SecondaryAction label={todayCopy.recentLots} onPress={onOpenRecentLots} />
         ) : null}
       </View>
-
-      <OfflineStatusBand
-        disabled={isSyncing || syncEngine === undefined}
-        queue={syncQueue}
-        status={offlineStatus}
-        onRetry={() => void manualSync()}
-      />
-      <OfflineCacheNotice status={offlineStatus} />
-      {prepareTurnCacheStatus === undefined || prepareTurnCacheStatus === null ? null : (
-        <StatusNotice tone={centralPackageReady ? "success" : "info"}>
-          {prepareTurnNotice(prepareTurnCacheStatus, prepareTurnSource)}
-        </StatusNotice>
-      )}
 
       <View style={styles.shiftCloseEntry}>
         <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>
@@ -697,6 +724,7 @@ function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
     return null;
   }
 
+  const descriptor = syncStatusDescriptor(task.sync.state);
   const label =
     task.sync.state === "synced"
       ? todayCopy.sync.syncedAt(formatAlertTime(task.sync.lastSyncedAt ?? task.updatedAt))
@@ -712,23 +740,41 @@ function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
     <View
       style={[
         styles.syncMarker,
-        task.sync.state === "sync_conflict" || task.sync.state === "sync_failed"
-          ? styles.syncMarkerCritical
-          : undefined,
+        descriptor.tone === "critical" ? styles.syncMarkerCritical : undefined,
+        descriptor.tone === "warning" ? styles.syncMarkerWarning : undefined,
+        descriptor.tone === "success" ? styles.syncMarkerSuccess : undefined,
       ]}
     >
       <Text
         style={[
           styles.syncMarkerText,
-          task.sync.state === "sync_conflict" || task.sync.state === "sync_failed"
-            ? styles.syncMarkerTextCritical
-            : undefined,
+          descriptor.tone === "critical" ? styles.syncMarkerTextCritical : undefined,
+          descriptor.tone === "warning" ? styles.syncMarkerTextWarning : undefined,
+          descriptor.tone === "success" ? styles.syncMarkerTextSuccess : undefined,
         ]}
       >
         {label}
       </Text>
     </View>
   );
+}
+
+function syncStatusDescriptor(
+  state: NonNullable<TodayTaskRecord["sync"]>["state"],
+): MobileStatusDescriptor {
+  if (state === "synced") {
+    return mobileStatusDescriptorFor("synced_transport");
+  }
+
+  if (state === "sync_failed" || state === "sync_conflict") {
+    return mobileStatusDescriptorFor("conflict");
+  }
+
+  if (state === "syncing") {
+    return mobileStatusDescriptorFor("syncing");
+  }
+
+  return mobileStatusDescriptorFor("pending_central");
 }
 
 function TodayLoadingState() {
@@ -1017,8 +1063,11 @@ const styles = StyleSheet.create({
   },
   heroMetricLabel: {
     color: captureColors.mutedInk,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  heroStatusStack: {
+    gap: captureSpacing.small,
   },
   heroActions: {
     flexDirection: "row",
@@ -1216,8 +1265,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   syncMarker: {
-    backgroundColor: captureColors.warningSurface,
-    borderColor: captureColors.warningBorder,
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
     borderRadius: captureRadii.small,
     borderWidth: 1,
     padding: captureSpacing.small,
@@ -1226,14 +1275,28 @@ const styles = StyleSheet.create({
     backgroundColor: captureColors.criticalSurface,
     borderColor: captureColors.criticalBorder,
   },
+  syncMarkerWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
+  syncMarkerSuccess: {
+    backgroundColor: captureColors.accentSoft,
+    borderColor: captureColors.accent,
+  },
   syncMarkerText: {
-    color: captureColors.warningInk,
+    color: captureColors.mutedInk,
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
   },
   syncMarkerTextCritical: {
     color: captureColors.critical,
+  },
+  syncMarkerTextWarning: {
+    color: captureColors.warningInk,
+  },
+  syncMarkerTextSuccess: {
+    color: captureColors.accent,
   },
   acknowledgementPanel: {
     gap: captureSpacing.xsmall,
