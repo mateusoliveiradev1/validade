@@ -1,3 +1,12 @@
+---
+status: complete_with_external_blockers
+phase: 10-real-pilot-flow-rebuild
+source: [10-01-SUMMARY.md, 10-02-SUMMARY.md, 10-03-SUMMARY.md, 10-04-SUMMARY.md, 10-05-SUMMARY.md, 10-06-SUMMARY.md]
+started: 2026-06-27T06:39:00-03:00
+updated: 2026-06-28T16:33:20.1183406-03:00
+external_blockers: [android-installed-build, second-device-uat, provider-push-proof, physical-pilot-uat]
+---
+
 # Phase 10 Pilot UAT
 
 **Status:** Repository evidence and Neon staging migration passed; installed Android UAT blocked.

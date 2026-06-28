@@ -61,7 +61,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-verify-work 10
+$gsd-verify-work 12
 ```
 
 ## Accumulated Context
