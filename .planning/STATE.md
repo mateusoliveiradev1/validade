@@ -2,34 +2,34 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 10
-status: Phase 10 complete - product identifiers, repository gates, Neon staging migration, and Worker staging deploy passed; Android/provider validation blocked externally
-stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-06-27T13:27:07.187-03:00"
-last_activity: "2026-06-27 - Completed quick task 260627-mpa: Adicionar multiplos identificadores por produto e vincular codigo novo sem duplicar produto"
+current_phase: 11
+status: Phase 11 added - mobile visual polish and emulator validation is not planned yet
+stopped_at: Phase 11 context gathered
+last_updated: "2026-06-28T00:44:27.759Z"
+last_activity: "2026-06-27 - Added Phase 11: Mobile Visual Polish and Emulator Validation"
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 10
   total_plans: 45
   completed_plans: 45
-  percent: 100
+  percent: 91
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 10
+**Current phase:** 11
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-27 - Completed quick task 260627-mpa: Adicionar multiplos identificadores por produto e vincular codigo novo sem duplicar produto
+**Last activity:** 2026-06-27 - Added Phase 11: Mobile Visual Polish and Emulator Validation
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 10 — real-pilot-flow-rebuild
+**Current focus:** Phase 11 - mobile-visual-polish-and-emulator-validation
 
 ## Roadmap Progress
 
@@ -45,6 +45,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
+| 11 | Not planned | Mobile Visual Polish and Emulator Validation - task opened; run planning before implementation |
 
 ## Active Constraints
 
@@ -56,10 +57,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Neon staging and the live API now support multiple identifiers per product. Next, use the web/API staging flow to create or reuse the first real product, then scan/register another code for the same item and confirm it links to the same product instead of creating a duplicate.
+Plan Phase 11 before implementation. The plan should improve the mobile app's visual quality while preserving the operational design system, and it must include Android emulator validation with screenshots and smoke/UAT evidence for the key mobile flows.
 
 ```powershell
-start https://validade-five.vercel.app
+$gsd-plan-phase 11
 ```
 
 ## Accumulated Context
@@ -73,6 +74,7 @@ start https://validade-five.vercel.app
 - Phase 10 Plan 04 completed: central terminal resolution policy, central sync command application, conflicts/retries/idempotency, mobile resolved-history reconciliation, and migration/schema check against existing 0006 central capture migration.
 - Phase 10 Plan 05 completed: capture-backed Command Center projection, explicit command_center/catalog capabilities, role-scoped web navigation/actions, central active-task alert dispatch, and migration/schema check. Remote apply was later completed on Neon staging.
 - Phase 10 Plan 06 completed: central shift-close revalidation, pilot UAT docs, mobile/web release journeys, root gates, security/performance verification, Neon staging migration application, and external blocker record for Android/provider.
+- Phase 11 added: Mobile Visual Polish and Emulator Validation
 
 ### Quick Tasks Completed
 
@@ -140,9 +142,9 @@ start https://validade-five.vercel.app
 
 ## Session
 
-**Last session:** 2026-06-27T03:35:20.000Z
-**Stopped at:** Completed 10-05-PLAN.md
-**Resume file:** None
+**Last session:** 2026-06-28T00:44:27.754Z
+**Stopped at:** Phase 11 context gathered
+**Resume file:** .planning/phases/11-mobile-visual-polish-and-emulator-validation/11-CONTEXT.md
 
 ## Decisions
 
