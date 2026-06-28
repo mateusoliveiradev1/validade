@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 11
-status: Phase 11 in progress - 11-01 and 11-02 complete, 11-03 ready
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-06-28T01:06:34.277-03:00"
+status: Phase 11 in progress - 11-01 through 11-03 complete, 11-04 ready
+stopped_at: Completed 11-03-PLAN.md with Android installed validation blocked by no connected target
+last_updated: "2026-06-28T04:13:07.526Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 11
@@ -45,7 +45,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
-| 11 | In Progress | Mobile Visual Polish and Emulator Validation - 2/4 plans executed; shared status, Hoje cockpit, and full critical-flow polish complete |
+| 11 | In Progress | Mobile Visual Polish and Emulator Validation - 3/4 plans executed; Android installed validation blocked by no connected target |
 
 ## Active Constraints
 
@@ -57,7 +57,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 11 from Plan 03. The next plan validates the installed Android/emulator path with Maestro evidence and screenshots, without substituting component tests for installed-build proof.
+Continue Phase 11 from Plan 04. The next plan reconciles the release truth matrix, provider/camera blockers, and final gates without converting external blockers into passes.
 
 ```powershell
 $gsd-execute-phase 11
@@ -78,6 +78,7 @@ $gsd-execute-phase 11
 - Phase 11 planned: 4 sequential plans for shared mobile status polish, full critical-flow polish, installed Android/Maestro evidence, and release truth/provider blocker reconciliation.
 - Phase 11 Plan 01 completed: typed mobile status vocabulary, semantic StatusNotice tones, prepare-turn non-safe local fallback, and Hoje first-viewport central/local/sync hierarchy.
 - Phase 11 Plan 02 completed: product-to-lot, terminal evidence, sync conflict, and shift-close surfaces polished with shared status vocabulary and 75 focused mobile tests plus typecheck.
+- Phase 11 Plan 03 completed: mobile release journeys expanded, Maestro checkpoint names updated, `11-UAT.md` created, `security:evidence` passed, and installed Android remained blocked because `adb devices` listed no target and Maestro reported `Not enough devices connected (0)`.
 
 ### Quick Tasks Completed
 
@@ -144,12 +145,13 @@ $gsd-execute-phase 11
 | Phase 10 P06 | inline | 3 tasks | central shift close, pilot UAT, release truth gate, Android/provider blockers |
 | Phase 11 P01 | 13 min | 3 tasks | 13 files |
 | Phase 11 P02 | 35 min | 3 tasks | 22 files |
+| Phase 11 P03 | 25 min | 3 tasks | 7 files |
 
 ## Session
 
-**Last session:** 2026-06-28T04:05:08.820Z
-**Stopped at:** Completed 11-02-PLAN.md
-**Resume file:** .planning/phases/11-mobile-visual-polish-and-emulator-validation/11-03-PLAN.md
+**Last session:** 2026-06-28T04:13:07.518Z
+**Stopped at:** Completed 11-03-PLAN.md with Android installed validation blocked by no connected target
+**Resume file:** .planning/phases/11-mobile-visual-polish-and-emulator-validation/11-04-PLAN.md
 
 ## Decisions
 
@@ -160,6 +162,8 @@ $gsd-execute-phase 11
 - [Phase 11]: Terminal confirmation separates local save, synced transport, and resolved-central proof. - The final action screen must show consequence, evidence/no-photo path, actor, and central expectation before submission.
 - [Phase 11]: Sync conflict discard is destructive and reason-gated. - Conflicts render before ordinary pending rows, and discarded offline commands state they will not be sent to central.
 - [Phase 11]: Unsafe shift close explicitly says the area is not safe and work continues. - Only central revalidation plus checklist can enable `Encerrar turno com area segura`.
+- [Phase 11]: Component journeys do not substitute for installed Android proof. - `adb devices` and `pnpm.cmd test:e2e:mobile` output must be recorded when the native target is unavailable.
+- [Phase 11]: Screenshot evidence is committed as sanitized checkpoint names/UAT records only. - Raw Maestro artifacts remain local unless a narrow allowlist is reviewed and `security:evidence` passes.
 - [Phase 10]: Central lot write-through is gated by a ready central prepare-turn cache. - Degraded operation can still capture locally, but it remains visibly pending instead of claiming central acknowledgement.
 - [Phase 10]: Mobile lot saves persist the returned central id, source, sync state, task projection, and acknowledgement copy locally. - Keeps recent/detail/Hoje views aligned with second-device prepare-turn truth.
 - [Phase 10]: Task projection is recalculated on lot and observation writes, while terminal action sync remains reserved for the next plan. - Avoids resolving critical work before the terminal slice enforces compatible outcomes.

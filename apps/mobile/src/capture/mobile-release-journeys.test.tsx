@@ -6,6 +6,8 @@ import type {
   PrepareTurnCacheStatus,
   PrepareTurnResponse,
   SessionContextResponse,
+  TodayTaskRecord,
+  SyncCommandSummary,
   SyncQueueSummary,
 } from "@validade-zero/contracts";
 import { AuthGate, type MobileAuthClient } from "../auth/AuthGate";
@@ -374,7 +376,142 @@ function createPilotJourneyRepository(input: {
     applySyncTransportResult: () => Promise.reject(new Error("not used")),
     resolveSyncConflict: () => Promise.reject(new Error("not used")),
     loadSyncConflict: () => Promise.resolve(null),
+  } as CaptureRepository;
+}
+
+function expiredReleaseTask(): TodayTaskRecord {
+  return {
+    id: "task-release-expired-ficticio",
+    activeKey: "lot-release-expired:expired:withdraw_or_loss:root",
+    lotId: "lot-release-expired",
+    productDisplayName: "Iogurte FICTICIO",
+    lotIdentity: { identitySource: "printed", value: "IOG-LOTE-FICTICIO" },
+    currentLocation: { kind: "area_de_venda" },
+    riskState: "expired",
+    severity: "critical",
+    dueBucket: "now",
+    requiredResolution: "withdraw_or_loss",
+    section: "withdraw_now",
+    ownerLabel: "Equipe FICTICIA do turno",
+    status: "active",
+    sourceRisk: {
+      state: "expired",
+      reasons: [{ code: "expired", field: "expiresAt" }],
+    },
+    priority: 0,
+    createdAt: "2030-01-10T09:00:00.000Z",
+    updatedAt: "2030-01-10T09:00:00.000Z",
   };
+}
+
+function releaseSyncCommand(overrides: Partial<SyncCommandSummary> = {}): SyncCommandSummary {
+  return {
+    id: "sync-release-command-ficticio",
+    kind: "resolve_task",
+    state: "pending_sync",
+    urgency: "high",
+    productDisplayName: "Iogurte FICTICIO",
+    lotIdentity: { identitySource: "printed", value: "IOG-LOTE-FICTICIO" },
+    currentLocation: { kind: "area_de_venda" },
+    savedAt: "2030-01-10T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function releaseQueue(): SyncQueueSummary {
+  const conflict = releaseSyncCommand({
+    id: "sync-release-conflict-ficticio",
+    state: "sync_conflict",
+    urgency: "critical",
+    conflictId: "sync-conflict-release-ficticio",
+  });
+  const pending = releaseSyncCommand();
+
+  return {
+    state: "has_conflict",
+    totalCount: 2,
+    conflictCount: 1,
+    hasCriticalConflict: true,
+    criticalCount: 1,
+    highCount: 1,
+    mediumCount: 0,
+    lowCount: 0,
+    oldestPendingCritical: conflict,
+    commands: [pending, conflict],
+    updatedAt: "2030-01-10T12:02:00.000Z",
+  };
+}
+
+function releaseOfflineRepository(input: {
+  saveOfflineAction?: ((command: unknown) => Promise<unknown>) | undefined;
+} = {}): CaptureRepository {
+  return {
+    initialize: () => Promise.resolve(),
+    createProduct: () => Promise.reject(new Error("not used")),
+    findProducts: () => Promise.resolve([]),
+    saveLot: () => Promise.reject(new Error("not used")),
+    appendObservation: () => Promise.reject(new Error("not used")),
+    listRecentLots: () => Promise.resolve([]),
+    loadLotDetail: () => Promise.resolve(null),
+    refreshTodayTasks: () =>
+      Promise.resolve({
+        metadata: {
+          refreshedAt: "2030-01-10T12:00:00.000Z",
+          activeTaskCount: 1,
+          futureAttentionCount: 0,
+          source: "today_open",
+        },
+        tasks: [expiredReleaseTask()],
+        futureAttention: [],
+      }),
+    listActiveTodayTasks: () => Promise.resolve([expiredReleaseTask()]),
+    listFutureAttention: () => Promise.resolve([]),
+    resolveTodayTask: () => Promise.reject(new Error("not used")),
+    loadTodayTask: () => Promise.resolve(expiredReleaseTask()),
+    requestMarkdown: () => Promise.reject(new Error("not used")),
+    decideMarkdown: () => Promise.reject(new Error("not used")),
+    recordMarkdownApplication: () => Promise.reject(new Error("not used")),
+    confirmMarkdownOnShelf: () => Promise.reject(new Error("not used")),
+    loadMarkdownWorkflowForLot: () => Promise.resolve(null),
+    listActiveMarkdownWorkflows: () => Promise.resolve([]),
+    loadMarkdownEntryState: () => Promise.reject(new Error("not used")),
+    registerAlertDevice: (request) => Promise.resolve(request),
+    loadAlertChannelState: () => Promise.resolve(null),
+    refreshTaskAlertStates: () => Promise.resolve([]),
+    listTaskAlertStates: () => Promise.resolve([]),
+    recordAlertAttempt: () => Promise.reject(new Error("not used")),
+    acknowledgeEscalation: () => Promise.reject(new Error("not used")),
+    resolvePushOpenIntent: (request) => Promise.resolve({ ...request, result: "task_missing" }),
+    loadOfflineCacheStatus: () =>
+      Promise.resolve({
+        ...emptyOfflineCache(),
+        state: "offline_mode",
+        activeTaskCount: 1,
+        requiredLotSnippetCount: 1,
+      }),
+    queueEvidenceUpload: () => Promise.reject(new Error("not used")),
+    listEvidenceUploads: () => Promise.resolve([]),
+    markEvidenceUploadAttempt: () => Promise.reject(new Error("not used")),
+    applyEvidenceUploadIntent: () => Promise.reject(new Error("not used")),
+    applyEvidenceUploadAck: () => Promise.reject(new Error("not used")),
+    markEvidenceUploadFailed: () => Promise.reject(new Error("not used")),
+    queueUnsafeShiftClose: (request) =>
+      Promise.resolve({
+        localCloseId: request.localCloseId,
+        request: request.request,
+        state: "pending_sync",
+        createdAt: "2030-01-10T18:00:00.000Z",
+        updatedAt: "2030-01-10T18:00:00.000Z",
+        attemptCount: 0,
+      }),
+    listShiftCloseOutbox: () => Promise.resolve([]),
+    listSyncQueue: () => Promise.resolve(releaseQueue()),
+    saveOfflineAction: (command) => input.saveOfflineAction?.(command) ?? Promise.resolve({}),
+    markSyncCommandAttempt: () => Promise.resolve([]),
+    applySyncTransportResult: () => Promise.reject(new Error("not used")),
+    resolveSyncConflict: () => Promise.reject(new Error("not used")),
+    loadSyncConflict: () => Promise.resolve(null),
+  } as CaptureRepository;
 }
 
 describe("mobile release journeys", () => {
@@ -467,5 +604,114 @@ describe("mobile release journeys", () => {
       value: "BAN-LOTE-001",
     });
     expect(JSON.stringify(tree.toJSON())).toContain("Hoje");
+  });
+
+  it("keeps terminal local save and pending-central truth visible in the release fixture", async () => {
+    const { TaskResolutionPanel } = await import("./TaskResolutionPanel");
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={releaseOfflineRepository({ saveOfflineAction })}
+          task={expiredReleaseTask()}
+          actorLabel="Colaborador FICTICIO"
+          onDone={() => undefined}
+          onBack={() => undefined}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Terminal release journey did not render.");
+
+    await press(tree, "Retirar agora");
+    await press(tree, "Confirmar retirada");
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Responsavel: Colaborador FICTICIO");
+    expect(JSON.stringify(tree.toJSON())).toContain("Transporte central: Sincronizado com a central");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Resolucao terminal: Resolvido com criterio operacional e confirmacao central",
+    );
+
+    await press(tree, "Confirmar retirada");
+
+    expect(saveOfflineAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "resolve_task",
+        payload: expect.objectContaining({
+          taskId: "task-release-expired-ficticio",
+          action: "withdraw",
+        }),
+      }),
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Pendente central. Ainda nao use como confirmacao da loja.",
+    );
+  });
+
+  it("puts conflict sync ahead of ordinary pending work in the release fixture", async () => {
+    const { SyncQueueSummary: SyncQueueSummaryView } = await import("./offline-sync-ui");
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <SyncQueueSummaryView
+          queue={releaseQueue()}
+          onRetry={() => undefined}
+          onReviewConflict={() => undefined}
+        />,
+      );
+    });
+
+    if (tree === undefined) throw new Error("Sync release journey did not render.");
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered.indexOf("Conflito de sincronizacao")).toBeLessThan(
+      rendered.indexOf("Pendente central"),
+    );
+    expect(rendered).toContain("Revisar conflito");
+  });
+
+  it("keeps safe and unsafe shift close paths explicit in the release fixture", async () => {
+    const { ShiftCloseScreen } = await import("./ShiftCloseScreen");
+    const repository = releaseOfflineRepository();
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <ShiftCloseScreen
+          repository={repository}
+          canCloseShift
+          onBack={() => undefined}
+          now={() => new Date("2030-01-10T18:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Shift-close release journey did not render.");
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Encerrar turno com area segura");
+    expect(JSON.stringify(tree.toJSON())).toContain("Encerrar turno com pendencias");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "A area nao esta segura; o trabalho continua no proximo turno.",
+    );
+
+    await act(async () => {
+      inputByLabel(tree!, "Motivo").props.onChangeText("Risco FICTICIO ainda em retirada");
+      inputByLabel(tree!, "Respons").props.onChangeText("Lideranca FICTICIA Noturna");
+      inputByLabel(tree!, "Prazo").props.onChangeText("2030-01-10T19:00:00.000Z");
+      inputByLabel(tree!, "Nota").props.onChangeText("Continuar retirada FICTICIA");
+      await Promise.resolve();
+    });
+
+    await press(tree, "Encerrar turno com pendencias");
+    expect(JSON.stringify(tree.toJSON())).toContain("Fechamento inseguro pendente");
   });
 });

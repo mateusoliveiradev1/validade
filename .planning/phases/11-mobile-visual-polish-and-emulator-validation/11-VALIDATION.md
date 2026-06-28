@@ -41,10 +41,10 @@ created: 2026-06-28
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 11-01-01 | 11-01 / 11-02 | 1-2 | P11-POLISH-01 | T11-01 | Critical-flow screens meet final corridor-ready criteria without changing central truth semantics. | component/a11y | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys mobile-capture.accessibility mobile-product-polish` | Partial / W0 | pending |
-| 11-01-02 | 11-01 / 11-02 | 1-2 | P11-STATUS-02 | T11-01 | Shared status vocabulary differentiates conflict, pending central, local, critical, synced, and resolved without relying on color alone. | unit/component | `pnpm.cmd --filter @validade-zero/mobile test -- capture` | Partial / W0 | pending |
-| 11-02-01 | 11-03 | 3 | P11-ANDROID-03 | T11-02 | Installed Android flow proves login/privacy and the operational critical path on a running emulator/device. | mobile e2e | `pnpm.cmd test:e2e:mobile` | Yes | pending |
-| 11-02-02 | 11-03 | 3 | P11-SCREENSHOT-04 | T11-03 | Screenshot evidence uses fictional fixtures and excludes real store/customer data, private URLs, tokens, build URLs, raw photos, and device-sensitive information. | e2e + evidence scan | `pnpm.cmd security:evidence` | W0 | pending |
+| 11-01-01 | 11-01 / 11-02 | 1-2 | P11-POLISH-01 | T11-01 | Critical-flow screens meet final corridor-ready criteria without changing central truth semantics. | component/a11y | `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys mobile-capture.accessibility mobile-product-polish` | Yes | green |
+| 11-01-02 | 11-01 / 11-02 | 1-2 | P11-STATUS-02 | T11-01 | Shared status vocabulary differentiates conflict, pending central, local, critical, synced, and resolved without relying on color alone. | unit/component | `pnpm.cmd --filter @validade-zero/mobile test -- capture` | Yes | green |
+| 11-02-01 | 11-03 | 3 | P11-ANDROID-03 | T11-02 | Installed Android flow proves login/privacy and the operational critical path on a running emulator/device. | mobile e2e | `pnpm.cmd test:e2e:mobile` | Yes | blocked - no connected Android target; exact output recorded in `11-UAT.md` |
+| 11-02-02 | 11-03 | 3 | P11-SCREENSHOT-04 | T11-03 | Screenshot evidence uses fictional fixtures and excludes real store/customer data, private URLs, tokens, build URLs, raw photos, and device-sensitive information. | e2e + evidence scan | `pnpm.cmd security:evidence` | Yes | blocked - checkpoint names recorded, raw screenshots blocked by missing Android target |
 | 11-03-01 | 11-04 | 4 | P11-TRUTH-05 | T11-04 | Release/UAT truth matrix separates old PASS evidence, current repo readiness, current emulator readiness, and external provider/device blockers. | docs/security | `pnpm.cmd security:evidence` | W0 | pending |
 | 11-03-02 | 11-04 | 4 | P11-PROVIDER-06 | T11-05 | Push/camera physical provider/device evidence is passed only with approved proof or recorded as an external blocker. | manual/device UAT | `pnpm.cmd security:evidence` | Partial / W0 | pending |
 
@@ -54,11 +54,11 @@ created: 2026-06-28
 
 ## Wave 0 Requirements
 
-- [ ] Define the screenshot evidence strategy and committed path/allowlist, because `.gitignore` ignores `.maestro/artifacts/`, `evidence/`, and generic PNG files.
-- [ ] Expand or complement `.maestro/v1-readiness.yaml` so it covers the Phase 11 critical flow beyond auth/privacy readiness.
-- [ ] Review `.maestro/smoke.yaml` and update or retire historical assertions that no longer match Phase 10 central-truth flow.
-- [ ] Add or extend focused component/a11y tests for shared status vocabulary and long Portuguese copy wrapping.
-- [ ] Create the Phase 11 UAT/release truth record, since no `11-UAT.md` exists at planning time.
+- [x] Define the screenshot evidence strategy and committed path/allowlist, because `.gitignore` ignores `.maestro/artifacts/`, `evidence/`, and generic PNG files. Strategy: commit sanitized checkpoint names/UAT records only; keep raw Maestro artifacts local unless allowlisted after `security:evidence`.
+- [x] Expand or complement `.maestro/v1-readiness.yaml` so it covers the Phase 11 critical flow beyond auth/privacy readiness. Current authenticated checkpoints are marked `fixture unavailable` until installed fixture exists.
+- [x] Review `.maestro/smoke.yaml` and update or retire historical assertions that no longer match Phase 10 central-truth flow.
+- [x] Add or extend focused component/a11y tests for shared status vocabulary and long Portuguese copy wrapping.
+- [x] Create the Phase 11 UAT/release truth record, since no `11-UAT.md` exists at planning time.
 
 ---
 
@@ -81,8 +81,8 @@ created: 2026-06-28
 - [ ] No watch-mode flags.
 - [ ] Feedback latency target is below 180 seconds for focused checks.
 - [ ] `pnpm.cmd check` is green before phase verification.
-- [ ] `pnpm.cmd test:e2e:mobile` passes on a running Android target, or exact Android target blocker output is recorded.
-- [ ] `pnpm.cmd security:evidence` is green after UAT/evidence changes.
+- [x] `pnpm.cmd test:e2e:mobile` passes on a running Android target, or exact Android target blocker output is recorded.
+- [x] `pnpm.cmd security:evidence` is green after UAT/evidence changes.
 - [ ] `nyquist_compliant: true` is set in frontmatter once Wave 0 is complete and all mappings are covered.
 
 **Approval:** pending

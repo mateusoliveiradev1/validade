@@ -71,3 +71,11 @@ The remaining release checks are intentionally manual: real auth issuer claims, 
 - `pnpm --filter @validade-zero/domain test -- shift-close`, `pnpm --filter @validade-zero/contracts test -- shift-close`, `pnpm vitest run --config vitest.config.ts --project api -- shift-close capture`, and `pnpm --filter @validade-zero/mobile test -- shift-close` cover central shift-close revalidation and unsafe handoff behavior.
 - `pnpm test:e2e:mobile` remains the installed-build gate. If no Android device or emulator is connected, record the exact blocked output in `.planning/phases/10-real-pilot-flow-rebuild/10-UAT.md` and do not mark Android readiness as passed.
 - `.planning/phases/10-real-pilot-flow-rebuild/10-VALIDATION.md` is the final truth matrix for Phase 10. It must separate repository readiness from external Android/provider readiness.
+
+## Phase 11 mobile visual validation
+
+- `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys today-screen offline-sync shift-close` covers the polished component journey with fictional data before installed Android validation.
+- `.maestro/v1-readiness.yaml` is the root `pnpm.cmd test:e2e:mobile` entrypoint for installed Android evidence. It must not assert a direct safe `Hoje` state without `Preparar turno`.
+- Screenshot checkpoint names are sanitized evidence labels only: `phase11-login-privacy`, `phase11-preparar-turno`, `phase11-hoje-verdict`, `phase11-product-path`, `phase11-lot-registration`, `phase11-terminal-pending`, `phase11-conflict-sync`, and `phase11-shift-close`.
+- Raw Maestro screenshots, device paths, APK/build URLs, tokens, provider identifiers, and real photos stay local unless a narrow allowlist is reviewed and `pnpm.cmd security:evidence` passes.
+- If no emulator or approved Android device is connected, run `adb devices` and `pnpm.cmd test:e2e:mobile`, record the exact blocked output in `.planning/phases/11-mobile-visual-polish-and-emulator-validation/11-UAT.md`, and keep Android installed validation blocked.

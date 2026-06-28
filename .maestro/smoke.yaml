@@ -3,18 +3,16 @@ appId: com.validadezero.app
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "Hoje"
+    visible: "Entrar no Validade Zero"
     timeout: 60000
-- assertVisible: "Hoje"
-- assertVisible: "Area de venda segura"
-- assertVisible: "Ativar alertas do turno"
-- assertVisible: "Pronto para operar sem internet"
-- assertVisible: "Tudo sincronizado neste aparelho"
-- assertVisible: "Atualizar tarefas"
-- assertVisible: "Registrar lote"
-- assertVisible: "Conferir lotes recentes"
-# Phase 6 markdown/rebaixa and Phase 7 pending-sync smoke are fixture-driven in component tests.
-# This native smoke intentionally stays camera/storage-free until evidence storage lands.
-- tapOn: "Registrar lote"
-- assertVisible: "Localizar produto"
-- assertVisible: "Buscar manualmente"
+- assertVisible: "Entrar no Validade Zero"
+- assertVisible: "Ativar conta por convite"
+- assertVisible: "Recuperar acesso da conta"
+- assertVisible: "Abrir Centro de Privacidade"
+- tapOn: "Abrir Centro de Privacidade"
+- assertVisible: "Centro de Privacidade"
+- takeScreenshot: phase11-login-privacy
+# Authenticated operational smoke is blocked until a pilot-safe installed Android fixture can
+# prepare the turn. Do not assert direct Hoje/safe state without `Preparar turno`.
+# fixture unavailable: phase11-preparar-turno
+# fixture unavailable: phase11-hoje-verdict
