@@ -61,7 +61,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-verify-work 3
+$gsd-verify-work 6
 ```
 
 ## Accumulated Context
@@ -90,6 +90,7 @@ $gsd-verify-work 3
 - Phase 12 Plan 04 completed: Command Center now carries the `UAT Loja 18` guided checklist, contract/API/web/E2E tests cover pass/block/external-block states, and `12-UAT.md` records public-safe real-store UAT rules.
 - Phase 12 Plan 05 completed: Command Center now synthesizes `Bloqueios do piloto`, release/UAT/testing docs are reconciled, `12-VALIDATION.md` is nyquist-compliant with explicit external blockers, `pnpm.cmd check` and web E2E passed, and installed Android/provider/camera/physical UAT remain externally blocked.
 - v1.0 milestone audit completed: `v1.0-MILESTONE-AUDIT.md` status is `gaps_found` because 14 v1 requirements are checked in `REQUIREMENTS.md` and present in summaries but absent from every phase `VERIFICATION.md`; repo gates and web E2E passed, Android/provider/camera/physical UAT remain external blockers.
+- Phase 3 formal verification closure completed: `03-VERIFICATION.md` now links CAT-01, CAT-02, CAT-03, LOC-01, LOC-02, and LOC-03 to existing summaries, UAT, security, and current repository gates.
 
 ### Quick Tasks Completed
 
