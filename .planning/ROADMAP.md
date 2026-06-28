@@ -240,7 +240,7 @@ Plans:
 3. Evidence assets are stored outside Postgres with controlled access.
 4. Lead can confirm whether the sales area is safe before shift close.
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 Plans:
 **Wave 1**
 
@@ -380,7 +380,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 12-04-PLAN.md - Guided Loja 18 UAT checklist and sanitized evidence record
+- [x] 12-04-PLAN.md - Guided Loja 18 UAT checklist and sanitized evidence record
 
 **Wave 5** *(blocked on Wave 4 completion)*
 

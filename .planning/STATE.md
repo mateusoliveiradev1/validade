@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Executing Phase 12 - 3/5 plans complete
-stopped_at: Completed 12-03-PLAN.md
-last_updated: "2026-06-28T16:13:14.556Z"
+status: Executing Phase 12 - 4/5 plans complete
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-06-28T16:26:50.775Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
   completed_phases: 11
   total_plans: 54
-  completed_plans: 52
-  percent: 96
+  completed_plans: 53
+  percent: 98
 ---
 
 # Project State: Validade Zero
@@ -46,7 +46,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 | 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
-| 12 | In Progress | Pilot Operations and Device Readiness - 3/5 plans complete; installed build truth and compatibility verified |
+| 12 | In Progress | Pilot Operations and Device Readiness - 4/5 plans complete; guided Loja 18 UAT checklist and sanitized evidence record verified |
 
 ## Active Constraints
 
@@ -58,7 +58,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 12 sequentially with the guided Loja 18 UAT checklist and sanitized evidence record.
+Continue Phase 12 sequentially with operational blocker synthesis, release docs, and final validation gates.
 
 ```powershell
 $gsd-execute-phase 12
@@ -87,6 +87,7 @@ $gsd-execute-phase 12
 - Phase 12 Plan 01 completed: public-safe Apto/Atencao/Bloqueado device readiness contracts, central_device_snapshots readiness persistence, store-scoped API projection, and Command Center `Aparelhos do piloto` panel with blocker causes and next actions.
 - Phase 12 Plan 02 completed: safe push-test contracts, same-store lead/admin API authority, sanitized provider/token/permission timeline, and Command Center action that never resolves tasks or proves area segura.
 - Phase 12 Plan 03 completed: pilot versioning moved to `0.12.0`/Android `versionCode` `120`, mobile build-info reports sanitized version/build/env/API truth, and Command Center compares devices against approved staging artifact `phase-12-staging-apk-120`.
+- Phase 12 Plan 04 completed: Command Center now carries the `UAT Loja 18` guided checklist, contract/API/web/E2E tests cover pass/block/external-block states, and `12-UAT.md` records public-safe real-store UAT rules.
 
 ### Quick Tasks Completed
 
@@ -158,12 +159,13 @@ $gsd-execute-phase 12
 | Phase 12 P01 | 24 min | 3 tasks | 10 files |
 | Phase 12 P02 | 22 min | 3 tasks | 21 files |
 | Phase 12 P03 | 64 min | 3 tasks | 22 files |
+| Phase 12 P04 | 13 min | 3 tasks | 12 files |
 
 ## Session
 
-**Last session:** 2026-06-28T16:13:14.556Z
-**Stopped at:** Completed 12-03-PLAN.md
-**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-04-PLAN.md
+**Last session:** 2026-06-28T16:26:50.775Z
+**Stopped at:** Completed 12-04-PLAN.md
+**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-05-PLAN.md
 
 ## Decisions
 
@@ -176,6 +178,9 @@ $gsd-execute-phase 12
 - [Phase 12]: Installed-build truth compares only against the approved staging artifact. - A later repo commit does not make APK `phase-12-staging-apk-120` outdated by itself.
 - [Phase 12]: Build evidence is public-safe metadata, not an install record. - Mobile/web show version, versionCode, environment, API target, package, and bounded labels without build URLs, tokens, or provider identifiers.
 - [Phase 12]: Old or unknown builds can still sync but remain visible as attention/blocking readiness. - Compatibility status is `atual`, `desatualizado`, `desconhecido`, or `incompativel` and drives the next action.
+- [Phase 12]: Loja 18 UAT is a guided Command Center checklist while actions happen on mobile. - The checklist records status, cause, next action, and evidence label without becoming the source of physical execution truth.
+- [Phase 12]: Product and lot UAT steps never pass from fixtures or seeds. - Real Loja 18 product/lot input must happen in the controlled run, while public repo records only sanitized status.
+- [Phase 12]: External Android/provider/camera blockers are first-class UAT outcomes. - They remain visible as `external_blocked` with next action instead of being hidden behind repo-green tests.
 - [Phase 11]: Synced transport is neutral and not proven safe. - Only central operational resolution or safe-close proof can use proven-safe success semantics.
 - [Phase 11]: Hoje shows central/local/sync state directly under the sales-area verdict. - The operator sees truth status before explanatory copy, metrics, or actions.
 - [Phase 11]: Prepare-turn local cache remains secondary and explicitly non-safe. - Local cache can continue visible work but cannot declare a safe central read.
