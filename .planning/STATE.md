@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Phase 12 complete with external blockers
-stopped_at: Completed 12-05-PLAN.md
-last_updated: "2026-06-28T16:43:25.208Z"
+status: Milestone audit gaps found
+stopped_at: Created v1.0-MILESTONE-AUDIT.md
+last_updated: "2026-06-28T17:51:48.837Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
@@ -58,10 +58,10 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Run the milestone audit before any ship/cleanup decision.
+Close formal verification gaps found by the milestone audit.
 
 ```powershell
-$gsd-audit-milestone
+$gsd-verify-work 3
 ```
 
 ## Accumulated Context
@@ -89,6 +89,7 @@ $gsd-audit-milestone
 - Phase 12 Plan 03 completed: pilot versioning moved to `0.12.0`/Android `versionCode` `120`, mobile build-info reports sanitized version/build/env/API truth, and Command Center compares devices against approved staging artifact `phase-12-staging-apk-120`.
 - Phase 12 Plan 04 completed: Command Center now carries the `UAT Loja 18` guided checklist, contract/API/web/E2E tests cover pass/block/external-block states, and `12-UAT.md` records public-safe real-store UAT rules.
 - Phase 12 Plan 05 completed: Command Center now synthesizes `Bloqueios do piloto`, release/UAT/testing docs are reconciled, `12-VALIDATION.md` is nyquist-compliant with explicit external blockers, `pnpm.cmd check` and web E2E passed, and installed Android/provider/camera/physical UAT remain externally blocked.
+- v1.0 milestone audit completed: `v1.0-MILESTONE-AUDIT.md` status is `gaps_found` because 14 v1 requirements are checked in `REQUIREMENTS.md` and present in summaries but absent from every phase `VERIFICATION.md`; repo gates and web E2E passed, Android/provider/camera/physical UAT remain external blockers.
 
 ### Quick Tasks Completed
 
