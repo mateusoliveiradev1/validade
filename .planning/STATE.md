@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 12
-status: Executing Phase 12 - 1/5 plans complete
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-06-28T14:47:01.424Z"
+status: Executing Phase 12 - 2/5 plans complete
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-06-28T15:09:03.115Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 12
   completed_phases: 11
   total_plans: 54
-  completed_plans: 50
-  percent: 92
+  completed_plans: 51
+  percent: 94
 ---
 
 # Project State: Validade Zero
@@ -46,7 +46,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 | 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
 | 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
 | 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
-| 12 | In Progress | Pilot Operations and Device Readiness - 1/5 plans complete; device readiness model and Command Center panel verified |
+| 12 | In Progress | Pilot Operations and Device Readiness - 2/5 plans complete; safe push-test command and timeline verified |
 
 ## Active Constraints
 
@@ -58,7 +58,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Next Step
 
-Continue Phase 12 sequentially with the safe push-test command, provider outcome timeline, and leadership access plan.
+Continue Phase 12 sequentially with pilot build metadata, versioning, and installed-build truth.
 
 ```powershell
 $gsd-execute-phase 12
@@ -85,6 +85,7 @@ $gsd-execute-phase 12
 - Phase 12 added: Pilot Operations and Device Readiness for device health, push-test observability, release truth, guided real-store UAT, and blocker visibility before rollout claims.
 - Phase 12 planned: 5 sequential plans for device readiness, safe push-test timeline, installed-build truth, guided Loja 18 UAT, and final blocker/release validation.
 - Phase 12 Plan 01 completed: public-safe Apto/Atencao/Bloqueado device readiness contracts, central_device_snapshots readiness persistence, store-scoped API projection, and Command Center `Aparelhos do piloto` panel with blocker causes and next actions.
+- Phase 12 Plan 02 completed: safe push-test contracts, same-store lead/admin API authority, sanitized provider/token/permission timeline, and Command Center action that never resolves tasks or proves area segura.
 
 ### Quick Tasks Completed
 
@@ -154,18 +155,22 @@ $gsd-execute-phase 12
 | Phase 11 P03 | 25 min | 3 tasks | 7 files |
 | Phase 11 P04 | 35 min | 3 tasks | 17 files |
 | Phase 12 P01 | 24 min | 3 tasks | 10 files |
+| Phase 12 P02 | 22 min | 3 tasks | 21 files |
 
 ## Session
 
-**Last session:** 2026-06-28T14:46:08.260Z
-**Stopped at:** Completed 12-01-PLAN.md
-**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-02-PLAN.md
+**Last session:** 2026-06-28T15:09:03.115Z
+**Stopped at:** Completed 12-02-PLAN.md
+**Resume file:** .planning/phases/12-pilot-operations-and-device-readiness/12-03-PLAN.md
 
 ## Decisions
 
 - [Phase 12]: Device readiness stays on central_device_snapshots rather than a separate truth island. - Keeps device health tied to central prepare-turn and store scope.
 - [Phase 12]: Device presence means timestamp facts only. - Last foreground, last sync, and last central read do not claim live presence or physical execution.
 - [Phase 12]: Push readiness can be Atencao or Bloqueado depending on the current proof target. - Local-only push is not fatal for non-push steps, but blocks any step proving remote push.
+- [Phase 12]: Safe push tests are diagnostic only. - Provider accepted, opened, or local-only outcomes never resolve task state, close shift, or prove the sales area safe.
+- [Phase 12]: `pilot.push_test.send` is separate from Command Center read. - Same-store lead/admin can send the diagnostic while admin operational read remains separately denied unless granted.
+- [Phase 12]: Push-test evidence is public-safe. - Timeline rows use masked device references, bounded states, requester labels, and next action without Expo tokens or raw provider payloads.
 - [Phase 11]: Synced transport is neutral and not proven safe. - Only central operational resolution or safe-close proof can use proven-safe success semantics.
 - [Phase 11]: Hoje shows central/local/sync state directly under the sales-area verdict. - The operator sees truth status before explanatory copy, metrics, or actions.
 - [Phase 11]: Prepare-turn local cache remains secondary and explicitly non-safe. - Local cache can continue visible work but cannot declare a safe central read.
