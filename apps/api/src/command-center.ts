@@ -1,5 +1,6 @@
 import {
   CommandCenterProjectionSchema,
+  PILOT_UAT_STEP_IDS,
   type ActiveTaskSnippet,
   type AuditTimelineItem,
   type CentralConflictSnippet,
@@ -33,11 +34,13 @@ export function createInMemoryCommandCenterService(input?: {
         return Promise.resolve(CommandCenterProjectionSchema.parse(input.projection));
       }
 
+      const refreshedAt = now().toISOString();
+
       return Promise.resolve(
         CommandCenterProjectionSchema.parse({
           storeId: scope.storeId,
           storeName: scope.storeName,
-          refreshedAt: now().toISOString(),
+          refreshedAt,
           freshness: "stale",
           verdict: {
             state: "needs_review",
@@ -62,6 +65,7 @@ export function createInMemoryCommandCenterService(input?: {
           pendingShiftCloses: [],
           shiftHistory: [],
           devices: [],
+          pilotUat: buildPilotUatChecklist(scope, refreshedAt),
         }),
       );
     },
@@ -149,10 +153,12 @@ export function createAuditBackedCommandCenterService(input: {
       const syncEvents = page.items;
 
       if (syncEvents.length === 0) {
+        const refreshedAt = now().toISOString();
+
         return CommandCenterProjectionSchema.parse({
           storeId: scope.storeId,
           storeName: scope.storeName,
-          refreshedAt: now().toISOString(),
+          refreshedAt,
           freshness: "stale",
           verdict: {
             state: "needs_review",
@@ -177,6 +183,9 @@ export function createAuditBackedCommandCenterService(input: {
           pendingShiftCloses: [],
           shiftHistory: [],
           devices: [],
+          pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
+            centralReadBlocked: true,
+          }),
         });
       }
 
@@ -242,10 +251,12 @@ export function createAuditBackedCommandCenterService(input: {
         (item) => item.draftId,
       );
 
+      const refreshedAt = now().toISOString();
+
       return CommandCenterProjectionSchema.parse({
         storeId: scope.storeId,
         storeName: scope.storeName,
-        refreshedAt: now().toISOString(),
+        refreshedAt,
         freshness: "current",
         verdict,
         centralSnapshot: {
@@ -268,8 +279,8 @@ export function createAuditBackedCommandCenterService(input: {
           discardedActionCount: 0,
           resolvedHistoryCount: 0,
           pendingCommandCount: 0,
-          lastCentralReadAt: now().toISOString(),
-          lastHydratedAt: now().toISOString(),
+          lastCentralReadAt: refreshedAt,
+          lastHydratedAt: refreshedAt,
           blockers:
             verdict.state === "safe"
               ? []
@@ -313,6 +324,11 @@ export function createAuditBackedCommandCenterService(input: {
         pendingShiftCloses: [],
         shiftHistory: [],
         devices: [],
+        pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
+          centralReadReady: verdict.state !== "blocked",
+          hasOperationalFacts: syncEvents.length > 0,
+          hasActiveBlockers: verdict.state !== "safe",
+        }),
       });
     },
   };
@@ -350,6 +366,9 @@ function failClosedProjection(
     pendingShiftCloses: [],
     shiftHistory: [],
     devices: [],
+    pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
+      centralReadBlocked: true,
+    }),
   });
 }
 
@@ -421,7 +440,187 @@ function projectionFromCentralPrepareTurn(
     pendingShiftCloses: [],
     shiftHistory: [],
     devices: [...devices],
+    pilotUat: buildPilotUatChecklist(scope, refreshedAt, {
+      centralReadReady: freshness === "current" && prepared.store.readiness === "prepared",
+      hasAcceptedPushTest: devices.some((device) =>
+        (device.pushTests ?? []).some((item) =>
+          ["provider_accepted", "opened"].includes(item.state),
+        ),
+      ),
+      hasActiveBlockers: blockerCount > 0,
+      hasDevice: devices.length > 0,
+      hasOperationalFacts,
+    }),
   });
+}
+
+type PilotUatStep = CommandCenterProjection["pilotUat"]["steps"][number];
+
+type PilotUatStepTemplate = Pick<PilotUatStep, "stepId" | "label" | "ownerLabel" | "actionLabel"> &
+  Partial<Pick<PilotUatStep, "nextAction" | "operatorNote" | "evidenceReferenceLabel">>;
+
+const PILOT_UAT_STEP_TEMPLATES: readonly PilotUatStepTemplate[] = [
+  {
+    stepId: "prepare_turn",
+    label: "Preparar turno",
+    ownerLabel: "Lideranca Loja 18",
+    actionLabel: "Abrir Preparar turno no APK aprovado.",
+    nextAction: "Preparar turno com leitura central atual antes de iniciar UAT.",
+  },
+  {
+    stepId: "product_real_input",
+    label: "Produto real da Loja 18",
+    ownerLabel: "Operacao Loja 18",
+    actionLabel: "Cadastrar ou reutilizar produto real informado pelo usuario.",
+    operatorNote: "Produto ficticio ou seed nao passa esta etapa.",
+    nextAction: "Usar produto real da Loja 18 e registrar status sanitizado.",
+  },
+  {
+    stepId: "lot_registration",
+    label: "Lote real registrado",
+    ownerLabel: "Operacao Loja 18",
+    actionLabel: "Registrar lote real do produto escolhido.",
+    operatorNote: "Lote ficticio ou seed nao passa esta etapa.",
+    nextAction: "Registrar lote real e confirmar que apareceu pela central.",
+  },
+  {
+    stepId: "terminal_resolution",
+    label: "Resolucao terminal",
+    ownerLabel: "Operacao Loja 18",
+    actionLabel: "Executar acao fisica compativel no mobile.",
+    nextAction: "Resolver risco real e aguardar confirmacao central.",
+  },
+  {
+    stepId: "second_device_convergence",
+    label: "Segundo aparelho",
+    ownerLabel: "Lideranca Loja 18",
+    actionLabel: "Preparar turno em outro aparelho ou conta da mesma loja.",
+    nextAction: "Confirmar que outro dispositivo le a mesma verdade central.",
+  },
+  {
+    stepId: "command_center_consistency",
+    label: "Command Center consistente",
+    ownerLabel: "Lideranca Loja 18",
+    actionLabel: "Comparar Hoje, historico e Command Center depois do sync.",
+    nextAction: "Atualizar painel e conferir se nao ha divergencia central.",
+  },
+  {
+    stepId: "safe_push_test",
+    label: "Teste seguro de push",
+    ownerLabel: "Lideranca Loja 18",
+    actionLabel: "Enviar teste seguro para aparelho aprovado.",
+    nextAction: "Executar o teste e registrar somente resultado sanitizado.",
+  },
+  {
+    stepId: "camera_evidence_or_fallback",
+    label: "Camera ou fallback",
+    ownerLabel: "Operacao Loja 18",
+    actionLabel: "Validar camera ou motivo sem foto no aparelho aprovado.",
+    nextAction: "Executar em Android aprovado e registrar status sanitizado.",
+  },
+  {
+    stepId: "shift_close",
+    label: "Fechamento de turno",
+    ownerLabel: "Lideranca Loja 18",
+    actionLabel: "Fechar turno somente apos revalidacao central.",
+    nextAction: "Concluir etapas pendentes antes de tentar fechamento seguro.",
+  },
+] satisfies readonly PilotUatStepTemplate[];
+
+function buildPilotUatChecklist(
+  scope: { storeId: string; storeName: string },
+  updatedAt: string,
+  input: {
+    centralReadReady?: boolean;
+    centralReadBlocked?: boolean;
+    hasAcceptedPushTest?: boolean;
+    hasActiveBlockers?: boolean;
+    hasDevice?: boolean;
+    hasOperationalFacts?: boolean;
+  } = {},
+): CommandCenterProjection["pilotUat"] {
+  const overrides = new Map<PilotUatStep["stepId"], Partial<PilotUatStep>>();
+  const hasDevice = input.hasDevice ?? false;
+  const hasActiveBlockers = input.hasActiveBlockers ?? true;
+
+  if (input.centralReadReady === true) {
+    overrides.set("prepare_turn", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Leitura central preparada",
+      nextAction: "Seguir para produto real da Loja 18.",
+    });
+  } else if (input.centralReadBlocked === true) {
+    overrides.set("prepare_turn", {
+      state: "blocked",
+      cause: "Leitura central indisponivel ou sem fatos confiaveis.",
+      nextAction: "Abrir Preparar turno no APK aprovado antes de continuar.",
+      evidenceReferenceLabel: "Leitura central bloqueada",
+    });
+  }
+
+  if (input.hasOperationalFacts === true && input.centralReadReady === true) {
+    overrides.set("command_center_consistency", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Painel atualizado com leitura central",
+      nextAction: "Conferir se produto/lote UAT real foi registrado antes de marcar as etapas.",
+    });
+  }
+
+  if (!hasDevice) {
+    overrides.set("safe_push_test", {
+      state: "external_blocked",
+      cause: "Nenhum aparelho aprovado apareceu nesta loja.",
+      nextAction: "Entrar no APK aprovado, preparar turno e repetir o teste seguro.",
+      evidenceReferenceLabel: "Sem aparelho aprovado",
+    });
+  } else if (input.hasAcceptedPushTest === true) {
+    overrides.set("safe_push_test", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Timeline de push seguro aceita",
+      nextAction: "Registrar abertura/recebimento no controle UAT quando houver aparelho real.",
+    });
+  }
+
+  overrides.set("camera_evidence_or_fallback", {
+    state: "external_blocked",
+    cause: "Sem prova publica de Android aprovado com camera nesta execucao.",
+    nextAction: "Executar no aparelho aprovado e registrar somente status sanitizado.",
+    evidenceReferenceLabel: "Camera bloqueada externamente",
+  });
+
+  if (hasActiveBlockers) {
+    overrides.set("shift_close", {
+      state: "blocked",
+      cause: "Ainda ha etapas UAT ou bloqueios operacionais pendentes.",
+      nextAction:
+        "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
+      evidenceReferenceLabel: "Fechamento bloqueado",
+    });
+  }
+
+  const steps: PilotUatStep[] = PILOT_UAT_STEP_TEMPLATES.map((template) => ({
+    ...template,
+    state: "pending",
+    updatedAt,
+    ...overrides.get(template.stepId),
+  }));
+
+  if (steps.length !== PILOT_UAT_STEP_IDS.length) {
+    throw new Error("Pilot UAT step template count does not match the contract.");
+  }
+
+  return {
+    title: "UAT Loja 18",
+    storeId: scope.storeId,
+    storeName: scope.storeName,
+    summary:
+      "Checklist guia o UAT real; produto e lote ficticios nao contam como prova da Loja 18.",
+    updatedAt,
+    steps,
+  };
 }
 
 function centralVerdict(input: {

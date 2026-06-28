@@ -1,5 +1,9 @@
 import * as React from "react";
-import type { CommandCenterProjection, SafePushTestResult } from "@validade-zero/contracts";
+import {
+  PILOT_UAT_STEP_IDS,
+  type CommandCenterProjection,
+  type SafePushTestResult,
+} from "@validade-zero/contracts";
 import { BellRing, RefreshCw, Search, Smartphone } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -192,6 +196,8 @@ function CommandCenterProjectionView({
         onSendSafePushTest={onSendSafePushTest}
       />
 
+      <PilotUatPanel checklist={projection.pilotUat} />
+
       <CommandCenterInsightPanel
         canOpenAudit={canOpenAudit}
         insight={insight}
@@ -324,6 +330,99 @@ function CommandCenterProjectionView({
         />
       </div>
     </div>
+  );
+}
+
+function PilotUatPanel({ checklist }: { checklist: CommandCenterProjection["pilotUat"] }) {
+  const orderedSteps = [...checklist.steps].sort(
+    (left, right) => uatStepOrder(left.stepId) - uatStepOrder(right.stepId),
+  );
+  const nextStep = orderedSteps.find((step) => step.state !== "passed");
+  const passedCount = checklist.steps.filter((step) => step.state === "passed").length;
+  const blockedCount = checklist.steps.filter((step) => step.state === "blocked").length;
+  const externalBlockedCount = checklist.steps.filter(
+    (step) => step.state === "external_blocked",
+  ).length;
+
+  return (
+    <section
+      className="grid gap-4 rounded-lg border border-border bg-card p-4"
+      aria-label="UAT Loja 18"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-primary">UAT Loja 18</p>
+          <h2 className="text-xl font-semibold leading-6">Checklist guiado do piloto real</h2>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            {checklist.summary}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={passedCount === checklist.steps.length ? "success" : "neutral"}>
+            {passedCount}/{checklist.steps.length} passou
+          </Badge>
+          <Badge tone={blockedCount === 0 ? "success" : "critical"}>
+            {blockedCount} bloqueio(s)
+          </Badge>
+          <Badge tone={externalBlockedCount === 0 ? "success" : "warning"}>
+            {externalBlockedCount} externo(s)
+          </Badge>
+        </div>
+      </div>
+
+      {nextStep === undefined ? (
+        <div className="rounded-md border border-border bg-accent/10 p-3 text-sm leading-5">
+          <span className="font-medium">Proximo passo: </span>
+          Registrar fechamento UAT sanitizado antes de qualquer rollout.
+        </div>
+      ) : (
+        <div className="rounded-md border border-border bg-background p-3 text-sm leading-5">
+          <span className="font-medium">Proximo passo: </span>
+          {nextStep.nextAction ?? nextStep.actionLabel}
+        </div>
+      )}
+
+      <div className="grid">
+        {orderedSteps.map((step) => (
+          <div
+            key={step.stepId}
+            className="grid gap-2 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="grid min-w-0 gap-1">
+                <p className="font-medium">{step.label}</p>
+                <p className="text-sm leading-5 text-muted-foreground">
+                  {step.ownerLabel} - {step.actionLabel}
+                </p>
+              </div>
+              <Badge tone={uatStepTone(step.state)}>{uatStepStateLabel(step.state)}</Badge>
+            </div>
+            {step.operatorNote === undefined ? null : (
+              <p className="text-sm leading-5 text-muted-foreground">{step.operatorNote}</p>
+            )}
+            {step.cause === undefined ? null : (
+              <p className="text-sm leading-5">
+                <span className="font-medium">Causa: </span>
+                {step.cause}
+              </p>
+            )}
+            {step.nextAction === undefined ? null : (
+              <p className="text-sm leading-5">
+                <span className="font-medium">Agora: </span>
+                {step.nextAction}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground">
+              <span>Evidencia: {step.evidenceReferenceLabel ?? "Aguardando registro seguro"}</span>
+              <span>Atualizado: {formatDateTime(step.updatedAt)}</span>
+              {step.occurredAt === undefined ? null : (
+                <span>Passou: {formatDateTime(step.occurredAt)}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1364,6 +1463,29 @@ function deviceVerdictLabel(
   if (verdict === "bloqueado") return "Bloqueado";
   if (verdict === "atencao") return "Atencao";
   return "Apto";
+}
+
+function uatStepOrder(stepId: CommandCenterProjection["pilotUat"]["steps"][number]["stepId"]) {
+  const index = PILOT_UAT_STEP_IDS.indexOf(stepId);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function uatStepTone(
+  state: CommandCenterProjection["pilotUat"]["steps"][number]["state"],
+): "success" | "warning" | "critical" | "neutral" {
+  if (state === "passed") return "success";
+  if (state === "blocked") return "critical";
+  if (state === "external_blocked") return "warning";
+  return "neutral";
+}
+
+function uatStepStateLabel(
+  state: CommandCenterProjection["pilotUat"]["steps"][number]["state"],
+): string {
+  if (state === "passed") return "Passou";
+  if (state === "blocked") return "Bloqueado";
+  if (state === "external_blocked") return "Bloqueio externo";
+  return "Pendente";
 }
 
 function buildCompatibilityTone(

@@ -6,6 +6,10 @@ const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const ShortLabelSchema = z.string().trim().min(1).max(80);
 const UNKNOWN_BUILD_LABEL = "nao informado";
+const PublicSafeTextSchema = RequiredTextSchema.refine(
+  (value) => !/(https?:\/\/|eas:\/\/|token|secret|password|ExpoPushToken|buildUrl)/i.test(value),
+  "Public evidence text cannot contain private URLs, tokens, or build links.",
+);
 
 export const PilotDeviceReadinessVerdictSchema = z.enum(["apto", "atencao", "bloqueado"]);
 export const PilotBuildCompatibilitySchema = z.enum([
@@ -255,6 +259,82 @@ export const CommandCenterShiftHistorySchema = z
   })
   .strict();
 
+export const PilotUatStepIdSchema = z.enum([
+  "prepare_turn",
+  "product_real_input",
+  "lot_registration",
+  "terminal_resolution",
+  "second_device_convergence",
+  "command_center_consistency",
+  "safe_push_test",
+  "camera_evidence_or_fallback",
+  "shift_close",
+]);
+
+export const PILOT_UAT_STEP_IDS = PilotUatStepIdSchema.options;
+
+export const PilotUatStepStateSchema = z.enum(["pending", "passed", "blocked", "external_blocked"]);
+
+export const PilotUatStepSchema = z
+  .object({
+    stepId: PilotUatStepIdSchema,
+    label: RequiredTextSchema,
+    state: PilotUatStepStateSchema,
+    ownerLabel: RequiredTextSchema,
+    actionLabel: RequiredTextSchema,
+    operatorNote: PublicSafeTextSchema.optional(),
+    cause: PublicSafeTextSchema.optional(),
+    nextAction: PublicSafeTextSchema.optional(),
+    evidenceReferenceLabel: PublicSafeTextSchema.optional(),
+    occurredAt: IsoDateTimeSchema.optional(),
+    updatedAt: IsoDateTimeSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      (value.state === "blocked" || value.state === "external_blocked") &&
+      (value.cause === undefined || value.nextAction === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["state"],
+        message: "Blocked UAT steps require cause and next action.",
+      });
+    }
+  });
+
+export const PilotUatChecklistSchema = z
+  .object({
+    title: RequiredTextSchema,
+    storeId: IdentifierSchema,
+    storeName: RequiredTextSchema,
+    summary: PublicSafeTextSchema,
+    updatedAt: IsoDateTimeSchema,
+    steps: z.array(PilotUatStepSchema).length(PILOT_UAT_STEP_IDS.length),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const seen = new Set(value.steps.map((step) => step.stepId));
+
+    for (const stepId of PILOT_UAT_STEP_IDS) {
+      if (!seen.has(stepId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["steps"],
+          message: `Missing required UAT step ${stepId}.`,
+        });
+      }
+    }
+
+    if (seen.size !== value.steps.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["steps"],
+        message: "UAT checklist steps must be unique.",
+      });
+    }
+  });
+
 export const CommandCenterProjectionSchema = z
   .object({
     storeId: IdentifierSchema,
@@ -274,6 +354,7 @@ export const CommandCenterProjectionSchema = z
     pendingShiftCloses: z.array(CommandCenterPendingShiftSchema),
     shiftHistory: z.array(CommandCenterShiftHistorySchema),
     devices: z.array(PilotDeviceReadinessSchema),
+    pilotUat: PilotUatChecklistSchema,
   })
   .strict();
 
@@ -281,6 +362,10 @@ export type CommandCenterProjection = z.infer<typeof CommandCenterProjectionSche
 export type PilotDeviceReadiness = z.infer<typeof PilotDeviceReadinessSchema>;
 export type PilotDeviceReadinessVerdict = z.infer<typeof PilotDeviceReadinessVerdictSchema>;
 export type PilotBuildCompatibility = z.infer<typeof PilotBuildCompatibilitySchema>;
+export type PilotUatChecklist = z.infer<typeof PilotUatChecklistSchema>;
+export type PilotUatStep = z.infer<typeof PilotUatStepSchema>;
+export type PilotUatStepId = z.infer<typeof PilotUatStepIdSchema>;
+export type PilotUatStepState = z.infer<typeof PilotUatStepStateSchema>;
 
 export interface ResolvePilotBuildCompatibilityInput {
   appVersion?: string | undefined;

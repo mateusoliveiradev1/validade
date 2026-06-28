@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CommandCenterProjectionSchema,
+  PilotUatChecklistSchema,
   PilotDeviceReadinessSchema,
   resolvePilotBuildCompatibility,
+  type PilotUatChecklist,
 } from "./command-center";
 
 describe("Command Center contracts", () => {
@@ -74,6 +76,7 @@ describe("Command Center contracts", () => {
       pendingShiftCloses: [],
       shiftHistory: [],
       devices: [],
+      pilotUat: pilotUatChecklist(),
     });
 
     expect(parsed.criticalLots[0]?.cause).toMatchObject({
@@ -217,6 +220,68 @@ describe("Command Center contracts", () => {
       }),
     ).toBe("desconhecido");
   });
+
+  it("requires the guided Loja 18 UAT checklist to cover every real pilot step once", () => {
+    const parsed = PilotUatChecklistSchema.parse(pilotUatChecklist());
+    const checklist = pilotUatChecklist();
+    const firstStep = checklist.steps[0];
+
+    if (firstStep === undefined) {
+      throw new Error("Fixture should include a first UAT step.");
+    }
+
+    expect(parsed.steps.map((step) => step.stepId)).toEqual([
+      "prepare_turn",
+      "product_real_input",
+      "lot_registration",
+      "terminal_resolution",
+      "second_device_convergence",
+      "command_center_consistency",
+      "safe_push_test",
+      "camera_evidence_or_fallback",
+      "shift_close",
+    ]);
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...checklist,
+        steps: [...checklist.steps.slice(0, -1), firstStep],
+      }),
+    ).toThrow();
+  });
+
+  it("keeps UAT blockers causal and evidence references public-safe", () => {
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...pilotUatChecklist(),
+        steps: pilotUatChecklist().steps.map((step) =>
+          step.stepId === "safe_push_test"
+            ? {
+                ...step,
+                state: "external_blocked",
+                cause: "Provider ainda sem aparelho Android aprovado.",
+                evidenceReferenceLabel: "https://expo.dev/artifacts/secret-token",
+              }
+            : step,
+        ),
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...pilotUatChecklist(),
+        steps: pilotUatChecklist().steps.map((step) =>
+          step.stepId === "shift_close"
+            ? {
+                ...step,
+                state: "blocked",
+                cause: undefined,
+                nextAction: undefined,
+              }
+            : step,
+        ),
+      }),
+    ).toThrow();
+  });
 });
 
 function deviceReadiness(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -252,4 +317,103 @@ function baseDeviceReadiness() {
     nextAction: "Aparelho apto para iniciar UAT guiado.",
     updatedAt: "2030-01-10T12:00:00.000Z",
   };
+}
+
+function pilotUatChecklist(overrides: Partial<PilotUatChecklist> = {}): PilotUatChecklist {
+  const updatedAt = "2030-01-10T12:00:00.000Z";
+
+  return PilotUatChecklistSchema.parse({
+    title: "UAT Loja 18",
+    storeId: "loja-18",
+    storeName: "Loja 18 - Staging",
+    summary: "Checklist publico seguro para executar UAT real da Loja 18.",
+    updatedAt,
+    steps: [
+      {
+        stepId: "prepare_turn",
+        label: "Preparar turno",
+        state: "passed",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Abrir Preparar turno no APK aprovado.",
+        evidenceReferenceLabel: "Leitura central registrada",
+        occurredAt: updatedAt,
+        updatedAt,
+      },
+      {
+        stepId: "product_real_input",
+        label: "Produto real da Loja 18",
+        state: "pending",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Cadastrar ou reutilizar produto real informado pelo usuario.",
+        nextAction: "Usar produto real; produto ficticio nao passa UAT.",
+        updatedAt,
+      },
+      {
+        stepId: "lot_registration",
+        label: "Lote real registrado",
+        state: "pending",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Registrar lote real do produto escolhido.",
+        nextAction: "Registrar lote real; lote ficticio nao passa UAT.",
+        updatedAt,
+      },
+      {
+        stepId: "terminal_resolution",
+        label: "Resolucao terminal",
+        state: "pending",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Executar acao fisica compativel.",
+        updatedAt,
+      },
+      {
+        stepId: "second_device_convergence",
+        label: "Segundo aparelho",
+        state: "pending",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Preparar turno em outro aparelho/conta.",
+        updatedAt,
+      },
+      {
+        stepId: "command_center_consistency",
+        label: "Command Center consistente",
+        state: "pending",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Comparar central, Hoje e historico resolvido.",
+        updatedAt,
+      },
+      {
+        stepId: "safe_push_test",
+        label: "Teste seguro de push",
+        state: "external_blocked",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Enviar teste seguro para aparelho aprovado.",
+        cause: "Sem prova de provider Android nesta execucao.",
+        nextAction: "Conectar aparelho aprovado e repetir o teste seguro.",
+        evidenceReferenceLabel: "Provider bloqueado externamente",
+        updatedAt,
+      },
+      {
+        stepId: "camera_evidence_or_fallback",
+        label: "Camera ou fallback",
+        state: "external_blocked",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Validar camera ou motivo sem foto.",
+        cause: "Sem hardware Android aprovado nesta execucao.",
+        nextAction: "Executar no aparelho aprovado e registrar status sanitizado.",
+        evidenceReferenceLabel: "Camera bloqueada externamente",
+        updatedAt,
+      },
+      {
+        stepId: "shift_close",
+        label: "Fechamento de turno",
+        state: "blocked",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Fechar turno somente apos revalidacao central.",
+        cause: "Ainda ha etapas UAT pendentes.",
+        nextAction: "Concluir produto, lote, resolucao e convergencia antes do fechamento seguro.",
+        updatedAt,
+      },
+    ],
+    ...overrides,
+  });
 }

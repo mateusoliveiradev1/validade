@@ -69,6 +69,22 @@ O seed nao faz:
 6. Voltar ao web Command Center e acionar atualizar. O produto/lote precisa aparecer pela central, nao so no aparelho.
 7. Sair e entrar em outro navegador/dispositivo com conta da mesma Loja 18. O mesmo lote precisa aparecer.
 
+## UAT guiado no Command Center
+
+O Command Center agora mostra `UAT Loja 18` como checklist operacional. Use o painel para acompanhar as etapas, mas execute as acoes no mobile:
+
+1. Preparar turno no APK aprovado e confirmar build compativel.
+2. Cadastrar ou reutilizar produto real informado pelo usuario.
+3. Registrar lote real do produto escolhido.
+4. Executar resolucao terminal compativel e aguardar historico central.
+5. Preparar turno em segundo aparelho ou segunda conta da Loja 18.
+6. Comparar Hoje, historico e Command Center depois do sync.
+7. Enviar teste seguro de push sem tratar push como execucao fisica.
+8. Validar camera ou fallback sem foto em Android aprovado.
+9. Fechar turno somente depois de revalidacao central e remocao de bloqueios.
+
+Estados permitidos no registro publico: `pending`, `passed`, `blocked` e `external_blocked`. Para `blocked` ou `external_blocked`, registre causa e proxima acao. Nao registre produto real, lote real, foto, serial de aparelho, token, provider ticket, build URL ou link privado no repositorio publico.
+
 ## Passa somente se
 
 - `stores` contem 23 lojas ativas.
@@ -77,6 +93,7 @@ O seed nao faz:
 - Login web retorna `session.store.storeId = loja-18`.
 - Uma conta fora da Loja 18 nao ve dados da Loja 18.
 - Command Center e preparo de turno convergem para os mesmos produtos/lotes centrais.
+- A checklist `UAT Loja 18` mostra produto/lote real como passed somente depois de entrada real do usuario, nunca por fixture, seed ou dado `FICTICIO`.
 
 ## Limites conhecidos
 

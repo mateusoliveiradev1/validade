@@ -115,6 +115,7 @@ const projection = {
       occurredAt: "2030-01-10T08:00:00.000Z",
     },
   ],
+  pilotUat: pilotUatChecklist("loja-piloto", "Loja Ficticia Piloto"),
   devices: [
     {
       deviceIdMasked: "moto...001",
@@ -198,6 +199,114 @@ const projection = {
   ],
 } as const;
 
+function pilotUatChecklist(storeId: string, storeName: string) {
+  const updatedAt = "2030-01-10T12:00:00.000Z";
+
+  return {
+    title: "UAT Loja 18",
+    storeId,
+    storeName,
+    summary:
+      "Checklist guia o UAT real; produto e lote ficticios nao contam como prova da Loja 18.",
+    updatedAt,
+    steps: [
+      {
+        stepId: "prepare_turn",
+        label: "Preparar turno",
+        state: "passed",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Abrir Preparar turno no APK aprovado.",
+        evidenceReferenceLabel: "Leitura central preparada",
+        occurredAt: updatedAt,
+        updatedAt,
+      },
+      {
+        stepId: "product_real_input",
+        label: "Produto real da Loja 18",
+        state: "pending",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Cadastrar ou reutilizar produto real informado pelo usuario.",
+        operatorNote: "Produto ficticio ou seed nao passa esta etapa.",
+        nextAction: "Usar produto real da Loja 18.",
+        updatedAt,
+      },
+      {
+        stepId: "lot_registration",
+        label: "Lote real registrado",
+        state: "pending",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Registrar lote real do produto escolhido.",
+        operatorNote: "Lote ficticio ou seed nao passa esta etapa.",
+        nextAction: "Registrar lote real e conferir central.",
+        updatedAt,
+      },
+      {
+        stepId: "terminal_resolution",
+        label: "Resolucao terminal",
+        state: "blocked",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Executar acao fisica compativel no mobile.",
+        cause: "Tarefa critica ficticia segue ativa.",
+        nextAction: "Executar resolucao real e aguardar central.",
+        evidenceReferenceLabel: "Resolucao pendente",
+        updatedAt,
+      },
+      {
+        stepId: "second_device_convergence",
+        label: "Segundo aparelho",
+        state: "pending",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Preparar turno em outro aparelho ou conta da mesma loja.",
+        nextAction: "Confirmar convergencia em aparelho aprovado.",
+        updatedAt,
+      },
+      {
+        stepId: "command_center_consistency",
+        label: "Command Center consistente",
+        state: "passed",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Comparar Hoje, historico e Command Center depois do sync.",
+        evidenceReferenceLabel: "Painel atualizado com leitura central",
+        occurredAt: updatedAt,
+        updatedAt,
+      },
+      {
+        stepId: "safe_push_test",
+        label: "Teste seguro de push",
+        state: "external_blocked",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Enviar teste seguro para aparelho aprovado.",
+        cause: "Provider Android real nao foi provado nesta execucao.",
+        nextAction: "Conectar aparelho aprovado e repetir teste seguro.",
+        evidenceReferenceLabel: "Provider bloqueado externamente",
+        updatedAt,
+      },
+      {
+        stepId: "camera_evidence_or_fallback",
+        label: "Camera ou fallback",
+        state: "external_blocked",
+        ownerLabel: "Operacao Loja 18",
+        actionLabel: "Validar camera ou motivo sem foto no aparelho aprovado.",
+        cause: "Sem hardware Android aprovado nesta execucao.",
+        nextAction: "Executar no aparelho aprovado e registrar status sanitizado.",
+        evidenceReferenceLabel: "Camera bloqueada externamente",
+        updatedAt,
+      },
+      {
+        stepId: "shift_close",
+        label: "Fechamento de turno",
+        state: "blocked",
+        ownerLabel: "Lideranca Loja 18",
+        actionLabel: "Fechar turno somente apos revalidacao central.",
+        cause: "Ha etapas UAT pendentes.",
+        nextAction: "Concluir etapas pendentes antes do fechamento seguro.",
+        evidenceReferenceLabel: "Fechamento bloqueado",
+        updatedAt,
+      },
+    ],
+  };
+}
+
 describe("CommandCenter", () => {
   afterEach(() => {
     cleanup();
@@ -213,6 +322,10 @@ describe("CommandCenter", () => {
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
     expect(screen.getByText("Foto da central")).toBeTruthy();
     expect(screen.getByText("Aparelhos do piloto")).toBeTruthy();
+    expect(screen.getByText("UAT Loja 18")).toBeTruthy();
+    expect(screen.getByText("Produto real da Loja 18")).toBeTruthy();
+    expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
+    expect(screen.getByText(/Provider bloqueado externamente/)).toBeTruthy();
     expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
     expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
     expect(screen.getByText(/phase-12-staging-apk-120/)).toBeTruthy();
