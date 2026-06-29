@@ -38,9 +38,9 @@ import {
   type ShiftClosureSnapshot,
   type PrivacyTopicId,
 } from "@validade-zero/contracts";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
 import brandSymbol from "../../assets/brand-symbol.png";
-import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
+import { captureColors, captureSpacing } from "../capture/capture-theme";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
 import { FirstAccessScreen } from "./FirstAccessScreen";
 import { LoginScreen } from "./LoginScreen";

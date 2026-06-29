@@ -152,6 +152,36 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
   });
 }
 
+function renderedText(tree: ReactTestRenderer): string {
+  return flattenText(tree.toJSON());
+}
+
+function flattenText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(flattenText).join("");
+  }
+
+  if (value !== null && typeof value === "object" && "children" in value) {
+    return flattenText((value as { children?: unknown }).children);
+  }
+
+  return "";
+}
+
+function expectTextInOrder(text: string, expected: readonly string[]): void {
+  let cursor = -1;
+
+  for (const value of expected) {
+    const next = text.indexOf(value, cursor + 1);
+    expect(next).toBeGreaterThan(cursor);
+    cursor = next;
+  }
+}
+
 function inputByLabel(tree: ReactTestRenderer, label: string) {
   const input = tree.root.findAllByType("TextInput").find((candidate) =>
     String(candidate.props.accessibilityLabel ?? "")
@@ -544,6 +574,61 @@ describe("mobile release journeys", () => {
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Hoje - Nenhum bloqueio ativo na leitura central",
     );
+  });
+
+  it("keeps Ajustes complete and route-preserving across Hoje and task resolution", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    const openPrivacyCenter = vi.fn();
+    const requestLogout = vi.fn();
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={releaseOfflineRepository()}
+          alertChannel={createFakePushAlertChannel()}
+          authControls={{ openPrivacyCenter, requestLogout }}
+          session={activeSession()}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Integrated Ajustes journey did not render.");
+
+    expect(renderedText(tree)).toContain("Area de venda com risco agora");
+
+    await press(tree, "Abrir Ajustes do aparelho");
+
+    expectTextInOrder(renderedText(tree), [
+      "Conta e loja",
+      "Push e lembretes",
+      "Sincronizacao",
+      "Atualizacao do app",
+      "Privacidade",
+      "Sair com pendencias visiveis",
+    ]);
+
+    await press(tree, "Voltar para operacao");
+
+    expect(renderedText(tree)).toContain("Hoje");
+    expect(renderedText(tree)).toContain("Area de venda com risco agora");
+
+    await press(tree, "Retirar agora");
+
+    expect(renderedText(tree)).toContain("Acao exigida:");
+    expect(renderedText(tree)).toContain("Iogurte FICTICIO");
+
+    await press(tree, "Abrir Ajustes do aparelho");
+
+    expect(renderedText(tree)).toContain("Sair com pendencias visiveis");
+
+    await press(tree, "Voltar para operacao");
+
+    expect(renderedText(tree)).toContain("Acao exigida:");
+    expect(renderedText(tree)).toContain("Iogurte FICTICIO");
   });
 
   it("opens Ajustes after authenticated session without dropping session identity", async () => {

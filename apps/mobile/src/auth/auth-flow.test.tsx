@@ -119,14 +119,14 @@ function AuthenticatedFixture({ controls }: { controls: AuthGateReadyControls })
       <Pressable
         accessibilityLabel="Abrir Centro de Privacidade"
         accessibilityRole="button"
-        onPress={controls.openPrivacyCenter}
+        onPress={() => controls.openPrivacyCenter()}
       >
         Privacidade de teste
       </Pressable>
       <Pressable
         accessibilityLabel="Sair da conta"
         accessibilityRole="button"
-        onPress={controls.requestLogout}
+        onPress={() => controls.requestLogout()}
       >
         Sair da conta
       </Pressable>

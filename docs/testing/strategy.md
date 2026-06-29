@@ -105,3 +105,10 @@ Not enough devices connected (0) to run the requested number of shards (1).
 ```
 
 Public evidence rules remain strict: no raw screenshots, real photos, push tokens, Firebase files, build URLs, provider tickets, device serials, real product names, real lot values, credentials, private links, or store/customer-sensitive details in Git.
+
+## Phase 14 mobile Ajustes
+
+- `pnpm.cmd --filter @validade-zero/mobile test -- mobile-release-journeys ajustes-screen today-screen auth-flow` covers the repo-local Ajustes route, push controls, sync health, build/update truth, privacy, and sign-out behavior with fictional data.
+- These tests prove component and route behavior only. They do not prove an installed Android APK, remote push provider delivery, camera/evidence capture, or physical Loja 18 UAT.
+- Keep Phase 14 evidence public-safe: no raw APK/build URLs, EAS links, push tokens, provider tickets/receipts, raw device IDs, screenshots with sensitive content, camera files, real product names, real lot values, credentials, or private store details.
+- Installed-device, provider, camera/evidence, and physical-store proof must be recorded separately when a real approved device/build is available.

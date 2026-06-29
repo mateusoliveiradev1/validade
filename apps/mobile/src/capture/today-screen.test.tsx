@@ -399,6 +399,19 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Tudo sincronizado neste aparelho");
   });
 
+  it("keeps Hoje as the task execution surface after Ajustes control extraction", async () => {
+    const repository = createRepository(() =>
+      Promise.resolve(refreshWith({ tasks: [expiredTask()] })),
+    );
+    const tree = await renderTodayScreen(repository);
+    const text = renderedText(tree);
+
+    expect(text).toContain("Area de venda com risco agora");
+    expect(text).toContain("Retirar agora");
+    expect(text).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+    expect(text).not.toContain("Sair com pendencias visiveis");
+  });
+
   it("renders local-cache prepare state near the verdict without safe styling", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));
     const tree = await renderTodayScreen(repository, undefined, {

@@ -406,7 +406,7 @@ export function CaptureApp({
           isFirstStoreSetupState(prepareTurnCache) ? startFirstStoreSetup : undefined
         }
         onUseCache={prepareTurnCache?.state === "ready" ? enterWithLocalCache : undefined}
-      />
+      />,
     );
   }
 
@@ -435,7 +435,7 @@ export function CaptureApp({
           actorLabel={actorLabel}
           onOpenShiftClose={() => navigate({ name: "shift-close" })}
         />
-      </>
+      </>,
     );
   }
 
@@ -453,7 +453,7 @@ export function CaptureApp({
             highlightedTaskId: currentRoute.task.id,
           });
         }}
-      />
+      />,
     );
   }
 
@@ -467,7 +467,7 @@ export function CaptureApp({
         prepareTurnSource={prepareTurnSource}
         onSafeClose={closeShiftClient}
         onBack={goBack}
-      />
+      />,
     );
   }
 
@@ -485,7 +485,7 @@ export function CaptureApp({
         onCreated={(product) => {
           replace({ name: "confirmed", product });
         }}
-      />
+      />,
     );
   }
 
@@ -526,7 +526,7 @@ export function CaptureApp({
         )}
         <SecondaryAction label={captureCopy.backAndReview} onPress={goBack} />
         <SecondaryAction label="Voltar para Hoje" onPress={() => resetToToday()} />
-      </ScrollView>
+      </ScrollView>,
     );
   }
 
@@ -537,7 +537,7 @@ export function CaptureApp({
         product={currentRoute.product}
         onBack={goBack}
         onSaved={() => resetToToday()}
-      />
+      />,
     );
   }
 
@@ -550,7 +550,7 @@ export function CaptureApp({
         onOpenActiveMarkdown={() => void openActiveMarkdownTask(currentRoute)}
         onRequestMarkdown={(request) => requestMarkdownFromDetail(currentRoute.detail, request)}
         onBack={goBack}
-      />
+      />,
     );
   if (currentRoute.name === "observation")
     return withSessionBar(
@@ -568,7 +568,7 @@ export function CaptureApp({
             setRouteStack((current) => [...current.slice(0, -2), route]);
           });
         }}
-      />
+      />,
     );
   if (currentRoute.name === "recent")
     return withSessionBar(
@@ -578,7 +578,7 @@ export function CaptureApp({
         onOpen={(lot) => {
           void openLotDetail(lot.id);
         }}
-      />
+      />,
     );
   if (currentRoute.name === "barcode")
     return withSessionBar(
@@ -587,7 +587,7 @@ export function CaptureApp({
         onLookup={(value) => {
           replace({ name: "discovery", initialLookup: value, initialLookupSource: "scan" });
         }}
-      />
+      />,
     );
 
   return withSessionBar(
@@ -618,7 +618,7 @@ export function CaptureApp({
                 : { initialLookupSource: currentRoute.initialLookupSource }),
             })}
       />
-    </>
+    </>,
   );
 }
 
@@ -646,7 +646,10 @@ function CaptureSessionBar({
         accessibilityLabel="Abrir Ajustes do aparelho"
         accessibilityRole="button"
         onPress={onOpenSettings}
-        style={({ pressed }) => [styles.settingsAction, pressed ? styles.settingsActionPressed : null]}
+        style={({ pressed }) => [
+          styles.settingsAction,
+          pressed ? styles.settingsActionPressed : null,
+        ]}
       >
         <Text style={styles.settingsActionLabel}>Ajustes</Text>
       </Pressable>

@@ -27,10 +27,7 @@ import {
   StatusNotice,
 } from "./capture-ui";
 import { SyncConflictPanel, SyncQueueSummary } from "./offline-sync-ui";
-import {
-  alertChannelStateForRegistration,
-  type CaptureRepository,
-} from "./repository";
+import { alertChannelStateForRegistration, type CaptureRepository } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 
 export function AjustesScreen({
@@ -57,9 +54,8 @@ export function AjustesScreen({
   syncEngine?: SyncEngine | undefined;
 }) {
   const [pushState, setPushState] = useState<AlertChannelState>("not_requested");
-  const [storedPermissionStatus, setStoredPermissionStatus] = useState<
-    Parameters<typeof pushReadinessFor>[0]["storedPermissionStatus"]
-  >(null);
+  const [storedPermissionStatus, setStoredPermissionStatus] =
+    useState<Parameters<typeof pushReadinessFor>[0]["storedPermissionStatus"]>(null);
   const [pushFeedback, setPushFeedback] = useState<string | undefined>();
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [offlineStatus, setOfflineStatus] = useState<OfflineCacheStatus | undefined>();
@@ -88,7 +84,11 @@ export function AjustesScreen({
     ]);
 
     setStoredPermissionStatus(registration?.permissionStatus ?? null);
-    setPushState(registration === null ? (permission?.state ?? "unavailable") : alertChannelStateForRegistration(registration));
+    setPushState(
+      registration === null
+        ? (permission?.state ?? "unavailable")
+        : alertChannelStateForRegistration(registration),
+    );
   }
 
   useEffect(() => {
@@ -131,7 +131,9 @@ export function AjustesScreen({
         );
       }
     } catch {
-      setSyncFeedback("Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.");
+      setSyncFeedback(
+        "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
+      );
     } finally {
       setIsSyncing(false);
     }
@@ -288,10 +290,7 @@ export function AjustesScreen({
           <ReadinessRow label="ID da loja" value={session?.store.storeId ?? "local-device"} />
           <ReadinessRow label="Papel" value={roleLabel(session?.activeRole)} />
           <ReadinessRow label="Conta" value={accountStatusLabel(session?.accountStatus)} />
-          <ReadinessRow
-            label="Sessao expira"
-            value={session?.sessionExpiresAt ?? "Sessao local"}
-          />
+          <ReadinessRow label="Sessao expira" value={session?.sessionExpiresAt ?? "Sessao local"} />
         </View>
         <Text style={styles.metadata}>
           Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao troca

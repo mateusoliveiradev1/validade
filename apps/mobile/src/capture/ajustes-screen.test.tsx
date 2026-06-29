@@ -36,6 +36,9 @@ vi.mock("react-native", async () => {
   };
 });
 
+const ajustesSensitiveDenylist =
+  /ExpoPushToken|googleServicesFile|firebase|providerTicket|providerReceipt|rawDeviceId|buildUrl|https:\/\/expo|expo\.dev|eas:\/\/|secret|password|token/i;
+
 function registration(
   permissionStatus: DevicePushRegistrationCommand["permissionStatus"],
 ): DevicePushRegistrationCommand {
@@ -383,9 +386,7 @@ describe("AjustesScreen push controls", () => {
       channel: registration("local_only"),
     });
 
-    expect(JSON.stringify(tree.toJSON())).not.toMatch(
-      /ExpoPushToken|googleServicesFile|firebase|token|secret|providerTicket|rawDeviceId/i,
-    );
+    expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);
   });
 });
 
@@ -556,9 +557,7 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     expect(text).toContain("120");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
-    expect(JSON.stringify(tree.toJSON())).not.toMatch(
-      /https:\/\/expo|eas:\/\/|token|secret|password|buildUrl/i,
-    );
+    expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);
   });
 
   it("opens the manual update step without rendering private artifact links", async () => {
@@ -570,7 +569,7 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
 
     const rendered = JSON.stringify(tree.toJSON());
     expect(rendered).toContain("Instale manualmente o APK aprovado do piloto");
-    expect(rendered).not.toMatch(/https:\/\/expo|eas:\/\/|token|secret|password|buildUrl/i);
+    expect(rendered).not.toMatch(ajustesSensitiveDenylist);
   });
 
   it("renders account and store as read-only and opens privacy through AuthGate controls", async () => {

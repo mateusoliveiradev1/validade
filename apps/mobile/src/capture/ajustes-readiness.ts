@@ -39,8 +39,7 @@ export const ajustesPushCopy = {
     "Este aparelho para de receber lembretes. As tarefas continuam ativas em Hoje e a cobranca pode seguir por outros caminhos.",
   thisDeviceOnly:
     "Teste enviado neste aparelho; prova apenas este aparelho, nao o provedor global nem a area de venda.",
-  localUnavailable:
-    "Teste local indisponivel neste aparelho. As tarefas continuam ativas em Hoje.",
+  localUnavailable: "Teste local indisponivel neste aparelho. As tarefas continuam ativas em Hoje.",
 } as const;
 
 export const ajustesSyncCopy = {
