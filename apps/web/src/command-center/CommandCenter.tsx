@@ -9,22 +9,28 @@ import type { WebFetcher } from "../auth/authenticated-fetch";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
+import type { AppRoute } from "../shell/AppShell";
 import { createFetchCommandCenterClient, type CommandCenterClient } from "./command-center-client";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
+type CommandCenterRoute = Extract<AppRoute, "operacao" | "aparelhos" | "atualizacoes" | "validacao">;
 
 export function CommandCenter({
+  activeRoute = "operacao",
   canOpenAudit,
   canSendPilotPushTest,
   client: providedClient,
   fetcher,
+  onOpenAparelhos,
   onOpenAudit,
   storeId,
 }: {
+  activeRoute?: CommandCenterRoute;
   canOpenAudit?: boolean;
   canSendPilotPushTest?: boolean;
   client?: CommandCenterClient;
   fetcher?: WebFetcher;
+  onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
   storeId: string;
 }) {
@@ -133,8 +139,10 @@ export function CommandCenter({
 
       {current === undefined ? null : (
         <CommandCenterProjectionView
+          activeRoute={activeRoute}
           canOpenAudit={canOpenAudit ?? onOpenAudit !== undefined}
           canSendPilotPushTest={canSendPilotPushTest === true}
+          {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
           onSendSafePushTest={sendSafePushTest}
           projection={current}
@@ -145,14 +153,18 @@ export function CommandCenter({
 }
 
 function CommandCenterProjectionView({
+  activeRoute,
   canOpenAudit,
   canSendPilotPushTest,
+  onOpenAparelhos,
   onOpenAudit,
   onSendSafePushTest,
   projection,
 }: {
+  activeRoute: CommandCenterRoute;
   canOpenAudit: boolean;
   canSendPilotPushTest: boolean;
+  onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
   onSendSafePushTest: (device: CommandCenterProjection["devices"][number]) => Promise<void>;
   projection: CommandCenterProjection;
@@ -189,6 +201,13 @@ function CommandCenterProjectionView({
           {projection.freshness === "stale" ? " - leitura central pendente de atualizacao" : ""}
         </p>
       </section>
+
+      {activeRoute === "operacao" && onOpenAparelhos !== undefined ? (
+        <Button className="min-h-12 w-fit" variant="outline" onClick={onOpenAparelhos}>
+          <Smartphone className="size-4" aria-hidden="true" />
+          Abrir Aparelhos
+        </Button>
+      ) : null}
 
       <CentralSnapshotPanel snapshot={projection.centralSnapshot} />
 

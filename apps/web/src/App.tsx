@@ -24,7 +24,7 @@ export function App() {
   const [screen, setScreen] = useState<
     "loading" | "login" | "first" | "recovery" | "privacy" | "blocked"
   >("loading");
-  const [route, setRoute] = useState<AppRoute>("command");
+  const [route, setRoute] = useState<AppRoute>("operacao");
   const [error, setError] = useState<string>();
   const apiFetch = useMemo(() => createAuthenticatedFetcher(sessionToken), [sessionToken]);
   useEffect(() => {
@@ -168,12 +168,14 @@ export function App() {
         setSessionToken(undefined);
       }}
     >
-      {activeRoute === "command" ? (
+      {isOperationalRoute(activeRoute) ? (
         <CommandCenter
+          activeRoute={activeRoute}
           storeId={session.store.storeId}
           canOpenAudit={session.actions.canReadStoreAudit}
           canSendPilotPushTest={session.actions.canSendPilotPushTest}
           fetcher={apiFetch}
+          onOpenAparelhos={() => setRoute("aparelhos")}
           onOpenAudit={() => setRoute("audit")}
         />
       ) : activeRoute === "access" ? (
@@ -198,16 +200,25 @@ export function App() {
 }
 
 function routeAllowed(route: AppRoute, session: SessionContextResponse): boolean {
-  if (route === "command") return session.actions.canReadCommandCenter;
+  if (isOperationalRoute(route)) return session.actions.canReadCommandCenter;
   if (route === "access") return session.actions.canManageUsers;
   return session.actions.canReadStoreAudit;
 }
 
 function firstAllowedRoute(session: SessionContextResponse): AppRoute {
-  if (session.actions.canReadCommandCenter) return "command";
+  if (session.actions.canReadCommandCenter) return "operacao";
   if (session.actions.canManageUsers) return "access";
   if (session.actions.canReadStoreAudit) return "audit";
-  return "command";
+  return "operacao";
+}
+
+function isOperationalRoute(route: AppRoute): route is "operacao" | "aparelhos" | "atualizacoes" | "validacao" {
+  return (
+    route === "operacao" ||
+    route === "aparelhos" ||
+    route === "atualizacoes" ||
+    route === "validacao"
+  );
 }
 
 function writeInviteUrlParam(token: string): void {

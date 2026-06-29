@@ -1,10 +1,19 @@
-import { ClipboardCheck, KeyRound, Menu, ScrollText, X } from "lucide-react";
+import {
+  ClipboardCheck,
+  KeyRound,
+  Menu,
+  RefreshCw,
+  ScrollText,
+  ShieldCheck,
+  Smartphone,
+  X,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { SessionContextResponse } from "@validade-zero/contracts";
 import { Button } from "../components/ui/button";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 
-export type AppRoute = "command" | "access" | "audit";
+export type AppRoute = "operacao" | "aparelhos" | "atualizacoes" | "validacao" | "access" | "audit";
 
 interface NavItemState {
   allowed: boolean;
@@ -18,14 +27,39 @@ const navItems: Array<{
   icon: typeof ClipboardCheck;
 }> = [
   {
-    id: "command",
-    label: "Command Center",
-    description: "Riscos ativos agora",
+    id: "operacao",
+    label: "Operacao",
+    description: "Area segura agora",
     icon: ClipboardCheck,
+  },
+  {
+    id: "aparelhos",
+    label: "Aparelhos",
+    description: "Prontidao por aparelho",
+    icon: Smartphone,
+  },
+  {
+    id: "atualizacoes",
+    label: "Atualizacoes",
+    description: "Build aprovado e instalada",
+    icon: RefreshCw,
+  },
+  {
+    id: "validacao",
+    label: "Validacao",
+    description: "Go/No-Go Loja 18",
+    icon: ShieldCheck,
   },
   { id: "access", label: "Acessos da loja", description: "Convites e papeis", icon: KeyRound },
   { id: "audit", label: "Auditoria", description: "Trilha operacional", icon: ScrollText },
 ];
+
+const operationalRoutes: ReadonlySet<AppRoute> = new Set([
+  "operacao",
+  "aparelhos",
+  "atualizacoes",
+  "validacao",
+]);
 
 export function AppShell({
   children,
@@ -207,7 +241,7 @@ function MobileNavigation({
 }
 
 function navItemState(route: AppRoute, session: SessionContextResponse): NavItemState {
-  if (route === "command") {
+  if (operationalRoutes.has(route)) {
     return session.actions.canReadCommandCenter
       ? { allowed: true }
       : { allowed: false, reason: "Escopo operacional indisponivel" };
