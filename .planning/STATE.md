@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
 status: planning
-stopped_at: Phase 14 context gathered
-last_updated: "2026-06-29T03:01:39.461Z"
+stopped_at: Phase 14 UI-SPEC approved
+last_updated: "2026-06-29T03:13:46.020Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Discuss Phase 14 so mobile Ajustes can inherit the web readiness vocabulary without bringing diagnostics back into Hoje.
+Plan Phase 14 now that the mobile Ajustes UI design contract is approved.
 
 ```powershell
-$gsd-discuss-phase 14
+$gsd-plan-phase 14
 ```
 
 ## Accumulated Context
@@ -173,9 +173,9 @@ $gsd-discuss-phase 14
 
 ## Session
 
-**Last session:** 2026-06-29T03:00:48.615Z
-**Stopped at:** Phase 14 context gathered
-**Resume file:** .planning/phases/14-mobile-ajustes-and-device-controls/14-CONTEXT.md
+**Last session:** 2026-06-29T03:13:46.016Z
+**Stopped at:** Phase 14 UI-SPEC approved
+**Resume file:** .planning/phases/14-mobile-ajustes-and-device-controls/14-UI-SPEC.md
 
 ## Decisions
 
@@ -262,8 +262,8 @@ Last activity: 2026-06-29
 
 ## Operator Next Steps
 
-- Discuss Phase 14 with `$gsd-discuss-phase 14`.
-- Use Phase 13 summaries and `13-VERIFICATION.md` as context for mobile Ajustes readiness vocabulary.
+- Plan Phase 14 with `$gsd-plan-phase 14`.
+- Use `14-UI-SPEC.md`, Phase 13 summaries, and `13-VERIFICATION.md` as context for mobile Ajustes readiness vocabulary.
 
 ## Deferred Items
 

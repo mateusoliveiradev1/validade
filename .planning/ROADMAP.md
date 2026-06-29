@@ -3,7 +3,7 @@
 **Mode:** Vertical MVP
 **Granularity:** Fine
 **Requirements covered:** 18/18
-**Current status:** Phase 14 ready for discussion
+**Current status:** Phase 14 ready for planning
 
 ## Milestones
 
@@ -47,7 +47,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Add a mobile Ajustes area that owns account/store context, push and reminders, sync health, update truth, diagnostics, privacy, and sign-out.
 
 **Requirements:** SET-01, SET-02, SET-03, SET-04, SET-05
-**Status:** Ready for discussion
+**Status:** Ready for planning
 
 **Success criteria:**
 1. Operators can open Ajustes from the mobile app shell without losing the active store, role, session, or current operational route.
@@ -93,10 +93,10 @@ v1.1 succeeds when the app feels like a real store tool instead of a pilot debug
 
 ## Active Planning
 
-Continue with Phase 14 discussion:
+Continue with Phase 14 planning:
 
 ```powershell
-$gsd-discuss-phase 14
+$gsd-plan-phase 14
 ```
 
 ## Archive
