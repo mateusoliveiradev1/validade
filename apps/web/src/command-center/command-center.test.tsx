@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandCenterClient } from "./command-center-client";
 import { CommandCenter } from "./CommandCenter";
@@ -401,6 +401,41 @@ describe("CommandCenter", () => {
       text.indexOf("Historico resolvido"),
     );
     expect(text).not.toMatch(/sales|revenue|forecast|supplier/i);
+  });
+
+  it("promotes daily device blockers in Operacao without promoting push-only blockers", async () => {
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue({
+        ...projection,
+        devices: [
+          {
+            ...projection.devices[0],
+            verdict: "bloqueado",
+            blockers: [
+              {
+                code: "missing_first_central_read",
+                label: "Leitura central ausente",
+                detail: "Aparelho ainda nao abriu Preparar turno contra a central.",
+                nextAction: "Abrir Preparar turno e repetir a leitura central.",
+                severity: "blocking",
+              },
+            ],
+            nextAction: "Abrir Preparar turno e repetir a leitura central.",
+          },
+        ],
+      }),
+      sendSafePushTest: vi.fn(),
+    };
+    render(<CommandCenter client={client} storeId="loja-piloto" />);
+
+    const deviceStrip = await screen.findByRole("region", { name: "Resumo de aparelhos" });
+    expect(within(deviceStrip).getByText("Leitura central ausente")).toBeTruthy();
+    expect(within(deviceStrip).getByText("Causa:")).toBeTruthy();
+    expect(within(deviceStrip).getByText("Agora:")).toBeTruthy();
+    expect(
+      within(deviceStrip).getByText("Abrir Preparar turno e repetir a leitura central."),
+    ).toBeTruthy();
+    expect(within(deviceStrip).queryByText("Push remoto ainda nao provado")).toBeNull();
   });
 
   it("keeps the recovery action visible when refresh fails", async () => {
