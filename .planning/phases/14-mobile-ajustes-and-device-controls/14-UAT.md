@@ -8,7 +8,7 @@ source:
   - 14-04-SUMMARY.md
   - 14-05-SUMMARY.md
 started: 2026-06-29T06:51:50.2029667-03:00
-updated: 2026-06-29T14:34:52.9389322-03:00
+updated: 2026-06-29T14:48:31.2368586-03:00
 ---
 
 ## Current Test
@@ -50,22 +50,23 @@ result: [pending]
 
 total: 6
 passed: 2
-issues: 1
+issues: 2
 pending: 4
 skipped: 0
 blocked: 0
 remediated_passed: 2
-remediated_pending_retest: 1
+remediated_pending_retest: 2
 
 ## Setup Evidence
 
-- Current APK generated for manual retest: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk`
-- SHA256: `3BAFF6A51E778DC57F72720500E05E5A3C7BED3CCAADE4D5653789075F89D57D`
+- Current APK generated for manual retest: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk`
+- SHA256: `87FCC84B15EEA9C1FD8800A4F9ED84060D0A5F68038C660878B021FFE8A75C0F`
 - Package/version check: `com.validadezero.app`, version `0.12.0`, Android `versionCode` `120`.
 - APK signer verification: passed with local debug signing for direct install testing.
-- Bundle check: contains `Ajustes`, `Sair com pendencias visiveis`, staging API URL, `phase-12-staging-apk-120`, the fixed pending-draft lot acknowledgement, `Atualizar leitura central`, and the stale-central-read explanation.
+- Bundle check: contains `Ajustes`, `Sair com pendencias visiveis`, staging API URL, `phase-12-staging-apk-120`, the fixed pending-draft lot acknowledgement, `Atualizar leitura central`, and the stale-central-read explanation. Hotfix bundle no longer contains `Intl.DateTimeFormat`.
 - `adb devices` showed no connected Android device in this session, so installation and physical UAT are still user/device-side.
 - Previous APK generated before the sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk`.
+- Broken APK reported by user after sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk`.
 
 ## UAT Findings
 
@@ -92,7 +93,13 @@ remediated_pending_retest: 1
     - "screenshot codex-clipboard-13ada989-492c-43f1-81e6-0910b2716304.png"
     - "screenshot codex-clipboard-cced841b-b067-475c-99b9-2dd4416cd19b.png"
   status: fixed_in_code_pending_device_retest
-  fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk"
+  fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
+- finding: "APK syncfix nao abre o app apos instalacao."
+  reported: "essa versao do apk bugou tudo nao abre o app mais"
+  severity: blocker
+  source_test: 3
+  status: fixed_in_code_pending_device_retest
+  fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
 
 ## Fix Evidence
 
@@ -104,6 +111,10 @@ remediated_pending_retest: 1
 - Device retest: user reported `pass` for corrected draft lot registration and app reentry without repeated prepare-turn.
 - Code fix: stale central read now explains why sync is blocked, shows local Sao Paulo timestamps instead of raw UTC, and offers `Atualizar leitura central` because `Sincronizar pendencias` does not renew central read.
 - Regression tests: Ajustes sync tests cover formatted local timestamps, stale central read explanation, and the central refresh action.
+- Hotfix: Ajustes timestamp formatting no longer uses `Intl.DateTimeFormat`; it formats the Sao Paulo operational timestamp with deterministic numeric fields to reduce Android/Hermes release-startup risk.
+- Focused tests after hotfix: `pnpm.cmd --filter @validade-zero/mobile test -- ajustes-screen.test.tsx prepare-turn.test.tsx` passed.
+- Full repo gate after hotfix: `pnpm.cmd check` passed.
+- Android hotfix build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `120`.
 
 ## Gaps
 
@@ -129,5 +140,13 @@ remediated_pending_retest: 1
   severity: major
   test: 3
   artifacts:
-    - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk"
+    - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
+  missing: []
+- truth: "O APK de reteste precisa abrir o app antes de validar a clareza da tela de Sincronizacao."
+  status: pending_retest
+  reason: "User reported the previous syncfix APK did not open the app."
+  severity: blocker
+  test: 3
+  artifacts:
+    - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
   missing: []

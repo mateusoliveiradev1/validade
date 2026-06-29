@@ -337,13 +337,16 @@ function formatAjustesTimestamp(value: string | undefined, fallback: string): st
     return fallback;
   }
 
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "America/Sao_Paulo",
-  }).format(date);
+  const saoPaulo = new Date(date.getTime() - 3 * 60 * 60 * 1000);
+  const day = pad2(saoPaulo.getUTCDate());
+  const month = pad2(saoPaulo.getUTCMonth() + 1);
+  const year = saoPaulo.getUTCFullYear();
+  const hour = pad2(saoPaulo.getUTCHours());
+  const minute = pad2(saoPaulo.getUTCMinutes());
+
+  return `${day}/${month}/${year} ${hour}:${minute}`;
+}
+
+function pad2(value: number): string {
+  return value < 10 ? `0${value}` : `${value}`;
 }

@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
 status: verifying
-stopped_at: Phase 14 UAT Test 2 passed; sync stale-read copy/timestamps fixed in local APK and pending device retest for Test 3
-last_updated: "2026-06-29T17:34:52.939Z"
+stopped_at: Phase 14 UAT Test 3 hotfix APK generated after syncfix launch failure; pending device retest
+last_updated: "2026-06-29T17:48:31.237Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Install the corrected Phase 14 APK and retest Test 3: Ajustes Sincronizacao blocked-state explanation and local timestamps.
+Install the Phase 14 hotfix APK and retest Test 3: app opens, Ajustes Sincronizacao explains the blocked stale central read, and timestamps are readable.
 
 ```powershell
-dist\android\validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk
+dist\android\validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk
 ```
 
 ## Accumulated Context
@@ -178,8 +178,8 @@ dist\android\validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk
 
 ## Session
 
-**Last session:** 2026-06-29T17:34:52.939Z
-**Stopped at:** Phase 14 UAT Test 2 passed; sync stale-read copy/timestamps fixed in local APK and pending device retest for Test 3
+**Last session:** 2026-06-29T17:48:31.237Z
+**Stopped at:** Phase 14 UAT Test 3 hotfix APK generated after syncfix launch failure; pending device retest
 **Resume file:** None
 
 ## Decisions
