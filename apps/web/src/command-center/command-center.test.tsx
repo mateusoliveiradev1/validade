@@ -6,6 +6,7 @@ import {
   countDeviceReadiness,
   getDailyOperationDeviceBlockers,
   getSafePushTestDisabledReason,
+  resolveUpdatePathState,
   routeLabel,
 } from "./command-center-view-model";
 
@@ -558,6 +559,80 @@ describe("CommandCenter", () => {
     expect(text).not.toContain("UAT Loja 18");
   });
 
+  it("renders Atualizacoes build truth with manual safe-update fallback", async () => {
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue({
+        ...projection,
+        devices: [
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...atual",
+            deviceLabel: "Aparelho Atual",
+            buildCompatibility: "atual",
+            appVersion: "0.12.0",
+            appBuild: "120",
+            nextAction: "Aparelho ja esta na build aprovada.",
+            updatedAt: "2030-01-10T12:04:00.000Z",
+          },
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...desat",
+            deviceLabel: "Aparelho Desatualizado",
+            buildCompatibility: "desatualizado",
+            appVersion: "0.11.0",
+            appBuild: "110",
+            nextAction: "Atualizar pelo caminho manual aprovado.",
+            updatedAt: "2030-01-10T12:03:00.000Z",
+          },
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...desc",
+            deviceLabel: "Aparelho Desconhecido",
+            buildCompatibility: "desconhecido",
+            appVersion: "nao informado",
+            appBuild: "nao informado",
+            nextAction: "Abrir o app aprovado para registrar versao instalada.",
+            updatedAt: "2030-01-10T12:02:00.000Z",
+          },
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...incomp",
+            deviceLabel: "Aparelho Incompativel",
+            buildCompatibility: "incompativel",
+            appVersion: "0.13.0",
+            appBuild: "130",
+            nextAction: "Remover build incompativel e reinstalar a aprovada.",
+            updatedAt: "2030-01-10T12:01:00.000Z",
+          },
+        ],
+      }),
+      sendSafePushTest: vi.fn(),
+    };
+    render(<CommandCenter activeRoute="atualizacoes" client={client} storeId="loja-piloto" />);
+
+    expect(await screen.findByRole("heading", { name: "Atualizacoes" })).toBeTruthy();
+    expect(screen.getByText("phase-12-staging-apk-120")).toBeTruthy();
+    expect(screen.getAllByText("0.12.0").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("120").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Ver instrucoes manuais" })).toBeTruthy();
+
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Aparelho Incompativel")).toBeLessThan(
+      text.indexOf("Aparelho Desatualizado"),
+    );
+    expect(text.indexOf("Aparelho Desatualizado")).toBeLessThan(
+      text.indexOf("Aparelho Desconhecido"),
+    );
+    expect(text.indexOf("Aparelho Desconhecido")).toBeLessThan(text.indexOf("Aparelho Atual"));
+    expect(text).toContain("Build incompativel");
+    expect(text).toContain("Build antigo");
+    expect(text).toContain("Build desconhecido");
+    expect(text).toContain("APK aprovado");
+    expect(text).not.toContain("Enviar teste seguro");
+    expect(text).not.toContain("UAT Loja 18");
+    expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|eas:\/\//i);
+  });
+
   it("sends a safe push test and appends the returned timeline", async () => {
     const sendSafePushTest = vi.fn().mockResolvedValue({
       command: {
@@ -652,6 +727,8 @@ describe("CommandCenter", () => {
         },
       }),
     ).toBe(disabledCopy);
+    expect(resolveUpdatePathState("token-buildUrl-secret").state).toBe("blocked");
+    expect(resolveUpdatePathState("token-buildUrl-secret").href).toBeUndefined();
   });
 });
 

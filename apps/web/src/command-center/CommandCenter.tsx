@@ -15,6 +15,7 @@ import {
   type CommandCenterRoute,
 } from "./command-center-view-model";
 import { AparelhosRoute } from "./AparelhosRoute";
+import { AtualizacoesRoute } from "./AtualizacoesRoute";
 import { OperacaoRoute } from "./OperacaoRoute";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
@@ -113,6 +114,17 @@ export function CommandCenter({
         canSendPilotPushTest={canSendPilotPushTest === true}
         onRefresh={() => void load()}
         onSendSafePushTest={sendSafePushTest}
+        projection={current}
+        status={status}
+        {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
+      />
+    );
+  }
+
+  if (activeRoute === "atualizacoes") {
+    return (
+      <AtualizacoesRoute
+        onRefresh={() => void load()}
         projection={current}
         status={status}
         {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}

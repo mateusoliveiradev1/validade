@@ -12,6 +12,8 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "phase-12-staging-apk-120";
+
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",
   "missing_first_central_read",
@@ -36,6 +38,23 @@ export function sortDevicesByReadiness(
   devices: CommandCenterProjection["devices"],
 ): CommandCenterProjection["devices"] {
   return [...devices].sort(compareDeviceReadiness);
+}
+
+export function sortDevicesByBuildCompatibility(
+  devices: CommandCenterProjection["devices"],
+): CommandCenterProjection["devices"] {
+  const rank: Record<CommandCenterProjection["devices"][number]["buildCompatibility"], number> = {
+    incompativel: 0,
+    desatualizado: 1,
+    desconhecido: 2,
+    atual: 3,
+  };
+
+  return [...devices].sort((left, right) => {
+    const compatibilityDiff = rank[left.buildCompatibility] - rank[right.buildCompatibility];
+    if (compatibilityDiff !== 0) return compatibilityDiff;
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
 }
 
 export function compareDeviceReadiness(
@@ -81,6 +100,45 @@ export function getSafePushTestDisabledReason(input: {
   }
 
   return undefined;
+}
+
+export interface UpdatePathState {
+  ctaLabel: "Abrir atualizacao segura" | "Ver instrucoes manuais";
+  detail: string;
+  href?: string;
+  state: "public_safe" | "manual_pending" | "blocked";
+}
+
+const unsafeUpdatePathPattern =
+  /(token|secret|password|eas:\/\/|buildUrl|dashboard|builds?\/|private|firebase|google-services)/i;
+
+export function resolveUpdatePathState(publicUpdateUrl?: string | undefined): UpdatePathState {
+  const trimmed = publicUpdateUrl?.trim();
+
+  if (trimmed === undefined || trimmed.length === 0) {
+    return {
+      ctaLabel: "Ver instrucoes manuais",
+      detail:
+        "Atualizacao segue manual ate existir um caminho publico e seguro de APK/QR configurado.",
+      state: "manual_pending",
+    };
+  }
+
+  if (unsafeUpdatePathPattern.test(trimmed)) {
+    return {
+      ctaLabel: "Ver instrucoes manuais",
+      detail:
+        "Caminho automatico bloqueado: o valor configurado parece conter link privado, token ou referencia de build sensivel.",
+      state: "blocked",
+    };
+  }
+
+  return {
+    ctaLabel: "Abrir atualizacao segura",
+    detail: "Caminho publico de atualizacao validado para distribuicao controlada.",
+    href: trimmed,
+    state: "public_safe",
+  };
 }
 
 export function optionalDateLabel(value: string | undefined): string {
