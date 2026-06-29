@@ -10,6 +10,16 @@ O v1.0 entregou a espinha dorsal de piloto fechado no repositório: captura mobi
 
 Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
 
+## Current Milestone: v1.1 Operação Real de Loja e Diagnóstico
+
+**Goal:** Separar a operação diária do diagnóstico de piloto para que a Loja 18 consiga validar o app como ferramenta real, sem perder a verdade permanente de aparelhos, versões, sincronização, push e Go/No-Go.
+
+**Target features:**
+- Command Center web focado na pergunta operacional, com resumo permanente de aparelhos e abas dedicadas para Aparelhos, Atualizações e Validação.
+- Mobile com área de Ajustes para conta/loja, push e lembretes, sincronização, atualizações, diagnóstico, privacidade e saída.
+- Telas Hoje, preparo de turno e fechamento mostrando sync/push/build somente no peso certo: compacto quando saudável, dominante quando bloqueia a operação.
+- Roteiro Loja 18 de validação real cobrindo primeiro produto, lote real, segundo aparelho, update/build, push, evidência/câmera, tarefa e fechamento.
+
 ## Requirements
 
 ### Validated
@@ -27,11 +37,10 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 
 ### Active
 
-- [ ] Provar o APK Android instalado em aparelho/emulador conectado, com `pnpm.cmd test:e2e:mobile` passando no alvo real ou com saída bloqueada registrada.
-- [ ] Provar push remoto com provedor real, token válido, permissão concedida e timeline sanitizada sem tratar aceite do provider como execução da tarefa.
-- [ ] Provar câmera/evidência em aparelho físico autorizado, mantendo caminho sem foto explícito quando a prova real ainda não existir.
-- [ ] Rodar UAT físico da Loja 18 com produto real, lote real, segundo aparelho, Command Center, push test, câmera/evidência e fechamento de turno.
-- [ ] Definir o próximo milestone a partir dos bloqueios externos e das necessidades reais do piloto.
+- [ ] Separar no web a operação diária, aparelhos, atualizações e validação Go/No-Go sem esconder a prontidão dos aparelhos.
+- [ ] Criar no mobile uma área de Ajustes que concentre push/lembretes, sync, atualizações, build, privacidade, conta e saída.
+- [ ] Reduzir ruído operacional: estados saudáveis de sync/push/build ficam compactos, enquanto bloqueios aparecem com próximo passo claro.
+- [ ] Guiar a validação real da Loja 18 com produto/lote reais e provas externas honestas para APK, push, câmera/evidência, segundo aparelho e fechamento.
 
 ### Out of Scope
 
@@ -50,6 +59,9 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 - A operação essencial precisa continuar em internet instável: cache local, outbox e conflitos explícitos fazem parte do produto, não são fallback cosmético.
 - O piloto ainda deve operar sem custo recorrente e sem segredos ou dados reais no repositório público.
 - A próxima decisão de produto deve separar claramente "repo pronto", "build instalado", "provider provado" e "operação física validada".
+- O hotfix pós-v1.0 confirmou que o APK local consegue preparar turno contra a Loja 18 quando o backend usa a loja da sessão autenticada; a próxima etapa é transformar esse piloto funcional em experiência de loja real.
+- Aparelhos são verdade operacional permanente, não apenas uma tela de piloto; UAT e Go/No-Go são validação de rollout e não devem competir com a rotina do corredor.
+- APK local instalado fora de loja/app store não deve ser tratado como autoatualizável. A área de atualizações deve mostrar versão instalada, versão aprovada e caminho de instalação; OTA/EAS Update fica como possibilidade futura apenas para atualizações compatíveis com o mesmo runtime.
 
 ## Constraints
 
@@ -78,6 +90,9 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 | Command Center deve explicar causa e próximo passo | Liderança precisa agir, não só olhar métricas | Good - Phase 12 sintetiza bloqueios do piloto |
 | Manter Neon + Cloudflare atrás de adaptadores | Favorece custo zero e troca futura de provider | Good - staging e provider seams permaneceram substituíveis |
 | Não declarar rollout físico sem Loja 18 real | Repositório verde não prova operação de corredor | Good - v1.0 fecha como repository-complete, não rollout-complete |
+| Aparelhos ficam permanentes, mas detalhes saem do Command Center diário | A liderança precisa ver prontidão de aparelhos sempre, sem misturar diagnóstico com risco da área de venda | Pending - escopo v1.1 |
+| UAT/Go-No-Go vira superfície de validação, não rotina operacional | Checklist de rollout é importante para provar loja real, mas não deve poluir o uso diário depois da validação | Pending - escopo v1.1 |
+| Atualizações do APK precisam ser verdade explícita | APK local não atualiza sozinho de forma confiável; operador precisa saber se está na build aprovada e como atualizar | Pending - escopo v1.1 |
 
 ## Evolution
 
@@ -97,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-06-28 after v1.0 milestone completion*
+*Last updated: 2026-06-28 after starting v1.1 milestone*

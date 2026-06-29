@@ -1,52 +1,43 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: null
-status: Awaiting next milestone
-stopped_at: v1.0 archived
-last_updated: "2026-06-28T23:33:21.357Z"
-last_activity: 2026-06-28
+milestone: v1.1
+milestone_name: Operacao Real de Loja e Diagnostico
+current_phase: 13
+status: planned
+last_updated: "2026-06-29T00:03:00.236Z"
+last_activity: 2026-06-29
 progress:
-  total_phases: 12
-  completed_phases: 12
-  total_plans: 54
-  completed_plans: 54
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** None (v1.0 archived)
+**Current phase:** 13 - Web Operational Navigation and Readiness Surfaces
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-28 - Deployed staging API hotfix for multi-store prepare-turn session scope after Phase 12 schema migration
+**Last activity:** 2026-06-29 - Started v1.1 Operacao Real de Loja e Diagnostico and created requirements/roadmap
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-28)
+See: .planning/PROJECT.md (updated 2026-06-29)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Planning the next milestone after v1.0 repository-complete archive.
+**Current focus:** Phase 13 - split web daily operation from devices, updates, and validation surfaces.
 
 ## Roadmap Progress
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1 | Complete | Engineering Foundation - 5/5 plans complete and verified |
-| 2 | Complete | Domain and Risk Core - 4/4 plans complete and verified |
-| 3 | Complete | Mobile Lot Capture - 4/4 plans, native Maestro, security review, and 8/8 UAT checks complete |
-| 4 | Complete | Today Task Workflow - 4/4 plans and UAT verified |
-| 5 | Complete | Push and Escalation - 4/4 plans complete and verified |
-| 6 | Complete | Markdown/Rebaixa Workflow - 4/4 plans complete and verified |
-| 7 | Complete | Offline Sync - 4/4 plans complete and verified |
-| 8 | Complete | Audit, Roles, and Shift Close - 5/5 plans verified inline |
-| 9 | Complete | Impeccable Hardening and v1 Readiness - 5/5 plans complete; release blocked on external validation |
-| 10 | Complete | Real Pilot Flow Rebuild - 6/6 plans executed; repository gates and Neon staging migration passed; Android/provider validation blocked externally |
-| 11 | Verified | Mobile Visual Polish and Emulator Validation - 4/4 plans complete; repo gates green; Android/provider/camera/physical-device proof acknowledged as external blockers |
-| 12 | Complete | Pilot Operations and Device Readiness - 5/5 plans complete; repo gates green; Android/provider/camera/physical UAT external blockers recorded |
+| 13 | Pending | Web Operational Navigation and Readiness Surfaces - WEB-01..WEB-05 |
+| 14 | Pending | Mobile Ajustes and Device Controls - SET-01..SET-05 |
+| 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
+| 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
 
 ## Active Constraints
 
@@ -58,11 +49,10 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 
 ## Next Step
 
-Retest `Preparar turno` in the installed staging APK. If the APK reaches the empty central read state for Loja 18, start the next milestone cycle and decide whether it should focus on external pilot proof, store rollout preparation, or a broader product expansion.
+Start Phase 13 discussion to shape the web split between daily Command Center, Aparelhos, Atualizacoes, and Validacao.
 
 ```powershell
-# first retest the installed APK, then:
-$gsd-new-milestone
+$gsd-discuss-phase 13
 ```
 
 ## Accumulated Context
@@ -99,6 +89,7 @@ $gsd-new-milestone
 - Phase 12 formal verification closure completed: `12-VERIFICATION.md` now links P12-DEVICE-01, P12-PUSH-02, P12-RELEASE-03, P12-UAT-04, and P12-OPS-05 to existing summaries, UAT, validation, current repo/web gates, and explicit Android/provider/camera/physical UAT external blockers.
 - v1.0 milestone audit rerun completed: all 37 v1 requirements now have traceability through REQUIREMENTS.md, summaries, and VERIFICATION.md; repository and web gates passed; physical rollout remains blocked by external Android/provider/camera/Loja 18 UAT proof.
 - Post-v1.0 staging hotfix completed: Neon `staging` received the Phase 12 device readiness migration, then the deployed API was fixed so prepare-turn prefers the authenticated session store for multi-store subjects instead of falling back to the first active membership; staging Worker `389c468e-12ce-4254-8be6-2e8689fb54ee` is live and database/auth health checks pass.
+- v1.1 milestone started: scope separates daily operation from diagnostic/rollout surfaces, keeps device readiness permanent, adds mobile Ajustes, and makes Loja 18 validation runnable without polluting the daily workflow.
 
 ### Quick Tasks Completed
 
@@ -255,15 +246,15 @@ $gsd-new-milestone
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
+Phase: 13 - Web Operational Navigation and Readiness Surfaces
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-28 - Deployed staging API hotfix for multi-store prepare-turn session scope after Phase 12 schema migration
+Status: Phase 13 ready for discussion
+Last activity: 2026-06-29 — Milestone v1.1 requirements and roadmap created
 
 ## Operator Next Steps
 
-- Retest `Preparar turno` in the installed staging APK.
-- After the APK reaches the Loja 18 empty central-read state, start the next milestone with `$gsd-new-milestone`.
+- Start Phase 13 with `$gsd-discuss-phase 13`.
+- Shape the web navigation split before implementing mobile Ajustes and validation runbook.
 
 ## Deferred Items
 
