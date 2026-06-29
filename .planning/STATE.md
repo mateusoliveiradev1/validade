@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
-status: planning
-stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-06-29T03:13:46.020Z"
+status: executing
+stopped_at: Phase 14 planning complete
+last_updated: "2026-06-29T03:28:12.891Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 5
+  total_plans: 10
   completed_plans: 5
   percent: 25
 ---
@@ -36,7 +36,7 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 13 | Complete | Web Operational Navigation and Readiness Surfaces - 5 plans implemented and verified |
-| 14 | Pending | Mobile Ajustes and Device Controls - SET-01..SET-05 |
+| 14 | Ready to execute | Mobile Ajustes and Device Controls - 5 plans ready |
 | 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
 
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Plan Phase 14 now that the mobile Ajustes UI design contract is approved.
+Execute Phase 14 now that the mobile Ajustes plans are ready.
 
 ```powershell
-$gsd-plan-phase 14
+$gsd-execute-phase 14
 ```
 
 ## Accumulated Context
@@ -255,15 +255,15 @@ $gsd-plan-phase 14
 
 ## Current Position
 
-Phase: 14 (Mobile Ajustes and Device Controls) - READY TO PLAN
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-29
+Phase: 14 (Mobile Ajustes and Device Controls) - READY TO EXECUTE
+Plan: 5 planning artifacts created
+Status: Ready to execute
+Last activity: 2026-06-29 -- Phase 14 planning complete
 
 ## Operator Next Steps
 
-- Plan Phase 14 with `$gsd-plan-phase 14`.
-- Use `14-UI-SPEC.md`, Phase 13 summaries, and `13-VERIFICATION.md` as context for mobile Ajustes readiness vocabulary.
+- Execute Phase 14 with `$gsd-execute-phase 14`.
+- Use `14-01-PLAN.md` through `14-05-PLAN.md` as the implementation order.
 
 ## Deferred Items
 
