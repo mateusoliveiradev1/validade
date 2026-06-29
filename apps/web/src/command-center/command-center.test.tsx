@@ -5,6 +5,7 @@ import { CommandCenter } from "./CommandCenter";
 import {
   countDeviceReadiness,
   getDailyOperationDeviceBlockers,
+  getSafePushTestDisabledReason,
   routeLabel,
 } from "./command-center-view-model";
 
@@ -617,6 +618,8 @@ describe("CommandCenter", () => {
   });
 
   it("keeps shared route selectors public-safe and projection-derived", () => {
+    const disabledCopy =
+      "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
     expect(routeLabel("operacao")).toBe("Operacao");
     expect(routeLabel("validacao")).toBe("Validacao");
     expect(countDeviceReadiness(projection.devices)).toEqual({
@@ -624,7 +627,29 @@ describe("CommandCenter", () => {
       atencao: 1,
       bloqueado: 0,
     });
-    expect(getDailyOperationDeviceBlockers(projection.devices[0] ?? neverDevice()).length).toBe(0);
+    const device = projection.devices[0] ?? neverDevice();
+    expect(getDailyOperationDeviceBlockers(device).length).toBe(0);
+    expect(getSafePushTestDisabledReason({ canSendPilotPushTest: false, device })).toBe(
+      disabledCopy,
+    );
+    expect(getSafePushTestDisabledReason({ canSendPilotPushTest: true, device })).toBeUndefined();
+    expect(
+      getSafePushTestDisabledReason({
+        canSendPilotPushTest: true,
+        device: {
+          ...device,
+          blockers: [
+            {
+              code: "missing_first_central_read",
+              label: "Leitura central ausente",
+              detail: "Sem primeira leitura central.",
+              nextAction: "Abrir Preparar turno.",
+              severity: "blocking",
+            },
+          ],
+        },
+      }),
+    ).toBe(disabledCopy);
   });
 });
 
