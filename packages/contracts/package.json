@@ -21,6 +21,6 @@
   },
   "dependencies": {
     "@validade-zero/domain": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "3.25.76"
   }
 }

@@ -27,7 +27,7 @@
     "@validade-zero/database": "workspace:*",
     "@validade-zero/domain": "workspace:*",
     "hono": "^4.12.26",
-    "zod": "4.4.3"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260619.1",

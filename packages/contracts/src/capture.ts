@@ -116,7 +116,7 @@ const CaptureLotBaseSchema = z.object({
   initialLocation: OperationalLocationSchema,
 });
 
-export const CaptureLotInputSchema = z.discriminatedUnion("mode", [
+export const CaptureLotInputSchema = z.union([
   CaptureLotBaseSchema.extend({
     mode: z.literal("formal_validity"),
     expiresAt: IsoDateSchema,
@@ -237,7 +237,7 @@ const CentralLotSnapshotBaseSchema = z.object({
   updatedAt: IsoDateTimeSchema,
 });
 
-export const CentralLotSnapshotSchema = z.discriminatedUnion("mode", [
+export const CentralLotSnapshotSchema = z.union([
   CentralLotSnapshotBaseSchema.extend({
     mode: z.literal("formal_validity"),
     expiresAt: IsoDateSchema,

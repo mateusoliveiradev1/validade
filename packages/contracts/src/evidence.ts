@@ -159,7 +159,9 @@ const FORBIDDEN_EVIDENCE_FIELD_NAMES = new Set([
   "url",
 ]);
 
-function metadataOnly<TSchema extends z.ZodType>(schema: TSchema) {
+function metadataOnly<TOutput, TInput>(
+  schema: z.ZodType<TOutput, z.ZodTypeDef, TInput>,
+): z.ZodEffects<z.ZodType<TOutput, z.ZodTypeDef, TInput>, TOutput, TInput> {
   return schema.superRefine((value, context) => rejectRawEvidenceFields(value, context));
 }
 
