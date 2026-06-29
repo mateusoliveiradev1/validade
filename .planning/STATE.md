@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
 status: verifying
-stopped_at: Phase 14 UAT Test 3 launch failure persisted; recovery APK 121 generated from last known good commit and pending device retest
-last_updated: "2026-06-29T17:59:26.335Z"
+stopped_at: Phase 14 UAT Test 3 Android repeated-crash blocker; safe-boot APK 122 generated and pending clean-install device retest
+last_updated: "2026-06-29T18:10:10.363Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Install the Phase 14 recovery APK and check only whether the app opens. If it opens, the Test 3 crash is isolated to the sync-copy changes; if it still does not open, collect device logs or clear/reinstall because the failure is outside that code path.
+Clear/uninstall the Validade Zero package on the Android device, then install the Phase 14 safe-boot APK and check whether the app opens or shows the recovery screen instead of the Android repeated-crash dialog.
 
 ```powershell
-dist\android\validade-zero-local-staging-0.12.0-121-uat14-recovery.apk
+dist\android\validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk
 ```
 
 ## Accumulated Context
@@ -178,8 +178,8 @@ dist\android\validade-zero-local-staging-0.12.0-121-uat14-recovery.apk
 
 ## Session
 
-**Last session:** 2026-06-29T17:59:26.335Z
-**Stopped at:** Phase 14 UAT Test 3 launch failure persisted; recovery APK 121 generated from last known good commit and pending device retest
+**Last session:** 2026-06-29T18:10:10.363Z
+**Stopped at:** Phase 14 UAT Test 3 Android repeated-crash blocker; safe-boot APK 122 generated and pending clean-install device retest
 **Resume file:** None
 
 ## Decisions

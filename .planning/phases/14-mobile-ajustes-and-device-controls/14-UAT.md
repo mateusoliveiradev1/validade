@@ -8,7 +8,7 @@ source:
   - 14-04-SUMMARY.md
   - 14-05-SUMMARY.md
 started: 2026-06-29T06:51:50.2029667-03:00
-updated: 2026-06-29T14:59:26.3352269-03:00
+updated: 2026-06-29T15:10:10.3632553-03:00
 ---
 
 ## Current Test
@@ -50,24 +50,25 @@ result: [pending]
 
 total: 6
 passed: 2
-issues: 3
+issues: 4
 pending: 4
 skipped: 0
 blocked: 1
 remediated_passed: 2
-remediated_pending_retest: 3
+remediated_pending_retest: 4
 
 ## Setup Evidence
 
-- Current APK generated for recovery retest: `dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk`
-- SHA256: `EA0D5B2576288CA9AA40DBA20B7D6ADF4D4E341756CDF658DF166E31C6DDA339`
-- Package/version check: `com.validadezero.app`, version `0.12.0`, Android `versionCode` `121`.
+- Current APK generated for safe-boot retest: `dist/android/validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk`
+- SHA256: `AB58BB40D8493D74D07AFC014C7B4AAB7C881E293B619F533958FC6B5751FC2A`
+- Package/version check: `com.validadezero.app`, version `0.12.0`, Android `versionCode` `122`.
 - APK signer verification: passed with local debug signing for direct install testing.
-- Recovery bundle check: built from commit `199089a3` before the sync-copy changes, with recovery label `phase-14-recovery-apk-121`, so it is intended to isolate whether the app opens with the last known good code path.
+- Safe-boot bundle check: contains the top-level launch recovery copy `Recuperar app neste aparelho` and build label `phase-14-safe-boot-apk-122`; it is intended to keep the app visible if authenticated startup throws.
 - `adb devices` showed no connected Android device in this session, so installation and physical UAT are still user/device-side.
 - Previous APK generated before the sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk`.
 - Broken APK reported by user after sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk`.
 - Broken APK reported by user after hotfix attempt: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk`.
+- Recovery APK generated before safe-boot guard: `dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk`.
 
 ## UAT Findings
 
@@ -105,8 +106,15 @@ remediated_pending_retest: 3
   reported: "ainda nao funcionou"
   severity: blocker
   source_test: 3
-  status: recovery_apk_pending_device_retest
+  status: failed_retest
   fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk"
+- finding: "Android mostra crash repetido do Validade Zero no aparelho."
+  reported: "pronto destruiu de vez o projeto?"
+  severity: blocker
+  source_test: 3
+  artifact: "screenshot codex-clipboard-3f79df52-a629-449c-af86-396dccf38d75.png"
+  status: safe_boot_apk_pending_clean_install_retest
+  fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk"
 
 ## Fix Evidence
 
@@ -124,6 +132,9 @@ remediated_pending_retest: 3
 - Android hotfix build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `120`.
 - Recovery APK: generated from last known good commit `199089a3` with temporary Android `versionCode` `121` / approved recovery label `phase-14-recovery-apk-121` to force install over the broken `120` APK and isolate whether the launch failure is code-regression-specific.
 - Android recovery build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `121`.
+- Code fix: mobile root now wraps authenticated startup in `MobileLaunchErrorBoundary` and renders `Recuperar app neste aparelho` when repository/authenticated rendering throws instead of letting Android close the app.
+- Regression tests: App smoke now covers authenticated startup crash rendering the recovery screen; `pnpm.cmd check` passed with 605 tests and 336 smoke tests.
+- Android safe-boot build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `122`.
 
 ## Gaps
 
@@ -153,9 +164,9 @@ remediated_pending_retest: 3
   missing: []
 - truth: "O APK de reteste precisa abrir o app antes de validar a clareza da tela de Sincronizacao."
   status: pending_retest
-  reason: "User reported the previous syncfix and hotfix APKs did not open the app. Recovery APK uses last known good code with versionCode 121."
+  reason: "User reported repeated Android crash after syncfix/hotfix/recovery attempts. Safe-boot APK 122 adds a launch recovery screen and should be installed after clearing app data."
   severity: blocker
   test: 3
   artifacts:
-    - "dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk"
+    - "dist/android/validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk"
   missing: []

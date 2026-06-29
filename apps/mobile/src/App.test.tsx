@@ -469,6 +469,31 @@ async function openLotDetail(tree: ReactTestRenderer): Promise<void> {
 }
 
 describe("Validade Zero mobile smoke", () => {
+  it("keeps a recovery screen visible when authenticated startup crashes", async () => {
+    const { default: App } = await import("../App");
+    const { createFakePushAlertChannel } = await import("./capture/alert-channel");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const brokenClient = {
+      ...authenticatedMobileClient,
+      searchCentralProducts: undefined,
+    } as unknown as MobileAuthClient;
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(<App alertChannel={createFakePushAlertChannel()} authClient={brokenClient} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(tree).toBeDefined();
+    if (tree === undefined) throw new Error("App did not render.");
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Recuperar app neste aparelho");
+    expect(rendered).toContain("Instalacao local precisa ser limpa");
+    consoleError.mockRestore();
+  });
+
   it("renders the Hoje first entry point with registration reachable", async () => {
     const { default: App } = await import("../App");
     const { createFakePushAlertChannel } = await import("./capture/alert-channel");
