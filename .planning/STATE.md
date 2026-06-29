@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 13
-status: executing
-stopped_at: Completed 13-04-PLAN.md
-last_updated: "2026-06-29T02:16:41.230Z"
+status: verifying
+stopped_at: Completed 13-05-PLAN.md
+last_updated: "2026-06-29T02:31:34.796Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 25
 ---
 
 # Project State: Validade Zero
@@ -35,7 +35,7 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 13 | Planned | Web Operational Navigation and Readiness Surfaces - 5 plans covering WEB-01..WEB-05 |
+| 13 | Complete | Web Operational Navigation and Readiness Surfaces - 5 plans implemented and ready for formal verification |
 | 14 | Pending | Mobile Ajustes and Device Controls - SET-01..SET-05 |
 | 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Execute Phase 13 using the five approved plans for the web split between daily Operacao, Aparelhos, Atualizacoes, and Validacao.
+Verify Phase 13 after the five web route plans for Operacao, Aparelhos, Atualizacoes, and Validacao.
 
 ```powershell
-$gsd-execute-phase 13
+$gsd-verify-work 13
 ```
 
 ## Accumulated Context
@@ -169,11 +169,12 @@ $gsd-execute-phase 13
 | Phase 13 P02 | 7 min | 3 tasks | 3 files |
 | Phase 13 P03 | 5 min | 3 tasks | 4 files |
 | Phase 13 P04 | 5 min | 3 tasks | 4 files |
+| Phase 13 P05 | 13min | 3 tasks | 10 files |
 
 ## Session
 
-**Last session:** 2026-06-29T02:16:41.226Z
-**Stopped at:** Completed 13-04-PLAN.md
+**Last session:** 2026-06-29T02:31:22.648Z
+**Stopped at:** Completed 13-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -248,18 +249,21 @@ $gsd-execute-phase 13
 - [Phase 03]: Local corrections append observations and refresh only the latest lot snapshot. — This preserves the original physical fact without claiming Phase 8 audit scope.
 - [Phase 03]: Manual product lookup remains the initial mobile path and a candidate must be explicitly confirmed before lot entry. — Barcode assistance comes later and cannot create an implicit registration.
 - [Phase 03]: The lot form uses the Phase 2 risk calculator for immediate operational feedback. — Risk rules stay in the pure domain package instead of being duplicated in React Native.
+- [Phase 13]: Validacao owns Go/No-Go synthesis and Loja 18 rollout proof. — Keeps daily Operacao focused on sales-area safety while rollout gates stay explicit.
+- [Phase 13]: Validacao references Aparelhos, Atualizacoes, and Operacao instead of duplicating their actions. — Push tests, update paths, and daily execution remain in their owning routes.
+- [Phase 13]: Approved APK artifact labels remain in Atualizacoes, not Validacao. — Build truth stays separated from Loja 18 evidence review and Go/No-Go synthesis.
 
 ## Current Position
 
 Phase: 13 (Web Operational Navigation and Readiness Surfaces) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-29
 
 ## Operator Next Steps
 
-- Execute Phase 13 with `$gsd-execute-phase 13`.
-- Keep `13-UI-SPEC.md`, `13-RESEARCH.md`, `13-VALIDATION.md`, and `13-PATTERNS.md` as required context before implementation.
+- Verify Phase 13 with `$gsd-verify-work 13`.
+- Use `13-05-SUMMARY.md`, route-specific tests, Playwright evidence, and final `pnpm.cmd check` output as the implementation evidence.
 
 ## Deferred Items
 
