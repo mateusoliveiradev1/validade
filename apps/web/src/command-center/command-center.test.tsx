@@ -376,6 +376,7 @@ describe("CommandCenter", () => {
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
     expect(text).not.toContain("UAT Loja 18");
+    expect(text).not.toContain("Aparelhos do piloto");
     expect(text).not.toContain("Bloqueios do piloto");
     expect(text).not.toContain("phase-12-staging-apk-120");
     expect(text).not.toContain("Enviar teste seguro");
