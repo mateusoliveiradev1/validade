@@ -1,10 +1,18 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { AlertChannelState } from "@validade-zero/domain";
-import type { DevicePushRegistrationCommand } from "@validade-zero/contracts";
+import type {
+  DevicePushRegistrationCommand,
+  OfflineCacheStatus,
+  PrepareTurnCacheStatus,
+  SyncCommandSummary,
+  SyncConflictRecord,
+  SyncQueueSummary,
+} from "@validade-zero/contracts";
 import { createFakePushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import { AjustesScreen } from "./AjustesScreen";
 import type { CaptureRepository } from "./repository";
+import type { SyncEngine } from "./sync-engine";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -19,6 +27,7 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", props, children),
+    TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
   };
@@ -37,20 +46,136 @@ function registration(
   };
 }
 
-function createRepository(input: { channel?: DevicePushRegistrationCommand | null } = {}) {
+function offlineReadyStatus(overrides: Partial<OfflineCacheStatus> = {}): OfflineCacheStatus {
+  return {
+    state: "offline_ready",
+    lastRefreshedAt: "2030-01-10T09:00:00.000Z",
+    activeTaskCount: 0,
+    requiredLotSnippetCount: 0,
+    staleAfterHours: 4,
+    source: "today_open",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function emptySyncQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function readyPrepareTurnCacheStatus(
+  overrides: Partial<PrepareTurnCacheStatus> = {},
+): PrepareTurnCacheStatus {
+  return {
+    state: "ready",
+    source: "central",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+    staleAfterHours: 4,
+    productCount: 3,
+    lotCount: 2,
+    activeTaskCount: 1,
+    conflictCount: 0,
+    resolvedHistoryCount: 0,
+    ...overrides,
+  };
+}
+
+function prepareTurnWithoutCentralRead(): PrepareTurnCacheStatus {
+  const { lastCentralReadAt, ...cache } = readyPrepareTurnCacheStatus();
+  void lastCentralReadAt;
+  return cache;
+}
+
+function syncCommandSummary(overrides: Partial<SyncCommandSummary> = {}): SyncCommandSummary {
+  return {
+    id: "sync-cmd-ajustes-001",
+    kind: "resolve_task",
+    state: "pending_sync",
+    urgency: "high",
+    productDisplayName: "Maca FICTICIA",
+    lotIdentity: { identitySource: "printed", value: "MACA-AJUSTES-001" },
+    currentLocation: { kind: "area_de_venda" },
+    savedAt: "2030-01-10T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function conflictRecord(overrides: Partial<SyncConflictRecord> = {}): SyncConflictRecord {
+  return {
+    id: "conflict-ajustes-001",
+    commandId: "sync-cmd-conflito-ajustes",
+    severity: "critical",
+    reason: "Tarefa critica mudou antes do envio offline.",
+    localAction: {
+      commandId: "sync-cmd-conflito-ajustes",
+      kind: "resolve_task",
+      label: "Confirmar retirada",
+      actorLabel: "Colaborador local",
+      occurredAt: "2030-01-10T10:30:00.000Z",
+      productDisplayName: "Maca FICTICIA",
+      lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
+      currentLocation: { kind: "area_de_venda" },
+    },
+    remoteChange: {
+      kind: "task_changed",
+      summary: "A tarefa atual exige reconferencia da area de venda.",
+      changedAt: "2030-01-10T11:00:00.000Z",
+    },
+    allowedActions: ["keep_local_and_retry", "use_current_task", "discard_offline_action"],
+    createdAt: "2030-01-10T11:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function createAjustesRepository(
+  input: {
+    channel?: DevicePushRegistrationCommand | null;
+    offlineStatus?: OfflineCacheStatus | undefined;
+    queue?: SyncQueueSummary | undefined;
+    conflict?: SyncConflictRecord | null | undefined;
+  } = {},
+) {
   let channel = input.channel ?? null;
   const registerAlertDevice = vi.fn((command: DevicePushRegistrationCommand) => {
     channel = command;
     return Promise.resolve(command);
   });
   const resolveTodayTask = vi.fn();
+  const resolveSyncConflict = vi.fn(
+    (resolution: Parameters<CaptureRepository["resolveSyncConflict"]>[0]) =>
+      Promise.resolve(
+        conflictRecord({
+          id: resolution.conflictId,
+          resolutionAction: resolution.action,
+          ...(resolution.reason === undefined ? {} : { resolutionReason: resolution.reason }),
+          resolvedAt: resolution.resolvedAt,
+        }),
+      ),
+  );
   const repository = {
     loadAlertChannelState: () => Promise.resolve(channel),
     registerAlertDevice,
     resolveTodayTask,
+    loadOfflineCacheStatus: () => Promise.resolve(input.offlineStatus ?? offlineReadyStatus()),
+    listSyncQueue: () => Promise.resolve(input.queue ?? emptySyncQueue()),
+    loadSyncConflict: () => Promise.resolve(input.conflict ?? null),
+    resolveSyncConflict,
   } as unknown as CaptureRepository;
 
-  return { repository, registerAlertDevice, resolveTodayTask };
+  return { repository, registerAlertDevice, resolveTodayTask, resolveSyncConflict };
 }
 
 function channelWithPermission(state: AlertChannelState): PushAlertChannel {
@@ -67,14 +192,25 @@ function channelWithPermission(state: AlertChannelState): PushAlertChannel {
 async function renderAjustes(input: {
   alertChannel?: PushAlertChannel | undefined;
   channel?: DevicePushRegistrationCommand | null | undefined;
+  conflict?: SyncConflictRecord | null | undefined;
+  offlineStatus?: OfflineCacheStatus | undefined;
+  prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
+  prepareTurnSource?: "central" | "local_cache" | undefined;
+  queue?: SyncQueueSummary | undefined;
+  syncEngine?: SyncEngine | undefined;
 }): Promise<{
   tree: ReactTestRenderer;
   registerAlertDevice: ReturnType<typeof vi.fn>;
   resolveTodayTask: ReturnType<typeof vi.fn>;
+  resolveSyncConflict: ReturnType<typeof vi.fn>;
 }> {
-  const { repository, registerAlertDevice, resolveTodayTask } = createRepository({
-    channel: input.channel ?? null,
-  });
+  const { repository, registerAlertDevice, resolveSyncConflict, resolveTodayTask } =
+    createAjustesRepository({
+      channel: input.channel ?? null,
+      conflict: input.conflict,
+      offlineStatus: input.offlineStatus,
+      queue: input.queue,
+    });
   let tree: ReactTestRenderer | undefined;
 
   await act(async () => {
@@ -82,15 +218,19 @@ async function renderAjustes(input: {
       <AjustesScreen
         alertChannel={input.alertChannel ?? createFakePushAlertChannel()}
         onBack={() => undefined}
+        prepareTurnCacheStatus={input.prepareTurnCacheStatus ?? readyPrepareTurnCacheStatus()}
+        prepareTurnSource={input.prepareTurnSource ?? "central"}
         repository={repository}
+        syncEngine={input.syncEngine}
         now={() => new Date("2030-01-10T09:00:00.000Z")}
       />,
     );
     await Promise.resolve();
+    await Promise.resolve();
   });
 
   if (tree === undefined) throw new Error("Ajustes did not render.");
-  return { tree, registerAlertDevice, resolveTodayTask };
+  return { tree, registerAlertDevice, resolveSyncConflict, resolveTodayTask };
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {
@@ -105,7 +245,28 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
     action.props.onPress();
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
   });
+}
+
+function renderedText(tree: ReactTestRenderer): string {
+  return flattenText(tree.toJSON());
+}
+
+function flattenText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(flattenText).join("");
+  }
+
+  if (value !== null && typeof value === "object" && "children" in value) {
+    return flattenText((value as { children?: unknown }).children);
+  }
+
+  return "";
 }
 
 describe("AjustesScreen push controls", () => {
@@ -177,6 +338,162 @@ describe("AjustesScreen push controls", () => {
 
     expect(JSON.stringify(tree.toJSON())).not.toMatch(
       /ExpoPushToken|googleServicesFile|firebase|token|secret|providerTicket|rawDeviceId/i,
+    );
+  });
+});
+
+describe("AjustesScreen sync controls", () => {
+  it("renders an empty sync queue as safe for sync close", async () => {
+    const { tree } = await renderAjustes({});
+    const text = renderedText(tree);
+
+    expect(text).toContain("Sincronizacao");
+    expect(text).toContain("Ultima leitura central");
+    expect(text).toContain("2030-01-10T09:00:00.000Z");
+    expect(text).toContain("Ultima sincronizacao enviada");
+    expect(text).toContain("Este estado nao bloqueia o fechamento seguro por sync.");
+  });
+
+  it("keeps non-critical pending sync as attention without blocking safe-close copy", async () => {
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        highCount: 1,
+        commands: [syncCommandSummary({ urgency: "high" })],
+      }),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Atencao");
+    expect(text).toContain("Ha pendencias nao criticas neste aparelho");
+    expect(text).toContain("Este estado nao bloqueia o fechamento seguro por sync.");
+    expect(text).not.toContain("Este estado bloqueia fechamento seguro");
+  });
+
+  it("blocks safe close when a critical command is pending central confirmation", async () => {
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        criticalCount: 1,
+        commands: [syncCommandSummary({ urgency: "critical" })],
+      }),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Pendencia critica ainda nao confirmada pela central");
+    expect(text).toContain("Este estado bloqueia fechamento seguro");
+  });
+
+  it("blocks safe close when there is a critical sync conflict", async () => {
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_conflict",
+        totalCount: 1,
+        conflictCount: 1,
+        hasCriticalConflict: true,
+        criticalCount: 1,
+        commands: [
+          syncCommandSummary({
+            id: "sync-cmd-conflito-ajustes",
+            state: "sync_conflict",
+            urgency: "critical",
+            conflictId: "conflict-ajustes-001",
+          }),
+        ],
+      }),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Conflito critico de sincronizacao");
+    expect(text).toContain("Revisar conflito");
+    expect(text).toContain("Este estado bloqueia fechamento seguro");
+  });
+
+  it("blocks safe close when no central read is confirmed", async () => {
+    const { tree } = await renderAjustes({
+      prepareTurnCacheStatus: prepareTurnWithoutCentralRead(),
+    });
+
+    expect(renderedText(tree)).toContain("Sem leitura central confirmada");
+  });
+
+  it("blocks safe close for a local-cache-only prepare state", async () => {
+    const { tree } = await renderAjustes({
+      prepareTurnCacheStatus: readyPrepareTurnCacheStatus({ source: "local_cache" }),
+      prepareTurnSource: "local_cache",
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Leitura local em uso");
+    expect(text).toContain("Este estado bloqueia fechamento seguro");
+  });
+
+  it("runs manual sync from Ajustes with the manual flag", async () => {
+    const syncPendingCommands = vi.fn().mockResolvedValue({
+      state: "empty",
+      network: { kind: "online" },
+      selectedCommandIds: [],
+      attemptedCommandIds: [],
+      appliedResults: [],
+    });
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        highCount: 1,
+        commands: [syncCommandSummary({ urgency: "high" })],
+      }),
+      syncEngine: { syncPendingCommands },
+    });
+
+    await press(tree, "Sincronizar pendencias");
+
+    expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
+  });
+
+  it("sends an explicit reason when discarding an offline conflict", async () => {
+    const { tree, resolveSyncConflict } = await renderAjustes({
+      conflict: conflictRecord(),
+      queue: emptySyncQueue({
+        state: "has_conflict",
+        totalCount: 1,
+        conflictCount: 1,
+        hasCriticalConflict: true,
+        criticalCount: 1,
+        commands: [
+          syncCommandSummary({
+            id: "sync-cmd-conflito-ajustes",
+            state: "sync_conflict",
+            urgency: "critical",
+            conflictId: "conflict-ajustes-001",
+            productDisplayName: "Maca FICTICIA",
+            lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
+          }),
+        ],
+      }),
+    });
+
+    await press(tree, "Revisar conflito");
+
+    const reasonInput = tree.root.findByProps({
+      accessibilityLabel: "Motivo para descartar a acao offline",
+    });
+
+    await act(async () => {
+      reasonInput.props.onChangeText("Tarefa atual exige nova conferencia fisica.");
+      await Promise.resolve();
+    });
+
+    await press(tree, "Descartar acao offline");
+
+    expect(resolveSyncConflict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conflictId: "conflict-ajustes-001",
+        action: "discard_offline_action",
+        reason: "Tarefa atual exige nova conferencia fisica.",
+      }),
     );
   });
 });

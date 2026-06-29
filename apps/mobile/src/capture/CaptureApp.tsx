@@ -385,8 +385,11 @@ export function CaptureApp({
         alertChannel={resolvedAlertChannel}
         authControls={authControls}
         onBack={goBack}
+        prepareTurnCacheStatus={prepareTurnCache}
+        prepareTurnSource={prepareTurnSource}
         repository={repository}
         session={session}
+        syncEngine={syncEngine}
       />,
     );
   }

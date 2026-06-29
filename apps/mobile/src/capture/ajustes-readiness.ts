@@ -1,5 +1,10 @@
 import type { AlertChannelState } from "@validade-zero/domain";
-import type { DevicePushRegistrationCommand } from "@validade-zero/contracts";
+import type {
+  DevicePushRegistrationCommand,
+  OfflineCacheStatus,
+  PrepareTurnCacheStatus,
+  SyncQueueSummary,
+} from "@validade-zero/contracts";
 import { todayCopy } from "./today-copy";
 
 export type AjustesReadinessVerdict = "Apto" | "Atencao" | "Bloqueado";
@@ -9,6 +14,17 @@ export interface PushReadiness {
   body: string;
   primaryActionLabel: string;
   secondaryActionLabel?: string;
+}
+
+export interface SyncReadiness {
+  verdict: AjustesReadinessVerdict;
+  body: string;
+  safeCloseBlocked: boolean;
+  blockerReason?: string;
+  lastCentralReadValue: string;
+  lastSyncSendValue: string;
+  pendingCount: number;
+  conflictCount: number;
 }
 
 export const ajustesPushCopy = {
@@ -25,6 +41,28 @@ export const ajustesPushCopy = {
     "Teste enviado neste aparelho; prova apenas este aparelho, nao o provedor global nem a area de venda.",
   localUnavailable:
     "Teste local indisponivel neste aparelho. As tarefas continuam ativas em Hoje.",
+} as const;
+
+export const ajustesSyncCopy = {
+  title: "Sincronizacao",
+  centralReadLabel: "Ultima leitura central",
+  syncSendLabel: "Ultima sincronizacao enviada",
+  clearSafeClose: "Este estado nao bloqueia o fechamento seguro por sync.",
+  blockedSafeClose:
+    "Este estado bloqueia fechamento seguro ate a central confirmar ou o conflito ser resolvido.",
+  missingCentralRead: "Sem leitura central confirmada",
+  missingSyncSend: "Sem envio confirmado",
+  localCacheBlocker: "Leitura local em uso; prepare a central antes de declarar area segura.",
+  staleCentralRead: "Leitura central vencida; atualize antes de declarar area segura.",
+  criticalPendingBlocker:
+    "Pendencia critica ainda nao confirmada pela central. Sincronize antes do fechamento seguro.",
+  criticalConflictBlocker:
+    "Conflito critico de sincronizacao. Revise antes de confirmar area segura.",
+  nonCriticalPending:
+    "Ha pendencias nao criticas neste aparelho. Sincronize assim que a conexao permitir.",
+  offlineStale: "Cache offline pode estar desatualizado neste aparelho.",
+  offlineUnavailable: "Este aparelho ainda nao tem cache offline preparado.",
+  ready: "Leitura central atual e sem pendencias criticas.",
 } as const;
 
 export function pushReadinessFor(input: {
@@ -86,6 +124,73 @@ export function pushReadinessFor(input: {
   };
 }
 
+export function syncReadinessFor(input: {
+  prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
+  prepareTurnSource?: "central" | "local_cache" | undefined;
+  offlineStatus?: OfflineCacheStatus | undefined;
+  queue?: SyncQueueSummary | undefined;
+  now?: Date | undefined;
+}): SyncReadiness {
+  const cache = input.prepareTurnCacheStatus;
+  const queue = input.queue;
+  const lastCentralReadAt = cache?.lastCentralReadAt;
+  const pendingCount = queue?.totalCount ?? 0;
+  const conflictCount = queue?.conflictCount ?? 0;
+  const blockerReason = syncBlockerReason({
+    cache,
+    now: input.now ?? new Date(),
+    prepareTurnSource: input.prepareTurnSource,
+    queue,
+  });
+
+  if (blockerReason !== undefined) {
+    return {
+      verdict: "Bloqueado",
+      body: blockerReason,
+      safeCloseBlocked: true,
+      blockerReason,
+      lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
+      lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+      pendingCount,
+      conflictCount,
+    };
+  }
+
+  if (
+    pendingCount > 0 ||
+    input.offlineStatus?.state === "offline_stale" ||
+    input.offlineStatus?.state === "offline_unavailable" ||
+    input.offlineStatus?.state === "offline_mode"
+  ) {
+    return {
+      verdict: "Atencao",
+      body:
+        input.offlineStatus?.state === "offline_stale"
+          ? ajustesSyncCopy.offlineStale
+          : input.offlineStatus?.state === "offline_unavailable"
+            ? ajustesSyncCopy.offlineUnavailable
+            : input.offlineStatus?.state === "offline_mode"
+              ? "Sem internet agora. A leitura central anterior continua visivel, mas sincronize quando voltar."
+              : ajustesSyncCopy.nonCriticalPending,
+      safeCloseBlocked: false,
+      lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
+      lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+      pendingCount,
+      conflictCount,
+    };
+  }
+
+  return {
+    verdict: "Apto",
+    body: ajustesSyncCopy.ready,
+    safeCloseBlocked: false,
+    lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
+    lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+    pendingCount,
+    conflictCount,
+  };
+}
+
 export function operatorSafePushFeedback(reason: string | undefined): string {
   if (reason === undefined || reason.trim().length === 0) {
     return todayCopy.push.unavailable;
@@ -128,4 +233,65 @@ export function operatorSafePushFeedback(reason: string | undefined): string {
   }
 
   return todayCopy.push.unavailable;
+}
+
+function syncBlockerReason(input: {
+  cache?: PrepareTurnCacheStatus | null | undefined;
+  prepareTurnSource?: "central" | "local_cache" | undefined;
+  queue?: SyncQueueSummary | undefined;
+  now: Date;
+}): string | undefined {
+  const queue = input.queue;
+
+  if (hasCriticalConflict(queue)) {
+    return ajustesSyncCopy.criticalConflictBlocker;
+  }
+
+  if (hasCriticalPending(queue)) {
+    return ajustesSyncCopy.criticalPendingBlocker;
+  }
+
+  const cache = input.cache;
+  const resolvedSource = input.prepareTurnSource ?? cache?.source;
+
+  if (resolvedSource === "local_cache") {
+    return ajustesSyncCopy.localCacheBlocker;
+  }
+
+  if (cache === null || cache === undefined || cache.lastCentralReadAt === undefined) {
+    return ajustesSyncCopy.missingCentralRead;
+  }
+
+  if (cache.state !== "ready" || isCentralReadStale(cache, input.now)) {
+    return ajustesSyncCopy.staleCentralRead;
+  }
+
+  return undefined;
+}
+
+function hasCriticalConflict(queue: SyncQueueSummary | undefined): boolean {
+  return (
+    queue?.hasCriticalConflict === true ||
+    queue?.commands.some(
+      (command) => command.state === "sync_conflict" && command.urgency === "critical",
+    ) === true
+  );
+}
+
+function hasCriticalPending(queue: SyncQueueSummary | undefined): boolean {
+  return (
+    queue?.commands.some(
+      (command) => command.urgency === "critical" && command.state !== "sync_conflict",
+    ) === true
+  );
+}
+
+function isCentralReadStale(cache: PrepareTurnCacheStatus, now: Date): boolean {
+  const readAt = Date.parse(cache.lastCentralReadAt ?? "");
+
+  if (Number.isNaN(readAt)) {
+    return true;
+  }
+
+  return now.getTime() - readAt > cache.staleAfterHours * 60 * 60 * 1000;
 }
