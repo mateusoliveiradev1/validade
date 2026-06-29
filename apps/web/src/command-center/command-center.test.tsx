@@ -348,7 +348,7 @@ describe("CommandCenter", () => {
     cleanup();
   });
 
-  it("answers the safety question before rendering the ordered operational funnel", async () => {
+  it("renders Operacao daily safety without rollout diagnostics", async () => {
     const client: CommandCenterClient = {
       read: vi.fn().mockResolvedValue(projection),
       sendSafePushTest: vi.fn(),
@@ -357,36 +357,15 @@ describe("CommandCenter", () => {
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
     expect(screen.getByText("Foto da central")).toBeTruthy();
-    expect(screen.getByText("Aparelhos do piloto")).toBeTruthy();
-    expect(screen.getByText("UAT Loja 18")).toBeTruthy();
-    expect(screen.getByText("Bloqueios do piloto")).toBeTruthy();
-    expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
-    expect(screen.getByText("Revisar produto antes de declarar catalogo pronto.")).toBeTruthy();
-    expect(screen.getByText("Produto real da Loja 18")).toBeTruthy();
-    expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
-    expect(screen.getAllByText(/Provider bloqueado externamente/).length).toBeGreaterThan(1);
-    expect(screen.getByText("Moto G Lideranca")).toBeTruthy();
-    expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
-    expect(screen.getByText(/phase-12-staging-apk-120/)).toBeTruthy();
-    expect(screen.getByText("Push remoto ainda nao provado")).toBeTruthy();
-    expect(screen.getByText("Executar teste seguro de push antes do rollout.")).toBeTruthy();
-    expect(screen.getByText("Canal de lembrete, nao execucao fisica.")).toBeTruthy();
+    expect(screen.getByText("Aparelhos: 0 aptos, 1 em atencao, 0 bloqueados")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abrir Aparelhos" })).toBeTruthy();
     expect(
-      screen.getAllByText(/nao resolve tarefa, nao prova area segura/i).length,
-    ).toBeGreaterThan(1);
-    expect(screen.getByText("Lembrete aceito pelo provider")).toBeTruthy();
-    expect(screen.getByText("Verificar Expo/provider e tentar novamente.")).toBeTruthy();
-    expect(screen.getByText("Reabrir o app para renovar token e repetir o teste.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Enviar teste seguro" })).toHaveProperty(
-      "disabled",
-      true,
-    );
+      screen.getByText("Nenhum bloqueio de aparelho afeta a operacao diaria agora."),
+    ).toBeTruthy();
     expect(screen.getByText("1 lote central")).toBeTruthy();
     expect(screen.getByText("1 produto em rascunho")).toBeTruthy();
     expect(screen.getByText("Por que venceu")).toBeTruthy();
-    expect(screen.getByText("Grafico de gargalos")).toBeTruthy();
-    expect(screen.getByText("Prazo formal ja passou")).toBeTruthy();
-    expect(screen.getByText("Colaborador FICTICIO")).toBeTruthy();
+    expect(screen.getAllByText("Prazo formal ja passou").length).toBeGreaterThan(0);
     expect(screen.getByText("Sync da retirada ainda nao foi confirmado.")).toBeTruthy();
     expect(screen.getByText("Retirar, registrar destino e reconferir a gondola")).toBeTruthy();
     expect(screen.getByText("Produtos em revisao")).toBeTruthy();
@@ -396,6 +375,12 @@ describe("CommandCenter", () => {
     expect(screen.getByText(/Retirada confirmada por Lider FICTICIO/)).toBeTruthy();
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
+    expect(text).not.toContain("UAT Loja 18");
+    expect(text).not.toContain("Bloqueios do piloto");
+    expect(text).not.toContain("phase-12-staging-apk-120");
+    expect(text).not.toContain("Enviar teste seguro");
+    expect(text).not.toContain("Lembrete aceito pelo provider");
+    expect(text).not.toContain("Provider push sem prova atual");
     expect(text).not.toMatch(/pushToken|expoPushToken|rawDeviceId|buildUrl/i);
     expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
@@ -415,9 +400,6 @@ describe("CommandCenter", () => {
     expect(text.indexOf("Fechamentos com pendencias")).toBeLessThan(
       text.indexOf("Historico resolvido"),
     );
-    expect(text.indexOf("Historico resolvido")).toBeLessThan(
-      text.indexOf("Historico de fechamentos"),
-    );
     expect(text).not.toMatch(/sales|revenue|forecast|supplier/i);
   });
 
@@ -427,7 +409,7 @@ describe("CommandCenter", () => {
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect((await screen.findByRole("alert")).textContent).toContain("Nao foi possivel atualizar");
-    fireEvent.click(screen.getByRole("button", { name: "Tentar atualizar o Command Center" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tentar atualizar agora" }));
     expect(read).toHaveBeenCalledTimes(2);
   });
 
@@ -498,7 +480,14 @@ describe("CommandCenter", () => {
       }),
       sendSafePushTest,
     };
-    render(<CommandCenter canSendPilotPushTest client={client} storeId="loja-piloto" />);
+    render(
+      <CommandCenter
+        activeRoute="aparelhos"
+        canSendPilotPushTest
+        client={client}
+        storeId="loja-piloto"
+      />,
+    );
 
     fireEvent.click(await screen.findByRole("button", { name: "Enviar teste seguro" }));
 

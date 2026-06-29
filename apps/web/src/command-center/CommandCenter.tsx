@@ -11,11 +11,10 @@ import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { createFetchCommandCenterClient, type CommandCenterClient } from "./command-center-client";
 import {
-  optionalDateLabel,
   routeKicker,
-  sortDevicesByReadiness,
   type CommandCenterRoute,
 } from "./command-center-view-model";
+import { OperacaoRoute } from "./OperacaoRoute";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
 
@@ -91,6 +90,21 @@ export function CommandCenter({
 
   const isInitialLoading = status === "loading" && projection === undefined;
   const current = projection;
+  const canOpenAuditRoute = canOpenAudit ?? onOpenAudit !== undefined;
+
+  if (activeRoute === "operacao") {
+    return (
+      <OperacaoRoute
+        canOpenAudit={canOpenAuditRoute}
+        {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
+        {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
+        {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
+        onRefresh={() => void load()}
+        projection={current}
+        status={status}
+      />
+    );
+  }
 
   return (
     <section className="grid gap-6" aria-labelledby="command-center-heading">
@@ -143,10 +157,8 @@ export function CommandCenter({
 
       {current === undefined ? null : (
         <CommandCenterProjectionView
-          activeRoute={activeRoute}
-          canOpenAudit={canOpenAudit ?? onOpenAudit !== undefined}
+          canOpenAudit={canOpenAuditRoute}
           canSendPilotPushTest={canSendPilotPushTest === true}
-          {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
           onSendSafePushTest={sendSafePushTest}
           projection={current}
@@ -157,18 +169,14 @@ export function CommandCenter({
 }
 
 function CommandCenterProjectionView({
-  activeRoute,
   canOpenAudit,
   canSendPilotPushTest,
-  onOpenAparelhos,
   onOpenAudit,
   onSendSafePushTest,
   projection,
 }: {
-  activeRoute: CommandCenterRoute;
   canOpenAudit: boolean;
   canSendPilotPushTest: boolean;
-  onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
   onSendSafePushTest: (device: CommandCenterProjection["devices"][number]) => Promise<void>;
   projection: CommandCenterProjection;
@@ -205,13 +213,6 @@ function CommandCenterProjectionView({
           {projection.freshness === "stale" ? " - leitura central pendente de atualizacao" : ""}
         </p>
       </section>
-
-      {activeRoute === "operacao" && onOpenAparelhos !== undefined ? (
-        <Button className="min-h-12 w-fit" variant="outline" onClick={onOpenAparelhos}>
-          <Smartphone className="size-4" aria-hidden="true" />
-          Abrir Aparelhos
-        </Button>
-      ) : null}
 
       <CentralSnapshotPanel snapshot={projection.centralSnapshot} />
 
@@ -544,7 +545,7 @@ function DeviceReadinessPanel({
 }) {
   const [pendingDeviceId, setPendingDeviceId] = React.useState<string>();
   const [failedDeviceId, setFailedDeviceId] = React.useState<string>();
-  const sortedDevices = sortDevicesByReadiness(devices);
+  const sortedDevices = [...devices].sort(compareDeviceReadiness);
   const blockedCount = devices.filter((device) => device.verdict === "bloqueado").length;
   const attentionCount = devices.filter((device) => device.verdict === "atencao").length;
   const aptCount = devices.filter((device) => device.verdict === "apto").length;
@@ -1523,6 +1524,20 @@ function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function compareDeviceReadiness(
+  left: CommandCenterProjection["devices"][number],
+  right: CommandCenterProjection["devices"][number],
+): number {
+  const rank: Record<CommandCenterProjection["devices"][number]["verdict"], number> = {
+    bloqueado: 0,
+    atencao: 1,
+    apto: 2,
+  };
+  const verdictDiff = rank[left.verdict] - rank[right.verdict];
+  if (verdictDiff !== 0) return verdictDiff;
+  return right.updatedAt.localeCompare(left.updatedAt);
+}
+
 function pushTestDisabledReason(input: {
   canSendPilotPushTest: boolean;
   device: CommandCenterProjection["devices"][number];
@@ -1759,6 +1774,10 @@ function appendSafePushTestResult(
       };
     }),
   };
+}
+
+function optionalDateLabel(value: string | undefined): string {
+  return value === undefined ? "sem registro" : formatDateTime(value);
 }
 
 function formatDateTime(value: string): string {
