@@ -99,6 +99,7 @@ export function TodayScreen({
   prepareTurnCacheStatus,
   prepareTurnSource,
   buildInfo,
+  refreshRequest,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -115,6 +116,7 @@ export function TodayScreen({
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
   buildInfo?: MobileBuildInfo | undefined;
+  refreshRequest?: { id: number; source: TodayTaskRefreshSource } | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
@@ -195,8 +197,8 @@ export function TodayScreen({
   }
 
   useEffect(() => {
-    void refreshTasks("today_open");
-  }, []);
+    void refreshTasks(refreshRequest?.source ?? "today_open");
+  }, [refreshRequest?.id]);
 
   async function manualSync(): Promise<void> {
     if (syncEngine === undefined || isSyncing) {

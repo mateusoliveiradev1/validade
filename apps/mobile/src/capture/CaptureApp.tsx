@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { CaptureProductRecord, CaptureRepository, MarkdownEntryState } from "./repository";
+import type {
+  CaptureProductRecord,
+  CaptureRepository,
+  MarkdownEntryState,
+  TodayTaskRefreshSource,
+} from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
@@ -97,6 +102,9 @@ export function CaptureApp({
   );
   const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>();
+  const [todayRefreshRequest, setTodayRefreshRequest] = useState<
+    { id: number; source: TodayTaskRefreshSource } | undefined
+  >();
   const resolvedAlertChannel = useMemo(
     () => alertChannel ?? createExpoPushAlertChannel(),
     [alertChannel],
@@ -113,9 +121,20 @@ export function CaptureApp({
   }, []);
 
   const resetToToday = useCallback(
-    (input?: { notice?: string | undefined; highlightedTaskId?: string | undefined }): void => {
+    (input?: {
+      notice?: string | undefined;
+      highlightedTaskId?: string | undefined;
+      refreshSource?: TodayTaskRefreshSource | undefined;
+    }): void => {
       setPushFallbackNotice(input?.notice);
       setHighlightedTaskId(input?.highlightedTaskId);
+      const refreshSource = input?.refreshSource;
+      if (refreshSource !== undefined) {
+        setTodayRefreshRequest((current) => ({
+          id: (current?.id ?? 0) + 1,
+          source: refreshSource,
+        }));
+      }
       setRouteStack(initialRouteStack);
     },
     [],
@@ -437,6 +456,7 @@ export function CaptureApp({
           prepareTurnCacheStatus={prepareTurnCache}
           prepareTurnSource={prepareTurnSource}
           buildInfo={resolvedBuildInfo}
+          refreshRequest={todayRefreshRequest}
           onRegisterLot={() => navigate({ name: "discovery" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
@@ -548,7 +568,7 @@ export function CaptureApp({
         repository={repository}
         product={currentRoute.product}
         onBack={goBack}
-        onSaved={() => resetToToday()}
+        onSaved={() => resetToToday({ refreshSource: "lot_change" })}
       />,
     );
   }

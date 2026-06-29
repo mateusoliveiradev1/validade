@@ -299,6 +299,7 @@ function pilotPrepareTurnResponse(): PrepareTurnResponse {
 function createPilotJourneyRepository(input: {
   saveLot: (snapshot: CaptureLotSnapshot) => void;
   hydratePrepareTurn: (cache: PrepareTurnCacheStatus) => void;
+  refreshTodayTasks?: CaptureRepository["refreshTodayTasks"] | undefined;
 }): CaptureRepository {
   let prepareCache: PrepareTurnCacheStatus | null = null;
 
@@ -363,17 +364,19 @@ function createPilotJourneyRepository(input: {
     appendObservation: () => Promise.reject(new Error("not used")),
     listRecentLots: () => Promise.resolve([]),
     loadLotDetail: () => Promise.resolve(null),
-    refreshTodayTasks: (request) =>
-      Promise.resolve({
-        metadata: {
-          refreshedAt: request.currentTimestamp,
-          activeTaskCount: 0,
-          futureAttentionCount: 0,
-          source: request.source,
-        },
-        tasks: [],
-        futureAttention: [],
-      }),
+    refreshTodayTasks:
+      input.refreshTodayTasks ??
+      ((request) =>
+        Promise.resolve({
+          metadata: {
+            refreshedAt: request.currentTimestamp,
+            activeTaskCount: 0,
+            futureAttentionCount: 0,
+            source: request.source,
+          },
+          tasks: [],
+          futureAttention: [],
+        })),
     listActiveTodayTasks: () => Promise.resolve([]),
     listFutureAttention: () => Promise.resolve([]),
     resolveTodayTask: () => Promise.reject(new Error("not used")),
@@ -732,9 +735,22 @@ describe("mobile release journeys", () => {
     const { createFakePushAlertChannel } = await import("./alert-channel");
     const savedLots: CaptureLotSnapshot[] = [];
     const hydratedCaches: PrepareTurnCacheStatus[] = [];
+    const refreshTodayTasks = vi.fn<CaptureRepository["refreshTodayTasks"]>((request) =>
+      Promise.resolve({
+        metadata: {
+          refreshedAt: request.currentTimestamp,
+          activeTaskCount: 0,
+          futureAttentionCount: 0,
+          source: request.source,
+        },
+        tasks: [],
+        futureAttention: [],
+      }),
+    );
     const repository = createPilotJourneyRepository({
       saveLot: (snapshot) => savedLots.push(snapshot),
       hydratePrepareTurn: (cache) => hydratedCaches.push(cache),
+      refreshTodayTasks,
     });
     let tree: ReactTestRenderer | undefined;
 
@@ -784,6 +800,9 @@ describe("mobile release journeys", () => {
       identitySource: "printed",
       value: "BAN-LOTE-001",
     });
+    expect(refreshTodayTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "lot_change" }),
+    );
     expect(JSON.stringify(tree.toJSON())).toContain("Hoje");
   });
 
