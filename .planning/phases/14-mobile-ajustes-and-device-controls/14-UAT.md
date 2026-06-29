@@ -8,7 +8,7 @@ source:
   - 14-04-SUMMARY.md
   - 14-05-SUMMARY.md
 started: 2026-06-29T06:51:50.2029667-03:00
-updated: 2026-06-29T13:49:35.8748290-03:00
+updated: 2026-06-29T14:18:39.5139661-03:00
 ---
 
 ## Current Test
@@ -50,11 +50,11 @@ result: [pending]
 
 total: 6
 passed: 1
-issues: 2
+issues: 0
 pending: 5
 skipped: 0
 blocked: 0
-remediated_pending_retest: 2
+remediated_passed: 2
 
 ## Setup Evidence
 
@@ -73,14 +73,16 @@ remediated_pending_retest: 2
   severity: major
   source_test: 1
   artifact: "screenshot codex-clipboard-dfb3bbc6-e5b2-4ba2-8364-7756176ac3bf.png"
-  status: fixed_in_code_pending_device_retest
+  status: fixed_retested_pass
   fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk"
+  retest: "pass"
 - finding: "O app parece exigir Preparar turno toda vez que entra."
   reported: "toda hora q entra no app tem q preparar o turno?"
   severity: major
   source_test: 1
-  status: fixed_in_code_pending_device_retest
+  status: fixed_retested_pass
   fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk"
+  retest: "pass"
 
 ## Fix Evidence
 
@@ -89,20 +91,21 @@ remediated_pending_retest: 2
 - Regression tests: `pnpm.cmd --filter @validade-zero/mobile test -- capture-repository.test.ts prepare-turn.test.tsx` passed, exercising draft-lot save and central-cache reentry.
 - Full repo gate: `pnpm.cmd check` passed with typecheck, lint, format check, tests, smoke tests, build, security, and performance budgets.
 - Android build: local release APK built from a short Windows worktree because the main workspace Gradle build hit CMake path length limits.
+- Device retest: user reported `pass` for corrected draft lot registration and app reentry without repeated prepare-turn.
 
 ## Gaps
 
 - truth: "O operador consegue registrar um lote valido ou recebe erro especifico de campo/causa quando o lote nao pode ser salvo."
-  status: pending_retest
-  reason: "Fixed in code/APK after user reported: Consegui criar um lote, mas esse aqui nao. Screenshot showed generic local registration failure."
+  status: fixed_retested_pass
+  reason: "Fixed in code/APK after user reported: Consegui criar um lote, mas esse aqui nao. User retested and reported pass."
   severity: major
   test: 1
   artifacts:
     - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk"
   missing: []
 - truth: "Ao reabrir o app com sessao e leitura central ainda utilizaveis, o operador nao precisa preparar turno repetidamente sem causa explicita."
-  status: pending_retest
-  reason: "Fixed in code/APK after user reported: toda hora q entra no app tem q preparar o turno?"
+  status: fixed_retested_pass
+  reason: "Fixed in code/APK after user reported: toda hora q entra no app tem q preparar o turno? User retested and reported pass."
   severity: major
   test: 1
   artifacts:
