@@ -727,6 +727,11 @@ describe("CommandCenter", () => {
         },
       }),
     ).toBe(disabledCopy);
+    expect(resolveUpdatePathState().state).toBe("manual_pending");
+    expect(resolveUpdatePathState().ctaLabel).toBe("Ver instrucoes manuais");
+    expect(resolveUpdatePathState("https://updates.ficticia.invalid/apk").state).toBe(
+      "public_safe",
+    );
     expect(resolveUpdatePathState("token-buildUrl-secret").state).toBe("blocked");
     expect(resolveUpdatePathState("token-buildUrl-secret").href).toBeUndefined();
   });
