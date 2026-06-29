@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { SessionContextResponse } from "@validade-zero/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { AppShell } from "./shell/AppShell";
 
 const activeSession = {
   status: "refreshed",
@@ -121,6 +123,21 @@ describe("authenticated web shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir navegacao" }));
     const navigationDialog = screen.getByRole("dialog");
     expect(navigationDialog).toBeTruthy();
+    expect(within(navigationDialog).getByRole("button", { name: "Operacao" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(within(navigationDialog).getByRole("button", { name: "Aparelhos" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(
+      within(navigationDialog).getByRole("button", { name: "Atualizacoes" }),
+    ).toHaveProperty("disabled", false);
+    expect(within(navigationDialog).getByRole("button", { name: "Validacao" })).toHaveProperty(
+      "disabled",
+      false,
+    );
     expect(
       within(navigationDialog).getByRole("button", { name: "Acessos da loja" }),
     ).toHaveProperty("disabled", true);
@@ -130,6 +147,41 @@ describe("authenticated web shell", () => {
       true,
     );
     expect(within(navigationDialog).getByText("Lideranca apenas")).toBeTruthy();
+  });
+
+  it("keeps operational routes disabled for an admin-only session", () => {
+    const session: SessionContextResponse = {
+      ...(activeSession.session as unknown as SessionContextResponse),
+      activeRole: "admin",
+      actions: {
+        ...activeSession.session.actions,
+        canReadCommandCenter: false,
+        canManageUsers: true,
+        canReadStoreAudit: false,
+        canSendPilotPushTest: false,
+      },
+    };
+
+    render(
+      <AppShell
+        route="access"
+        session={session}
+        onLogout={() => undefined}
+        onOpenPrivacy={() => undefined}
+        onRouteChange={() => undefined}
+      >
+        <div>Acessos disponiveis</div>
+      </AppShell>,
+    );
+
+    for (const routeLabel of ["Operacao", "Aparelhos", "Atualizacoes", "Validacao"]) {
+      expect(screen.getByRole("button", { name: routeLabel })).toHaveProperty("disabled", true);
+    }
+    expect(screen.getAllByText("Escopo operacional indisponivel")).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Acessos da loja" })).toHaveProperty(
+      "disabled",
+      false,
+    );
   });
 });
 
