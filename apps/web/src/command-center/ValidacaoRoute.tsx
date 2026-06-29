@@ -284,8 +284,8 @@ function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["de
           <p className="text-sm font-semibold text-primary">Evidencia sanitizada</p>
           <h2 className="text-xl font-semibold leading-6">Aparelhos e build usados na prova</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            A validacao mostra somente id mascarado, etiqueta publica de build e horarios de
-            leitura. Detalhe de push fica em Aparelhos.
+            A validacao mostra somente id mascarado, compatibilidade, versao instalada e horarios
+            de leitura. A etiqueta aprovada fica em Atualizacoes.
           </p>
         </div>
         <Badge tone={devices.length === 0 ? "warning" : "neutral"}>{devices.length} aparelho(s)</Badge>
@@ -315,8 +315,8 @@ function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["de
               </div>
               <div className="grid gap-2 text-sm leading-5 text-muted-foreground md:grid-cols-2 xl:grid-cols-3">
                 <p>
-                  <span className="font-medium text-foreground">Build publica: </span>
-                  {device.approvedArtifactLabel}
+                  <span className="font-medium text-foreground">Compatibilidade: </span>
+                  {buildCompatibilityLabel(device.buildCompatibility)}
                 </p>
                 <p>
                   <span className="font-medium text-foreground">Instalada: </span>
@@ -361,18 +361,18 @@ function RouteReferencePanel({
       <div className="flex flex-wrap gap-2">
         <ReferenceButton
           label="Resolver push em Aparelhos"
-          onClick={onOpenAparelhos}
           icon="aparelhos"
+          {...(onOpenAparelhos === undefined ? {} : { onClick: onOpenAparelhos })}
         />
         <ReferenceButton
           label="Resolver atualizacao em Atualizacoes"
-          onClick={onOpenAtualizacoes}
           icon="atualizacoes"
+          {...(onOpenAtualizacoes === undefined ? {} : { onClick: onOpenAtualizacoes })}
         />
         <ReferenceButton
           label="Revisar operacao diaria em Operacao"
-          onClick={onOpenOperacao}
           icon="operacao"
+          {...(onOpenOperacao === undefined ? {} : { onClick: onOpenOperacao })}
         />
         <Button className="min-h-12" disabled title="Registro sera habilitado quando houver endpoint seguro.">
           <ClipboardCheck className="size-4" aria-hidden="true" />
@@ -451,6 +451,15 @@ function uatStepStateLabel(
   if (state === "blocked") return "Bloqueado";
   if (state === "external_blocked") return "Bloqueio externo";
   return "Pendente";
+}
+
+function buildCompatibilityLabel(
+  state: CommandCenterProjection["devices"][number]["buildCompatibility"],
+): string {
+  if (state === "atual") return "APK aprovado";
+  if (state === "desatualizado") return "Build antigo";
+  if (state === "incompativel") return "Build incompativel";
+  return "Build desconhecido";
 }
 
 function ValidacaoSkeleton() {

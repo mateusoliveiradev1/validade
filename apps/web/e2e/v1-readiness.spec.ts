@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { adminSession, installWebFixture } from "./fixtures/v1-readiness";
 
-test("Command Center answers safety first and keeps the operational funnel in order", async ({
+test("operational readiness routes keep each truth in its own room", async ({
   page,
 }) => {
   await installWebFixture(page);
@@ -9,22 +9,24 @@ test("Command Center answers safety first and keeps the operational funnel in or
 
   await expect(page.getByRole("heading", { name: "Area de venda segura agora?" })).toBeVisible();
   await expect(page.getByText("Area de venda com bloqueios")).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Navegacao principal" });
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Operacao", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Aparelhos", exact: true })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Folhas FICTICIAS - lote FOL-001" }),
+    navigation.getByRole("button", { name: "Atualizacoes", exact: true }),
   ).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Validacao", exact: true })).toBeVisible();
+  await expect(page.getByText("Folhas FICTICIAS - lote FOL-001", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Manga FICTICIA - lote MAN-001")).toBeVisible();
-  await expect(page.getByText("UAT Loja 18")).toBeVisible();
-  await expect(page.getByText("Bloqueios do piloto")).toBeVisible();
-  await expect(page.getByText("Provider push sem prova atual")).toBeVisible();
-  await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
-  await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
-  await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
-  await expect(page.getByRole("navigation", { name: "Navegacao principal" })).toBeVisible();
   await expect(page.getByText("Ambiente seguro para desenvolvimento")).toHaveCount(0);
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Command Center" })).toBeFocused();
+  await expect(navigation.getByRole("button", { name: "Operacao", exact: true })).toBeFocused();
 
   const pageText = await page.locator("body").innerText();
+  expect(pageText).not.toContain("UAT Loja 18");
+  expect(pageText).not.toContain("phase-12-staging-apk-120");
+  expect(pageText).not.toContain("Provider push sem prova atual");
   expect(pageText.indexOf("Lotes criticos")).toBeLessThan(pageText.indexOf("Tarefas atrasadas"));
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
     pageText.indexOf("Rebaixas pendentes"),
@@ -35,16 +37,54 @@ test("Command Center answers safety first and keeps the operational funnel in or
   expect(pageText.indexOf("Historico resolvido")).toBeLessThan(
     pageText.indexOf("Manga FICTICIA - lote MAN-001"),
   );
+
+  await navigation.getByRole("button", { name: "Aparelhos", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Aparelhos" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bloqueado, atencao, apto" })).toBeVisible();
+  await expect(page.getByText("Moto G Lideranca Loja 18")).toBeVisible();
+  await expect(page.getByText("moto...018 - Lideranca FICTICIA")).toBeVisible();
+  await expect(page.getByText("APK aprovado")).toBeVisible();
+  await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
+  await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
+
+  await navigation.getByRole("button", { name: "Atualizacoes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Atualizacoes" })).toBeVisible();
+  await expect(page.getByText("phase-12-staging-apk-120")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ver instrucoes manuais" })).toBeVisible();
+  await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
+  await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
+
+  await navigation.getByRole("button", { name: "Validacao", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Validacao", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No-Go" })).toBeVisible();
+  await expect(page.getByText("UAT Loja 18")).toHaveCount(2);
+  await expect(page.getByText("Provider push sem prova atual")).toBeVisible();
+  await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
+  await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
+  await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
+  await expect(page.getByText("phase-12-staging-apk-120")).toHaveCount(0);
+  await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
+  await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 });
 
-test("role and store scope keep Command Center denied for admin-only access", async ({ page }) => {
+test("role and store scope keep operational routes denied for admin-only access", async ({
+  page,
+}) => {
   await installWebFixture(page, { session: adminSession });
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Convites e vinculos da loja" })).toBeVisible();
   await expect(page.getByText("Lideranca V1 FICTICIA")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Command Center" })).toBeDisabled();
-  await expect(page.getByText("Escopo operacional indisponivel")).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Navegacao principal" });
+  await expect(navigation.getByRole("button", { name: "Operacao", exact: true })).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "Aparelhos", exact: true })).toBeDisabled();
+  await expect(
+    navigation.getByRole("button", { name: "Atualizacoes", exact: true }),
+  ).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "Validacao", exact: true })).toBeDisabled();
+  await expect(
+    navigation.getByText("Escopo operacional indisponivel"),
+  ).toHaveCount(4);
 });
 
 test("privacy content, audit fallback, and narrow navigation remain reachable", async ({
@@ -65,14 +105,12 @@ test("privacy content, audit fallback, and narrow navigation remain reachable", 
   await expect(page.getByRole("heading", { name: "Auditoria operacional" })).toBeVisible();
 });
 
-test("Command Center communicates a recoverable refresh failure", async ({ page }) => {
+test("Operacao communicates a recoverable refresh failure", async ({ page }) => {
   await installWebFixture(page, { commandCenterStatus: 503 });
   await page.goto("/");
 
   await expect(page.getByRole("alert")).toContainText(
-    "Nao foi possivel atualizar o Command Center.",
+    "Nao foi possivel atualizar a leitura da loja.",
   );
-  await expect(
-    page.getByRole("button", { name: "Tentar atualizar o Command Center" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tentar atualizar agora" })).toBeVisible();
 });

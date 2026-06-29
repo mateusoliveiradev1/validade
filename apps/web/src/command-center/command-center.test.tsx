@@ -663,7 +663,6 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
     expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
     expect(screen.getByText("moto...001 - Lider FICTICIO")).toBeTruthy();
-    expect(screen.getByText("phase-12-staging-apk-120")).toBeTruthy();
     expect(screen.getByText("Resolver push em Aparelhos")).toBeTruthy();
     expect(screen.getByText("Resolver atualizacao em Atualizacoes")).toBeTruthy();
     expect(screen.getByText("Revisar operacao diaria em Operacao")).toBeTruthy();
@@ -674,6 +673,7 @@ describe("CommandCenter", () => {
     expect(text).toContain("Agora:");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Ver instrucoes manuais");
+    expect(text).not.toContain("phase-12-staging-apk-120");
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Resolver push em Aparelhos" }));
