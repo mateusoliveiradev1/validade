@@ -3,7 +3,7 @@
 **Mode:** Vertical MVP
 **Granularity:** Fine
 **Requirements covered:** 18/18
-**Current status:** v1.1 Operacao Real de Loja e Diagnostico planning
+**Current status:** Phase 14 ready for discussion
 
 ## Milestones
 
@@ -26,7 +26,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Reorganize the web leadership surface so the Command Center stays focused on sales-area safety while devices, updates, and validation each have a durable place.
 
 **Requirements:** WEB-01, WEB-02, WEB-03, WEB-04, WEB-05
-**Status:** Planned - 5 sequential plans ready
+**Status:** Complete - verified 2026-06-29
 
 **Success criteria:**
 1. Command Center first scan answers the operational safety question without verbose pilot/UAT/build panels in the daily flow.
@@ -47,7 +47,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Add a mobile Ajustes area that owns account/store context, push and reminders, sync health, update truth, diagnostics, privacy, and sign-out.
 
 **Requirements:** SET-01, SET-02, SET-03, SET-04, SET-05
-**Status:** Not started
+**Status:** Ready for discussion
 
 **Success criteria:**
 1. Operators can open Ajustes from the mobile app shell without losing the active store, role, session, or current operational route.
@@ -93,10 +93,10 @@ v1.1 succeeds when the app feels like a real store tool instead of a pilot debug
 
 ## Active Planning
 
-Continue with Phase 13 execution:
+Continue with Phase 14 discussion:
 
 ```powershell
-$gsd-execute-phase 13
+$gsd-discuss-phase 14
 ```
 
 ## Archive
@@ -114,7 +114,7 @@ Phase execution directories from v1.0 were cleared from `.planning/phases/` when
 
 | Area | Requirements | Phase | Status |
 |------|--------------|-------|--------|
-| Web Operation | WEB-01..WEB-05 | Phase 13 | Pending |
+| Web Operation | WEB-01..WEB-05 | Phase 13 | Complete |
 | Mobile Ajustes | SET-01..SET-05 | Phase 14 | Pending |
 | Operational Focus | OPS-01..OPS-04 | Phase 15 | Pending |
 | Loja 18 Validation | VAL-01..VAL-04 | Phase 16 | Pending |

@@ -37,7 +37,7 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 
 ### Active
 
-- [ ] Separar no web a operação diária, aparelhos, atualizações e validação Go/No-Go sem esconder a prontidão dos aparelhos.
+- [x] Separar no web a operação diária, aparelhos, atualizações e validação Go/No-Go sem esconder a prontidão dos aparelhos - Phase 13.
 - [ ] Criar no mobile uma área de Ajustes que concentre push/lembretes, sync, atualizações, build, privacidade, conta e saída.
 - [ ] Reduzir ruído operacional: estados saudáveis de sync/push/build ficam compactos, enquanto bloqueios aparecem com próximo passo claro.
 - [ ] Guiar a validação real da Loja 18 com produto/lote reais e provas externas honestas para APK, push, câmera/evidência, segundo aparelho e fechamento.
@@ -90,9 +90,9 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 | Command Center deve explicar causa e próximo passo | Liderança precisa agir, não só olhar métricas | Good - Phase 12 sintetiza bloqueios do piloto |
 | Manter Neon + Cloudflare atrás de adaptadores | Favorece custo zero e troca futura de provider | Good - staging e provider seams permaneceram substituíveis |
 | Não declarar rollout físico sem Loja 18 real | Repositório verde não prova operação de corredor | Good - v1.0 fecha como repository-complete, não rollout-complete |
-| Aparelhos ficam permanentes, mas detalhes saem do Command Center diário | A liderança precisa ver prontidão de aparelhos sempre, sem misturar diagnóstico com risco da área de venda | Pending - escopo v1.1 |
-| UAT/Go-No-Go vira superfície de validação, não rotina operacional | Checklist de rollout é importante para provar loja real, mas não deve poluir o uso diário depois da validação | Pending - escopo v1.1 |
-| Atualizações do APK precisam ser verdade explícita | APK local não atualiza sozinho de forma confiável; operador precisa saber se está na build aprovada e como atualizar | Pending - escopo v1.1 |
+| Aparelhos ficam permanentes, mas detalhes saem do Command Center diário | A liderança precisa ver prontidão de aparelhos sempre, sem misturar diagnóstico com risco da área de venda | Good - Phase 13 separou Operacao e Aparelhos |
+| UAT/Go-No-Go vira superfície de validação, não rotina operacional | Checklist de rollout é importante para provar loja real, mas não deve poluir o uso diário depois da validação | Good - Phase 13 criou Validacao |
+| Atualizações do APK precisam ser verdade explícita | APK local não atualiza sozinho de forma confiável; operador precisa saber se está na build aprovada e como atualizar | Good - Phase 13 criou Atualizacoes |
 
 ## Evolution
 
