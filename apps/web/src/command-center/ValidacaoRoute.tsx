@@ -284,11 +284,13 @@ function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["de
           <p className="text-sm font-semibold text-primary">Evidencia sanitizada</p>
           <h2 className="text-xl font-semibold leading-6">Aparelhos e build usados na prova</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            A validacao mostra somente id mascarado, compatibilidade, versao instalada e horarios
-            de leitura. A etiqueta aprovada fica em Atualizacoes.
+            A validacao mostra somente id mascarado, compatibilidade, versao instalada e horarios de
+            leitura. A etiqueta aprovada fica em Atualizacoes.
           </p>
         </div>
-        <Badge tone={devices.length === 0 ? "warning" : "neutral"}>{devices.length} aparelho(s)</Badge>
+        <Badge tone={devices.length === 0 ? "warning" : "neutral"}>
+          {devices.length} aparelho(s)
+        </Badge>
       </div>
 
       {devices.length === 0 ? (
@@ -374,7 +376,11 @@ function RouteReferencePanel({
           icon="operacao"
           {...(onOpenOperacao === undefined ? {} : { onClick: onOpenOperacao })}
         />
-        <Button className="min-h-12" disabled title="Registro sera habilitado quando houver endpoint seguro.">
+        <Button
+          className="min-h-12"
+          disabled
+          title="Registro sera habilitado quando houver endpoint seguro."
+        >
           <ClipboardCheck className="size-4" aria-hidden="true" />
           Registrar status da validacao
         </Button>
@@ -392,7 +398,8 @@ function ReferenceButton({
   label: ValidationRouteReferenceLabel;
   onClick?: () => void;
 }) {
-  const Icon = icon === "operacao" ? ClipboardCheck : icon === "aparelhos" ? ShieldCheck : RefreshCw;
+  const Icon =
+    icon === "operacao" ? ClipboardCheck : icon === "aparelhos" ? ShieldCheck : RefreshCw;
 
   return (
     <Button

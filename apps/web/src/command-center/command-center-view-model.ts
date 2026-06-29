@@ -126,7 +126,7 @@ export type ValidationRouteReferenceLabel =
 const unsafeUpdatePathPattern =
   /(token|secret|password|eas:\/\/|buildUrl|dashboard|builds?\/|private|firebase|google-services)/i;
 
-export function resolveUpdatePathState(publicUpdateUrl?: string | undefined): UpdatePathState {
+export function resolveUpdatePathState(publicUpdateUrl?: string): UpdatePathState {
   const trimmed = publicUpdateUrl?.trim();
 
   if (trimmed === undefined || trimmed.length === 0) {
@@ -208,8 +208,7 @@ export function deriveValidationVerdict(projection: CommandCenterProjection): Va
   }
 
   return {
-    detail:
-      "Checklist, aparelhos, build e bloqueios estao sem pendencia nesta leitura sanitizada.",
+    detail: "Checklist, aparelhos, build e bloqueios estao sem pendencia nesta leitura sanitizada.",
     label: "Go",
     tone: "success",
   };

@@ -1,5 +1,5 @@
 import type { CommandCenterProjection } from "@validade-zero/contracts";
-import { BellRing, RefreshCw, Smartphone } from "lucide-react";
+import { BellRing, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -110,8 +110,8 @@ function DeviceReadinessList({
           <p className="text-sm font-semibold text-primary">Prontidao por aparelho</p>
           <h2 className="text-xl font-semibold leading-6">Bloqueado, atencao, apto</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Build aparece aqui como resumo de compatibilidade. A orientacao detalhada de
-            atualizacao fica em Atualizacoes.
+            Build aparece aqui como resumo de compatibilidade. A orientacao detalhada de atualizacao
+            fica em Atualizacoes.
           </p>
         </div>
         <Badge tone={devices.length === 0 ? "warning" : "neutral"}>
@@ -180,7 +180,10 @@ function DeviceReadinessList({
                   </p>
                   <p>
                     <span className="font-medium text-foreground">Build: </span>
-                    <Badge className="ml-1" tone={buildCompatibilityTone(device.buildCompatibility)}>
+                    <Badge
+                      className="ml-1"
+                      tone={buildCompatibilityTone(device.buildCompatibility)}
+                    >
                       {buildCompatibilityLabel(device.buildCompatibility)}
                     </Badge>
                   </p>
@@ -205,13 +208,9 @@ function DeviceReadinessList({
                     className="min-h-12 w-fit"
                     disabled={disabledReason !== undefined || pending}
                     title={disabledReason}
-                    onClick={async () => {
+                    onClick={() => {
                       setPendingDeviceId(device.deviceIdMasked);
-                      try {
-                        await onSendSafePushTest(device);
-                      } finally {
-                        setPendingDeviceId(undefined);
-                      }
+                      void onSendSafePushTest(device).finally(() => setPendingDeviceId(undefined));
                     }}
                   >
                     <BellRing className="size-4" aria-hidden="true" />

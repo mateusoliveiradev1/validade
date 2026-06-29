@@ -99,8 +99,8 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
             <p className="text-sm font-semibold text-primary">Build aprovada</p>
             <h2 className="text-xl font-semibold leading-6">{approvedArtifactLabel}</h2>
             <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-              Esta etiqueta publica ancora a comparacao. Ela nao e link privado, painel externo
-              ou credencial.
+              Esta etiqueta publica ancora a comparacao. Ela nao e link privado, painel externo ou
+              credencial.
             </p>
           </div>
           <Badge tone="success">Aprovada</Badge>
@@ -118,7 +118,9 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Caminho seguro</p>
           <h2 className="text-xl font-semibold leading-6">
-            {updatePath.state === "public_safe" ? "Atualizacao segura configurada" : "Atualizacao manual"}
+            {updatePath.state === "public_safe"
+              ? "Atualizacao segura configurada"
+              : "Atualizacao manual"}
           </h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
             {updatePath.detail}

@@ -131,9 +131,10 @@ describe("authenticated web shell", () => {
       "disabled",
       false,
     );
-    expect(
-      within(navigationDialog).getByRole("button", { name: "Atualizacoes" }),
-    ).toHaveProperty("disabled", false);
+    expect(within(navigationDialog).getByRole("button", { name: "Atualizacoes" })).toHaveProperty(
+      "disabled",
+      false,
+    );
     expect(within(navigationDialog).getByRole("button", { name: "Validacao" })).toHaveProperty(
       "disabled",
       false,

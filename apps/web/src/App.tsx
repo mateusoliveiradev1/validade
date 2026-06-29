@@ -214,7 +214,9 @@ function firstAllowedRoute(session: SessionContextResponse): AppRoute {
   return "operacao";
 }
 
-function isOperationalRoute(route: AppRoute): route is "operacao" | "aparelhos" | "atualizacoes" | "validacao" {
+function isOperationalRoute(
+  route: AppRoute,
+): route is "operacao" | "aparelhos" | "atualizacoes" | "validacao" {
   return (
     route === "operacao" ||
     route === "aparelhos" ||

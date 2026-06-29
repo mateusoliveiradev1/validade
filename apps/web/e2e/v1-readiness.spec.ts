@@ -1,9 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { adminSession, installWebFixture } from "./fixtures/v1-readiness";
 
-test("operational readiness routes keep each truth in its own room", async ({
-  page,
-}) => {
+test("operational readiness routes keep each truth in its own room", async ({ page }) => {
   await installWebFixture(page);
   await page.goto("/");
 
@@ -13,11 +11,11 @@ test("operational readiness routes keep each truth in its own room", async ({
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Operacao", exact: true })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Aparelhos", exact: true })).toBeVisible();
-  await expect(
-    navigation.getByRole("button", { name: "Atualizacoes", exact: true }),
-  ).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Atualizacoes", exact: true })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Validacao", exact: true })).toBeVisible();
-  await expect(page.getByText("Folhas FICTICIAS - lote FOL-001", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Folhas FICTICIAS - lote FOL-001", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Manga FICTICIA - lote MAN-001")).toBeVisible();
   await expect(page.getByText("Ambiente seguro para desenvolvimento")).toHaveCount(0);
   await page.keyboard.press("Tab");
@@ -82,9 +80,7 @@ test("role and store scope keep operational routes denied for admin-only access"
     navigation.getByRole("button", { name: "Atualizacoes", exact: true }),
   ).toBeDisabled();
   await expect(navigation.getByRole("button", { name: "Validacao", exact: true })).toBeDisabled();
-  await expect(
-    navigation.getByText("Escopo operacional indisponivel"),
-  ).toHaveCount(4);
+  await expect(navigation.getByText("Escopo operacional indisponivel")).toHaveCount(4);
 });
 
 test("privacy content, audit fallback, and narrow navigation remain reachable", async ({

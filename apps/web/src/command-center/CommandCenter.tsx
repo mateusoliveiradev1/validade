@@ -10,10 +10,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { createFetchCommandCenterClient, type CommandCenterClient } from "./command-center-client";
-import {
-  routeKicker,
-  type CommandCenterRoute,
-} from "./command-center-view-model";
+import { routeKicker, type CommandCenterRoute } from "./command-center-view-model";
 import { AparelhosRoute } from "./AparelhosRoute";
 import { AtualizacoesRoute } from "./AtualizacoesRoute";
 import { OperacaoRoute } from "./OperacaoRoute";

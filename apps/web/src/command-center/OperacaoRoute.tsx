@@ -73,8 +73,8 @@ export function OperacaoRoute({
               Nao foi possivel atualizar a leitura da loja.
             </p>
             <p className="text-sm leading-5 text-foreground">
-              Tente atualizar agora; se continuar, use a ultima leitura visivel como pendente,
-              nunca como area segura.
+              Tente atualizar agora; se continuar, use a ultima leitura visivel como pendente, nunca
+              como area segura.
             </p>
           </div>
           <Button className="min-h-12 w-fit" onClick={onRefresh}>
@@ -344,8 +344,8 @@ function CommandCenterInsightPanel({ projection }: { projection: CommandCenterPr
         <p className="text-sm font-semibold text-primary">Por que venceu</p>
         <h2 className="text-xl font-semibold leading-6">{primaryCause}</h2>
         <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-          A rota diaria mostra causa, responsavel e proxima acao operacional. Diagnostico de
-          rollout fica fora deste primeiro fluxo.
+          A rota diaria mostra causa, responsavel e proxima acao operacional. Diagnostico de rollout
+          fica fora deste primeiro fluxo.
         </p>
       </div>
 
@@ -409,15 +409,7 @@ function CommandCenterInsightPanel({ projection }: { projection: CommandCenterPr
   );
 }
 
-function InsightMetric({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: FunnelTone;
-  value: string;
-}) {
+function InsightMetric({ label, tone, value }: { label: string; tone: FunnelTone; value: string }) {
   return (
     <div className="grid gap-1 rounded-md border border-border bg-background p-3">
       <p className="text-sm text-muted-foreground">{label}</p>
@@ -482,10 +474,18 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
       </FunnelSection>
       <FunnelSection title="Conflitos de sincronizacao" count={projection.syncConflicts.length}>
         {projection.syncConflicts.map((item) => (
-          <FunnelRow key={item.conflictId} title={item.label} detail={item.detail} tone="critical" />
+          <FunnelRow
+            key={item.conflictId}
+            title={item.label}
+            detail={item.detail}
+            tone="critical"
+          />
         ))}
       </FunnelSection>
-      <FunnelSection title="Acoes descartadas pela central" count={projection.discardedActions.length}>
+      <FunnelSection
+        title="Acoes descartadas pela central"
+        count={projection.discardedActions.length}
+      >
         {projection.discardedActions.map((item) => (
           <FunnelRow
             key={item.commandId}
@@ -495,7 +495,10 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
           />
         ))}
       </FunnelSection>
-      <FunnelSection title="Fechamentos com pendencias" count={projection.pendingShiftCloses.length}>
+      <FunnelSection
+        title="Fechamentos com pendencias"
+        count={projection.pendingShiftCloses.length}
+      >
         {projection.pendingShiftCloses.map((item) => (
           <FunnelRow
             key={item.closureId}
@@ -543,15 +546,7 @@ function FunnelSection({
   );
 }
 
-function FunnelRow({
-  detail,
-  title,
-  tone,
-}: {
-  detail: string;
-  title: string;
-  tone: FunnelTone;
-}) {
+function FunnelRow({ detail, title, tone }: { detail: string; title: string; tone: FunnelTone }) {
   return (
     <div className="grid gap-1 rounded-md border border-border bg-background p-3">
       <span className="font-medium">{title}</span>
@@ -575,7 +570,9 @@ function AuditActionButton({
       className="min-h-12 w-fit"
       disabled={!canOpenAudit || onOpenAudit === undefined}
       variant="outline"
-      aria-label={canOpenAudit ? "Abrir auditoria operacional" : "Auditoria bloqueada para este papel"}
+      aria-label={
+        canOpenAudit ? "Abrir auditoria operacional" : "Auditoria bloqueada para este papel"
+      }
       onClick={onOpenAudit}
     >
       <Search className="size-4" aria-hidden="true" />

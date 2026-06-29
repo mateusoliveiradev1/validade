@@ -546,13 +546,18 @@ describe("CommandCenter", () => {
     expect(screen.getByText("moto...bloq - Lider FICTICIO")).toBeTruthy();
     expect(screen.getAllByText("Causa:").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Agora:").length).toBeGreaterThan(0);
-    expect(screen.getByText("Leitura central ausente: Aparelho ainda nao abriu Preparar turno contra a central.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Leitura central ausente: Aparelho ainda nao abriu Preparar turno contra a central.",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("permitida, remoto pronto")).toBeTruthy();
     expect(screen.getAllByText("permitida").length).toBeGreaterThan(0);
     expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
     expect(
-      screen.getAllByText("Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.")
-        .length,
+      screen.getAllByText(
+        "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.",
+      ).length,
     ).toBeGreaterThan(0);
     expect(text).not.toContain("Ver instrucoes manuais");
     expect(text).not.toContain("Abrir atualizacao segura");
