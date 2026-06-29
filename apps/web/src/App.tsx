@@ -177,6 +177,8 @@ export function App() {
           fetcher={apiFetch}
           onOpenAparelhos={() => setRoute("aparelhos")}
           onOpenAudit={() => setRoute("audit")}
+          onOpenAtualizacoes={() => setRoute("atualizacoes")}
+          onOpenOperacao={() => setRoute("operacao")}
         />
       ) : activeRoute === "access" ? (
         <MembershipAdministration

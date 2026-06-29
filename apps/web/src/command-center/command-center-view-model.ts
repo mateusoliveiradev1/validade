@@ -109,6 +109,20 @@ export interface UpdatePathState {
   state: "public_safe" | "manual_pending" | "blocked";
 }
 
+export type ValidationVerdictLabel = "Go" | "No-Go" | "Aguardando prova externa";
+
+export interface ValidationVerdict {
+  detail: string;
+  label: ValidationVerdictLabel;
+  tone: "success" | "warning" | "critical";
+}
+
+export type ValidationRouteReferenceLabel =
+  | "Resolver push em Aparelhos"
+  | "Resolver atualizacao em Atualizacoes"
+  | "Revisar operacao diaria em Operacao"
+  | "Registrar status da validacao";
+
 const unsafeUpdatePathPattern =
   /(token|secret|password|eas:\/\/|buildUrl|dashboard|builds?\/|private|firebase|google-services)/i;
 
@@ -157,6 +171,64 @@ export function routeKicker(route: CommandCenterRoute): string {
   if (route === "aparelhos") return "Aparelhos do piloto";
   if (route === "atualizacoes") return "Atualizacoes do APK";
   return "Validacao Loja 18";
+}
+
+export function deriveValidationVerdict(projection: CommandCenterProjection): ValidationVerdict {
+  const steps = projection.pilotUat.steps;
+  const hasBlockedStep = steps.some((step) => step.state === "blocked");
+  const hasCriticalBlocker = projection.pilotBlockers.some(
+    (blocker) => blocker.severity === "critical",
+  );
+
+  if (hasBlockedStep || hasCriticalBlocker) {
+    return {
+      detail:
+        "Ha bloqueio critico ou etapa UAT bloqueada. A Loja 18 ainda nao pode seguir para rollout.",
+      label: "No-Go",
+      tone: "critical",
+    };
+  }
+
+  const hasExternalProofGap =
+    steps.some((step) => step.state === "external_blocked") ||
+    projection.pilotBlockers.some((blocker) => blocker.severity === "external");
+  const hasPendingStep = steps.some((step) => step.state === "pending");
+  const hasDeviceGateGap = projection.devices.some(
+    (device) => device.verdict !== "apto" || device.buildCompatibility !== "atual",
+  );
+  const allStepsPassed = steps.every((step) => step.state === "passed");
+
+  if (hasExternalProofGap || hasPendingStep || hasDeviceGateGap || !allStepsPassed) {
+    return {
+      detail:
+        "A operacao tem pendencias ou prova externa ausente. Mantenha o rollout aguardando evidencia.",
+      label: "Aguardando prova externa",
+      tone: "warning",
+    };
+  }
+
+  return {
+    detail:
+      "Checklist, aparelhos, build e bloqueios estao sem pendencia nesta leitura sanitizada.",
+    label: "Go",
+    tone: "success",
+  };
+}
+
+export function validationReferenceForBlocker(
+  category: CommandCenterProjection["pilotBlockers"][number]["category"],
+): ValidationRouteReferenceLabel {
+  if (category === "push" || category === "camera" || category === "device") {
+    return "Resolver push em Aparelhos";
+  }
+
+  if (category === "build") return "Resolver atualizacao em Atualizacoes";
+
+  if (category === "sync" || category === "product_review" || category === "shift_close") {
+    return "Revisar operacao diaria em Operacao";
+  }
+
+  return "Registrar status da validacao";
 }
 
 export function formatDateTime(value: string): string {

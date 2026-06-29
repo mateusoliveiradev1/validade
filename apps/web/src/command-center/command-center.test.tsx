@@ -4,10 +4,12 @@ import type { CommandCenterClient } from "./command-center-client";
 import { CommandCenter } from "./CommandCenter";
 import {
   countDeviceReadiness,
+  deriveValidationVerdict,
   getDailyOperationDeviceBlockers,
   getSafePushTestDisabledReason,
   resolveUpdatePathState,
   routeLabel,
+  validationReferenceForBlocker,
 } from "./command-center-view-model";
 
 const projection = {
@@ -634,6 +636,54 @@ describe("CommandCenter", () => {
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|eas:\/\//i);
   });
 
+  it("renders Validacao as public-safe Go No-Go proof without duplicated actions", async () => {
+    const onOpenAparelhos = vi.fn();
+    const onOpenAtualizacoes = vi.fn();
+    const onOpenOperacao = vi.fn();
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue(projection),
+      sendSafePushTest: vi.fn(),
+    };
+    render(
+      <CommandCenter
+        activeRoute="validacao"
+        client={client}
+        onOpenAparelhos={onOpenAparelhos}
+        onOpenAtualizacoes={onOpenAtualizacoes}
+        onOpenOperacao={onOpenOperacao}
+        storeId="loja-piloto"
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Validacao" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "No-Go" })).toBeTruthy();
+    expect(screen.getAllByText("UAT Loja 18").length).toBeGreaterThan(0);
+    expect(screen.getByText("Produto real da Loja 18")).toBeTruthy();
+    expect(screen.getAllByText(/Provider bloqueado externamente/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
+    expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
+    expect(screen.getByText("moto...001 - Lider FICTICIO")).toBeTruthy();
+    expect(screen.getByText("phase-12-staging-apk-120")).toBeTruthy();
+    expect(screen.getByText("Resolver push em Aparelhos")).toBeTruthy();
+    expect(screen.getByText("Resolver atualizacao em Atualizacoes")).toBeTruthy();
+    expect(screen.getByText("Revisar operacao diaria em Operacao")).toBeTruthy();
+    expect(screen.getByText("Registrar status da validacao")).toBeTruthy();
+
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Causa:");
+    expect(text).toContain("Agora:");
+    expect(text).not.toContain("Enviar teste seguro");
+    expect(text).not.toContain("Ver instrucoes manuais");
+    expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolver push em Aparelhos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resolver atualizacao em Atualizacoes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar operacao diaria em Operacao" }));
+    expect(onOpenAparelhos).toHaveBeenCalledTimes(1);
+    expect(onOpenAtualizacoes).toHaveBeenCalledTimes(1);
+    expect(onOpenOperacao).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a safe push test and appends the returned timeline", async () => {
     const sendSafePushTest = vi.fn().mockResolvedValue({
       command: {
@@ -700,6 +750,12 @@ describe("CommandCenter", () => {
       "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
     expect(routeLabel("operacao")).toBe("Operacao");
     expect(routeLabel("validacao")).toBe("Validacao");
+    expect(deriveValidationVerdict(projection).label).toBe("No-Go");
+    expect(validationReferenceForBlocker("push")).toBe("Resolver push em Aparelhos");
+    expect(validationReferenceForBlocker("build")).toBe("Resolver atualizacao em Atualizacoes");
+    expect(validationReferenceForBlocker("shift_close")).toBe(
+      "Revisar operacao diaria em Operacao",
+    );
     expect(countDeviceReadiness(projection.devices)).toEqual({
       apto: 0,
       atencao: 1,

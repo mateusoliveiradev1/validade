@@ -17,6 +17,7 @@ import {
 import { AparelhosRoute } from "./AparelhosRoute";
 import { AtualizacoesRoute } from "./AtualizacoesRoute";
 import { OperacaoRoute } from "./OperacaoRoute";
+import { ValidacaoRoute } from "./ValidacaoRoute";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
 
@@ -28,6 +29,8 @@ export function CommandCenter({
   fetcher,
   onOpenAparelhos,
   onOpenAudit,
+  onOpenAtualizacoes,
+  onOpenOperacao,
   storeId,
 }: {
   activeRoute?: CommandCenterRoute;
@@ -37,6 +40,8 @@ export function CommandCenter({
   fetcher?: WebFetcher;
   onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
+  onOpenAtualizacoes?: () => void;
+  onOpenOperacao?: () => void;
   storeId: string;
 }) {
   const defaultClient = React.useMemo(() => createFetchCommandCenterClient(fetcher), [fetcher]);
@@ -128,6 +133,20 @@ export function CommandCenter({
         projection={current}
         status={status}
         {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
+      />
+    );
+  }
+
+  if (activeRoute === "validacao") {
+    return (
+      <ValidacaoRoute
+        onRefresh={() => void load()}
+        projection={current}
+        status={status}
+        {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
+        {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
+        {...(onOpenAtualizacoes === undefined ? {} : { onOpenAtualizacoes })}
+        {...(onOpenOperacao === undefined ? {} : { onOpenOperacao })}
       />
     );
   }
