@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 13 - Web Operational Navigation and Readiness Surfaces
-status: Phase 13 ready for discussion
-stopped_at: Phase 13 context gathered
-last_updated: "2026-06-29T01:22:02.002Z"
+status: Phase 13 UI-SPEC approved; ready for planning
+stopped_at: Phase 13 UI-SPEC approved
+last_updated: "2026-06-29T01:30:53.189Z"
 last_activity: 2026-06-29 - Started v1.1 Operacao Real de Loja e Diagnostico and created requirements/roadmap
 progress:
   total_phases: 4
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-29)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 13 - split web daily operation from devices, updates, and validation surfaces.
+**Current focus:** Phase 13 - UI-SPEC approved; ready to plan the web split between daily operation, devices, updates, and validation surfaces.
 
 ## Roadmap Progress
 
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Start Phase 13 discussion to shape the web split between daily Command Center, Aparelhos, Atualizacoes, and Validacao.
+Plan Phase 13 using the approved UI-SPEC for the web split between daily Operacao, Aparelhos, Atualizacoes, and Validacao.
 
 ```powershell
-$gsd-discuss-phase 13
+$gsd-plan-phase 13
 ```
 
 ## Accumulated Context
@@ -168,9 +168,9 @@ $gsd-discuss-phase 13
 
 ## Session
 
-**Last session:** 2026-06-29T01:22:01.991Z
-**Stopped at:** Phase 13 context gathered
-**Resume file:** .planning/phases/13-web-operational-navigation-and-readiness-surfaces/13-CONTEXT.md
+**Last session:** 2026-06-29T01:30:53.185Z
+**Stopped at:** Phase 13 UI-SPEC approved
+**Resume file:** .planning/phases/13-web-operational-navigation-and-readiness-surfaces/13-UI-SPEC.md
 
 ## Decisions
 
@@ -249,13 +249,13 @@ $gsd-discuss-phase 13
 
 Phase: 13 - Web Operational Navigation and Readiness Surfaces
 Plan: —
-Status: Phase 13 ready for discussion
+Status: Phase 13 UI-SPEC approved; ready for planning
 Last activity: 2026-06-29 — Milestone v1.1 requirements and roadmap created
 
 ## Operator Next Steps
 
-- Start Phase 13 with `$gsd-discuss-phase 13`.
-- Shape the web navigation split before implementing mobile Ajustes and validation runbook.
+- Plan Phase 13 with `$gsd-plan-phase 13`.
+- Keep the approved UI-SPEC as the design contract for Operacao, Aparelhos, Atualizacoes, and Validacao.
 
 ## Deferred Items
 
