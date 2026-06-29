@@ -21,6 +21,7 @@ export interface SyncReadiness {
   body: string;
   safeCloseBlocked: boolean;
   blockerReason?: string;
+  centralRefreshRequired: boolean;
   lastCentralReadValue: string;
   lastSyncSendValue: string;
   pendingCount: number;
@@ -53,6 +54,7 @@ export const ajustesSyncCopy = {
   missingSyncSend: "Sem envio confirmado",
   localCacheBlocker: "Leitura local em uso; prepare a central antes de declarar area segura.",
   staleCentralRead: "Leitura central vencida; atualize antes de declarar area segura.",
+  refreshCentralRead: "Atualizar leitura central",
   criticalPendingBlocker:
     "Pendencia critica ainda nao confirmada pela central. Sincronize antes do fechamento seguro.",
   criticalConflictBlocker:
@@ -133,23 +135,32 @@ export function syncReadinessFor(input: {
   const cache = input.prepareTurnCacheStatus;
   const queue = input.queue;
   const lastCentralReadAt = cache?.lastCentralReadAt;
+  const lastCentralReadValue = formatAjustesTimestamp(
+    lastCentralReadAt,
+    ajustesSyncCopy.missingCentralRead,
+  );
+  const lastSyncSendValue = formatAjustesTimestamp(
+    queue?.updatedAt,
+    ajustesSyncCopy.missingSyncSend,
+  );
   const pendingCount = queue?.totalCount ?? 0;
   const conflictCount = queue?.conflictCount ?? 0;
-  const blockerReason = syncBlockerReason({
+  const blocker = syncBlockerFor({
     cache,
     now: input.now ?? new Date(),
     prepareTurnSource: input.prepareTurnSource,
     queue,
   });
 
-  if (blockerReason !== undefined) {
+  if (blocker !== undefined) {
     return {
       verdict: "Bloqueado",
-      body: blockerReason,
+      body: blocker.reason,
       safeCloseBlocked: true,
-      blockerReason,
-      lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
-      lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+      blockerReason: blocker.reason,
+      centralRefreshRequired: blocker.centralRefreshRequired,
+      lastCentralReadValue,
+      lastSyncSendValue,
       pendingCount,
       conflictCount,
     };
@@ -172,8 +183,9 @@ export function syncReadinessFor(input: {
               ? "Sem internet agora. A leitura central anterior continua visivel, mas sincronize quando voltar."
               : ajustesSyncCopy.nonCriticalPending,
       safeCloseBlocked: false,
-      lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
-      lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+      centralRefreshRequired: false,
+      lastCentralReadValue,
+      lastSyncSendValue,
       pendingCount,
       conflictCount,
     };
@@ -183,8 +195,9 @@ export function syncReadinessFor(input: {
     verdict: "Apto",
     body: ajustesSyncCopy.ready,
     safeCloseBlocked: false,
-    lastCentralReadValue: lastCentralReadAt ?? ajustesSyncCopy.missingCentralRead,
-    lastSyncSendValue: queue?.updatedAt ?? ajustesSyncCopy.missingSyncSend,
+    centralRefreshRequired: false,
+    lastCentralReadValue,
+    lastSyncSendValue,
     pendingCount,
     conflictCount,
   };
@@ -234,35 +247,38 @@ export function operatorSafePushFeedback(reason: string | undefined): string {
   return todayCopy.push.unavailable;
 }
 
-function syncBlockerReason(input: {
+function syncBlockerFor(input: {
   cache?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
   queue?: SyncQueueSummary | undefined;
   now: Date;
-}): string | undefined {
+}): { reason: string; centralRefreshRequired: boolean } | undefined {
   const queue = input.queue;
 
   if (hasCriticalConflict(queue)) {
-    return ajustesSyncCopy.criticalConflictBlocker;
+    return { reason: ajustesSyncCopy.criticalConflictBlocker, centralRefreshRequired: false };
   }
 
   if (hasCriticalPending(queue)) {
-    return ajustesSyncCopy.criticalPendingBlocker;
+    return { reason: ajustesSyncCopy.criticalPendingBlocker, centralRefreshRequired: false };
   }
 
   const cache = input.cache;
   const resolvedSource = input.prepareTurnSource ?? cache?.source;
 
   if (resolvedSource === "local_cache") {
-    return ajustesSyncCopy.localCacheBlocker;
+    return { reason: ajustesSyncCopy.localCacheBlocker, centralRefreshRequired: true };
   }
 
   if (cache === null || cache === undefined || cache.lastCentralReadAt === undefined) {
-    return ajustesSyncCopy.missingCentralRead;
+    return { reason: ajustesSyncCopy.missingCentralRead, centralRefreshRequired: true };
   }
 
   if (cache.state !== "ready" || isCentralReadStale(cache, input.now)) {
-    return ajustesSyncCopy.staleCentralRead;
+    return {
+      reason: staleCentralReadReason(cache),
+      centralRefreshRequired: true,
+    };
   }
 
   return undefined;
@@ -293,4 +309,41 @@ function isCentralReadStale(cache: PrepareTurnCacheStatus, now: Date): boolean {
   }
 
   return now.getTime() - readAt > cache.staleAfterHours * 60 * 60 * 1000;
+}
+
+function staleCentralReadReason(cache: PrepareTurnCacheStatus): string {
+  const lastRead = formatAjustesTimestamp(cache.lastCentralReadAt, "horario desconhecido");
+  const windowLabel = formatStaleWindow(cache.staleAfterHours);
+
+  return `Leitura central vencida: ultima leitura em ${lastRead}. Ela vale por ate ${windowLabel}; sincronizar pendencias nao renova esta leitura. Atualize a leitura central antes de declarar area segura.`;
+}
+
+function formatStaleWindow(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return "o prazo configurado";
+  }
+
+  return hours === 1 ? "1h" : `${hours}h`;
+}
+
+function formatAjustesTimestamp(value: string | undefined, fallback: string): string {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
 }

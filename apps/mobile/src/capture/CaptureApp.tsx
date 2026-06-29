@@ -397,6 +397,7 @@ export function CaptureApp({
         authControls={authControls}
         buildInfo={resolvedBuildInfo}
         onBack={goBack}
+        onRequestCentralRefresh={requestCentralReprepare}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
         repository={repository}

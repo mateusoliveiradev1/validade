@@ -35,6 +35,7 @@ export function AjustesScreen({
   authControls,
   buildInfo,
   onBack,
+  onRequestCentralRefresh,
   now = () => new Date(),
   prepareTurnCacheStatus,
   prepareTurnSource,
@@ -47,6 +48,7 @@ export function AjustesScreen({
   buildInfo?: MobileBuildInfo | undefined;
   now?: (() => Date) | undefined;
   onBack: () => void;
+  onRequestCentralRefresh?: (() => void) | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
   repository: CaptureRepository;
@@ -364,11 +366,25 @@ export function AjustesScreen({
         </Text>
         {syncFeedback === undefined ? null : <StatusNotice>{syncFeedback}</StatusNotice>}
         <View style={styles.actionStack}>
-          <PrimaryAction
-            disabled={isSyncing || syncEngine === undefined}
-            label={isSyncing ? "Sincronizando pendencias" : "Sincronizar pendencias"}
-            onPress={() => void manualSync()}
-          />
+          {syncReadiness.centralRefreshRequired && onRequestCentralRefresh !== undefined ? (
+            <PrimaryAction
+              label={ajustesSyncCopy.refreshCentralRead}
+              onPress={onRequestCentralRefresh}
+            />
+          ) : (
+            <PrimaryAction
+              disabled={isSyncing || syncEngine === undefined}
+              label={isSyncing ? "Sincronizando pendencias" : "Sincronizar pendencias"}
+              onPress={() => void manualSync()}
+            />
+          )}
+          {syncReadiness.centralRefreshRequired && syncEngine !== undefined ? (
+            <SecondaryAction
+              disabled={isSyncing}
+              label={isSyncing ? "Sincronizando pendencias" : "Sincronizar pendencias"}
+              onPress={() => void manualSync()}
+            />
+          ) : null}
           {firstConflictId === undefined ? null : (
             <SecondaryAction
               label="Revisar conflito"

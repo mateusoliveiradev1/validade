@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
 status: verifying
-stopped_at: Phase 14 UAT Test 1 passed; two user-reported mobile UAT bugs retested as pass; current test is Test 2 push/lembretes diagnostics
-last_updated: "2026-06-29T17:18:39.514Z"
+stopped_at: Phase 14 UAT Test 2 passed; sync stale-read copy/timestamps fixed in local APK and pending device retest for Test 3
+last_updated: "2026-06-29T17:34:52.939Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Continue Phase 14 UAT Test 2: Ajustes push/lembretes diagnostics.
+Install the corrected Phase 14 APK and retest Test 3: Ajustes Sincronizacao blocked-state explanation and local timestamps.
 
 ```powershell
-$gsd-verify-work 14
+dist\android\validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk
 ```
 
 ## Accumulated Context
@@ -178,8 +178,8 @@ $gsd-verify-work 14
 
 ## Session
 
-**Last session:** 2026-06-29T17:18:39.514Z
-**Stopped at:** Phase 14 UAT Test 1 passed; two corrected mobile UAT bugs retested as pass; current test is Test 2 push/lembretes diagnostics
+**Last session:** 2026-06-29T17:34:52.939Z
+**Stopped at:** Phase 14 UAT Test 2 passed; sync stale-read copy/timestamps fixed in local APK and pending device retest for Test 3
 **Resume file:** None
 
 ## Decisions

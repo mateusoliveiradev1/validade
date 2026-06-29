@@ -242,6 +242,7 @@ async function renderAjustes(input: {
   offlineStatus?: OfflineCacheStatus | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
+  onRequestCentralRefresh?: (() => void) | undefined;
   queue?: SyncQueueSummary | undefined;
   session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
@@ -267,6 +268,7 @@ async function renderAjustes(input: {
         authControls={input.authControls}
         buildInfo={input.buildInfo}
         onBack={() => undefined}
+        onRequestCentralRefresh={input.onRequestCentralRefresh}
         prepareTurnCacheStatus={input.prepareTurnCacheStatus ?? readyPrepareTurnCacheStatus()}
         prepareTurnSource={input.prepareTurnSource ?? "central"}
         repository={repository}
@@ -397,9 +399,34 @@ describe("AjustesScreen sync controls", () => {
 
     expect(text).toContain("Sincronizacao");
     expect(text).toContain("Ultima leitura central");
-    expect(text).toContain("2030-01-10T09:00:00.000Z");
+    expect(text).toContain("10/01/2030");
+    expect(text).toContain("06:00");
+    expect(text).not.toContain("2030-01-10T09:00:00.000Z");
     expect(text).toContain("Ultima sincronizacao enviada");
     expect(text).toContain("Este estado nao bloqueia o fechamento seguro por sync.");
+  });
+
+  it("explains stale central reads with local time and a central refresh action", async () => {
+    const onRequestCentralRefresh = vi.fn();
+    const { tree } = await renderAjustes({
+      onRequestCentralRefresh,
+      prepareTurnCacheStatus: readyPrepareTurnCacheStatus({
+        lastCentralReadAt: "2030-01-10T04:30:00.000Z",
+        staleAfterHours: 4,
+      }),
+      queue: emptySyncQueue({ updatedAt: "2030-01-10T09:00:00.000Z" }),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Leitura central vencida");
+    expect(text).toContain("10/01/2030");
+    expect(text).toContain("01:30");
+    expect(text).toContain("vale por ate 4h");
+    expect(text).toContain("sincronizar pendencias nao renova esta leitura");
+    expect(text).not.toContain("2030-01-10T04:30:00.000Z");
+
+    await press(tree, "Atualizar leitura central");
+    expect(onRequestCentralRefresh).toHaveBeenCalledOnce();
   });
 
   it("keeps non-critical pending sync as attention without blocking safe-close copy", async () => {
