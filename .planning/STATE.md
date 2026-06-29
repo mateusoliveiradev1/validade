@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
-status: executing
-stopped_at: Completed 14-04-PLAN.md
-last_updated: "2026-06-29T04:02:49.318Z"
+status: verifying
+stopped_at: Completed Phase 14 plan 05; ready for verification
+last_updated: "2026-06-29T09:37:07.863Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 9
-  percent: 25
+  completed_plans: 10
+  percent: 50
 ---
 
 # Project State: Validade Zero
@@ -36,7 +36,7 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 13 | Complete | Web Operational Navigation and Readiness Surfaces - 5 plans implemented and verified |
-| 14 | Ready to execute | Mobile Ajustes and Device Controls - 5 plans ready |
+| 14 | Complete | Mobile Ajustes and Device Controls - 5 plans implemented; ready for verification |
 | 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
 
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Execute Phase 14 now that the mobile Ajustes plans are ready.
+Verify Phase 14 now that all mobile Ajustes plans are implemented and repo-local gates are green.
 
 ```powershell
-$gsd-execute-phase 14
+$gsd-verify-work 14
 ```
 
 ## Accumulated Context
@@ -174,11 +174,12 @@ $gsd-execute-phase 14
 | Phase 14 P02 | 12 min | 3 tasks | 5 files |
 | Phase 14 P03 | 14 min | 3 tasks | 4 files |
 | Phase 14 P04 | 12 min | 3 tasks | 4 files |
+| Phase 14 P05 | 18min | 3 tasks | 10 files |
 
 ## Session
 
-**Last session:** 2026-06-29T04:02:49.313Z
-**Stopped at:** Completed 14-04-PLAN.md
+**Last session:** 2026-06-29T09:37:07.859Z
+**Stopped at:** Completed Phase 14 plan 05; ready for verification
 **Resume file:** None
 
 ## Decisions
@@ -261,13 +262,13 @@ $gsd-execute-phase 14
 
 Phase: 14 (Mobile Ajustes and Device Controls) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-29
 
 ## Operator Next Steps
 
-- Execute Phase 14 with `$gsd-execute-phase 14`.
-- Use `14-01-PLAN.md` through `14-05-PLAN.md` as the implementation order.
+- Verify Phase 14 with `$gsd-verify-work 14`.
+- Preserve the Phase 14 proof boundary: repo-local gates are green, while installed APK, provider push, camera/evidence, and physical Loja 18 UAT remain external validation evidence.
 
 ## Deferred Items
 

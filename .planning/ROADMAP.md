@@ -3,7 +3,7 @@
 **Mode:** Vertical MVP
 **Granularity:** Fine
 **Requirements covered:** 18/18
-**Current status:** Phase 14 ready for planning
+**Current status:** Phase 14 complete; ready for verification
 
 ## Milestones
 
@@ -47,7 +47,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Add a mobile Ajustes area that owns account/store context, push and reminders, sync health, update truth, diagnostics, privacy, and sign-out.
 
 **Requirements:** SET-01, SET-02, SET-03, SET-04, SET-05
-**Status:** Ready for planning
+**Status:** Complete - ready for verification
 
 **Success criteria:**
 1. Operators can open Ajustes from the mobile app shell without losing the active store, role, session, or current operational route.
@@ -93,10 +93,10 @@ v1.1 succeeds when the app feels like a real store tool instead of a pilot debug
 
 ## Active Planning
 
-Continue with Phase 14 planning:
+Continue with Phase 14 verification:
 
 ```powershell
-$gsd-plan-phase 14
+$gsd-verify-work 14
 ```
 
 ## Archive
@@ -115,6 +115,6 @@ Phase execution directories from v1.0 were cleared from `.planning/phases/` when
 | Area | Requirements | Phase | Status |
 |------|--------------|-------|--------|
 | Web Operation | WEB-01..WEB-05 | Phase 13 | Complete |
-| Mobile Ajustes | SET-01..SET-05 | Phase 14 | Pending |
+| Mobile Ajustes | SET-01..SET-05 | Phase 14 | Complete |
 | Operational Focus | OPS-01..OPS-04 | Phase 15 | Pending |
 | Loja 18 Validation | VAL-01..VAL-04 | Phase 16 | Pending |
