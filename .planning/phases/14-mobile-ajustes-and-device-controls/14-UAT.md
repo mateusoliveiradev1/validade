@@ -8,7 +8,7 @@ source:
   - 14-04-SUMMARY.md
   - 14-05-SUMMARY.md
 started: 2026-06-29T06:51:50.2029667-03:00
-updated: 2026-06-29T14:48:31.2368586-03:00
+updated: 2026-06-29T14:59:26.3352269-03:00
 ---
 
 ## Current Test
@@ -50,23 +50,24 @@ result: [pending]
 
 total: 6
 passed: 2
-issues: 2
+issues: 3
 pending: 4
 skipped: 0
-blocked: 0
+blocked: 1
 remediated_passed: 2
-remediated_pending_retest: 2
+remediated_pending_retest: 3
 
 ## Setup Evidence
 
-- Current APK generated for manual retest: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk`
-- SHA256: `87FCC84B15EEA9C1FD8800A4F9ED84060D0A5F68038C660878B021FFE8A75C0F`
-- Package/version check: `com.validadezero.app`, version `0.12.0`, Android `versionCode` `120`.
+- Current APK generated for recovery retest: `dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk`
+- SHA256: `EA0D5B2576288CA9AA40DBA20B7D6ADF4D4E341756CDF658DF166E31C6DDA339`
+- Package/version check: `com.validadezero.app`, version `0.12.0`, Android `versionCode` `121`.
 - APK signer verification: passed with local debug signing for direct install testing.
-- Bundle check: contains `Ajustes`, `Sair com pendencias visiveis`, staging API URL, `phase-12-staging-apk-120`, the fixed pending-draft lot acknowledgement, `Atualizar leitura central`, and the stale-central-read explanation. Hotfix bundle no longer contains `Intl.DateTimeFormat`.
+- Recovery bundle check: built from commit `199089a3` before the sync-copy changes, with recovery label `phase-14-recovery-apk-121`, so it is intended to isolate whether the app opens with the last known good code path.
 - `adb devices` showed no connected Android device in this session, so installation and physical UAT are still user/device-side.
 - Previous APK generated before the sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk`.
 - Broken APK reported by user after sync-copy UAT fix: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-syncfix.apk`.
+- Broken APK reported by user after hotfix attempt: `dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk`.
 
 ## UAT Findings
 
@@ -98,8 +99,14 @@ remediated_pending_retest: 2
   reported: "essa versao do apk bugou tudo nao abre o app mais"
   severity: blocker
   source_test: 3
-  status: fixed_in_code_pending_device_retest
+  status: failed_retest
   fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
+- finding: "APK hotfix ainda nao abre o app."
+  reported: "ainda nao funcionou"
+  severity: blocker
+  source_test: 3
+  status: recovery_apk_pending_device_retest
+  fix_artifact: "dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk"
 
 ## Fix Evidence
 
@@ -115,6 +122,8 @@ remediated_pending_retest: 2
 - Focused tests after hotfix: `pnpm.cmd --filter @validade-zero/mobile test -- ajustes-screen.test.tsx prepare-turn.test.tsx` passed.
 - Full repo gate after hotfix: `pnpm.cmd check` passed.
 - Android hotfix build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `120`.
+- Recovery APK: generated from last known good commit `199089a3` with temporary Android `versionCode` `121` / approved recovery label `phase-14-recovery-apk-121` to force install over the broken `120` APK and isolate whether the launch failure is code-regression-specific.
+- Android recovery build: `assembleRelease` passed from short Windows worktree; `apksigner verify --print-certs` and `aapt dump badging` passed for `com.validadezero.app` version `0.12.0` / versionCode `121`.
 
 ## Gaps
 
@@ -135,8 +144,8 @@ remediated_pending_retest: 2
     - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-fix.apk"
   missing: []
 - truth: "A tela de Sincronizacao explica claramente quando o bloqueio vem de leitura central vencida, mostra horarios legiveis/localizados e oferece a acao correta para renovar a leitura central."
-  status: pending_retest
-  reason: "User reported: pq aqui esta bloqueado ? e os timestamp ali precisa melhorar nao acha ?"
+  status: blocked_by_launch_crash
+  reason: "User reported the syncfix and hotfix APKs did not open, so the sync-copy improvement cannot be evaluated on device yet."
   severity: major
   test: 3
   artifacts:
@@ -144,9 +153,9 @@ remediated_pending_retest: 2
   missing: []
 - truth: "O APK de reteste precisa abrir o app antes de validar a clareza da tela de Sincronizacao."
   status: pending_retest
-  reason: "User reported the previous syncfix APK did not open the app."
+  reason: "User reported the previous syncfix and hotfix APKs did not open the app. Recovery APK uses last known good code with versionCode 121."
   severity: blocker
   test: 3
   artifacts:
-    - "dist/android/validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk"
+    - "dist/android/validade-zero-local-staging-0.12.0-121-uat14-recovery.apk"
   missing: []

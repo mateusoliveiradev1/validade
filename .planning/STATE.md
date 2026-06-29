@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 14
 status: verifying
-stopped_at: Phase 14 UAT Test 3 hotfix APK generated after syncfix launch failure; pending device retest
-last_updated: "2026-06-29T17:48:31.237Z"
+stopped_at: Phase 14 UAT Test 3 launch failure persisted; recovery APK 121 generated from last known good commit and pending device retest
+last_updated: "2026-06-29T17:59:26.335Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Install the Phase 14 hotfix APK and retest Test 3: app opens, Ajustes Sincronizacao explains the blocked stale central read, and timestamps are readable.
+Install the Phase 14 recovery APK and check only whether the app opens. If it opens, the Test 3 crash is isolated to the sync-copy changes; if it still does not open, collect device logs or clear/reinstall because the failure is outside that code path.
 
 ```powershell
-dist\android\validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk
+dist\android\validade-zero-local-staging-0.12.0-121-uat14-recovery.apk
 ```
 
 ## Accumulated Context
@@ -178,8 +178,8 @@ dist\android\validade-zero-local-staging-0.12.0-120-uat14-hotfix.apk
 
 ## Session
 
-**Last session:** 2026-06-29T17:48:31.237Z
-**Stopped at:** Phase 14 UAT Test 3 hotfix APK generated after syncfix launch failure; pending device retest
+**Last session:** 2026-06-29T17:59:26.335Z
+**Stopped at:** Phase 14 UAT Test 3 launch failure persisted; recovery APK 121 generated from last known good commit and pending device retest
 **Resume file:** None
 
 ## Decisions
