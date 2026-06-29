@@ -629,6 +629,7 @@ describe("CommandCenter", () => {
     expect(text).toContain("Build desconhecido");
     expect(text).toContain("APK aprovado");
     expect(text).not.toContain("Enviar teste seguro");
+    expect(text).not.toContain("Provider aceitou");
     expect(text).not.toContain("UAT Loja 18");
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|eas:\/\//i);
   });
