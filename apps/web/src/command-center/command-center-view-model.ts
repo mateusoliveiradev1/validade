@@ -64,6 +64,25 @@ export function hasDailyOperationDeviceBlocker(
   return getDailyOperationDeviceBlockers(device).length > 0;
 }
 
+export function getSafePushTestDisabledReason(input: {
+  canSendPilotPushTest: boolean;
+  device: CommandCenterProjection["devices"][number];
+}): string | undefined {
+  if (!input.canSendPilotPushTest) {
+    return "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
+  }
+
+  const lacksConfirmedScope = input.device.blockers.some(
+    (blocker) =>
+      blocker.code === "invalid_store_or_user" || blocker.code === "missing_first_central_read",
+  );
+  if (lacksConfirmedScope) {
+    return "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
+  }
+
+  return undefined;
+}
+
 export function optionalDateLabel(value: string | undefined): string {
   return value === undefined ? "sem registro" : formatDateTime(value);
 }

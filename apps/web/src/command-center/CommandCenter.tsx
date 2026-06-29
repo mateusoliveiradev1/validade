@@ -14,6 +14,7 @@ import {
   routeKicker,
   type CommandCenterRoute,
 } from "./command-center-view-model";
+import { AparelhosRoute } from "./AparelhosRoute";
 import { OperacaoRoute } from "./OperacaoRoute";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
@@ -102,6 +103,19 @@ export function CommandCenter({
         onRefresh={() => void load()}
         projection={current}
         status={status}
+      />
+    );
+  }
+
+  if (activeRoute === "aparelhos") {
+    return (
+      <AparelhosRoute
+        canSendPilotPushTest={canSendPilotPushTest === true}
+        onRefresh={() => void load()}
+        onSendSafePushTest={sendSafePushTest}
+        projection={current}
+        status={status}
+        {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
       />
     );
   }

@@ -476,6 +476,85 @@ describe("CommandCenter", () => {
     expect(onOpenAudit).not.toHaveBeenCalled();
   });
 
+  it("renders Aparelhos readiness order and device facts without update or UAT instructions", async () => {
+    const client: CommandCenterClient = {
+      read: vi.fn().mockResolvedValue({
+        ...projection,
+        devices: [
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...apto",
+            deviceLabel: "Aparelho Apto",
+            verdict: "apto",
+            blockers: [],
+            pushPermission: "granted",
+            pushProviderState: "remote_ready",
+            buildCompatibility: "atual",
+            nextAction: "Aparelho apto para rotina da loja.",
+            updatedAt: "2030-01-10T12:03:00.000Z",
+          },
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...atencao",
+            deviceLabel: "Aparelho Atencao",
+            verdict: "atencao",
+            blockers: [
+              {
+                code: "old_build_attention",
+                label: "Build antigo em atencao",
+                detail: "Pode operar, mas precisa atualizar antes do rollout.",
+                nextAction: "Abrir Atualizacoes para orientar troca de build.",
+                severity: "warning",
+              },
+            ],
+            buildCompatibility: "desatualizado",
+            nextAction: "Abrir Atualizacoes para orientar troca de build.",
+            updatedAt: "2030-01-10T12:04:00.000Z",
+          },
+          {
+            ...projection.devices[0],
+            deviceIdMasked: "moto...bloq",
+            deviceLabel: "Aparelho Bloqueado",
+            verdict: "bloqueado",
+            blockers: [
+              {
+                code: "missing_first_central_read",
+                label: "Leitura central ausente",
+                detail: "Aparelho ainda nao abriu Preparar turno contra a central.",
+                nextAction: "Abrir Preparar turno e repetir leitura central.",
+                severity: "blocking",
+              },
+            ],
+            buildCompatibility: "incompativel",
+            nextAction: "Abrir Preparar turno e repetir leitura central.",
+            updatedAt: "2030-01-10T12:02:00.000Z",
+          },
+        ],
+      }),
+      sendSafePushTest: vi.fn(),
+    };
+    render(<CommandCenter activeRoute="aparelhos" client={client} storeId="loja-piloto" />);
+
+    expect(await screen.findByRole("heading", { name: "Aparelhos" })).toBeTruthy();
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Aparelho Bloqueado")).toBeLessThan(text.indexOf("Aparelho Atencao"));
+    expect(text.indexOf("Aparelho Atencao")).toBeLessThan(text.indexOf("Aparelho Apto"));
+    expect(screen.getByText("moto...bloq - Lider FICTICIO")).toBeTruthy();
+    expect(screen.getAllByText("Causa:").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Agora:").length).toBeGreaterThan(0);
+    expect(screen.getByText("Leitura central ausente: Aparelho ainda nao abriu Preparar turno contra a central.")).toBeTruthy();
+    expect(screen.getByText("permitida, remoto pronto")).toBeTruthy();
+    expect(screen.getAllByText("permitida").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(text).not.toContain("Ver instrucoes manuais");
+    expect(text).not.toContain("QR");
+    expect(text).not.toContain("UAT Loja 18");
+  });
+
   it("sends a safe push test and appends the returned timeline", async () => {
     const sendSafePushTest = vi.fn().mockResolvedValue({
       command: {
@@ -534,6 +613,7 @@ describe("CommandCenter", () => {
     });
     expect(await screen.findByText("Aparelho operando apenas com lembrete local")).toBeTruthy();
     expect(screen.getByText("Configurar push remoto e repetir o teste seguro.")).toBeTruthy();
+    expect(screen.getByText(/nao resolve tarefa, nao prova area segura/i)).toBeTruthy();
   });
 
   it("keeps shared route selectors public-safe and projection-derived", () => {
