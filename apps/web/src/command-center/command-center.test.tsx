@@ -552,6 +552,8 @@ describe("CommandCenter", () => {
         .length,
     ).toBeGreaterThan(0);
     expect(text).not.toContain("Ver instrucoes manuais");
+    expect(text).not.toContain("Abrir atualizacao segura");
+    expect(text).not.toContain("Registrar status da validacao");
     expect(text).not.toContain("QR");
     expect(text).not.toContain("UAT Loja 18");
   });
