@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 13 - Web Operational Navigation and Readiness Surfaces
-status: Phase 13 UI-SPEC approved; ready for planning
-stopped_at: Phase 13 UI-SPEC approved
-last_updated: "2026-06-29T01:30:53.189Z"
-last_activity: 2026-06-29 - Started v1.1 Operacao Real de Loja e Diagnostico and created requirements/roadmap
+status: Ready to execute
+stopped_at: Phase 13 planned
+last_updated: "2026-06-29T01:49:27.604Z"
+last_activity: 2026-06-29
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
   percent: 0
 ---
@@ -22,20 +22,20 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-06-29 - Started v1.1 Operacao Real de Loja e Diagnostico and created requirements/roadmap
+**Last activity:** 2026-06-29
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-29)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 13 - UI-SPEC approved; ready to plan the web split between daily operation, devices, updates, and validation surfaces.
+**Current focus:** Phase 13 - planned as five sequential web execution plans for Operacao, Aparelhos, Atualizacoes, and Validacao surfaces.
 
 ## Roadmap Progress
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 13 | Pending | Web Operational Navigation and Readiness Surfaces - WEB-01..WEB-05 |
+| 13 | Planned | Web Operational Navigation and Readiness Surfaces - 5 plans covering WEB-01..WEB-05 |
 | 14 | Pending | Mobile Ajustes and Device Controls - SET-01..SET-05 |
 | 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
@@ -50,10 +50,10 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Plan Phase 13 using the approved UI-SPEC for the web split between daily Operacao, Aparelhos, Atualizacoes, and Validacao.
+Execute Phase 13 using the five approved plans for the web split between daily Operacao, Aparelhos, Atualizacoes, and Validacao.
 
 ```powershell
-$gsd-plan-phase 13
+$gsd-execute-phase 13
 ```
 
 ## Accumulated Context
@@ -248,14 +248,14 @@ $gsd-plan-phase 13
 ## Current Position
 
 Phase: 13 - Web Operational Navigation and Readiness Surfaces
-Plan: —
-Status: Phase 13 UI-SPEC approved; ready for planning
-Last activity: 2026-06-29 — Milestone v1.1 requirements and roadmap created
+Plan: 5 sequential plans
+Status: Ready to execute
+Last activity: 2026-06-29 -- Phase 13 planning complete
 
 ## Operator Next Steps
 
-- Plan Phase 13 with `$gsd-plan-phase 13`.
-- Keep the approved UI-SPEC as the design contract for Operacao, Aparelhos, Atualizacoes, and Validacao.
+- Execute Phase 13 with `$gsd-execute-phase 13`.
+- Keep `13-UI-SPEC.md`, `13-RESEARCH.md`, `13-VALIDATION.md`, and `13-PATTERNS.md` as required context before implementation.
 
 ## Deferred Items
 

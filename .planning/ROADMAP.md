@@ -26,7 +26,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Reorganize the web leadership surface so the Command Center stays focused on sales-area safety while devices, updates, and validation each have a durable place.
 
 **Requirements:** WEB-01, WEB-02, WEB-03, WEB-04, WEB-05
-**Status:** Not started
+**Status:** Planned - 5 sequential plans ready
 
 **Success criteria:**
 1. Command Center first scan answers the operational safety question without verbose pilot/UAT/build panels in the daily flow.
@@ -34,6 +34,13 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 3. A dedicated Aparelhos view shows per-device readiness, last central read, last sync, push/camera state, build compatibility, safe push-test status, and next action.
 4. A dedicated Atualizacoes view shows approved build, installed versions by device, stale/incompatible devices, and a safe APK/QR update path without leaking secrets.
 5. A dedicated Validacao / Go-No-Go view carries Loja 18 UAT and rollout blockers without competing with the daily Command Center.
+
+**Plans:**
+- **Wave 1:** `13-01-PLAN.md` - Route foundation, shell navigation, shared `/command-center` projection host, and fail-closed access.
+- **Wave 2:** `13-02-PLAN.md` - Operacao daily safety route and compact device-readiness strip.
+- **Wave 3:** `13-03-PLAN.md` - Aparelhos device readiness route and diagnostic safe push-test action.
+- **Wave 4:** `13-04-PLAN.md` - Atualizacoes approved-build truth, installed versions, and public-safe/manual update path.
+- **Wave 5:** `13-05-PLAN.md` - Validacao Go/No-Go route plus route-specific Playwright coverage.
 
 ### Phase 14: Mobile Ajustes and Device Controls
 
@@ -86,10 +93,10 @@ v1.1 succeeds when the app feels like a real store tool instead of a pilot debug
 
 ## Active Planning
 
-Start with Phase 13:
+Continue with Phase 13 execution:
 
 ```powershell
-$gsd-discuss-phase 13
+$gsd-execute-phase 13
 ```
 
 ## Archive
