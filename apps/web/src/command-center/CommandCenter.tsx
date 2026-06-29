@@ -9,11 +9,15 @@ import type { WebFetcher } from "../auth/authenticated-fetch";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
-import type { AppRoute } from "../shell/AppShell";
 import { createFetchCommandCenterClient, type CommandCenterClient } from "./command-center-client";
+import {
+  optionalDateLabel,
+  routeKicker,
+  sortDevicesByReadiness,
+  type CommandCenterRoute,
+} from "./command-center-view-model";
 
 type CommandCenterStatus = "loading" | "ready" | "error";
-type CommandCenterRoute = Extract<AppRoute, "operacao" | "aparelhos" | "atualizacoes" | "validacao">;
 
 export function CommandCenter({
   activeRoute = "operacao",
@@ -92,7 +96,7 @@ export function CommandCenter({
     <section className="grid gap-6" aria-labelledby="command-center-heading">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-2">
-          <p className="text-sm font-semibold text-primary">Command Center da loja piloto</p>
+          <p className="text-sm font-semibold text-primary">{routeKicker(activeRoute)}</p>
           <h1 id="command-center-heading" className="text-[28px] font-semibold leading-[34px]">
             Area de venda segura agora?
           </h1>
@@ -540,7 +544,7 @@ function DeviceReadinessPanel({
 }) {
   const [pendingDeviceId, setPendingDeviceId] = React.useState<string>();
   const [failedDeviceId, setFailedDeviceId] = React.useState<string>();
-  const sortedDevices = [...devices].sort(compareDeviceReadiness);
+  const sortedDevices = sortDevicesByReadiness(devices);
   const blockedCount = devices.filter((device) => device.verdict === "bloqueado").length;
   const attentionCount = devices.filter((device) => device.verdict === "atencao").length;
   const aptCount = devices.filter((device) => device.verdict === "apto").length;
@@ -1519,20 +1523,6 @@ function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function compareDeviceReadiness(
-  left: CommandCenterProjection["devices"][number],
-  right: CommandCenterProjection["devices"][number],
-): number {
-  const rank: Record<CommandCenterProjection["devices"][number]["verdict"], number> = {
-    bloqueado: 0,
-    atencao: 1,
-    apto: 2,
-  };
-  const verdictDiff = rank[left.verdict] - rank[right.verdict];
-  if (verdictDiff !== 0) return verdictDiff;
-  return right.updatedAt.localeCompare(left.updatedAt);
-}
-
 function pushTestDisabledReason(input: {
   canSendPilotPushTest: boolean;
   device: CommandCenterProjection["devices"][number];
@@ -1769,10 +1759,6 @@ function appendSafePushTestResult(
       };
     }),
   };
-}
-
-function optionalDateLabel(value: string | undefined): string {
-  return value === undefined ? "sem registro" : formatDateTime(value);
 }
 
 function formatDateTime(value: string): string {

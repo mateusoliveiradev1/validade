@@ -2,6 +2,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandCenterClient } from "./command-center-client";
 import { CommandCenter } from "./CommandCenter";
+import {
+  countDeviceReadiness,
+  getDailyOperationDeviceBlockers,
+  routeLabel,
+} from "./command-center-view-model";
 
 const projection = {
   storeId: "loja-piloto",
@@ -505,4 +510,19 @@ describe("CommandCenter", () => {
     expect(await screen.findByText("Aparelho operando apenas com lembrete local")).toBeTruthy();
     expect(screen.getByText("Configurar push remoto e repetir o teste seguro.")).toBeTruthy();
   });
+
+  it("keeps shared route selectors public-safe and projection-derived", () => {
+    expect(routeLabel("operacao")).toBe("Operacao");
+    expect(routeLabel("validacao")).toBe("Validacao");
+    expect(countDeviceReadiness(projection.devices)).toEqual({
+      apto: 0,
+      atencao: 1,
+      bloqueado: 0,
+    });
+    expect(getDailyOperationDeviceBlockers(projection.devices[0] ?? neverDevice()).length).toBe(0);
+  });
 });
+
+function neverDevice(): (typeof projection.devices)[number] {
+  throw new Error("Expected a fixture device.");
+}
