@@ -8,11 +8,11 @@
 
 ### Web Operation
 
-- [ ] **WEB-01**: Leadership can use the Command Center as the daily sales-area safety view without UAT, Go/No-Go, build, or verbose device diagnostics crowding the first operational scan.
-- [ ] **WEB-02**: Leadership can always see a compact device-readiness summary in the web operational shell or Command Center header, including counts for authorized, blocked, attention, and ready devices.
-- [ ] **WEB-03**: Leadership can open a dedicated Aparelhos view with per-device readiness, last central read, last sync, push/camera state, build compatibility, safe push-test status, and next action.
-- [ ] **WEB-04**: Leadership can open an Atualizacoes view that shows the approved APK/build, installed versions by device, stale or incompatible devices, and a safe update path such as APK link or QR without exposing secrets.
-- [ ] **WEB-05**: Leadership can open a Validacao / Go-No-Go view for Loja 18 UAT, rollout blockers, and evidence status without mixing that validation checklist into the daily Command Center.
+- [x] **WEB-01**: Leadership can use the Command Center as the daily sales-area safety view without UAT, Go/No-Go, build, or verbose device diagnostics crowding the first operational scan.
+- [x] **WEB-02**: Leadership can always see a compact device-readiness summary in the web operational shell or Command Center header, including counts for authorized, blocked, attention, and ready devices.
+- [x] **WEB-03**: Leadership can open a dedicated Aparelhos view with per-device readiness, last central read, last sync, push/camera state, build compatibility, safe push-test status, and next action.
+- [x] **WEB-04**: Leadership can open an Atualizacoes view that shows the approved APK/build, installed versions by device, stale or incompatible devices, and a safe update path such as APK link or QR without exposing secrets.
+- [x] **WEB-05**: Leadership can open a Validacao / Go-No-Go view for Loja 18 UAT, rollout blockers, and evidence status without mixing that validation checklist into the daily Command Center.
 
 ### Mobile Ajustes
 
@@ -64,11 +64,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WEB-01 | Phase 13 | Pending |
-| WEB-02 | Phase 13 | Pending |
-| WEB-03 | Phase 13 | Pending |
-| WEB-04 | Phase 13 | Pending |
-| WEB-05 | Phase 13 | Pending |
+| WEB-01 | Phase 13 | Complete |
+| WEB-02 | Phase 13 | Complete |
+| WEB-03 | Phase 13 | Complete |
+| WEB-04 | Phase 13 | Complete |
+| WEB-05 | Phase 13 | Complete |
 | SET-01 | Phase 14 | Pending |
 | SET-02 | Phase 14 | Pending |
 | SET-03 | Phase 14 | Pending |
