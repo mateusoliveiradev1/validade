@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import { productDraftToLocalRecord } from "./repository";
 
 const categoryRuleProfile = {
   categoryId: "categoria-ficticia-folhas",
@@ -474,6 +475,57 @@ describe("memory capture repository", () => {
     expect(newCodeLookup).toMatchObject({
       resultState: "reuse_available",
       reusableProducts: [{ centralProductId: "produto-central-alface-001" }],
+    });
+  });
+
+  it("saves lots for pending product drafts without writing draft ids to central", async () => {
+    const identifiers = [
+      "produto-rascunho-local-001",
+      "lote-rascunho-local-001",
+      "observacao-rascunho-local-001",
+    ];
+    const createCentralLot = vi.fn(() => Promise.reject(new Error("central should not be used")));
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "identificador-rascunho-extra",
+      createCentralLot,
+    });
+    const response = await repository.createProductDraft?.({
+      displayName: "Couve Rascunho FICTICIA",
+      categoryId: "categoria-ficticia-folhas",
+      categoryName: "Folhas",
+      categoryRuleProfile,
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (response?.draft === undefined) {
+      throw new Error("Expected a pending central draft.");
+    }
+
+    const draftProduct = productDraftToLocalRecord(response.draft);
+    const snapshot = await repository.saveLot({
+      lot: {
+        productId: draftProduct.id,
+        identity: { identitySource: "printed", value: "LOTE-RASCUNHO-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-12",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 6,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora Rascunho FICTICIA",
+    });
+
+    expect(createCentralLot).not.toHaveBeenCalled();
+    expect(snapshot.productId).toBe("produto-rascunho-local-001");
+    expect(snapshot.centralSyncState).toBe("pending_central");
+    expect(snapshot.centralSource).toBe("pending_central");
+    await expect(repository.loadLotDetail(snapshot.id)).resolves.toMatchObject({
+      id: "lote-rascunho-local-001",
+      product: {
+        centralProductId: draftProduct.id,
+        reviewStatus: "pending_review",
+      },
     });
   });
 

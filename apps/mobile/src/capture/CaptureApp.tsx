@@ -139,7 +139,18 @@ export function CaptureApp({
         const cache = await loadPrepareTurnCache(repository);
         if (!current) return;
         setPrepareTurnCache(cache);
-        setPrepareTurnState(prepareTurnClient === undefined ? "ready" : "needs_prepare");
+        if (prepareTurnClient === undefined) {
+          setPrepareTurnState("ready");
+          return;
+        }
+
+        if (cache?.state === "ready" && cache.source === "central") {
+          setPrepareTurnSource("central");
+          setPrepareTurnState("ready");
+          return;
+        }
+
+        setPrepareTurnState("needs_prepare");
       })
       .catch(() => {
         if (!current) return;

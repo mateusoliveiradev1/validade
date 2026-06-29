@@ -145,6 +145,40 @@ export type CaptureLotSnapshot = CaptureLotInput & {
   centralAcknowledgementMessage?: string;
 };
 
+export function isPendingCentralProduct(product: CaptureProductRecord): boolean {
+  return (
+    product.catalogSource === "draft_pending_review" ||
+    product.reviewStatus === "pending_review" ||
+    product.centralSyncState === "pending_central"
+  );
+}
+
+export interface LocalLotCentralSyncMetadata {
+  centralSyncState: VisibleCentralSyncState;
+  centralSource: CentralPackageSource;
+  centralAcknowledgementMessage: string;
+}
+
+export function localLotCentralSyncMetadata(
+  product: CaptureProductRecord,
+): LocalLotCentralSyncMetadata {
+  if (isPendingCentralProduct(product)) {
+    return {
+      centralSyncState: "pending_central",
+      centralSource: "pending_central",
+      centralAcknowledgementMessage:
+        "Produto em rascunho. Lote salvo neste aparelho e pendente da validacao central.",
+    };
+  }
+
+  return {
+    centralSyncState: "local",
+    centralSource: "local_cache",
+    centralAcknowledgementMessage:
+      "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+  };
+}
+
 export type CaptureLotDetail = CaptureLotSnapshot & {
   product: CaptureProductRecord;
   observations: readonly CaptureObservationRecord[];

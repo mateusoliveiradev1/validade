@@ -89,6 +89,19 @@ describe("prepare-turn gate", () => {
     expect(textContent(tree)).toContain("Morango FICTICIO");
   });
 
+  it("opens Hoje from a ready central cache on app reentry", async () => {
+    const repository = createRepository();
+    await repository.hydratePrepareTurn?.(preparedTurnResponse());
+    const prepareTurnClient = vi.fn(() => Promise.resolve(preparedTurnResponse()));
+    const tree = await renderApp(repository, prepareTurnClient);
+
+    expect(prepareTurnClient).not.toHaveBeenCalled();
+    expect(findButton(tree, "Preparar turno")).toBeUndefined();
+    expect(textContent(tree)).toContain("Build do piloto");
+    expect(textContent(tree)).toContain("Pronto para operar com a leitura central.");
+    expect(textContent(tree)).toContain("Morango FICTICIO");
+  });
+
   it("keeps the loading decision copy visible before Hoje is ready", async () => {
     const repository = createRepository();
     const prepareTurnClient = vi.fn(() => new Promise<PrepareTurnResponse>(() => undefined));
@@ -147,7 +160,7 @@ describe("prepare-turn gate", () => {
 
   it("labels local-cache fallback as not safe when central is unavailable", async () => {
     const repository = createRepository();
-    await repository.hydratePrepareTurn?.(preparedTurnResponse());
+    await repository.hydratePrepareTurn?.(preparedTurnResponse({ cacheSource: "local_cache" }));
     const tree = await renderApp(repository, () => Promise.reject(new Error("network")));
 
     await press(tree, "Preparar turno");
@@ -298,6 +311,7 @@ function preparedTurnResponse(
   input: {
     readiness?: PrepareTurnResponse["store"]["readiness"];
     cacheState?: PrepareTurnResponse["cache"]["state"];
+    cacheSource?: PrepareTurnResponse["cache"]["source"];
     products?: PrepareTurnResponse["products"];
     lots?: PrepareTurnResponse["lots"];
     activeTasks?: PrepareTurnResponse["activeTasks"];
@@ -387,7 +401,7 @@ function preparedTurnResponse(
     },
     cache: {
       state: input.cacheState ?? "ready",
-      source: "central",
+      source: input.cacheSource ?? "central",
       updatedAt: "2030-01-10T12:30:00.000Z",
       ...(centralFactCount === 0 ? {} : { lastCentralReadAt: "2030-01-10T12:30:00.000Z" }),
       staleAfterHours: 4,

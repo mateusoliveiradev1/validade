@@ -87,6 +87,8 @@ import {
   deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
   maxPhysicalConfirmationAgeHoursForLot,
+  isPendingCentralProduct,
+  localLotCentralSyncMetadata,
   nextGeneratedId,
   normalizeProductLookup,
   categoryCatalogItemToLocalCategory,
@@ -933,7 +935,12 @@ export function createSQLiteCaptureRepository(
     const lot = parseLotInput(input.lot);
     const db = await getDatabase();
     const productRow = await db.getFirstAsync<ProductRow>(
-      "SELECT * FROM capture_products WHERE id = ?",
+      `SELECT * FROM capture_products
+       WHERE id = ? OR central_product_id = ?
+       ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END
+       LIMIT 1`,
+      lot.productId,
+      lot.productId,
       lot.productId,
     );
 
@@ -948,21 +955,20 @@ export function createSQLiteCaptureRepository(
       return centrallySaved;
     }
 
+    const storedLot = parseLotInput({ ...lot, productId: product.id });
+    const syncMetadata = localLotCentralSyncMetadata(product);
     const lotId = nextGeneratedId(dependencies);
     const observation: CaptureObservationRecord = {
-      ...createInitialObservation(lot, input.actorLabel, dependencies.clock()),
+      ...createInitialObservation(storedLot, input.actorLabel, dependencies.clock()),
       id: nextGeneratedId(dependencies),
       lotId,
     };
     const snapshot: CaptureLotSnapshot = {
-      ...lot,
+      ...storedLot,
       id: lotId,
       productDisplayName: product.displayName,
       currentObservation: observation,
-      centralSyncState: "local",
-      centralSource: "local_cache",
-      centralAcknowledgementMessage:
-        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+      ...syncMetadata,
     };
 
     await db.withTransactionAsync(async () => {
@@ -977,24 +983,24 @@ export function createSQLiteCaptureRepository(
           central_source, task_projection_json, central_ack_message
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         lotId,
-        lot.productId,
-        lot.identity.identitySource,
-        lot.identity.value,
-        lot.mode,
-        lot.mode === "formal_validity" || lot.mode === "processed_repack_loss"
-          ? lot.expiresAt
+        storedLot.productId,
+        storedLot.identity.identitySource,
+        storedLot.identity.value,
+        storedLot.mode,
+        storedLot.mode === "formal_validity" || storedLot.mode === "processed_repack_loss"
+          ? storedLot.expiresAt
           : null,
-        lot.mode === "formal_validity" ||
-          lot.mode === "processed_repack_loss" ||
-          lot.mode === "flv_inspection" ||
-          lot.mode === "receiving_monitored"
-          ? (lot.receivedAt ?? null)
+        storedLot.mode === "formal_validity" ||
+          storedLot.mode === "processed_repack_loss" ||
+          storedLot.mode === "flv_inspection" ||
+          storedLot.mode === "receiving_monitored"
+          ? (storedLot.receivedAt ?? null)
           : null,
-        lot.mode === "flv_inspection" ? (lot.qualityInspectionDueAt ?? null) : null,
-        lot.mode === "flv_inspection" ? (lot.qualityWindowDays ?? null) : null,
-        lot.approximateQuantity,
-        lot.initialLocation.kind,
-        lot.initialLocation.kind === "other" ? lot.initialLocation.customName : null,
+        storedLot.mode === "flv_inspection" ? (storedLot.qualityInspectionDueAt ?? null) : null,
+        storedLot.mode === "flv_inspection" ? (storedLot.qualityWindowDays ?? null) : null,
+        storedLot.approximateQuantity,
+        storedLot.initialLocation.kind,
+        storedLot.initialLocation.kind === "other" ? storedLot.initialLocation.customName : null,
         observation.id,
         observation.status,
         observation.actorLabel,
@@ -1006,10 +1012,10 @@ export function createSQLiteCaptureRepository(
         observation.isCorrection ? 1 : 0,
         observation.correctionReason ?? null,
         null,
-        "local",
-        "local_cache",
+        syncMetadata.centralSyncState,
+        syncMetadata.centralSource,
         null,
-        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+        syncMetadata.centralAcknowledgementMessage,
       );
       await insertObservation(db, observation);
     });
@@ -1024,6 +1030,10 @@ export function createSQLiteCaptureRepository(
     actorLabel: string,
   ): Promise<CaptureLotSnapshot | null> {
     if (dependencies.createCentralLot === undefined) {
+      return null;
+    }
+
+    if (isPendingCentralProduct(product)) {
       return null;
     }
 

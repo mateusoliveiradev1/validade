@@ -80,6 +80,8 @@ import {
   deriveRefreshedTaskAlertState,
   deriveTaskCandidateFromLot,
   maxPhysicalConfirmationAgeHoursForLot,
+  isPendingCentralProduct,
+  localLotCentralSyncMetadata,
   nextGeneratedId,
   normalizeProductLookup,
   parseMarkdownApplicationCommand,
@@ -525,7 +527,7 @@ export function createMemoryCaptureRepository(
 
   async function saveLot(input: SaveLotInput): Promise<CaptureLotSnapshot> {
     const lot = parseLotInput(input.lot);
-    const product = products.get(lot.productId);
+    const product = findProductForLot(lot.productId);
 
     if (product === undefined) {
       throw new Error(`Cannot save a lot for an unknown product: ${lot.productId}`);
@@ -537,21 +539,20 @@ export function createMemoryCaptureRepository(
       return centrallySaved;
     }
 
+    const storedLot = parseLotInput({ ...lot, productId: product.id });
+    const syncMetadata = localLotCentralSyncMetadata(product);
     const lotId = nextGeneratedId(dependencies);
     const observation: CaptureObservationRecord = {
-      ...createInitialObservation(lot, input.actorLabel, dependencies.clock()),
+      ...createInitialObservation(storedLot, input.actorLabel, dependencies.clock()),
       id: nextGeneratedId(dependencies),
       lotId,
     };
     const snapshot: CaptureLotSnapshot = {
-      ...lot,
+      ...storedLot,
       id: lotId,
       productDisplayName: product.displayName,
       currentObservation: observation,
-      centralSyncState: "local",
-      centralSource: "local_cache",
-      centralAcknowledgementMessage:
-        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+      ...syncMetadata,
     };
 
     lots.set(lotId, snapshot);
@@ -566,6 +567,10 @@ export function createMemoryCaptureRepository(
     actorLabel: string,
   ): Promise<CaptureLotSnapshot | null> {
     if (dependencies.createCentralLot === undefined) {
+      return null;
+    }
+
+    if (isPendingCentralProduct(product)) {
       return null;
     }
 
@@ -651,7 +656,7 @@ export function createMemoryCaptureRepository(
           const matchesQuery =
             normalizedQuery === undefined ||
             normalizeProductLookup(lot.productDisplayName).includes(normalizedQuery) ||
-            products.get(lot.productId)?.gtin?.includes(normalizedQuery) === true ||
+            findProductForLot(lot.productId)?.gtin?.includes(normalizedQuery) === true ||
             lot.identity.value.toLocaleLowerCase("pt-BR").includes(normalizedQuery);
           const matchesLocation =
             parsedQuery.location === undefined ||
@@ -677,7 +682,7 @@ export function createMemoryCaptureRepository(
       return Promise.resolve(null);
     }
 
-    const product = products.get(snapshot.productId);
+    const product = findProductForLot(snapshot.productId);
 
     if (product === undefined) {
       throw new Error(`Lot ${validatedLotId} has no stored product.`);
@@ -688,6 +693,13 @@ export function createMemoryCaptureRepository(
       product,
       observations: observations.get(validatedLotId) ?? [],
     });
+  }
+
+  function findProductForLot(productId: string): CaptureProductRecord | undefined {
+    return (
+      products.get(productId) ??
+      [...products.values()].find((product) => product.centralProductId === productId)
+    );
   }
 
   async function refreshTodayTasks(input: RefreshTodayTasksInput): Promise<TodayTaskRefreshResult> {
