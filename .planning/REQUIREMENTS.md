@@ -19,8 +19,8 @@
 - [x] **SET-01**: The operator can open Ajustes from the mobile app shell while preserving the active store, role, session, and current operational context.
 - [x] **SET-02**: The operator can view and manage push/lembretes in Ajustes, including permission state, provider/local reminder state, test action, disable path, and honest copy that push is not physical execution.
 - [x] **SET-03**: The operator can view synchronization health in Ajustes, including last central read, last sync, pending local commands, conflicts, retry/discard path, and whether the state blocks safe close.
-- [ ] **SET-04**: The operator can view update/build truth in Ajustes, including installed version, approved version, environment, API target, package id, and manual update instructions for local APK distribution.
-- [ ] **SET-05**: The operator can access account, store, privacy, and sign-out controls from Ajustes using the existing closed-pilot authorization model.
+- [x] **SET-04**: The operator can view update/build truth in Ajustes, including installed version, approved version, environment, API target, package id, and manual update instructions for local APK distribution.
+- [x] **SET-05**: The operator can access account, store, privacy, and sign-out controls from Ajustes using the existing closed-pilot authorization model.
 
 ### Operational Focus
 
@@ -72,8 +72,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SET-01 | Phase 14 | Complete |
 | SET-02 | Phase 14 | Complete |
 | SET-03 | Phase 14 | Complete |
-| SET-04 | Phase 14 | Pending |
-| SET-05 | Phase 14 | Pending |
+| SET-04 | Phase 14 | Complete |
+| SET-05 | Phase 14 | Complete |
 | OPS-01 | Phase 15 | Pending |
 | OPS-02 | Phase 15 | Pending |
 | OPS-03 | Phase 15 | Pending |
