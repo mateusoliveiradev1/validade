@@ -38,7 +38,7 @@ import {
   type ShiftClosureSnapshot,
   type PrivacyTopicId,
 } from "@validade-zero/contracts";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import brandSymbol from "../../assets/brand-symbol.png";
 import { captureColors, captureRadii, captureSpacing } from "../capture/capture-theme";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "../capture/capture-ui";
@@ -87,6 +87,11 @@ export interface MobileAuthClient {
   createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
   closeShift(input: ShiftCloseSafeRequest): Promise<ShiftClosureSnapshot>;
   logout(): Promise<void>;
+}
+
+export interface AuthGateReadyControls {
+  openPrivacyCenter(): void;
+  requestLogout(): void;
 }
 
 export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuthClient {
@@ -230,7 +235,11 @@ export function AuthGate({
   children,
 }: {
   authClient: MobileAuthClient;
-  children: (session: SessionContextResponse, authClient: MobileAuthClient) => ReactNode;
+  children: (
+    session: SessionContextResponse,
+    authClient: MobileAuthClient,
+    controls: AuthGateReadyControls,
+  ) => ReactNode;
 }) {
   const [screen, setScreen] = useState<GateScreen>("checking");
   const [session, setSession] = useState<SessionContextResponse | undefined>();
@@ -373,32 +382,14 @@ export function AuthGate({
   if (screen === "ready" && session !== undefined) {
     return (
       <View style={styles.authenticatedShell}>
-        <View style={styles.sessionBar}>
-          <View style={styles.sessionIdentity}>
-            <Text style={styles.sessionKicker}>Sessao ativa</Text>
-            <Text style={styles.sessionStore}>{session.store.storeName}</Text>
-            <Text style={styles.sessionLabel}>
-              {session.actor.displayName ?? "Conta da loja"} - {roleLabel(session.activeRole)}
-            </Text>
-          </View>
-          <View style={styles.sessionActions}>
-            <SessionAction
-              accessibilityLabel="Abrir Centro de Privacidade"
-              label="Privacidade"
-              onPress={() => {
-                setPrivacyReturnScreen("ready");
-                setPrivacyActiveTopic(null);
-                setScreen("privacy");
-              }}
-            />
-            <SessionAction
-              accessibilityLabel="Sair da conta"
-              label="Sair"
-              onPress={() => void logout()}
-            />
-          </View>
-        </View>
-        {children(session, authClient)}
+        {children(session, authClient, {
+          openPrivacyCenter: () => {
+            setPrivacyReturnScreen("ready");
+            setPrivacyActiveTopic(null);
+            setScreen("privacy");
+          },
+          requestLogout: () => void logout(),
+        })}
       </View>
     );
   }
@@ -530,33 +521,6 @@ function GateMessage({
   );
 }
 
-function SessionAction({
-  accessibilityLabel,
-  label,
-  onPress,
-}: {
-  accessibilityLabel: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.sessionAction, pressed ? styles.sessionActionPressed : null]}
-    >
-      <Text style={styles.sessionActionLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function roleLabel(role: SessionContextResponse["activeRole"]): string {
-  if (role === "admin") return "Administracao";
-  if (role === "lead") return "Lideranca";
-  return "Operacao";
-}
-
 export function configuredApiBaseUrl(): string {
   const value =
     normalizeApiBaseUrl((process.env as { EXPO_PUBLIC_API_URL?: string }).EXPO_PUBLIC_API_URL) ||
@@ -655,59 +619,5 @@ const styles = StyleSheet.create({
   authenticatedShell: {
     backgroundColor: captureColors.background,
     flex: 1,
-  },
-  sessionBar: {
-    alignItems: "flex-start",
-    backgroundColor: captureColors.surface,
-    borderBottomColor: captureColors.border,
-    borderBottomWidth: 1,
-    gap: captureSpacing.medium,
-    paddingHorizontal: captureSpacing.medium,
-    paddingVertical: captureSpacing.small,
-  },
-  sessionIdentity: {
-    gap: 2,
-    width: "100%",
-  },
-  sessionKicker: {
-    color: captureColors.accent,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16,
-  },
-  sessionStore: {
-    color: captureColors.ink,
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 22,
-  },
-  sessionLabel: {
-    color: captureColors.mutedInk,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  sessionActions: {
-    flexDirection: "row",
-    gap: captureSpacing.small,
-  },
-  sessionAction: {
-    alignItems: "center",
-    backgroundColor: captureColors.surfaceMuted,
-    borderColor: captureColors.border,
-    borderRadius: captureRadii.small,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: 40,
-    paddingHorizontal: captureSpacing.medium,
-    paddingVertical: captureSpacing.small,
-  },
-  sessionActionPressed: {
-    backgroundColor: captureColors.surfacePressed,
-  },
-  sessionActionLabel: {
-    color: captureColors.ink,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
   },
 });

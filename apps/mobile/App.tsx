@@ -7,6 +7,7 @@ import { captureColors } from "./src/capture/capture-theme";
 import { createSQLiteCaptureRepository } from "./src/capture/sqlite-repository";
 import {
   AuthGate,
+  type AuthGateReadyControls,
   configuredApiBaseUrl,
   createMobileAuthClient,
   type MobileAuthClient,
@@ -30,9 +31,10 @@ export default function App({
       <StatusBar backgroundColor={captureColors.background} barStyle="dark-content" />
       <View style={styles.safeArea}>
         <AuthGate authClient={authClient}>
-          {(session, authenticatedClient) => (
+          {(session, authenticatedClient, authControls) => (
             <AuthenticatedCaptureApp
               alertChannel={alertChannel}
+              authControls={authControls}
               authClient={authenticatedClient}
               session={session}
             />
@@ -45,10 +47,12 @@ export default function App({
 
 function AuthenticatedCaptureApp({
   alertChannel,
+  authControls,
   authClient,
   session,
 }: {
   alertChannel?: PushAlertChannel | undefined;
+  authControls: AuthGateReadyControls;
   authClient: MobileAuthClient;
   session: SessionContextResponse;
 }) {
@@ -90,6 +94,8 @@ function AuthenticatedCaptureApp({
   return (
     <CaptureApp
       repository={repository}
+      authControls={authControls}
+      session={session}
       activeRole={session.activeRole}
       actorLabel={session.actor.displayName ?? "Pessoa da operacao"}
       storeId={session.store.storeId}

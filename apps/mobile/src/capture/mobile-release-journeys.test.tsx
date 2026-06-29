@@ -546,6 +546,102 @@ describe("mobile release journeys", () => {
     );
   });
 
+  it("opens Ajustes after authenticated session without dropping session identity", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    const repository = releaseOfflineRepository();
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <AuthGate authClient={authClient({ readSession: () => Promise.resolve(activeSession()) })}>
+          {(session, _client, controls) => (
+            <CaptureApp
+              repository={repository}
+              alertChannel={createFakePushAlertChannel()}
+              authControls={controls}
+              session={session}
+            />
+          )}
+        </AuthGate>,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Authenticated Ajustes journey did not render.");
+
+    const settings = tree.root.findByProps({
+      accessibilityLabel: "Abrir Ajustes do aparelho",
+    });
+
+    await act(async () => {
+      settings.props.onPress();
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered).toContain("Ajustes");
+    expect(rendered).toContain("Loja Ficticia Piloto");
+    expect(rendered).toContain("Colaborador FICTICIO");
+  });
+
+  it("opens Ajustes from Hoje and returns to Hoje without resetting operation", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={releaseOfflineRepository()}
+          alertChannel={createFakePushAlertChannel()}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Ajustes from Hoje did not render.");
+
+    await press(tree, "Abrir Ajustes do aparelho");
+    expect(JSON.stringify(tree.toJSON())).toContain("Ajustes");
+
+    await press(tree, "Voltar para operacao");
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered).toContain("Hoje");
+    expect(rendered).toContain("Area de venda com risco agora");
+  });
+
+  it("opens Ajustes from task resolution and returns to the same task", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={releaseOfflineRepository()}
+          alertChannel={createFakePushAlertChannel()}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Ajustes from task did not render.");
+
+    await press(tree, "Retirar agora");
+    expect(JSON.stringify(tree.toJSON())).toContain("Acao exigida:");
+
+    await press(tree, "Abrir Ajustes do aparelho");
+    expect(JSON.stringify(tree.toJSON())).toContain("Ajustes");
+
+    await press(tree, "Voltar para operacao");
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered).toContain("Acao exigida:");
+    expect(rendered).toContain("Iogurte FICTICIO");
+  });
+
   it("prepares central truth, reuses a central product, and registers a lot in the native chain", async () => {
     const { CaptureApp } = await import("./CaptureApp");
     const { createFakePushAlertChannel } = await import("./alert-channel");

@@ -1,7 +1,13 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionContextResponse } from "@validade-zero/contracts";
-import { AuthGate, createMobileAuthClient, type MobileAuthClient } from "./AuthGate";
+import { Pressable } from "react-native";
+import {
+  AuthGate,
+  createMobileAuthClient,
+  type AuthGateReadyControls,
+  type MobileAuthClient,
+} from "./AuthGate";
 import { MobileAuthError } from "./auth-errors";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -96,7 +102,9 @@ async function renderGate(authClient: MobileAuthClient): Promise<ReactTestRender
   let tree: ReactTestRenderer | undefined;
   await act(async () => {
     tree = create(
-      <AuthGate authClient={authClient}>{() => <TextFixture text="Hoje autenticado" />}</AuthGate>,
+      <AuthGate authClient={authClient}>
+        {(_session, _authClient, controls) => <AuthenticatedFixture controls={controls} />}
+      </AuthGate>,
     );
     await Promise.resolve();
   });
@@ -104,8 +112,26 @@ async function renderGate(authClient: MobileAuthClient): Promise<ReactTestRender
   return tree;
 }
 
-function TextFixture({ text }: { text: string }) {
-  return <>{text}</>;
+function AuthenticatedFixture({ controls }: { controls: AuthGateReadyControls }) {
+  return (
+    <>
+      Hoje autenticado
+      <Pressable
+        accessibilityLabel="Abrir Centro de Privacidade"
+        accessibilityRole="button"
+        onPress={controls.openPrivacyCenter}
+      >
+        Privacidade de teste
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Sair da conta"
+        accessibilityRole="button"
+        onPress={controls.requestLogout}
+      >
+        Sair da conta
+      </Pressable>
+    </>
+  );
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {

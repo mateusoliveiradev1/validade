@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CaptureProductRecord, CaptureRepository, MarkdownEntryState } from "./repository";
 import { captureCopy, productModeLabels } from "./capture-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -14,11 +14,13 @@ import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
+import { AjustesScreen } from "./AjustesScreen";
 import type {
   PrepareTurnCacheStatus,
   PrepareTurnRequest,
   PrepareTurnResponse,
   ProductIdentifierInput,
+  SessionContextResponse,
   ShiftCloseSafeRequest,
   ShiftClosureSnapshot,
   TodayTaskRecord,
@@ -26,10 +28,11 @@ import type {
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
-import { captureColors } from "./capture-theme";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import { addHardwareBackPressListener } from "../system/hardware-back";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
 import { readMobileBuildInfo, type MobileBuildInfo } from "../build-info";
+import type { AuthGateReadyControls } from "../auth/AuthGate";
 
 type CaptureRoute =
   | { name: "today" }
@@ -50,7 +53,8 @@ type CaptureRoute =
   | { name: "task-resolution"; task: TodayTaskRecord }
   | { name: "shift-close" }
   | { name: "observation"; detail: CaptureLotDetail }
-  | { name: "barcode" };
+  | { name: "barcode" }
+  | { name: "settings" };
 
 const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
 
@@ -61,6 +65,8 @@ export function CaptureApp({
   prepareTurnClient,
   closeShiftClient,
   buildInfo,
+  authControls,
+  session,
   activeRole = "lead",
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
@@ -73,6 +79,8 @@ export function CaptureApp({
     | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
     | undefined;
   buildInfo?: MobileBuildInfo | undefined;
+  authControls?: AuthGateReadyControls | undefined;
+  session?: SessionContextResponse | undefined;
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
@@ -357,8 +365,28 @@ export function CaptureApp({
     navigate({ name: "task-resolution", task });
   }
 
-  if (prepareTurnState !== "ready") {
+  function withSessionBar(content: ReactNode): ReactNode {
     return (
+      <View style={styles.appShell}>
+        <CaptureSessionBar
+          actorLabel={session?.actor.displayName ?? actorLabel}
+          role={session?.activeRole ?? activeRole}
+          storeName={session?.store.storeName ?? storeId}
+          onOpenSettings={() => navigate({ name: "settings" })}
+        />
+        <View style={styles.appContent}>{content}</View>
+      </View>
+    );
+  }
+
+  if (currentRoute.name === "settings") {
+    return withSessionBar(
+      <AjustesScreen authControls={authControls} onBack={goBack} session={session} />,
+    );
+  }
+
+  if (prepareTurnState !== "ready") {
+    return withSessionBar(
       <PrepareTurnScreen
         cache={prepareTurnCache}
         error={initializationError ?? prepareTurnError}
@@ -373,7 +401,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "today") {
-    return (
+    return withSessionBar(
       <>
         {initializationError === undefined ? null : (
           <StatusNotice tone="error">{initializationError}</StatusNotice>
@@ -402,7 +430,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "task-resolution") {
-    return (
+    return withSessionBar(
       <TaskResolutionPanel
         repository={repository}
         task={currentRoute.task}
@@ -420,7 +448,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "shift-close") {
-    return (
+    return withSessionBar(
       <ShiftCloseScreen
         repository={repository}
         canCloseShift={activeRole === "lead"}
@@ -434,7 +462,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "product-form") {
-    return (
+    return withSessionBar(
       <ProductFormScreen
         repository={repository}
         {...(currentRoute.initialGtin === undefined
@@ -458,7 +486,7 @@ export function CaptureApp({
     const needsCentralReprepareBeforeLot =
       prepareTurnClient !== undefined && prepareTurnCache?.state !== "ready";
 
-    return (
+    return withSessionBar(
       <ScrollView contentContainerStyle={styles.screen}>
         <ScreenHeader
           title="Produto confirmado"
@@ -493,7 +521,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "lot-registration") {
-    return (
+    return withSessionBar(
       <LotRegistrationScreen
         repository={repository}
         product={currentRoute.product}
@@ -504,7 +532,7 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "detail")
-    return (
+    return withSessionBar(
       <LotDetailScreen
         detail={currentRoute.detail}
         markdownEntryState={currentRoute.markdownEntryState}
@@ -515,7 +543,7 @@ export function CaptureApp({
       />
     );
   if (currentRoute.name === "observation")
-    return (
+    return withSessionBar(
       <ObservationComposer
         repository={repository}
         detail={currentRoute.detail}
@@ -533,7 +561,7 @@ export function CaptureApp({
       />
     );
   if (currentRoute.name === "recent")
-    return (
+    return withSessionBar(
       <RecentLotList
         repository={repository}
         onRegister={() => navigate({ name: "discovery" })}
@@ -543,7 +571,7 @@ export function CaptureApp({
       />
     );
   if (currentRoute.name === "barcode")
-    return (
+    return withSessionBar(
       <BarcodeLookupAssistant
         onBack={goBack}
         onLookup={(value) => {
@@ -552,7 +580,7 @@ export function CaptureApp({
       />
     );
 
-  return (
+  return withSessionBar(
     <>
       {initializationError === undefined ? null : (
         <StatusNotice tone="error">{initializationError}</StatusNotice>
@@ -582,6 +610,44 @@ export function CaptureApp({
       />
     </>
   );
+}
+
+function CaptureSessionBar({
+  actorLabel,
+  role,
+  storeName,
+  onOpenSettings,
+}: {
+  actorLabel: string;
+  role: "collaborator" | "lead" | "admin";
+  storeName: string;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <View style={styles.sessionBar}>
+      <View style={styles.sessionIdentity}>
+        <Text style={styles.sessionKicker}>Sessao ativa</Text>
+        <Text style={styles.sessionStore}>{storeName}</Text>
+        <Text style={styles.sessionLabel}>
+          {actorLabel} - {roleLabel(role)}
+        </Text>
+      </View>
+      <Pressable
+        accessibilityLabel="Abrir Ajustes do aparelho"
+        accessibilityRole="button"
+        onPress={onOpenSettings}
+        style={({ pressed }) => [styles.settingsAction, pressed ? styles.settingsActionPressed : null]}
+      >
+        <Text style={styles.settingsActionLabel}>Ajustes</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function roleLabel(role: "collaborator" | "lead" | "admin"): string {
+  if (role === "admin") return "Administracao";
+  if (role === "lead") return "Lideranca";
+  return "Operacao";
 }
 
 async function loadPrepareTurnCache(
@@ -740,6 +806,64 @@ function prepareTurnDetailFor(
 }
 
 const styles = StyleSheet.create({
+  appShell: {
+    backgroundColor: captureColors.background,
+    flex: 1,
+  },
+  appContent: {
+    flex: 1,
+  },
+  sessionBar: {
+    alignItems: "flex-start",
+    backgroundColor: captureColors.surface,
+    borderBottomColor: captureColors.border,
+    borderBottomWidth: 1,
+    gap: captureSpacing.medium,
+    paddingHorizontal: captureSpacing.large,
+    paddingVertical: captureSpacing.small,
+  },
+  sessionIdentity: {
+    gap: 2,
+    width: "100%",
+  },
+  sessionKicker: {
+    color: captureColors.accent,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  sessionStore: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  sessionLabel: {
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  settingsAction: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: captureSpacing.large,
+    paddingVertical: captureSpacing.small,
+  },
+  settingsActionPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  settingsActionLabel: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
+  },
   screen: {
     backgroundColor: captureColors.background,
     flexGrow: 1,
