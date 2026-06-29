@@ -9,6 +9,7 @@ import type {
   SyncQueueSummary as SyncQueueSummaryRecord,
 } from "@validade-zero/contracts";
 import type { AuthGateReadyControls } from "../auth/AuthGate";
+import type { MobileBuildInfo } from "../build-info";
 import type { PushAlertChannel } from "./alert-channel";
 import {
   ajustesPushCopy,
@@ -18,7 +19,13 @@ import {
   syncReadinessFor,
 } from "./ajustes-readiness";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
-import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
+import {
+  DestructiveAction,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  StatusNotice,
+} from "./capture-ui";
 import { SyncConflictPanel, SyncQueueSummary } from "./offline-sync-ui";
 import {
   alertChannelStateForRegistration,
@@ -28,6 +35,8 @@ import type { SyncEngine } from "./sync-engine";
 
 export function AjustesScreen({
   alertChannel,
+  authControls,
+  buildInfo,
   onBack,
   now = () => new Date(),
   prepareTurnCacheStatus,
@@ -38,6 +47,7 @@ export function AjustesScreen({
 }: {
   authControls?: AuthGateReadyControls | undefined;
   alertChannel?: PushAlertChannel | undefined;
+  buildInfo?: MobileBuildInfo | undefined;
   now?: (() => Date) | undefined;
   onBack: () => void;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
@@ -57,6 +67,8 @@ export function AjustesScreen({
   const [selectedConflict, setSelectedConflict] = useState<SyncConflictRecord | undefined>();
   const [syncFeedback, setSyncFeedback] = useState<string | undefined>();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showUpdateStep, setShowUpdateStep] = useState(false);
+  const [showSignOutConfirmation, setShowSignOutConfirmation] = useState(false);
   const readiness = pushReadinessFor({ channelState: pushState, storedPermissionStatus });
   const syncReadiness = syncReadinessFor({
     prepareTurnCacheStatus,
@@ -271,7 +283,20 @@ export function AjustesScreen({
           {session?.actor.displayName ?? "Pessoa da operacao"} -{" "}
           {session?.store.storeName ?? "Loja local"}
         </Text>
-        <Text style={styles.metadata}>Papel: {roleLabel(session?.activeRole)}</Text>
+        <View style={styles.metricGrid}>
+          <ReadinessRow label="Loja" value={session?.store.storeName ?? "Loja local"} />
+          <ReadinessRow label="ID da loja" value={session?.store.storeId ?? "local-device"} />
+          <ReadinessRow label="Papel" value={roleLabel(session?.activeRole)} />
+          <ReadinessRow label="Conta" value={accountStatusLabel(session?.accountStatus)} />
+          <ReadinessRow
+            label="Sessao expira"
+            value={session?.sessionExpiresAt ?? "Sessao local"}
+          />
+        </View>
+        <Text style={styles.metadata}>
+          Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao troca
+          loja manualmente.
+        </Text>
       </View>
 
       <StatusNotice title="Este aparelho esta pronto para operar?" tone="warning">
@@ -366,19 +391,110 @@ export function AjustesScreen({
         onRetry={() => void manualSync()}
         onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
       />
-      <ReadinessCard
-        title="Atualizacao do app"
-        status="Atencao"
-        body="A versao instalada sera comparada com o APK aprovado do piloto."
+      <BuildUpdateCard
+        buildInfo={buildInfo}
+        showUpdateStep={showUpdateStep}
+        onToggleUpdateStep={() => setShowUpdateStep((current) => !current)}
       />
-      <ReadinessCard
-        title="Privacidade e conta"
-        status="Apto"
-        body="Controles de privacidade, conta e saida ficam reunidos neste aparelho."
-      />
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Privacidade</Text>
+          <ReadinessBadge status="Apto" />
+        </View>
+        <Text style={styles.body}>
+          O app usa dados de conta, loja, papel, acoes operacionais, evidencias, sync, permissoes do
+          aparelho, build instalado e auditoria para manter riscos visiveis e responder direitos.
+        </Text>
+        <SecondaryAction
+          disabled={authControls === undefined}
+          label="Abrir Centro de Privacidade"
+          onPress={() => authControls?.openPrivacyCenter()}
+        />
+      </View>
+
+      <View style={[styles.card, styles.signOutCard]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Sair com pendencias visiveis</Text>
+          <ReadinessBadge status={syncReadiness.pendingCount > 0 ? "Atencao" : "Apto"} />
+        </View>
+        <Text style={styles.body}>
+          Sair nao sincroniza, nao resolve tarefas e nao limpa conflitos deste aparelho.
+        </Text>
+        <Text style={styles.metadata}>
+          Pendencias: {syncReadiness.pendingCount}. Conflitos: {syncReadiness.conflictCount}.
+        </Text>
+        {showSignOutConfirmation ? (
+          <View style={styles.confirmationPanel}>
+            <StatusNotice tone="warning">
+              Sair encerra a sessao neste aparelho. Pendencias locais ou conflitos continuam
+              pendentes e nenhuma tarefa sera resolvida.
+            </StatusNotice>
+            <SecondaryAction
+              label="Continuar nos Ajustes"
+              onPress={() => setShowSignOutConfirmation(false)}
+            />
+            <DestructiveAction
+              disabled={authControls === undefined}
+              label="Confirmar saida da conta"
+              onPress={() => authControls?.requestLogout()}
+            />
+          </View>
+        ) : (
+          <DestructiveAction
+            disabled={authControls === undefined}
+            label="Sair da conta"
+            onPress={() => setShowSignOutConfirmation(true)}
+          />
+        )}
+      </View>
 
       <SecondaryAction label="Voltar para operacao" onPress={onBack} />
     </ScrollView>
+  );
+}
+
+function BuildUpdateCard({
+  buildInfo,
+  onToggleUpdateStep,
+  showUpdateStep,
+}: {
+  buildInfo?: MobileBuildInfo | undefined;
+  onToggleUpdateStep: () => void;
+  showUpdateStep: boolean;
+}) {
+  const compatibility = buildInfo?.buildCompatibility ?? "desconhecido";
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>Atualizacao do app</Text>
+        <ReadinessBadge status={buildReadinessStatus(compatibility)} />
+      </View>
+      <Text style={styles.body}>
+        Instalado: {buildInfo?.appVersion ?? "nao informado"} (
+        {buildInfo?.appBuild ?? "nao informado"}). Compatibilidade: {compatibility}.
+      </Text>
+      <View style={styles.metricGrid}>
+        <ReadinessRow
+          label="Aprovado"
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "120"})`}
+        />
+        <ReadinessRow
+          label="Artefato aprovado"
+          value={buildInfo?.approvedArtifactLabel ?? "phase-12-staging-apk-120"}
+        />
+        <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
+        <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />
+        <ReadinessRow label="Pacote:" value={buildInfo?.packageId ?? "nao informado"} />
+      </View>
+      {showUpdateStep ? (
+        <StatusNotice>
+          Instale manualmente o APK aprovado do piloto e abra Ajustes novamente para conferir se o
+          instalado ficou igual ao aprovado.
+        </StatusNotice>
+      ) : null}
+      <SecondaryAction label="Ver passo de atualizacao" onPress={onToggleUpdateStep} />
+    </View>
   );
 }
 
@@ -397,26 +513,6 @@ function todayLocalOnlyFeedback(): string {
 
 function ajustesSafePushFeedback(reason: string | undefined): string {
   return operatorSafePushFeedback(reason).replace(/Firebase/gi, "provedor de push");
-}
-
-function ReadinessCard({
-  body,
-  status,
-  title,
-}: {
-  body: string;
-  status: "Apto" | "Atencao" | "Bloqueado";
-  title: string;
-}) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <ReadinessBadge status={status} />
-      </View>
-      <Text style={styles.body}>{body}</Text>
-    </View>
-  );
 }
 
 function ReadinessBadge({ status }: { status: "Apto" | "Atencao" | "Bloqueado" }) {
@@ -438,6 +534,22 @@ function roleLabel(role: SessionContextResponse["activeRole"] | undefined): stri
   if (role === "lead") return "Lideranca";
   if (role === "collaborator") return "Operacao";
   return "Sessao ativa";
+}
+
+function accountStatusLabel(status: SessionContextResponse["accountStatus"] | undefined): string {
+  if (status === "active") return "Conta ativa";
+  if (status === "blocked") return "Conta bloqueada";
+  if (status === "revoked") return "Acesso revogado";
+  if (status === "recovery_pending") return "Recuperacao pendente";
+  return "Conta local";
+}
+
+function buildReadinessStatus(
+  compatibility: MobileBuildInfo["buildCompatibility"] | "desconhecido",
+): "Apto" | "Atencao" | "Bloqueado" {
+  if (compatibility === "atual") return "Apto";
+  if (compatibility === "incompativel") return "Bloqueado";
+  return "Atencao";
 }
 
 const styles = StyleSheet.create({
@@ -462,6 +574,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: captureSpacing.small,
     padding: captureSpacing.large,
+  },
+  signOutCard: {
+    borderColor: captureColors.warningBorder,
   },
   cardHeader: {
     alignItems: "flex-start",
@@ -497,6 +612,9 @@ const styles = StyleSheet.create({
     color: captureColors.critical,
   },
   actionStack: {
+    gap: captureSpacing.small,
+  },
+  confirmationPanel: {
     gap: captureSpacing.small,
   },
   metricGrid: {

@@ -412,6 +412,16 @@ describe("mobile auth flow", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Entrar no Validade Zero");
   });
 
+  it("opens the privacy center from authenticated ready controls", async () => {
+    const tree = await renderGate(client({ readSession: () => Promise.resolve(activeSession()) }));
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Hoje autenticado");
+
+    await press(tree, "Abrir Centro de Privacidade");
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Centro de Privacidade");
+  });
+
   it("validates and activates an invite before showing the operational child", async () => {
     const token = "a".repeat(32);
     const validateInvite = vi.fn(() =>

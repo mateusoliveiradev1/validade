@@ -5,10 +5,13 @@ import type {
   DevicePushRegistrationCommand,
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
+  SessionContextResponse,
   SyncCommandSummary,
   SyncConflictRecord,
   SyncQueueSummary,
 } from "@validade-zero/contracts";
+import type { AuthGateReadyControls } from "../auth/AuthGate";
+import type { MobileBuildInfo } from "../build-info";
 import { createFakePushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import { AjustesScreen } from "./AjustesScreen";
 import type { CaptureRepository } from "./repository";
@@ -43,6 +46,44 @@ function registration(
     permissionStatus,
     ...(permissionStatus === "granted" ? { expoPushToken: "ExpoPushToken-FICTICIO" } : {}),
     registeredAt: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function activeSession(overrides: Partial<SessionContextResponse> = {}): SessionContextResponse {
+  return {
+    actor: { subjectId: "worker-ficticio", displayName: "Colaborador FICTICIO" },
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    activeRole: "lead",
+    capabilities: ["task.act", "command_center.read_store"],
+    sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+    accountStatus: "active",
+    canRequestRecovery: true,
+    privacyCenterUrl: "/privacy",
+    actions: {
+      canReadCommandCenter: true,
+      canActOnTask: true,
+      canReviewProductDrafts: false,
+      canCloseShift: true,
+      canReadStoreAudit: false,
+      canManageUsers: false,
+    },
+    ...overrides,
+  };
+}
+
+function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
+  return {
+    appVersion: "0.12.0",
+    appBuild: "120",
+    environment: "staging",
+    apiTarget: "https://api.ficticia.invalid",
+    packageId: "com.validadezero.app",
+    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedAppVersion: "0.12.0",
+    approvedBuild: "120",
+    buildRef: "phase12-public",
+    buildCompatibility: "atual",
+    ...overrides,
   };
 }
 
@@ -191,12 +232,15 @@ function channelWithPermission(state: AlertChannelState): PushAlertChannel {
 
 async function renderAjustes(input: {
   alertChannel?: PushAlertChannel | undefined;
+  authControls?: AuthGateReadyControls | undefined;
+  buildInfo?: MobileBuildInfo | undefined;
   channel?: DevicePushRegistrationCommand | null | undefined;
   conflict?: SyncConflictRecord | null | undefined;
   offlineStatus?: OfflineCacheStatus | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
   queue?: SyncQueueSummary | undefined;
+  session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
 }): Promise<{
   tree: ReactTestRenderer;
@@ -217,10 +261,13 @@ async function renderAjustes(input: {
     tree = create(
       <AjustesScreen
         alertChannel={input.alertChannel ?? createFakePushAlertChannel()}
+        authControls={input.authControls}
+        buildInfo={input.buildInfo}
         onBack={() => undefined}
         prepareTurnCacheStatus={input.prepareTurnCacheStatus ?? readyPrepareTurnCacheStatus()}
         prepareTurnSource={input.prepareTurnSource ?? "central"}
         repository={repository}
+        session={input.session}
         syncEngine={input.syncEngine}
         now={() => new Date("2030-01-10T09:00:00.000Z")}
       />,
@@ -495,5 +542,114 @@ describe("AjustesScreen sync controls", () => {
         reason: "Tarefa atual exige nova conferencia fisica.",
       }),
     );
+  });
+});
+
+describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
+  it("renders public-safe installed and approved build truth", async () => {
+    const { tree } = await renderAjustes({ buildInfo: buildInfo() });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Atualizacao do app");
+    expect(text).toContain("phase-12-staging-apk-120");
+    expect(text).toContain("0.12.0");
+    expect(text).toContain("120");
+    expect(text).toContain("API:");
+    expect(text).toContain("Pacote:");
+    expect(JSON.stringify(tree.toJSON())).not.toMatch(
+      /https:\/\/expo|eas:\/\/|token|secret|password|buildUrl/i,
+    );
+  });
+
+  it("opens the manual update step without rendering private artifact links", async () => {
+    const { tree } = await renderAjustes({
+      buildInfo: buildInfo({ buildCompatibility: "desatualizado" }),
+    });
+
+    await press(tree, "Ver passo de atualizacao");
+
+    const rendered = JSON.stringify(tree.toJSON());
+    expect(rendered).toContain("Instale manualmente o APK aprovado do piloto");
+    expect(rendered).not.toMatch(/https:\/\/expo|eas:\/\/|token|secret|password|buildUrl/i);
+  });
+
+  it("renders account and store as read-only and opens privacy through AuthGate controls", async () => {
+    const openPrivacyCenter = vi.fn();
+    const requestLogout = vi.fn();
+    const { tree } = await renderAjustes({
+      authControls: { openPrivacyCenter, requestLogout },
+      session: activeSession(),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Conta e loja");
+    expect(text).toContain("Colaborador FICTICIO");
+    expect(text).toContain("Loja Ficticia Piloto");
+    expect(text).toContain("loja-ficticia");
+    expect(text).toContain("Lideranca");
+    expect(text).toContain("Conta ativa");
+    expect(text).toContain("2030-01-11T12:00:00.000Z");
+    expect(text).toContain(
+      "Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao troca loja manualmente.",
+    );
+    expect(text).not.toMatch(/trocar loja|alterar loja|mudar papel/i);
+
+    await press(tree, "Abrir Centro de Privacidade");
+
+    expect(openPrivacyCenter).toHaveBeenCalledOnce();
+  });
+
+  it("requires sign-out confirmation and keeps pending work untouched", async () => {
+    const openPrivacyCenter = vi.fn();
+    const requestLogout = vi.fn();
+    const syncPendingCommands = vi.fn().mockResolvedValue({
+      state: "empty",
+      network: { kind: "online" },
+      selectedCommandIds: [],
+      attemptedCommandIds: [],
+      appliedResults: [],
+    });
+    const { resolveSyncConflict, resolveTodayTask, tree } = await renderAjustes({
+      authControls: { openPrivacyCenter, requestLogout },
+      queue: emptySyncQueue({
+        state: "has_conflict",
+        totalCount: 2,
+        conflictCount: 1,
+        hasCriticalConflict: true,
+        criticalCount: 1,
+        highCount: 1,
+        commands: [
+          syncCommandSummary({
+            id: "sync-cmd-conflito-ajustes",
+            state: "sync_conflict",
+            urgency: "critical",
+            conflictId: "conflict-ajustes-001",
+          }),
+          syncCommandSummary({ id: "sync-cmd-pendente-ajustes", urgency: "high" }),
+        ],
+      }),
+      syncEngine: { syncPendingCommands },
+    });
+
+    await press(tree, "Sair da conta");
+
+    expect(requestLogout).not.toHaveBeenCalled();
+    expect(renderedText(tree)).toContain(
+      "Sair encerra a sessao neste aparelho. Pendencias locais ou conflitos continuam pendentes e nenhuma tarefa sera resolvida.",
+    );
+    expect(renderedText(tree)).toContain("Pendencias: 2. Conflitos: 1.");
+
+    await press(tree, "Continuar nos Ajustes");
+
+    expect(renderedText(tree)).toContain("Ajustes");
+    expect(renderedText(tree)).not.toContain("Pendencias locais ou conflitos continuam pendentes");
+
+    await press(tree, "Sair da conta");
+    await press(tree, "Confirmar saida da conta");
+
+    expect(requestLogout).toHaveBeenCalledOnce();
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(resolveSyncConflict).not.toHaveBeenCalled();
+    expect(syncPendingCommands).not.toHaveBeenCalled();
   });
 });

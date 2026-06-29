@@ -384,6 +384,7 @@ export function CaptureApp({
       <AjustesScreen
         alertChannel={resolvedAlertChannel}
         authControls={authControls}
+        buildInfo={resolvedBuildInfo}
         onBack={goBack}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
