@@ -381,7 +381,13 @@ export function CaptureApp({
 
   if (currentRoute.name === "settings") {
     return withSessionBar(
-      <AjustesScreen authControls={authControls} onBack={goBack} session={session} />,
+      <AjustesScreen
+        alertChannel={resolvedAlertChannel}
+        authControls={authControls}
+        onBack={goBack}
+        repository={repository}
+        session={session}
+      />,
     );
   }
 
