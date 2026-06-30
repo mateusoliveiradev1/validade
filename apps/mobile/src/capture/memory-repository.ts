@@ -1990,8 +1990,21 @@ export function createMemoryCaptureRepository(
       (await searchReusableCentralProductWithoutCategory(product));
 
     return reusableProduct === undefined
-      ? undefined
+      ? centralProductIdFallbackForPendingLot(product)
       : productCatalogItemToLocalRecord(reusableProduct);
+  }
+
+  function centralProductIdFallbackForPendingLot(
+    product: CaptureProductRecord,
+  ): CaptureProductRecord | undefined {
+    const centralProductId = product.centralProductId;
+
+    return centralProductId === undefined
+      ? undefined
+      : {
+          ...product,
+          centralProductId,
+        };
   }
 
   async function searchReusableCentralProductWithoutCategory(

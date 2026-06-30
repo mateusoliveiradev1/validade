@@ -1215,7 +1215,22 @@ export function createSQLiteCaptureRepository(
       reusableCentralProductForPendingLot(product, response) ??
       (await searchReusableCentralProductWithoutCategory(product));
 
-    return reusableProduct === undefined ? undefined : productCatalogItemToRecord(reusableProduct);
+    return reusableProduct === undefined
+      ? centralProductIdFallbackForPendingLot(product)
+      : productCatalogItemToRecord(reusableProduct);
+  }
+
+  function centralProductIdFallbackForPendingLot(
+    product: CaptureProductRecord,
+  ): CaptureProductRecord | undefined {
+    const centralProductId = product.centralProductId;
+
+    return centralProductId === undefined
+      ? undefined
+      : {
+          ...product,
+          centralProductId,
+        };
   }
 
   async function searchReusableCentralProductWithoutCategory(

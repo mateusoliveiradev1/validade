@@ -615,6 +615,22 @@ describe("database repositories", () => {
     ).rejects.toThrow("central_product_not_found");
   });
 
+  it("rejects central lot writes for products that are not validated yet", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [
+        {
+          ...centralProduct("store-1", "produto-store-1"),
+          status: "draft",
+          state: "pending",
+        },
+      ],
+    });
+
+    await expect(repository.createLot(centralLotCreateInput("store-1"))).rejects.toThrow(
+      "central_product_not_found",
+    );
+  });
+
   it("creates central lots idempotently and exposes their projected task on prepare-turn", async () => {
     const repository = createInMemoryCaptureRepository({
       products: [centralProduct("store-1", "produto-store-1")],

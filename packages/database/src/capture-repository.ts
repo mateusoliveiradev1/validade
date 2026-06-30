@@ -816,7 +816,7 @@ export function createCaptureRepositoryFromQuery(
           '[]'::json
         ) as identifiers
       from central_products p
-      where p.store_id = $1 and p.central_product_id = $2 and p.status <> 'archived'
+      where p.store_id = $1 and p.central_product_id = $2 and p.status = 'validated'
       limit 1`,
       [input.storeId, input.centralProductId],
     )) as ProductRow[];
@@ -2167,7 +2167,7 @@ export function createInMemoryCaptureRepository(input?: {
       (item) =>
         item.storeId === storeId &&
         item.centralProductId === centralProductId &&
-        item.status !== "archived",
+        item.status === "validated",
     );
 
     return product === undefined ? undefined : toCatalogItem(product);

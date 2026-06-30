@@ -1102,6 +1102,158 @@ describe("memory capture repository", () => {
     );
   });
 
+  it("replays a pending lot with the known central product id when search cannot prove reuse", async () => {
+    const categoryProfile = {
+      categoryId: "categoria-ficticia-legumes",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 45, markdownDays: 10, criticalDays: 2, expiredDays: 0 },
+    };
+    const searchCentralProducts = vi.fn(() =>
+      Promise.resolve({
+        requestId: "search-central-abobrinha-sem-reuso",
+        normalizedQuery: "abobrinha kg ped",
+        resultState: "no_safe_reuse" as const,
+        reusableProducts: [],
+        similarCandidates: [],
+      }),
+    );
+    const createCentralLot = vi.fn((request) =>
+      Promise.resolve({
+        requestId: "write-abobrinha-central-ficticio",
+        lot: {
+          centralLotId: "lote-central-abobrinha-001",
+          centralProductId: request.lot.productId,
+          productDisplayName: "Abobrinha KG PED",
+          lotIdentity: request.lot.identity,
+          mode: "formal_validity" as const,
+          expiresAt: request.lot.expiresAt,
+          receivedAt: request.lot.receivedAt,
+          approximateQuantity: request.lot.approximateQuantity,
+          initialLocation: request.lot.initialLocation,
+          currentObservation: {
+            centralObservationId: "observacao-central-abobrinha-001",
+            centralLotId: "lote-central-abobrinha-001",
+            status: "present" as const,
+            actorLabel: request.actorLabel,
+            occurredAt: request.occurredAt,
+            location: request.lot.initialLocation,
+            quantityState: "estimated" as const,
+            approximateQuantity: request.lot.approximateQuantity,
+            isCorrection: false,
+          },
+          lifecycleStatus: "active" as const,
+          state: "synchronized" as const,
+          source: "central" as const,
+          riskState: "radar" as const,
+          taskProjection: {
+            attention: "future_attention" as const,
+            riskState: "radar" as const,
+            observedAt: "2030-01-10T09:00:00.000Z",
+          },
+          createdAt: "2030-01-10T09:00:00.000Z",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        taskProjection: {
+          attention: "future_attention" as const,
+          riskState: "radar" as const,
+          observedAt: "2030-01-10T09:00:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-central-abobrinha-001",
+          centralLotId: "lote-central-abobrinha-001",
+          state: "synchronized" as const,
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Lote confirmado na central.",
+        },
+      }),
+    );
+    const identifiers = ["produto-abobrinha-local", "lote-abobrinha-local", "obs-abobrinha-local"];
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "id-abobrinha-extra",
+      createCentralLot,
+      searchCentralProducts,
+    });
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Abobrinha KG PED",
+      categoryId: "categoria-ficticia-legumes",
+      categoryName: "Legumes",
+      categoryRuleProfile: categoryProfile,
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "printed", value: "LOTE-ABOBRINHA-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-02-10",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 4,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora local",
+    });
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-abobrinha-sem-produto-cache",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "cache_ready",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 0,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(repository.syncPendingCentralLots?.()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-abobrinha-001",
+        centralSyncState: "synchronized",
+        centralSource: "central",
+      }),
+    ]);
+    expect(searchCentralProducts).toHaveBeenCalledTimes(2);
+    expect(createCentralLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lot: expect.objectContaining({ productId: draftResponse.draft.centralProductId }),
+      }),
+    );
+  });
+
   it("reports central write blockers when replaying a pending lot fails", async () => {
     const formalCategoryProfile = {
       categoryId: "categoria-ficticia-frutas",
