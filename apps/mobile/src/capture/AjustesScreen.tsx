@@ -119,7 +119,7 @@ export function AjustesScreen({
     void refreshPushState();
   }, [repository, alertChannel]);
 
-  async function refreshSyncState(): Promise<void> {
+  async function refreshSyncState(): Promise<SyncQueueSummaryRecord> {
     const [cacheStatus, queue] = await Promise.all([
       repository.loadOfflineCacheStatus(),
       repository.listSyncQueue(),
@@ -127,6 +127,7 @@ export function AjustesScreen({
 
     setOfflineStatus(cacheStatus);
     setSyncQueue(queue);
+    return queue;
   }
 
   useEffect(() => {
@@ -153,7 +154,7 @@ export function AjustesScreen({
           ? Promise.resolve(undefined)
           : syncEngine.syncPendingCommands({ manual: true }),
       ]);
-      await refreshSyncState();
+      const queueAfterSync = await refreshSyncState();
       await onConfirmCentralDeviceState?.().catch(() => undefined);
 
       if (syncedLots.length > 0) {
@@ -162,6 +163,10 @@ export function AjustesScreen({
         );
       } else if (result?.state === "sent" && result.appliedResults.length > 0) {
         setSyncFeedback("Pendencias enviadas. Confira se a central ainda aponta algum bloqueio.");
+      } else if (result?.state === "empty" && queueAfterSync.totalCount > 0) {
+        setSyncFeedback(
+          "Ainda existe lote salvo neste aparelho aguardando a central. Se o produto estiver em revisao, ele sera enviado depois da validacao.",
+        );
       } else if (result?.state === "empty") {
         setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
       } else if (result?.state === "skipped_offline" || result?.state === "transport_failed") {
@@ -538,11 +543,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "132"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "133"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat14-staging-apk-132"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat15-syncfix-apk-133"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

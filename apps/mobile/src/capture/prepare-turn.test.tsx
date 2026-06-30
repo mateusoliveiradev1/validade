@@ -76,7 +76,7 @@ describe("prepare-turn gate", () => {
         deviceId: "validade-zero-mobile:loja-piloto",
         deviceLabel: "Android piloto - com.validadezero.app",
         appVersion: "0.12.0",
-        appBuild: "132",
+        appBuild: "133",
         environment: "staging",
         apiTarget: "https://api.ficticia.invalid",
         lastForegroundAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
@@ -96,7 +96,7 @@ describe("prepare-turn gate", () => {
 
     expect(prepareTurnClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        appBuild: "132",
+        appBuild: "133",
         lastForegroundAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       }),
     );
@@ -300,14 +300,14 @@ async function renderApp(
 function pilotBuildInfo(): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "132",
+    appBuild: "133",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat14-staging-apk-132",
+    approvedArtifactLabel: "uat15-syncfix-apk-133",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "132",
-    buildRef: "uat14-auto-132",
+    approvedBuild: "133",
+    buildRef: "sync-pending-lots-133",
     buildCompatibility: "atual",
   };
 }

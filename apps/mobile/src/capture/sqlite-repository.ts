@@ -2309,11 +2309,18 @@ export function createSQLiteCaptureRepository(
   async function listSyncQueue(): Promise<SyncQueueSummary> {
     await initialize();
     const db = await getDatabase();
-    const rows = await db.getAllAsync<SyncCommandRow>(
-      `SELECT * FROM sync_commands
-       WHERE state NOT IN ('synced', 'discarded')
-       ORDER BY created_at ASC`,
-    );
+    const [rows, pendingLotCountRow] = await Promise.all([
+      db.getAllAsync<SyncCommandRow>(
+        `SELECT * FROM sync_commands
+         WHERE state NOT IN ('synced', 'discarded')
+         ORDER BY created_at ASC`,
+      ),
+      db.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) AS count
+         FROM capture_lots
+         WHERE central_sync_state IN ('pending_central', 'local')`,
+      ),
+    ]);
     const queueCommands = sortSyncQueueItems(rows.map(mapSyncCommand));
     const summaries = queueCommands.map((command) => ({
       id: command.id,
@@ -2336,6 +2343,9 @@ export function createSQLiteCaptureRepository(
     const oldestPendingCritical = summaries.find((command) => command.urgency === "critical");
     const hasFailed = queueCommands.some((command) => command.state === "sync_failed");
     const hasSyncing = queueCommands.some((command) => command.state === "syncing");
+    const pendingCentralLotCount =
+      dependencies.createCentralLot === undefined ? 0 : (pendingLotCountRow?.count ?? 0);
+    const totalCount = summaries.length + pendingCentralLotCount;
 
     return parseSyncQueueSummary({
       state:
@@ -2345,15 +2355,17 @@ export function createSQLiteCaptureRepository(
             ? "syncing"
             : hasFailed
               ? "has_failed"
-              : summaries.length > 0
+              : totalCount > 0
                 ? "has_pending"
                 : "empty",
-      totalCount: summaries.length,
+      totalCount,
       conflictCount,
       hasCriticalConflict,
       criticalCount: queueCommands.filter((command) => command.urgency === "critical").length,
       highCount: queueCommands.filter((command) => command.urgency === "high").length,
-      mediumCount: queueCommands.filter((command) => command.urgency === "medium").length,
+      mediumCount:
+        queueCommands.filter((command) => command.urgency === "medium").length +
+        pendingCentralLotCount,
       lowCount: queueCommands.filter((command) => command.urgency === "low").length,
       ...(oldestPendingCritical === undefined ? {} : { oldestPendingCritical }),
       commands: summaries,

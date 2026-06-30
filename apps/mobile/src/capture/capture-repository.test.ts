@@ -520,6 +520,12 @@ describe("memory capture repository", () => {
     expect(snapshot.productId).toBe("produto-rascunho-local-001");
     expect(snapshot.centralSyncState).toBe("pending_central");
     expect(snapshot.centralSource).toBe("pending_central");
+    await expect(repository.listSyncQueue()).resolves.toMatchObject({
+      state: "has_pending",
+      totalCount: 1,
+      mediumCount: 1,
+      commands: [],
+    });
     await expect(repository.loadLotDetail(snapshot.id)).resolves.toMatchObject({
       id: "lote-rascunho-local-001",
       product: {

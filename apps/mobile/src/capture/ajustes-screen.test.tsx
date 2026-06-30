@@ -77,14 +77,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "132",
+    appBuild: "133",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat14-staging-apk-132",
+    approvedArtifactLabel: "uat15-syncfix-apk-133",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "132",
-    buildRef: "uat14-auto-132",
+    approvedBuild: "133",
+    buildRef: "sync-pending-lots-133",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -614,9 +614,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("uat14-staging-apk-132");
+    expect(text).toContain("uat15-syncfix-apk-133");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("132");
+    expect(text).toContain("133");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

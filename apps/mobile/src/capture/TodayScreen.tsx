@@ -126,7 +126,7 @@ export function TodayScreen({
     setAlertChannelState(alertChannelStateForRegistration(registration));
   }
 
-  async function refreshSyncState(): Promise<void> {
+  async function refreshSyncState(): Promise<SyncQueueSummaryRecord> {
     const [cacheStatus, queue] = await Promise.all([
       repository.loadOfflineCacheStatus(),
       repository.listSyncQueue(),
@@ -134,6 +134,7 @@ export function TodayScreen({
 
     setOfflineStatus(cacheStatus);
     setSyncQueue(queue);
+    return queue;
   }
 
   async function refreshTasks(source: TodayTaskRefreshSource): Promise<void> {
@@ -225,7 +226,7 @@ export function TodayScreen({
           ? Promise.resolve(undefined)
           : syncEngine.syncPendingCommands({ manual: true }),
       ]);
-      await refreshSyncState();
+      const queueAfterSync = await refreshSyncState();
 
       if (syncedLots.length > 0) {
         await refreshTasks("manual_refresh");
@@ -233,6 +234,10 @@ export function TodayScreen({
       } else if (result?.state === "sent" && result.appliedResults.length > 0) {
         await refreshTasks("manual_refresh");
         setRefreshFeedback(todayCopy.sync.retryHelper);
+      } else if (result?.state === "empty" && queueAfterSync.totalCount > 0) {
+        setRefreshFeedback(
+          "Ainda existe lote salvo neste aparelho aguardando a central. Sincronize de novo depois da validacao/leitura central.",
+        );
       } else if (result?.state === "empty") {
         setRefreshFeedback(todayCopy.sync.allSynced);
       } else if (result?.state === "transport_failed") {

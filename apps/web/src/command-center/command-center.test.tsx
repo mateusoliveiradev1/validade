@@ -135,13 +135,13 @@ const projection = {
       storeId: "loja-piloto",
       storeName: "Loja Ficticia Piloto",
       appVersion: "0.12.0",
-      appBuild: "132",
+      appBuild: "133",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "uat14-staging-apk-132",
+      approvedArtifactLabel: "uat15-syncfix-apk-133",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "132",
+      approvedBuild: "133",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       lastCentralReadAt: "2030-01-10T11:56:00.000Z",
@@ -394,7 +394,7 @@ describe("CommandCenter", () => {
     expect(text).not.toContain("UAT Loja 18");
     expect(text).not.toContain("Aparelhos do piloto");
     expect(text).not.toContain("Bloqueios do piloto");
-    expect(text).not.toContain("uat14-staging-apk-132");
+    expect(text).not.toContain("uat15-syncfix-apk-133");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Lembrete aceito pelo provider");
     expect(text).not.toContain("Provider push sem prova atual");
@@ -593,7 +593,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Atual",
             buildCompatibility: "atual",
             appVersion: "0.12.0",
-            appBuild: "132",
+            appBuild: "133",
             nextAction: "Aparelho ja esta na build aprovada.",
             updatedAt: "2030-01-10T12:04:00.000Z",
           },
@@ -623,7 +623,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Incompativel",
             buildCompatibility: "incompativel",
             appVersion: "0.13.0",
-            appBuild: "132",
+            appBuild: "133",
             nextAction: "Remover build incompativel e reinstalar a aprovada.",
             updatedAt: "2030-01-10T12:01:00.000Z",
           },
@@ -634,9 +634,9 @@ describe("CommandCenter", () => {
     render(<CommandCenter activeRoute="atualizacoes" client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByRole("heading", { name: "Atualizacoes" })).toBeTruthy();
-    expect(screen.getByText("uat14-staging-apk-132")).toBeTruthy();
+    expect(screen.getByText("uat15-syncfix-apk-133")).toBeTruthy();
     expect(screen.getAllByText("0.12.0").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("132").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("133").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Ver instrucoes manuais" })).toBeTruthy();
 
     const text = document.body.textContent ?? "";
@@ -700,7 +700,7 @@ describe("CommandCenter", () => {
     expect(text).toContain("Agora:");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Ver instrucoes manuais");
-    expect(text).not.toContain("uat14-staging-apk-132");
+    expect(text).not.toContain("uat15-syncfix-apk-133");
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
 
     fireEvent.click(
