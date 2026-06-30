@@ -1207,11 +1207,27 @@ export function createSQLiteCaptureRepository(
     }
 
     const response = await searchCentralProducts(
-      productSearchRequestForPendingLot(product, dependencies.clock()),
+      productSearchRequestForPendingLot(product, dependencies.clock(), {
+        includeCategory: true,
+      }),
     );
-    const reusableProduct = reusableCentralProductForPendingLot(product, response);
+    const reusableProduct =
+      reusableCentralProductForPendingLot(product, response) ??
+      (await searchReusableCentralProductWithoutCategory(product));
 
     return reusableProduct === undefined ? undefined : productCatalogItemToRecord(reusableProduct);
+  }
+
+  async function searchReusableCentralProductWithoutCategory(
+    product: CaptureProductRecord,
+  ): Promise<ProductSearchCandidate | undefined> {
+    const response = await searchCentralProducts(
+      productSearchRequestForPendingLot(product, dependencies.clock(), {
+        includeCategory: false,
+      }),
+    );
+
+    return reusableCentralProductForPendingLot(product, response);
   }
 
   async function appendObservation(
@@ -4397,18 +4413,29 @@ async function centralProductForPendingLot(
   const centralProductId = product.centralProductId ?? product.id;
   const rows = await db.getAllAsync<ProductRow>(
     `SELECT * FROM capture_products
-     WHERE id = ? OR central_product_id = ? OR (normalized_name = ? AND category_id = ?)
+     WHERE id = ? OR central_product_id = ? OR normalized_name = ?
      ORDER BY
        CASE
-         WHEN review_status = 'validated' THEN 0
-         WHEN central_sync_state = 'synchronized' THEN 1
-         ELSE 2
+         WHEN id = ? OR central_product_id = ? THEN 0
+         WHEN normalized_name = ? AND category_id = ? THEN 1
+         WHEN normalized_name = ? THEN 2
+         ELSE 3
+       END,
+       CASE
+         WHEN review_status = 'validated' AND central_sync_state = 'synchronized' THEN 0
+         WHEN review_status = 'validated' THEN 1
+         WHEN central_sync_state = 'synchronized' THEN 2
+         ELSE 3
        END,
        created_at DESC`,
     centralProductId,
     centralProductId,
     product.normalizedName,
+    centralProductId,
+    centralProductId,
+    product.normalizedName,
     product.categoryId,
+    product.normalizedName,
   );
 
   return rows
@@ -4422,12 +4449,13 @@ async function centralProductForPendingLot(
 function productSearchRequestForPendingLot(
   product: CaptureProductRecord,
   requestedAt: string,
+  options: { includeCategory: boolean },
 ): ProductSearchRequest {
   const identifier = product.identifiers?.[0];
 
   return parseProductSearchRequest({
     query: product.displayName,
-    categoryId: product.categoryId,
+    ...(options.includeCategory ? { categoryId: product.categoryId } : {}),
     requestedAt,
     includeDrafts: true,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),

@@ -908,6 +908,200 @@ describe("memory capture repository", () => {
     );
   });
 
+  it("retries product lookup without category before leaving a pending lot blocked", async () => {
+    const localCategoryProfile = {
+      categoryId: "categoria-local-pedidos",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+    };
+    const approvedCategoryProfile = {
+      categoryId: "categoria-central-higienizados",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 45, markdownDays: 10, criticalDays: 2, expiredDays: 0 },
+    };
+    const searchCentralProducts = vi.fn((request) =>
+      Promise.resolve(
+        request.categoryId === undefined
+          ? {
+              requestId: "search-central-cabotia-sem-categoria",
+              normalizedQuery: "cabotia kg ped",
+              resultState: "reuse_available" as const,
+              reusableProducts: [
+                {
+                  centralProductId: "produto-central-cabotia-validado",
+                  displayName: "Cabotia KG PED",
+                  normalizedKey: "cabotia kg ped",
+                  categoryId: "categoria-central-higienizados",
+                  categoryName: "Higienizados",
+                  categoryRuleProfile: approvedCategoryProfile,
+                  source: "central" as const,
+                  reviewStatus: "validated" as const,
+                  syncState: "synchronized" as const,
+                  updatedAt: "2030-01-10T09:06:00.000Z",
+                  matchKind: "reusable_central" as const,
+                  matchReasons: ["exact_normalized_name" as const],
+                },
+              ],
+              similarCandidates: [],
+            }
+          : {
+              requestId: "search-central-cabotia-com-categoria",
+              normalizedQuery: "cabotia kg ped",
+              resultState: "no_safe_reuse" as const,
+              reusableProducts: [],
+              similarCandidates: [],
+            },
+      ),
+    );
+    const createCentralLot = vi.fn((request) =>
+      Promise.resolve({
+        requestId: "write-cabotia-central-ficticio",
+        lot: {
+          centralLotId: "lote-central-cabotia-001",
+          centralProductId: request.lot.productId,
+          productDisplayName: "Cabotia KG PED",
+          lotIdentity: request.lot.identity,
+          mode: "formal_validity" as const,
+          expiresAt: request.lot.expiresAt,
+          receivedAt: request.lot.receivedAt,
+          approximateQuantity: request.lot.approximateQuantity,
+          initialLocation: request.lot.initialLocation,
+          currentObservation: {
+            centralObservationId: "observacao-central-cabotia-001",
+            centralLotId: "lote-central-cabotia-001",
+            status: "present" as const,
+            actorLabel: request.actorLabel,
+            occurredAt: request.occurredAt,
+            location: request.lot.initialLocation,
+            quantityState: "estimated" as const,
+            approximateQuantity: request.lot.approximateQuantity,
+            isCorrection: false,
+          },
+          lifecycleStatus: "active" as const,
+          state: "synchronized" as const,
+          source: "central" as const,
+          riskState: "radar" as const,
+          taskProjection: {
+            attention: "future_attention" as const,
+            riskState: "radar" as const,
+            observedAt: "2030-01-10T09:00:00.000Z",
+          },
+          createdAt: "2030-01-10T09:00:00.000Z",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        taskProjection: {
+          attention: "future_attention" as const,
+          riskState: "radar" as const,
+          observedAt: "2030-01-10T09:00:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-central-cabotia-001",
+          centralLotId: "lote-central-cabotia-001",
+          state: "synchronized" as const,
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Lote confirmado na central.",
+        },
+      }),
+    );
+    const identifiers = ["produto-cabotia-local", "lote-cabotia-local", "obs-cabotia-local"];
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "id-cabotia-extra",
+      createCentralLot,
+      searchCentralProducts,
+    });
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Cabotia KG PED",
+      categoryId: "categoria-local-pedidos",
+      categoryName: "Pedidos",
+      categoryRuleProfile: localCategoryProfile,
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    const pendingLot = await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "printed", value: "LOTE-CABOTIA-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-02-10",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 6,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora local",
+    });
+
+    expect(pendingLot.centralSyncState).toBe("pending_central");
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-cabotia-sem-produto-cache",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "cache_ready",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 0,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(repository.syncPendingCentralLots?.()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-cabotia-001",
+        centralSyncState: "synchronized",
+        centralSource: "central",
+      }),
+    ]);
+    expect(searchCentralProducts).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: "Cabotia KG PED",
+        categoryId: "categoria-local-pedidos",
+        includeDrafts: true,
+      }),
+    );
+    expect(searchCentralProducts).toHaveBeenNthCalledWith(
+      2,
+      expect.not.objectContaining({ categoryId: expect.any(String) }),
+    );
+    expect(createCentralLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lot: expect.objectContaining({ productId: "produto-central-cabotia-validado" }),
+      }),
+    );
+  });
+
   it("reports central write blockers when replaying a pending lot fails", async () => {
     const formalCategoryProfile = {
       categoryId: "categoria-ficticia-frutas",

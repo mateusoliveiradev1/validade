@@ -1949,34 +1949,70 @@ export function createMemoryCaptureRepository(
       return product;
     }
 
-    const localCentralProduct = [...products.values()].find(
+    const lookupIdentifiers = requestIdentifiers({
+      ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      identifiers: product.identifiers?.map((identifier) => ({
+        type: identifier.type,
+        value: identifier.value,
+      })),
+    });
+    const reusableLocalProducts = [...products.values()].filter(
       (candidate) =>
-        !isPendingCentralProduct(candidate) &&
-        candidate.centralProductId !== undefined &&
-        (candidate.id === product.centralProductId ||
-          candidate.centralProductId === product.centralProductId ||
-          (candidate.normalizedName === product.normalizedName &&
-            candidate.categoryId === product.categoryId)),
+        !isPendingCentralProduct(candidate) && candidate.centralProductId !== undefined,
     );
+    const localCentralProduct =
+      reusableLocalProducts.find(
+        (candidate) =>
+          candidate.id === product.centralProductId ||
+          candidate.centralProductId === product.centralProductId,
+      ) ??
+      reusableLocalProducts.find((candidate) =>
+        productHasAnyIdentifier(localProductToCatalogItem(candidate), lookupIdentifiers),
+      ) ??
+      reusableLocalProducts.find(
+        (candidate) =>
+          candidate.normalizedName === product.normalizedName &&
+          candidate.categoryId === product.categoryId,
+      ) ??
+      reusableLocalProducts.find(
+        (candidate) => candidate.normalizedName === product.normalizedName,
+      );
 
     if (localCentralProduct !== undefined) {
       return localCentralProduct;
     }
 
-    const response = await searchCentralProducts(productSearchRequestForPendingLot(product));
-    const reusableProduct = reusableCentralProductForPendingLot(product, response);
+    const response = await searchCentralProducts(
+      productSearchRequestForPendingLot(product, { includeCategory: true }),
+    );
+    const reusableProduct =
+      reusableCentralProductForPendingLot(product, response) ??
+      (await searchReusableCentralProductWithoutCategory(product));
 
     return reusableProduct === undefined
       ? undefined
       : productCatalogItemToLocalRecord(reusableProduct);
   }
 
-  function productSearchRequestForPendingLot(product: CaptureProductRecord): ProductSearchRequest {
+  async function searchReusableCentralProductWithoutCategory(
+    product: CaptureProductRecord,
+  ): Promise<ProductSearchCandidate | undefined> {
+    const response = await searchCentralProducts(
+      productSearchRequestForPendingLot(product, { includeCategory: false }),
+    );
+
+    return reusableCentralProductForPendingLot(product, response);
+  }
+
+  function productSearchRequestForPendingLot(
+    product: CaptureProductRecord,
+    options: { includeCategory: boolean },
+  ): ProductSearchRequest {
     const identifier = product.identifiers?.[0];
 
     return parseProductSearchRequest({
       query: product.displayName,
-      categoryId: product.categoryId,
+      ...(options.includeCategory ? { categoryId: product.categoryId } : {}),
       requestedAt: dependencies.clock(),
       includeDrafts: true,
       ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
