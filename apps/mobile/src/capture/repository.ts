@@ -453,6 +453,9 @@ export function productCatalogItemToLocalRecord(product: ProductCatalogItem): Ca
     categoryRuleProfile: product.categoryRuleProfile,
     ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
     ...(product.identifiers === undefined ? {} : { identifiers: product.identifiers }),
+    ...(product.storePresentation === undefined
+      ? {}
+      : { storePresentation: product.storePresentation }),
     id: product.centralProductId,
     centralProductId: product.centralProductId,
     normalizedName: product.normalizedKey,
@@ -471,6 +474,9 @@ export function productDraftToLocalRecord(draft: ProductDraftReviewState): Captu
     categoryRuleProfile: draft.categoryRuleProfile,
     ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
     ...(draft.identifiers === undefined ? {} : { identifiers: draft.identifiers }),
+    ...(draft.storePresentation === undefined
+      ? {}
+      : { storePresentation: draft.storePresentation }),
     id: draft.centralProductId,
     centralProductId: draft.centralProductId,
     normalizedName: draft.normalizedKey,

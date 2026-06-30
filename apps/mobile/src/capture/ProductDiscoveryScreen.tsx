@@ -8,7 +8,8 @@ import {
   type CaptureProductRecord,
   type CaptureRepository,
 } from "./repository";
-import { captureCopy, productLotFlowCopy, productModeLabels } from "./capture-copy";
+import { captureCopy, productLotFlowCopy } from "./capture-copy";
+import { productPolicyPreviewForProduct } from "./product-policy-copy";
 import {
   Field,
   PrimaryAction,
@@ -139,11 +140,6 @@ export function ProductDiscoveryScreen({
     setMessage(results.length === 0 ? captureCopy.noMatch : captureCopy.categoryResults);
   }
 
-  const resolvedMode =
-    candidate?.productRuleOverride?.mode ??
-    candidate?.categoryRuleProfile.mode ??
-    "formal_validity";
-
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader title={captureCopy.discoveryTitle} body={captureCopy.discoveryBody} />
@@ -196,8 +192,9 @@ export function ProductDiscoveryScreen({
           <Text style={styles.metadata}>
             Categoria: {candidate.categoryName ?? candidate.categoryId}
           </Text>
-          <Text style={styles.metadata}>Perfil operacional: {resolvedMode}</Text>
-          <Text style={styles.metadata}>Modo de trabalho: {productModeLabels[resolvedMode]}</Text>
+          <StatusNotice title="Politica do lote">
+            {productPolicyPreviewForProduct(candidate)}
+          </StatusNotice>
           {candidate.reviewStatus === "pending_review" ? (
             <StatusNotice tone="warning" title={productLotFlowCopy.draftProductTitle}>
               {productLotFlowCopy.draftProductBody}
@@ -327,10 +324,10 @@ function createProductInitialIdentifier(
 
 function categoryShortcutDetail(category: CaptureProductCategory): string {
   if (category.productCount === 0) {
-    return `${productModeLabels[category.categoryRuleProfile.mode]} - catalogo geral`;
+    return "catalogo geral";
   }
 
-  return `${productModeLabels[category.categoryRuleProfile.mode]} - ${category.productCount} ${
+  return `${category.productCount} ${
     category.productCount === 1 ? "produto local" : "produtos locais"
   }`;
 }

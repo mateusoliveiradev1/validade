@@ -7,7 +7,8 @@ import type {
   MarkdownEntryState,
   TodayTaskRefreshSource,
 } from "./repository";
-import { captureCopy, productModeLabels } from "./capture-copy";
+import { captureCopy } from "./capture-copy";
+import { productPolicyPreviewForProduct } from "./product-policy-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { ProductDiscoveryScreen } from "./ProductDiscoveryScreen";
 import { ProductFormScreen } from "./ProductFormScreen";
@@ -670,9 +671,6 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "confirmed") {
-    const mode =
-      currentRoute.product.productRuleOverride?.mode ??
-      currentRoute.product.categoryRuleProfile.mode;
     const needsCentralReprepareBeforeLot =
       prepareTurnClient !== undefined && prepareTurnCache?.state !== "ready";
 
@@ -684,7 +682,9 @@ export function CaptureApp({
         />
         <Text style={styles.productName}>{currentRoute.product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {currentRoute.product.categoryId}</Text>
-        <Text style={styles.metadata}>Perfil operacional: {productModeLabels[mode]}</Text>
+        <StatusNotice title="Politica do lote">
+          {productPolicyPreviewForProduct(currentRoute.product)}
+        </StatusNotice>
         {currentRoute.product.reviewStatus === "pending_review" ? (
           <StatusNotice title="Cadastro em revisao central" tone="warning">
             O lote pode ser registrado e sincronizado, mas este produto ainda aparece no painel como

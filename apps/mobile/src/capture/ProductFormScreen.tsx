@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import {
   resolveProductOperationalPolicy,
-  type ProductOperationalPolicy,
   type StorePresentationKind,
 } from "@validade-zero/domain";
 import type { ProductIdentifierInput, ProductSearchCandidate } from "@validade-zero/contracts";
@@ -16,11 +15,10 @@ import {
 import {
   captureCopy,
   productLotFlowCopy,
-  productPolicyPreviewTerms,
-  productPolicyPublicLabels,
   productPresentationChoices,
   productPresentationQuestion,
 } from "./capture-copy";
+import { productPolicyPreview, toDomainCategoryRuleProfile } from "./product-policy-copy";
 import {
   Field,
   PrimaryAction,
@@ -117,7 +115,7 @@ export function ProductFormScreen({
       ? undefined
       : resolveProductOperationalPolicy({
           storePresentation,
-          categoryRuleProfile: selectedCategory.categoryRuleProfile,
+          categoryRuleProfile: toDomainCategoryRuleProfile(selectedCategory.categoryRuleProfile),
         });
   const canCreate =
     displayName.trim().length > 0 &&
@@ -144,7 +142,7 @@ export function ProductFormScreen({
     try {
       const policy = resolveProductOperationalPolicy({
         storePresentation,
-        categoryRuleProfile: selectedCategory.categoryRuleProfile,
+        categoryRuleProfile: toDomainCategoryRuleProfile(selectedCategory.categoryRuleProfile),
       });
       const categoryRuleProfile = {
         ...selectedCategory.categoryRuleProfile,
@@ -273,7 +271,7 @@ export function ProductFormScreen({
         </>
       )}
       {selectedPolicy === undefined ? null : (
-        <StatusNotice title="Politica do lote">{policyPreview(selectedPolicy)}</StatusNotice>
+        <StatusNotice title="Politica do lote">{productPolicyPreview(selectedPolicy)}</StatusNotice>
       )}
       <Field label="Fornecedor opcional" value={supplierName} onChangeText={setSupplierName} />
       {supplierName.trim().length === 0 ? (
@@ -357,22 +355,6 @@ function presentationDetail(kind: StorePresentationKind): string {
   }
 
   return "Validade impressa; rebaixa so dentro da janela da politica.";
-}
-
-function policyPreview(policy: ProductOperationalPolicy): string {
-  if (policy.publicPolicyKey === "conservative_review") {
-    return "Politica conservadora: conferir com a lideranca. Sem rebaixa automatica.";
-  }
-
-  if (policy.publicPolicyKey === "quality_inspection") {
-    return `Politica: ${productPolicyPublicLabels.quality_inspection}. Proxima acao: ${productPolicyPreviewTerms.qualityCheck}.`;
-  }
-
-  if (policy.publicPolicyKey === "internal_repack_loss") {
-    return `Politica: validade curta da loja. Proxima acao: ${productPolicyPreviewTerms.repackLoss} ou ${productPolicyPreviewTerms.withdrawLoss}.`;
-  }
-
-  return `Politica: ${productPolicyPublicLabels.printed_validity}. Proxima acao: ${policy.allowMarkdown ? productPolicyPreviewTerms.requestMarkdown : productPolicyPreviewTerms.radar}.`;
 }
 
 function normalizeCategoryLookup(value: string): string {

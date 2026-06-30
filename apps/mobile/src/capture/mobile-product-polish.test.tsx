@@ -80,6 +80,19 @@ describe("mobile product polish", () => {
     expect(publicVocabulary).not.toMatch(
       /formal_validity|flv_inspection|processed_repack_loss|receiving_monitored/,
     );
+
+    const productFlow = [
+      source("./CaptureApp.tsx"),
+      source("./ProductDiscoveryScreen.tsx"),
+      source("./ProductFormScreen.tsx"),
+      source("./product-policy-copy.ts"),
+    ].join("\n");
+
+    expect(productFlow).toContain("Politica do lote");
+    expect(productFlow).not.toContain("Perfil operacional");
+    expect(productFlow).not.toMatch(
+      /formal_validity|flv_inspection|processed_repack_loss|receiving_monitored/,
+    );
   });
 
   it("keeps account identity, safety loading, sync, evidence, and close truth explicit", () => {

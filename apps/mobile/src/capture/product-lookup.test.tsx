@@ -101,8 +101,10 @@ describe("manual product discovery", () => {
       press(tree!, "Ovos Brancos Exemplo FICTICIA");
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("Perfil operacional");
-    expect(JSON.stringify(tree!.toJSON())).toContain("formal_validity");
+    expect(JSON.stringify(tree!.toJSON())).toContain("Politica do lote");
+    expect(JSON.stringify(tree!.toJSON())).toContain("Cadastro existente");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Perfil operacional");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("formal_validity");
     expect(confirmed).toEqual([]);
 
     act(() => {
