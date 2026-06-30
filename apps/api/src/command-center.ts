@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat15-syncfix-apk-133",
+  artifactLabel: "uat15-sync-feedback-apk-134",
   appVersion: "0.12.0",
-  build: "133",
+  build: "134",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

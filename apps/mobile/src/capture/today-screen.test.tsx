@@ -334,7 +334,10 @@ async function renderTodayScreen(
     status: PrepareTurnCacheStatus;
     source: "central" | "local_cache";
   },
-  options: { onRequestCentralRefresh?: (() => void) | undefined } = {},
+  options: {
+    onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
+    onRequestCentralRefresh?: (() => void) | undefined;
+  } = {},
 ): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
 
@@ -347,6 +350,7 @@ async function renderTodayScreen(
         syncEngine={syncEngine}
         prepareTurnCacheStatus={prepareTurn?.status}
         prepareTurnSource={prepareTurn?.source}
+        onConfirmCentralDeviceState={options.onConfirmCentralDeviceState}
         onRequestCentralRefresh={options.onRequestCentralRefresh}
         now={() => new Date("2030-01-10T12:00:00.000Z")}
       />,
@@ -723,6 +727,36 @@ describe("TodayScreen", () => {
     expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
     expect(refreshTodayTasks).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(tree.toJSON())).toContain("Melancia FICTICIA");
+  });
+
+  it("shows feedback when only a pending central lot remains without command sync", async () => {
+    const syncPendingCentralLots = vi.fn().mockResolvedValue([]);
+    const onConfirmCentralDeviceState = vi.fn().mockResolvedValue(undefined);
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      syncPendingCentralLots,
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_pending",
+            totalCount: 1,
+            mediumCount: 1,
+            commands: [],
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository, undefined, undefined, {
+      onConfirmCentralDeviceState,
+    });
+
+    await act(async () => {
+      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onConfirmCentralDeviceState).toHaveBeenCalledTimes(1);
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(renderedText(tree)).toContain("Ainda existe lote salvo neste aparelho");
   });
 
   it("requires a reason before discarding an offline conflict", async () => {

@@ -77,14 +77,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "133",
+    appBuild: "134",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat15-syncfix-apk-133",
+    approvedArtifactLabel: "uat15-sync-feedback-apk-134",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "133",
-    buildRef: "sync-pending-lots-133",
+    approvedBuild: "134",
+    buildRef: "sync-feedback-134",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -247,6 +247,7 @@ async function renderAjustes(input: {
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
+  onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
   queue?: SyncQueueSummary | undefined;
   session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
@@ -274,6 +275,7 @@ async function renderAjustes(input: {
         authControls={input.authControls}
         buildInfo={input.buildInfo}
         onBack={() => undefined}
+        onConfirmCentralDeviceState={input.onConfirmCentralDeviceState}
         onRequestCentralRefresh={input.onRequestCentralRefresh}
         prepareTurnCacheStatus={input.prepareTurnCacheStatus ?? readyPrepareTurnCacheStatus()}
         prepareTurnSource={input.prepareTurnSource ?? "central"}
@@ -563,6 +565,27 @@ describe("AjustesScreen sync controls", () => {
     expect(renderedText(tree)).toContain("Lote enviado para a central");
   });
 
+  it("explains pending central lots from Ajustes when command sync is absent", async () => {
+    const syncPendingCentralLots = vi.fn().mockResolvedValue([]);
+    const onConfirmCentralDeviceState = vi.fn().mockResolvedValue(undefined);
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        mediumCount: 1,
+        commands: [],
+      }),
+      onConfirmCentralDeviceState,
+      syncPendingCentralLots,
+    });
+
+    await press(tree, "Sincronizar pendencias");
+
+    expect(onConfirmCentralDeviceState).toHaveBeenCalledTimes(2);
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(renderedText(tree)).toContain("Ainda existe lote salvo neste aparelho");
+  });
+
   it("sends an explicit reason when discarding an offline conflict", async () => {
     const { tree, resolveSyncConflict } = await renderAjustes({
       conflict: conflictRecord(),
@@ -614,9 +637,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("uat15-syncfix-apk-133");
+    expect(text).toContain("uat15-sync-feedback-apk-134");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("133");
+    expect(text).toContain("134");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

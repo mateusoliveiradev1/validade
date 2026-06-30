@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat15-syncfix-apk-133",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat15-sync-feedback-apk-134",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "133",
-      "VALIDADE_ZERO_BUILD_REF": "sync-pending-lots-133",
+      "VALIDADE_ZERO_APPROVED_BUILD": "134",
+      "VALIDADE_ZERO_BUILD_REF": "sync-feedback-134",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -36,7 +36,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 133,
+      "versionCode": 134,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F9F8"

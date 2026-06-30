@@ -108,6 +108,38 @@ describe("offline sync UI", () => {
     expect(rendered).toContain("Revisar conflito");
   });
 
+  it("explains pending central lots when the command queue has no rows", () => {
+    const queue: SyncQueueSummary = {
+      state: "has_pending",
+      totalCount: 1,
+      conflictCount: 0,
+      hasCriticalConflict: false,
+      criticalCount: 0,
+      highCount: 0,
+      mediumCount: 1,
+      lowCount: 0,
+      commands: [],
+      updatedAt: "2030-01-10T12:02:00.000Z",
+    };
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <SyncQueueSummaryView
+          queue={queue}
+          onRetry={() => undefined}
+          onReviewConflict={() => undefined}
+        />,
+      );
+    });
+
+    const rendered = JSON.stringify(tree!.toJSON());
+
+    expect(rendered).toContain("Lote salvo aguardando a central");
+    expect(rendered).toContain("1 lote salvo neste aparelho");
+    expect(rendered).toContain("Tentar sincronizar novamente");
+  });
+
   it("requires a discard reason and sends it through the destructive path", () => {
     const resolved: unknown[] = [];
     let tree: ReactTestRenderer | undefined;

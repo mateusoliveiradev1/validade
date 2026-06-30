@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-syncfix-apk-133";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-sync-feedback-apk-134";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",

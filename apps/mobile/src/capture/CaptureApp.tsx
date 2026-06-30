@@ -613,6 +613,7 @@ export function CaptureApp({
             setPushFallbackNotice(undefined);
             navigate({ name: "task-resolution", task });
           }}
+          onConfirmCentralDeviceState={() => prepareTurn("silent")}
           onRequestCentralRefresh={requestCentralReprepare}
           canCloseShift={activeRole === "lead"}
           actorLabel={actorLabel}

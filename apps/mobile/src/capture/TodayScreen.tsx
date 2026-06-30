@@ -72,6 +72,7 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   onOpenShiftClose,
+  onConfirmCentralDeviceState,
   onRequestCentralRefresh,
   onRegisterPushDevice,
   canCloseShift = false,
@@ -91,6 +92,7 @@ export function TodayScreen({
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
   onOpenShiftClose?: (() => void) | undefined;
+  onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
   onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   canCloseShift?: boolean | undefined;
@@ -218,6 +220,7 @@ export function TodayScreen({
     setRefreshFeedback(undefined);
 
     try {
+      await onConfirmCentralDeviceState?.().catch(() => undefined);
       const [syncedLots, result] = await Promise.all([
         repository.syncPendingCentralLots === undefined
           ? Promise.resolve([])
@@ -227,21 +230,30 @@ export function TodayScreen({
           : syncEngine.syncPendingCommands({ manual: true }),
       ]);
       const queueAfterSync = await refreshSyncState();
+      const hasRemainingPending = queueAfterSync.totalCount > 0;
 
       if (syncedLots.length > 0) {
         await refreshTasks("manual_refresh");
         setRefreshFeedback("Lote enviado para a central. Hoje foi atualizado com a leitura local.");
       } else if (result?.state === "sent" && result.appliedResults.length > 0) {
         await refreshTasks("manual_refresh");
-        setRefreshFeedback(todayCopy.sync.retryHelper);
-      } else if (result?.state === "empty" && queueAfterSync.totalCount > 0) {
+        setRefreshFeedback(
+          hasRemainingPending
+            ? "Pendencias enviadas, mas ainda existe lote salvo neste aparelho aguardando a central."
+            : todayCopy.sync.retryHelper,
+        );
+      } else if (result?.state === "skipped_offline" || result?.state === "transport_failed") {
+        setRefreshError(todayCopy.sync.failed);
+      } else if (hasRemainingPending) {
         setRefreshFeedback(
           "Ainda existe lote salvo neste aparelho aguardando a central. Sincronize de novo depois da validacao/leitura central.",
         );
-      } else if (result?.state === "empty") {
+      } else if (
+        result === undefined ||
+        result.state === "empty" ||
+        result.state === "skipped_degraded"
+      ) {
         setRefreshFeedback(todayCopy.sync.allSynced);
-      } else if (result?.state === "transport_failed") {
-        setRefreshError(todayCopy.sync.failed);
       }
     } catch {
       setRefreshError(todayCopy.sync.failed);

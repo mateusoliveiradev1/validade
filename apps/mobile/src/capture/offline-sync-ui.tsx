@@ -130,6 +130,7 @@ export function SyncQueueSummary({
 
   const conflicts = queue.commands.filter((command) => command.state === "sync_conflict");
   const pending = queue.commands.filter((command) => command.state !== "sync_conflict");
+  const pendingCentralLotCount = Math.max(0, queue.totalCount - queue.commands.length);
 
   return (
     <View style={styles.queue}>
@@ -148,6 +149,13 @@ export function SyncQueueSummary({
           {conflicts.length > 0 ? (
             <StatusNotice tone="critical" title={mobileStatusDescriptorFor("conflict").label}>
               {todayCopy.sync.conflict}
+            </StatusNotice>
+          ) : null}
+          {pendingCentralLotCount > 0 ? (
+            <StatusNotice tone="warning" title="Lote salvo aguardando a central">
+              {pendingCentralLotCount === 1
+                ? "1 lote salvo neste aparelho ainda depende de validacao do produto, leitura central ou conexao estavel."
+                : `${pendingCentralLotCount} lotes salvos neste aparelho ainda dependem de validacao do produto, leitura central ou conexao estavel.`}
             </StatusNotice>
           ) : null}
           {[...conflicts, ...pending].map((command) => (

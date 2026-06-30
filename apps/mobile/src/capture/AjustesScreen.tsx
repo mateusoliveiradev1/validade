@@ -146,6 +146,7 @@ export function AjustesScreen({
     setSyncFeedback(undefined);
 
     try {
+      await onConfirmCentralDeviceState?.().catch(() => undefined);
       const [syncedLots, result] = await Promise.all([
         repository.syncPendingCentralLots === undefined
           ? Promise.resolve([])
@@ -156,23 +157,32 @@ export function AjustesScreen({
       ]);
       const queueAfterSync = await refreshSyncState();
       await onConfirmCentralDeviceState?.().catch(() => undefined);
+      const hasRemainingPending = queueAfterSync.totalCount > 0;
 
       if (syncedLots.length > 0) {
         setSyncFeedback(
           "Lote enviado para a central. Atualize a leitura central e confira Hoje novamente.",
         );
       } else if (result?.state === "sent" && result.appliedResults.length > 0) {
-        setSyncFeedback("Pendencias enviadas. Confira se a central ainda aponta algum bloqueio.");
-      } else if (result?.state === "empty" && queueAfterSync.totalCount > 0) {
         setSyncFeedback(
-          "Ainda existe lote salvo neste aparelho aguardando a central. Se o produto estiver em revisao, ele sera enviado depois da validacao.",
+          hasRemainingPending
+            ? "Pendencias enviadas, mas ainda existe lote salvo neste aparelho aguardando a central."
+            : "Pendencias enviadas. Confira se a central ainda aponta algum bloqueio.",
         );
-      } else if (result?.state === "empty") {
-        setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
       } else if (result?.state === "skipped_offline" || result?.state === "transport_failed") {
         setSyncFeedback(
           "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
         );
+      } else if (hasRemainingPending) {
+        setSyncFeedback(
+          "Ainda existe lote salvo neste aparelho aguardando a central. Se o produto estiver em revisao, ele sera enviado depois da validacao.",
+        );
+      } else if (
+        result === undefined ||
+        result.state === "empty" ||
+        result.state === "skipped_degraded"
+      ) {
+        setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
       }
     } catch {
       setSyncFeedback(
@@ -543,11 +553,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "133"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "134"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat15-syncfix-apk-133"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat15-sync-feedback-apk-134"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />
