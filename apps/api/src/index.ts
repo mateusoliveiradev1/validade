@@ -1,4 +1,5 @@
 import {
+  createExpoAlertDeliveryProvider,
   createFakeExpoAlertDeliveryProvider,
   createInMemoryEvidenceStore,
   createLocalProviderRegistry,
@@ -9,6 +10,7 @@ import {
 } from "@validade-zero/adapters";
 import {
   AlertDeliveryResultSchema,
+  AlertDispatchCommandSchema,
   AuditEventRecordSchema,
   AuthorizationContract,
   ChangeMembershipRoleRequestSchema,
@@ -17,6 +19,7 @@ import {
   CentralLotWriteResponseSchema,
   CentralObservationAppendRequestSchema,
   CreateMembershipRequestSchema,
+  DevicePushRegistrationCommandSchema,
   EvidenceExceptionalAccessRequestSchema,
   EvidenceInvalidationRequestSchema,
   EvidenceUploadIntentRequestSchema,
@@ -50,7 +53,9 @@ import {
   type AlertDispatchCommand,
   type CentralAlertAudienceRegistration,
   CommandCenterProjectionSchema,
+  type DevicePushRegistrationCommand,
   type PilotDeviceReadiness,
+  type SafePushTestCommand,
   type SafePushTestResult,
   type SafePushTestTimelineItem,
   type SyncCommandRecord,
@@ -127,6 +132,7 @@ import {
 } from "./authentication";
 import {
   createCaptureBackedCommandCenterService,
+  DEFAULT_APPROVED_PILOT_BUILD,
   type CommandCenterService,
 } from "./command-center";
 import {
@@ -168,6 +174,9 @@ export interface SyncCommandApplyContext {
 
 export interface WorkerEnvironment {
   VALIDADE_ZERO_APP_ENV?: string;
+  VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL?: string;
+  VALIDADE_ZERO_APPROVED_APP_VERSION?: string;
+  VALIDADE_ZERO_APPROVED_BUILD?: string;
   NEON_DATABASE_URL?: string;
   AUTH_TOKEN_PEPPER?: string;
   AUTH_PASSWORD_PEPPER?: string;
@@ -178,6 +187,11 @@ export interface WorkerEnvironment {
 }
 
 type EvidenceStoreMode = "memory" | "r2" | "disabled";
+interface ApprovedPilotBuildConfig {
+  artifactLabel: string;
+  appVersion: string;
+  build: string;
+}
 
 const PilotPushTestRequestSchema = z
   .object({
@@ -208,12 +222,14 @@ export function createApiApp(input?: {
   accessDeniedAuditRecorder?: AccessDeniedAuditRecorder;
   authSecurityAuditRecorder?: AuthSecurityAuditRecorder;
   recoveryDeliveryProvider?: RecoveryDeliveryProvider;
+  pilotPushDeliveryProvider?: AlertDeliveryProvider;
   loginAttemptLimiter?: LoginAttemptLimiter;
   sessionTtlSeconds?: number;
   recoveryTtlSeconds?: number;
   commandCenterService?: CommandCenterService;
   runtimeConfig?: {
     appEnv?: string;
+    approvedPilotBuild?: ApprovedPilotBuildConfig;
     evidenceStoreMode?: EvidenceStoreMode;
   };
   now?: () => Date;
@@ -299,12 +315,17 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryCaptureRepository()
       : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
+  const pilotPushDeliveryProvider =
+    input?.pilotPushDeliveryProvider ?? createFakeExpoAlertDeliveryProvider();
   const pilotPushTestTimeline: SafePushTestTimelineItem[] = [];
   const commandCenterService =
     input?.commandCenterService ??
     createCaptureBackedCommandCenterService({
       captureRepository,
       now,
+      ...(input?.runtimeConfig?.approvedPilotBuild === undefined
+        ? {}
+        : { approvedPilotBuild: input.runtimeConfig.approvedPilotBuild }),
       readPushTests: (deviceIdMasked) =>
         pilotPushTestTimeline.filter((item) => item.deviceIdMasked === deviceIdMasked).slice(-10),
     });
@@ -525,6 +546,66 @@ export function createApiApp(input?: {
       return context.json(PrepareTurnResponseSchema.parse(response));
     } catch {
       return context.json({ error: "prepare_turn_unavailable" }, 503);
+    }
+  });
+
+  api.post("/capture/push-registrations", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = DevicePushRegistrationCommandSchema.safeParse(rawPayload);
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_push_registration_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "push_registration",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const pushState = centralPushStateForRegistration(parsed.data);
+      await captureRepository.registerDevicePushChannel({
+        deviceId: parsed.data.deviceId,
+        storeId: actorContext.membership.storeId,
+        storeName: actorContext.membership.storeName,
+        deviceLabel: parsed.data.deviceLabel,
+        activeUserLabel: actorContext.identity.displayName ?? actorContext.membership.subjectId,
+        pushPermission: pushState.pushPermission,
+        pushProviderState: pushState.pushProviderState,
+        ...(parsed.data.expoPushToken === undefined
+          ? {}
+          : { expoPushToken: parsed.data.expoPushToken }),
+        registeredAt: new Date(parsed.data.registeredAt),
+      });
+
+      return context.json({
+        status: "registered",
+        pushProviderState: pushState.pushProviderState,
+        registeredAt: parsed.data.registeredAt,
+      });
+    } catch {
+      return context.json({ error: "push_registration_unavailable" }, 503);
     }
   });
 
@@ -1457,10 +1538,28 @@ export function createApiApp(input?: {
         );
       }
 
-      const result = buildSafePilotPushTestResult({
+      const command = buildSafePilotPushTestCommand({
         device,
         actorContext: decision.context,
         requestedAt: now().toISOString(),
+      });
+      const target = await captureRepository.findDevicePushTarget({
+        storeId: parsed.data.storeId,
+        deviceIdMasked: device.deviceIdMasked,
+        ...(parsed.data.deviceLabel === undefined ? {} : { deviceLabel: parsed.data.deviceLabel }),
+      });
+      const delivery =
+        target === null
+          ? { status: "not_configured" as const }
+          : await pilotPushDeliveryProvider.send({
+              command: safePushTestToAlertDispatchCommand(command),
+              expoPushToken: target.expoPushToken,
+            });
+      const result = buildSafePilotPushTestResult({
+        command,
+        device,
+        delivery,
+        requestedAt: command.requestedAt,
       });
       pilotPushTestTimeline.push(...result.timeline);
 
@@ -1867,15 +1966,42 @@ function actionsForRoles(roles: readonly AuthorizationRole[]) {
   };
 }
 
-function buildSafePilotPushTestResult(input: {
+function centralPushStateForRegistration(
+  registration: DevicePushRegistrationCommand,
+): Pick<PilotDeviceReadiness, "pushPermission" | "pushProviderState"> {
+  if (registration.permissionStatus === "granted") {
+    return {
+      pushPermission: "granted",
+      pushProviderState:
+        registration.expoPushToken === undefined ? "local_only" : "token_registered",
+    };
+  }
+
+  if (registration.permissionStatus === "local_only") {
+    return { pushPermission: "granted", pushProviderState: "local_only" };
+  }
+
+  if (registration.permissionStatus === "denied") {
+    return { pushPermission: "denied", pushProviderState: "not_configured" };
+  }
+
+  if (registration.permissionStatus === "not_requested") {
+    return { pushPermission: "not_requested", pushProviderState: "not_configured" };
+  }
+
+  return { pushPermission: "unknown", pushProviderState: "not_configured" };
+}
+
+function buildSafePilotPushTestCommand(input: {
   device: PilotDeviceReadiness;
   actorContext: AuthorizedActorContext;
   requestedAt: string;
-}): SafePushTestResult {
+}): SafePushTestCommand {
   const commandId = safeAuditIdentifier(
     `pilot-push-test:${input.actorContext.membership.storeId}:${input.device.deviceIdMasked}:${input.requestedAt}`,
   );
-  const command = SafePushTestCommandSchema.parse({
+
+  return SafePushTestCommandSchema.parse({
     commandId,
     storeId: input.actorContext.membership.storeId,
     storeName: input.actorContext.membership.storeName,
@@ -1890,17 +2016,35 @@ function buildSafePilotPushTestResult(input: {
       body: "Toque para confirmar canal de lembrete.",
     },
   });
-  const state = safePushTestStateForDevice(input.device);
-  const failureReason = safePushTestFailureReason(state);
+}
+
+type SafePushDelivery =
+  | AlertDeliveryResult
+  | {
+      status: "not_configured";
+    };
+
+function buildSafePilotPushTestResult(input: {
+  command: ReturnType<typeof buildSafePilotPushTestCommand>;
+  device: PilotDeviceReadiness;
+  delivery: SafePushDelivery;
+  requestedAt: string;
+}): SafePushTestResult {
+  const state = safePushTestStateForDevice(input.device, input.delivery);
+  const failureReason = safePushTestFailureReason(state, input.delivery);
   const timeline = SafePushTestTimelineItemSchema.parse({
-    eventId: safeAuditIdentifier(`pilot-push-test-event:${commandId}`),
+    eventId: safeAuditIdentifier(`pilot-push-test-event:${input.command.commandId}`),
     deviceIdMasked: input.device.deviceIdMasked,
     deviceLabel: input.device.deviceLabel,
-    requesterLabel: command.requesterLabel,
+    requesterLabel: input.command.requesterLabel,
     occurredAt: input.requestedAt,
     state,
     permissionOutcome: safePushTestPermissionOutcome(input.device.pushPermission),
-    providerOutcome: safePushTestProviderOutcome(state, input.device.pushProviderState),
+    providerOutcome: safePushTestProviderOutcome(
+      state,
+      input.device.pushProviderState,
+      input.delivery,
+    ),
     deliveryAttemptState: safePushTestDeliveryAttemptState(state),
     appSignal: "unknown",
     detail: safePushTestDetail(state),
@@ -1909,15 +2053,46 @@ function buildSafePilotPushTestResult(input: {
   });
 
   return SafePushTestResultSchema.parse({
-    command,
+    command: input.command,
     timeline: [timeline],
+  });
+}
+
+function safePushTestToAlertDispatchCommand(
+  command: ReturnType<typeof buildSafePilotPushTestCommand>,
+): AlertDispatchCommand {
+  const taskId = safeAuditIdentifier(`safe-push-test:${command.commandId}`).slice(0, 120);
+  const taskActiveKey = safeAuditIdentifier(`safe-push-test-active:${command.commandId}`).slice(
+    0,
+    120,
+  );
+
+  return AlertDispatchCommandSchema.parse({
+    attemptId: command.commandId,
+    taskId,
+    taskActiveKey,
+    audience: "responsible_and_leadership",
+    title: command.message.title,
+    body: command.message.body,
+    data: {
+      taskId,
+      taskActiveKey,
+    },
+    createdAt: command.requestedAt,
   });
 }
 
 function safePushTestStateForDevice(
   device: PilotDeviceReadiness,
+  delivery: SafePushDelivery,
 ): SafePushTestTimelineItem["state"] {
   if (device.pushPermission === "denied") return "permission_denied";
+  if (delivery.status === "not_configured") return "local_only";
+  if (delivery.status === "ok") return "provider_accepted";
+  if (delivery.status === "device_not_registered") return "token_invalid";
+  if (delivery.status === "retryable_error" || delivery.status === "permanent_error") {
+    return "provider_failed";
+  }
   if (device.pushProviderState === "token_invalid") return "token_invalid";
   if (device.pushProviderState === "provider_failed") return "provider_failed";
   if (
@@ -1950,10 +2125,12 @@ function safePushTestPermissionOutcome(
 function safePushTestProviderOutcome(
   state: SafePushTestTimelineItem["state"],
   providerState: PilotDeviceReadiness["pushProviderState"],
+  delivery: SafePushDelivery,
 ): SafePushTestTimelineItem["providerOutcome"] {
   if (state === "provider_accepted") return "accepted";
   if (state === "provider_failed") return "failed";
   if (state === "token_invalid") return "token_invalid";
+  if (delivery.status === "not_configured") return "not_configured";
   if (providerState === "local_only" || providerState === "not_configured") {
     return "not_configured";
   }
@@ -2007,7 +2184,13 @@ function safePushTestNextAction(state: SafePushTestTimelineItem["state"]): strin
   return "Reabrir app no aparelho e repetir o teste seguro.";
 }
 
-function safePushTestFailureReason(state: SafePushTestTimelineItem["state"]): string | undefined {
+function safePushTestFailureReason(
+  state: SafePushTestTimelineItem["state"],
+  delivery: SafePushDelivery,
+): string | undefined {
+  if (delivery.status === "retryable_error" || delivery.status === "permanent_error") {
+    return delivery.failureReason;
+  }
   if (state === "provider_failed") return "provider_failed";
   if (state === "token_invalid") return "token_invalid";
   if (state === "permission_denied") return "permission_denied";
@@ -2472,17 +2655,39 @@ export function createWorkerApp(
     databaseUrl,
     authSecrets: { tokenPepper, passwordPepper },
     evidenceStore: evidenceStore.store,
+    pilotPushDeliveryProvider: createExpoAlertDeliveryProvider(),
     loginAttemptLimiter: createNeonLoginAttemptLimiter({
       connectionString: databaseUrl,
       pepper: tokenPepper,
     }),
     runtimeConfig: {
       appEnv,
+      approvedPilotBuild: approvedPilotBuildFromWorkerEnv(env),
       evidenceStoreMode: evidenceStore.mode,
     },
     sessionTtlSeconds: parsePositiveSeconds(env.AUTH_SESSION_TTL_SECONDS, 28_800),
     recoveryTtlSeconds: parsePositiveSeconds(env.AUTH_RECOVERY_TTL_SECONDS, 1_800),
   });
+}
+
+function approvedPilotBuildFromWorkerEnv(env: WorkerEnvironment): ApprovedPilotBuildConfig {
+  return {
+    artifactLabel:
+      publicWorkerLabel(env.VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL) ??
+      DEFAULT_APPROVED_PILOT_BUILD.artifactLabel,
+    appVersion:
+      publicWorkerLabel(env.VALIDADE_ZERO_APPROVED_APP_VERSION) ??
+      DEFAULT_APPROVED_PILOT_BUILD.appVersion,
+    build:
+      publicWorkerLabel(env.VALIDADE_ZERO_APPROVED_BUILD) ?? DEFAULT_APPROVED_PILOT_BUILD.build,
+  };
+}
+
+function publicWorkerLabel(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (trimmed === undefined || trimmed.length === 0) return undefined;
+  if (/(https?:\/\/|eas:\/\/|token|secret|password)/i.test(trimmed)) return undefined;
+  return trimmed.length <= 80 ? trimmed : `${trimmed.slice(0, 36)}...${trimmed.slice(-36)}`;
 }
 
 const worker = {

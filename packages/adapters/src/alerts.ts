@@ -52,6 +52,25 @@ export interface FakeExpoAlertDeliveryProviderOptions {
   }) => Promise<ExpoPushProviderOutcome> | ExpoPushProviderOutcome;
 }
 
+type ExpoPushFetch = (
+  url: string,
+  init: {
+    method: "POST";
+    headers: Record<string, string>;
+    body: string;
+  },
+) => Promise<{
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  json(): Promise<unknown>;
+}>;
+
+export interface ExpoAlertDeliveryProviderOptions {
+  endpoint?: string;
+  fetch?: ExpoPushFetch;
+}
+
 export function createFakeExpoAlertDeliveryProvider(
   options: FakeExpoAlertDeliveryProviderOptions = {},
 ): AlertDeliveryProvider {
@@ -75,6 +94,70 @@ export function createFakeExpoAlertDeliveryProvider(
       };
 
       return mapExpoPushOutcomeToDeliveryResult(outcome);
+    },
+  };
+}
+
+export function createExpoAlertDeliveryProvider(
+  options: ExpoAlertDeliveryProviderOptions = {},
+): AlertDeliveryProvider {
+  const endpoint = options.endpoint ?? "https://exp.host/--/api/v2/push/send";
+  const fetcher = options.fetch ?? defaultFetch();
+
+  return {
+    async send(input) {
+      const parsed = AlertDispatchCommandSchema.safeParse(input.command);
+
+      if (!parsed.success) {
+        return AlertDeliveryResultSchema.parse({
+          status: "permanent_error",
+          failureReason: "Invalid alert dispatch payload.",
+        });
+      }
+
+      if (fetcher === undefined) {
+        return AlertDeliveryResultSchema.parse({
+          status: "retryable_error",
+          failureReason: "Expo push provider fetch unavailable; retry is allowed.",
+        });
+      }
+
+      let response: Awaited<ReturnType<ExpoPushFetch>>;
+      try {
+        response = await fetcher(endpoint, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Accept-Encoding": "gzip, deflate",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: input.expoPushToken,
+            title: parsed.data.title,
+            body: parsed.data.body,
+            data: parsed.data.data,
+            sound: "default",
+          }),
+        });
+      } catch {
+        return mapExpoPushOutcomeToDeliveryResult({ kind: "network_error" });
+      }
+
+      const retryAfterSeconds = retryAfterSecondsFrom(response.headers.get("retry-after"));
+      const payload = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        const providerError = expoProviderErrorFromPayload(payload, response.status);
+        if (providerError !== undefined) return mapExpoPushOutcomeToDeliveryResult(providerError);
+
+        return mapExpoPushOutcomeToDeliveryResult({
+          kind: "http_error",
+          statusCode: response.status,
+          ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+        });
+      }
+
+      return mapExpoPushOutcomeToDeliveryResult(expoOutcomeFromPayload(payload, response.status));
     },
   };
 }
@@ -173,4 +256,78 @@ function permanentFailureReason(outcome: ExpoPushProviderOutcome): string {
 
 function fingerprintToken(token: string): string {
   return `len:${token.length}`;
+}
+
+function defaultFetch(): ExpoPushFetch | undefined {
+  const fetcher = (globalThis as { fetch?: unknown }).fetch;
+  return typeof fetcher === "function" ? (fetcher as ExpoPushFetch) : undefined;
+}
+
+function retryAfterSecondsFrom(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const seconds = Number.parseInt(value, 10);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 86_400) : undefined;
+}
+
+function expoOutcomeFromPayload(payload: unknown, statusCode: number): ExpoPushProviderOutcome {
+  const ticket = firstExpoTicket(payload);
+  if (ticket === undefined) return { kind: "invalid_payload" };
+
+  const ticketStatus = readString(ticket, "status");
+  if (ticketStatus === "ok") {
+    const providerTicketId = readString(ticket, "id");
+    return {
+      kind: "ok",
+      ...(providerTicketId === undefined ? {} : { providerTicketId }),
+    };
+  }
+
+  if (ticketStatus === "error") {
+    const code = expoTicketErrorCode(ticket) ?? "ExpoProviderError";
+    return { kind: "provider_error", code, statusCode };
+  }
+
+  return { kind: "invalid_payload" };
+}
+
+function expoProviderErrorFromPayload(
+  payload: unknown,
+  statusCode: number,
+): ExpoPushProviderOutcome | undefined {
+  const ticket = firstExpoTicket(payload);
+  if (ticket === undefined) return undefined;
+  const ticketStatus = readString(ticket, "status");
+  if (ticketStatus !== "error") return undefined;
+
+  return {
+    kind: "provider_error",
+    code: expoTicketErrorCode(ticket) ?? "ExpoProviderError",
+    statusCode,
+  };
+}
+
+function firstExpoTicket(payload: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(payload)) return undefined;
+  const data: unknown = payload.data;
+  if (Array.isArray(data)) {
+    const first: unknown = data[0];
+    return isRecord(first) ? first : undefined;
+  }
+
+  return isRecord(data) ? data : undefined;
+}
+
+function expoTicketErrorCode(ticket: Record<string, unknown>): string | undefined {
+  const details = ticket.details;
+  if (!isRecord(details)) return undefined;
+  return readString(details, "error");
+}
+
+function readString(value: Record<string, unknown>, key: string): string | undefined {
+  const result = value[key];
+  return typeof result === "string" && result.trim().length > 0 ? result.trim() : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

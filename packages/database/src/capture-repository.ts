@@ -114,9 +114,33 @@ export interface DeviceSnapshotInput {
   source: "central" | "local_cache" | "pending_central";
   pushPermission?: PilotDevicePermissionState;
   pushProviderState?: PilotDevicePushProviderState;
+  expoPushToken?: string | undefined;
   cameraPermission?: PilotDevicePermissionState;
   readinessVerdict?: PilotDeviceReadinessVerdict;
   readinessBlockers?: readonly PilotDeviceBlocker[];
+  updatedAt: Date;
+}
+
+export interface DevicePushChannelRegistrationInput {
+  deviceId: string;
+  storeId: string;
+  storeName: string;
+  deviceLabel: string;
+  activeUserLabel: string;
+  pushPermission: PilotDevicePermissionState;
+  pushProviderState: PilotDevicePushProviderState;
+  expoPushToken?: string;
+  registeredAt: Date;
+}
+
+export interface DevicePushTarget {
+  deviceId: string;
+  deviceIdMasked: string;
+  deviceLabel: string;
+  storeId: string;
+  pushPermission: PilotDevicePermissionState;
+  pushProviderState: PilotDevicePushProviderState;
+  expoPushToken: string;
   updatedAt: Date;
 }
 
@@ -200,6 +224,12 @@ export interface CaptureRepository {
   appendObservation(input: CentralObservationAppendInput): Promise<CentralLotWriteResponse>;
   applySyncCommand(input: CentralSyncCommandApplyInput): Promise<SyncTransportResult>;
   upsertDeviceSnapshot(input: DeviceSnapshotInput): Promise<void>;
+  registerDevicePushChannel(input: DevicePushChannelRegistrationInput): Promise<void>;
+  findDevicePushTarget(input: {
+    storeId: string;
+    deviceIdMasked: string;
+    deviceLabel?: string | undefined;
+  }): Promise<DevicePushTarget | null>;
   listDeviceReadiness(input: ListDeviceReadinessInput): Promise<readonly PilotDeviceReadiness[]>;
   recordPrepareTurnRejected(input: PrepareTurnDeniedInput): Promise<void>;
 }
@@ -320,9 +350,16 @@ interface DeviceSnapshotRow {
   source: DeviceSnapshotInput["source"];
   push_permission: string | null;
   push_provider_state: string | null;
+  expo_push_token?: string | null;
   camera_permission: string | null;
   readiness_verdict: string | null;
   readiness_blockers: unknown;
+  updated_at: string | Date;
+}
+
+interface LegacyDevicePushChannelRow {
+  device_id: string;
+  payload: unknown;
   updated_at: string | Date;
 }
 
@@ -451,6 +488,140 @@ export function createCaptureRepositoryFromQuery(
     );
   }
 
+  async function registerDevicePushChannel(
+    input: DevicePushChannelRegistrationInput,
+  ): Promise<void> {
+    try {
+      await sql.query(
+        `insert into central_device_snapshots (
+          device_id, store_id, device_label, active_user_label, store_name, source,
+          push_permission, push_provider_state, expo_push_token, updated_at
+        ) values (
+          $1, $2, $3, $4, $5, 'central', $6, $7, $8, $9::timestamptz
+        )
+        on conflict (device_id, store_id) do update set
+          device_label = excluded.device_label,
+          active_user_label = excluded.active_user_label,
+          store_name = excluded.store_name,
+          push_permission = excluded.push_permission,
+          push_provider_state = excluded.push_provider_state,
+          expo_push_token = excluded.expo_push_token,
+          updated_at = excluded.updated_at`,
+        [
+          input.deviceId,
+          input.storeId,
+          input.deviceLabel,
+          input.activeUserLabel,
+          input.storeName,
+          input.pushPermission,
+          input.pushProviderState,
+          input.expoPushToken ?? null,
+          input.registeredAt.toISOString(),
+        ],
+      );
+      return;
+    } catch (error) {
+      if (!isMissingExpoPushTokenColumn(error)) throw error;
+    }
+
+    await registerDevicePushChannelLegacy(input);
+  }
+
+  async function findDevicePushTarget(input: {
+    storeId: string;
+    deviceIdMasked: string;
+    deviceLabel?: string | undefined;
+  }): Promise<DevicePushTarget | null> {
+    try {
+      const rows = (await sql.query(
+        `select device_id, store_id, device_label, push_permission, push_provider_state,
+          expo_push_token, updated_at
+        from central_device_snapshots
+        where store_id = $1
+          and expo_push_token is not null
+          and btrim(expo_push_token) <> ''
+        order by updated_at desc
+        limit 200`,
+        [input.storeId],
+      )) as DeviceSnapshotRow[];
+
+      const match = rows.find((row) => {
+        const masked = maskDeviceId(row.device_id);
+        if (masked !== input.deviceIdMasked) return false;
+        return input.deviceLabel === undefined || row.device_label === input.deviceLabel;
+      });
+
+      if (match !== undefined) return devicePushTargetFromRow(match);
+    } catch (error) {
+      if (!isMissingExpoPushTokenColumn(error)) throw error;
+    }
+
+    return findDevicePushTargetLegacy(input);
+  }
+
+  async function registerDevicePushChannelLegacy(
+    input: DevicePushChannelRegistrationInput,
+  ): Promise<void> {
+    const commandId = createStableId("push-channel", input.storeId, input.deviceId);
+    const payload = {
+      deviceLabel: input.deviceLabel,
+      activeUserLabel: input.activeUserLabel,
+      pushPermission: input.pushPermission,
+      pushProviderState: input.pushProviderState,
+      ...(input.expoPushToken === undefined ? {} : { expoPushToken: input.expoPushToken }),
+      registeredAt: input.registeredAt.toISOString(),
+    };
+
+    await sql.query(
+      `insert into central_sync_commands (
+        command_id, idempotency_key, store_id, device_id, kind, state, payload, central_version,
+        accepted_at, created_at, updated_at
+      ) values (
+        $1, $1, $2, $3, 'push_channel', 'synchronized', $4::jsonb, 1,
+        $5::timestamptz, $5::timestamptz, $5::timestamptz
+      )
+      on conflict (command_id) do update set
+        state = 'synchronized',
+        payload = excluded.payload,
+        accepted_at = excluded.accepted_at,
+        updated_at = excluded.updated_at`,
+      [
+        commandId,
+        input.storeId,
+        input.deviceId,
+        JSON.stringify(payload),
+        input.registeredAt.toISOString(),
+      ],
+    );
+  }
+
+  async function findDevicePushTargetLegacy(input: {
+    storeId: string;
+    deviceIdMasked: string;
+    deviceLabel?: string | undefined;
+  }): Promise<DevicePushTarget | null> {
+    const rows = (await sql.query(
+      `select device_id, payload, updated_at
+      from central_sync_commands
+      where store_id = $1
+        and kind = 'push_channel'
+        and state = 'synchronized'
+      order by updated_at desc
+      limit 200`,
+      [input.storeId],
+    )) as LegacyDevicePushChannelRow[];
+
+    const match = rows
+      .map((row) => devicePushTargetFromLegacyRow(row, input.storeId))
+      .filter((target): target is DevicePushTarget => target !== null)
+      .find((target) => {
+        if (target.deviceIdMasked !== input.deviceIdMasked) return false;
+        return input.deviceLabel === undefined || target.deviceLabel === input.deviceLabel;
+      });
+
+    return match ?? null;
+  }
+
   async function listDeviceReadiness(
     input: ListDeviceReadinessInput,
   ): Promise<readonly PilotDeviceReadiness[]> {
@@ -461,7 +632,10 @@ export function createCaptureRepositoryFromQuery(
         push_permission, push_provider_state, camera_permission, readiness_verdict,
         readiness_blockers, updated_at
       from central_device_snapshots
-      where store_id = $1 and coalesce(app_version, '') <> 'web-command-center'
+      where store_id = $1
+        and coalesce(app_version, '') <> 'web-command-center'
+        and active_user_label is not null
+        and store_name is not null
       order by updated_at desc`,
       [input.storeId],
     )) as DeviceSnapshotRow[];
@@ -1086,7 +1260,8 @@ export function createCaptureRepositoryFromQuery(
       syncState: "pending_central",
       reviewStatus: "pending_review",
       acknowledgedAt: requestedAt,
-      message: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+      message:
+        "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
     });
 
     await appendProductAudit({
@@ -1901,6 +2076,8 @@ export function createCaptureRepositoryFromQuery(
     appendObservation,
     applySyncCommand,
     upsertDeviceSnapshot,
+    registerDevicePushChannel,
+    findDevicePushTarget,
     listDeviceReadiness,
     recordPrepareTurnRejected,
   };
@@ -1930,8 +2107,63 @@ export function createInMemoryCaptureRepository(input?: {
   const syncResultsByIdempotencyKey = new Map<string, SyncTransportResult>();
   const deviceSnapshots = new Map<string, DeviceSnapshotInput>();
   const upsertDeviceSnapshot = (snapshot: DeviceSnapshotInput): Promise<void> => {
-    deviceSnapshots.set(`${snapshot.storeId}:${snapshot.deviceId}`, snapshot);
+    const key = `${snapshot.storeId}:${snapshot.deviceId}`;
+    const existing = deviceSnapshots.get(key);
+    deviceSnapshots.set(key, { ...(existing ?? {}), ...snapshot });
     return Promise.resolve();
+  };
+  const registerDevicePushChannel = (
+    registration: DevicePushChannelRegistrationInput,
+  ): Promise<void> => {
+    const key = `${registration.storeId}:${registration.deviceId}`;
+    const existing =
+      deviceSnapshots.get(key) ??
+      ({
+        deviceId: registration.deviceId,
+        storeId: registration.storeId,
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+        updatedAt: registration.registeredAt,
+      } satisfies DeviceSnapshotInput);
+    const { expoPushToken: _existingExpoPushToken, ...existingWithoutToken } = existing;
+    void _existingExpoPushToken;
+    deviceSnapshots.set(key, {
+      ...existingWithoutToken,
+      deviceId: registration.deviceId,
+      storeId: registration.storeId,
+      storeName: registration.storeName,
+      deviceLabel: registration.deviceLabel,
+      activeUserLabel: registration.activeUserLabel,
+      pushPermission: registration.pushPermission,
+      pushProviderState: registration.pushProviderState,
+      ...(registration.expoPushToken === undefined
+        ? {}
+        : { expoPushToken: registration.expoPushToken }),
+      updatedAt: registration.registeredAt,
+    });
+    return Promise.resolve();
+  };
+  const findDevicePushTarget = (input: {
+    storeId: string;
+    deviceIdMasked: string;
+    deviceLabel?: string | undefined;
+  }): Promise<DevicePushTarget | null> => {
+    const match = [...deviceSnapshots.values()]
+      .filter(
+        (snapshot) =>
+          snapshot.storeId === input.storeId &&
+          snapshot.expoPushToken !== undefined &&
+          snapshot.expoPushToken.trim().length > 0,
+      )
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+      .find((snapshot) => {
+        const masked = maskDeviceId(snapshot.deviceId);
+        if (masked !== input.deviceIdMasked) return false;
+        return input.deviceLabel === undefined || snapshot.deviceLabel === input.deviceLabel;
+      });
+
+    return Promise.resolve(match === undefined ? null : devicePushTargetFromSnapshot(match));
   };
   const productForLot = (
     storeId: string,
@@ -2255,7 +2487,8 @@ export function createInMemoryCaptureRepository(input?: {
         syncState: "pending_central",
         reviewStatus: "pending_review",
         acknowledgedAt: requestedAt,
-        message: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        message:
+          "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
       });
       auditEvents.push(
         productAuditEvent(createInput, {
@@ -2625,12 +2858,17 @@ export function createInMemoryCaptureRepository(input?: {
       return Promise.resolve(result);
     },
     upsertDeviceSnapshot,
+    registerDevicePushChannel,
+    findDevicePushTarget,
     listDeviceReadiness(input) {
       return Promise.resolve(
         [...deviceSnapshots.values()]
           .filter(
             (snapshot) =>
-              snapshot.storeId === input.storeId && snapshot.appVersion !== "web-command-center",
+              snapshot.storeId === input.storeId &&
+              snapshot.appVersion !== "web-command-center" &&
+              snapshot.activeUserLabel !== undefined &&
+              snapshot.storeName !== undefined,
           )
           .map((snapshot) => buildPilotDeviceReadiness(snapshot, input))
           .sort(comparePilotDeviceReadiness),
@@ -2714,9 +2952,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "phase-12-staging-apk-120";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat14-staging-apk-132";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "120";
+const DEFAULT_APPROVED_BUILD = "132";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;
@@ -2939,6 +3177,93 @@ function deviceSnapshotFromRow(row: DeviceSnapshotRow): DeviceSnapshotInput {
     readinessBlockers: parseStoredBlockers(row.readiness_blockers),
     updatedAt: new Date(row.updated_at),
   };
+}
+
+function devicePushTargetFromRow(row: DeviceSnapshotRow): DevicePushTarget {
+  const pushPermission = parsePermissionState(row.push_permission);
+  const pushProviderState = parsePushProviderState(row.push_provider_state);
+  const snapshot: DeviceSnapshotInput = {
+    deviceId: row.device_id,
+    storeId: row.store_id,
+    ...(row.device_label === null ? {} : { deviceLabel: row.device_label }),
+    ...(row.expo_push_token === null || row.expo_push_token === undefined
+      ? {}
+      : { expoPushToken: row.expo_push_token }),
+    ...(pushPermission === undefined ? {} : { pushPermission }),
+    ...(pushProviderState === undefined ? {} : { pushProviderState }),
+    pendingCommandCount: 0,
+    conflictCount: 0,
+    source: "central",
+    updatedAt: new Date(row.updated_at),
+  };
+
+  return devicePushTargetFromSnapshot(snapshot);
+}
+
+function devicePushTargetFromLegacyRow(
+  row: LegacyDevicePushChannelRow,
+  storeId: string,
+): DevicePushTarget | null {
+  const payload = typeof row.payload === "string" ? parseJson<unknown>(row.payload) : row.payload;
+  if (!isUnknownRecord(payload)) return null;
+
+  const token = readUnknownRecordString(payload, "expoPushToken");
+  if (token === undefined) return null;
+
+  const pushPermission =
+    parsePermissionState(readUnknownRecordString(payload, "pushPermission") ?? null) ?? "unknown";
+  const pushProviderState =
+    parsePushProviderState(readUnknownRecordString(payload, "pushProviderState") ?? null) ??
+    "unknown";
+
+  return devicePushTargetFromSnapshot({
+    deviceId: row.device_id,
+    storeId,
+    deviceLabel:
+      readUnknownRecordString(payload, "deviceLabel") ?? `Aparelho ${maskDeviceId(row.device_id)}`,
+    pushPermission,
+    pushProviderState,
+    expoPushToken: token,
+    pendingCommandCount: 0,
+    conflictCount: 0,
+    source: "central",
+    updatedAt: new Date(row.updated_at),
+  });
+}
+
+function devicePushTargetFromSnapshot(snapshot: DeviceSnapshotInput): DevicePushTarget {
+  const token = snapshot.expoPushToken?.trim();
+  if (token === undefined || token.length === 0) {
+    throw new Error("Device push target requires an Expo push token.");
+  }
+
+  return {
+    deviceId: snapshot.deviceId,
+    deviceIdMasked: maskDeviceId(snapshot.deviceId),
+    deviceLabel: snapshot.deviceLabel ?? `Aparelho ${maskDeviceId(snapshot.deviceId)}`,
+    storeId: snapshot.storeId,
+    pushPermission: snapshot.pushPermission ?? "unknown",
+    pushProviderState: snapshot.pushProviderState ?? "unknown",
+    expoPushToken: token,
+    updatedAt: snapshot.updatedAt,
+  };
+}
+
+function isMissingExpoPushTokenColumn(error: unknown): boolean {
+  if (!isUnknownRecord(error)) return false;
+  return (
+    error.code === "42703" ||
+    (typeof error.message === "string" && error.message.includes("expo_push_token"))
+  );
+}
+
+function readUnknownRecordString(value: Record<string, unknown>, key: string): string | undefined {
+  const item = value[key];
+  return typeof item === "string" && item.trim().length > 0 ? item.trim() : undefined;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parseStoredBlockers(value: unknown): PilotDeviceBlocker[] {
@@ -4112,7 +4437,7 @@ function buildExistingProductCreateResponse(input: {
         syncState: "pending_central",
         reviewStatus: "pending_review",
         acknowledgedAt: input.product.updatedAt,
-        message: "Produto em rascunho ja existe e segue pendente de validacao.",
+        message: "Cadastro do produto ja existe e segue pendente de validacao.",
       }),
     });
   }

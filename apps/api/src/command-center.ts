@@ -18,6 +18,12 @@ export interface CommandCenterService {
   read(input: { storeId: string; storeName: string }): Promise<CommandCenterProjection>;
 }
 
+export const DEFAULT_APPROVED_PILOT_BUILD = {
+  artifactLabel: "uat14-staging-apk-132",
+  appVersion: "0.12.0",
+  build: "132",
+} as const;
+
 export function createInMemoryCommandCenterService(input?: {
   projection?: CommandCenterProjection;
   now?: () => Date;
@@ -94,11 +100,7 @@ export function createCaptureBackedCommandCenterService(input: {
   };
 }): CommandCenterService {
   const now = input.now ?? (() => new Date());
-  const approvedPilotBuild = input.approvedPilotBuild ?? {
-    artifactLabel: "phase-12-staging-apk-120",
-    appVersion: "0.12.0",
-    build: "120",
-  };
+  const approvedPilotBuild = input.approvedPilotBuild ?? DEFAULT_APPROVED_PILOT_BUILD;
 
   return {
     async read(scope) {
@@ -269,6 +271,7 @@ export function createAuditBackedCommandCenterService(input: {
           reviewStatus: "pending_review" as const,
           detail: productDraftDetail(event),
           similarCount: metadataNumber(event, "similarCandidateCount") ?? 0,
+          syncedLotCount: 0,
           requestedByLabel: event.actor.displayName,
           createdAt: event.occurredAt,
         })),
@@ -430,9 +433,15 @@ function projectionFromCentralPrepareTurn(
   devices: readonly CommandCenterProjection["devices"][number][],
 ): CommandCenterProjection {
   const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
+  const lotCountByProductId = countLotsByProductId(prepared.lots);
   const pendingProductDrafts = prepared.products
     .filter((product) => product.status === "draft" || product.status === "rejected")
-    .map(productDraftFromCentralProduct);
+    .map((product) =>
+      productDraftFromCentralProduct(
+        product,
+        lotCountByProductId.get(product.centralProductId) ?? 0,
+      ),
+    );
   const pendingMarkdowns = prepared.activeTasks
     .filter(isMarkdownTask)
     .map((task) => markdownFromCentralTask(task));
@@ -774,9 +783,12 @@ function buildPilotOperationalBlockers(input: {
       category: "product_review",
       severity: "warning",
       ownership: "operator",
-      label: "Produto pendente de revisao",
+      label: "Cadastro de produto em revisao",
       cause: draft.detail,
-      nextAction: "Revisar ou validar o rascunho antes de tratar o catalogo como pronto.",
+      nextAction:
+        draft.syncedLotCount > 0
+          ? "Validar o cadastro do produto; o lote ja aparece na leitura central."
+          : "Validar o cadastro do produto antes de tratar o catalogo como pronto.",
       affectedLabel: draft.label,
       updatedAt: input.updatedAt,
     });
@@ -947,8 +959,9 @@ function centralVerdict(input: {
   if (input.blockerCount > 0) {
     return {
       state: "needs_review",
-      title: "Operacao central com pendencias",
-      detail: "Existem revisoes pendentes antes de declarar a leitura totalmente limpa.",
+      title: "Sem bloqueio critico, com revisao central aberta",
+      detail:
+        "Nao ha tarefa fisica critica nesta leitura, mas produto, fechamento ou sincronizacao ainda precisa de decisao central antes do Go/No-Go.",
     };
   }
 
@@ -1013,6 +1026,7 @@ function centralSnapshotFromPrepared(
 
 function productDraftFromCentralProduct(
   product: CentralProductSnippet,
+  syncedLotCount: number,
 ): CommandCenterProjection["pendingProductDrafts"][number] {
   const reviewStatus = product.status === "rejected" ? "rejected" : "pending_review";
 
@@ -1022,12 +1036,27 @@ function productDraftFromCentralProduct(
     reviewStatus,
     detail:
       reviewStatus === "rejected"
-        ? "Rascunho recusado pela central e mantido visivel para saneamento operacional."
-        : "Rascunho criado no mobile e aguardando validacao central antes de virar catalogo.",
+        ? "Cadastro recusado pela central e mantido visivel para saneamento operacional."
+        : syncedLotCount > 0
+          ? "Lote ja sincronizado. Falta validar o cadastro do produto para ele sair da revisao central."
+          : "Cadastro criado no mobile e aguardando validacao central antes de entrar no catalogo.",
     similarCount: 0,
+    syncedLotCount,
     requestedByLabel: "Captura mobile",
     createdAt: product.updatedAt,
   };
+}
+
+function countLotsByProductId(
+  lots: PrepareTurnResponse["lots"],
+): Map<CentralProductSnippet["centralProductId"], number> {
+  const counts = new Map<CentralProductSnippet["centralProductId"], number>();
+
+  for (const lot of lots) {
+    counts.set(lot.centralProductId, (counts.get(lot.centralProductId) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 function isMarkdownTask(task: ActiveTaskSnippet): boolean {
@@ -1237,10 +1266,10 @@ function productDraftDetail(event: AuditTimelineItem): string {
   const similarCount = metadataNumber(event, "similarCandidateCount") ?? 0;
 
   if (similarCount === 0) {
-    return "Rascunho criado no mobile e aguardando validacao central antes de virar catalogo.";
+    return "Cadastro criado no mobile e aguardando validacao central antes de entrar no catalogo.";
   }
 
-  return `${similarCount} produto(s) parecido(s) revisados antes do rascunho central.`;
+  return `${similarCount} produto(s) parecido(s) revisados antes do cadastro novo.`;
 }
 
 function criticalLotReason(event: AuditTimelineItem): string {

@@ -773,7 +773,7 @@ export function createSQLiteCaptureRepository(
       centralSyncState: "pending_central",
       draftId: `draft:${normalizedName}`,
       draftReviewMessage:
-        "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
       similarCandidateCount: similarCandidates.length,
     };
 
@@ -1090,6 +1090,83 @@ export function createSQLiteCaptureRepository(
 
       throw new Error("central_lot_write_failed", { cause: error });
     }
+  }
+
+  async function syncPendingCentralLots(): Promise<readonly CaptureLotSnapshot[]> {
+    await initialize();
+
+    if (dependencies.createCentralLot === undefined) {
+      return [];
+    }
+
+    const cache = await loadPrepareTurnCacheStatus().catch(() => null);
+
+    if (cache?.state !== "ready" || cache.source !== "central") {
+      return [];
+    }
+
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<LotRow>(
+      `${LOT_SELECT}
+       WHERE l.central_sync_state IN ('pending_central', 'local')
+       ORDER BY l.current_occurred_at ASC
+       LIMIT 20`,
+    );
+    const syncedLots: CaptureLotSnapshot[] = [];
+
+    for (const row of rows) {
+      const localLot = mapLotSnapshot(row);
+      const detail = await loadLotDetail(localLot.id);
+
+      if (detail === null) {
+        continue;
+      }
+
+      const product = await centralProductForPendingLot(db, detail.product);
+
+      if (product?.centralProductId === undefined) {
+        continue;
+      }
+
+      const centralLot = centralLotInputForReplay(detail, product.centralProductId);
+      const request = parseCentralLotCreateRequest({
+        lot: centralLot,
+        actorLabel: detail.currentObservation.actorLabel,
+        occurredAt: detail.currentObservation.occurredAt,
+        idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
+      });
+
+      try {
+        const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
+        const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
+          [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
+        ]);
+
+        await db.withTransactionAsync(async () => {
+          await db.runAsync("DELETE FROM capture_observations WHERE lot_id = ?", detail.id);
+          await db.runAsync("DELETE FROM capture_lots WHERE id = ?", detail.id);
+          await upsertCentralLotSnapshot(
+            db,
+            response.lot,
+            response.taskProjection,
+            response.acknowledgement.message,
+          );
+
+          if (response.taskProjection.attention === "active_task") {
+            await upsertTodayTask(
+              db,
+              mapCentralActiveTask(centralActiveTaskSnippetFromWriteResponse(response), lotsById),
+            );
+          }
+        });
+
+        syncedLots.push(centralLotSnapshotToLocal(response.lot, response.acknowledgement.message));
+      } catch {
+        continue;
+      }
+    }
+
+    return syncedLots;
   }
 
   async function appendObservation(
@@ -2826,6 +2903,7 @@ export function createSQLiteCaptureRepository(
     listProductCategories,
     findProductsByCategory,
     saveLot,
+    syncPendingCentralLots,
     appendObservation,
     listRecentLots,
     loadLotDetail,
@@ -3548,7 +3626,7 @@ function centralProductToRecord(product: CentralProductSnippet): CaptureProductR
     ...(product.status === "draft"
       ? {
           draftReviewMessage:
-            "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+            "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
         }
       : {}),
   };
@@ -3572,7 +3650,7 @@ function productCatalogItemToRecord(product: ProductCatalogItem): CaptureProduct
     ...(product.reviewStatus === "pending_review"
       ? {
           draftReviewMessage:
-            "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+            "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
         }
       : {}),
   };
@@ -3594,7 +3672,8 @@ function productDraftToRecord(draft: ProductDraftReviewState): CaptureProductRec
     reviewStatus: draft.reviewStatus,
     centralSyncState: draft.syncState,
     draftId: draft.draftId,
-    draftReviewMessage: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+    draftReviewMessage:
+      "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
     similarCandidateCount: draft.similarCandidates.length,
   };
 }
@@ -4250,6 +4329,37 @@ function mapProduct(row: ProductRow): CaptureProductRecord {
   };
 }
 
+async function centralProductForPendingLot(
+  db: SQLite.SQLiteDatabase,
+  product: CaptureProductRecord,
+): Promise<CaptureProductRecord | undefined> {
+  if (!isPendingCentralProduct(product)) {
+    return product;
+  }
+
+  if (product.centralProductId === undefined) {
+    return undefined;
+  }
+
+  const rows = await db.getAllAsync<ProductRow>(
+    `SELECT * FROM capture_products
+     WHERE id = ? OR central_product_id = ? OR (normalized_name = ? AND category_id = ?)
+     ORDER BY
+       CASE
+         WHEN review_status = 'validated' THEN 0
+         WHEN central_sync_state = 'synchronized' THEN 1
+         ELSE 2
+       END,
+       created_at DESC`,
+    product.centralProductId,
+    product.centralProductId,
+    product.normalizedName,
+    product.categoryId,
+  );
+
+  return rows.map(mapProduct).find((candidate) => !isPendingCentralProduct(candidate));
+}
+
 function mapCategory(row: ProductCategoryRow): CaptureProductCategory {
   const product = CaptureProductInputSchema.parse({
     displayName: row.category_name,
@@ -4666,14 +4776,66 @@ function centralObservationIdFor(centralLotId: string): string {
 }
 
 function centralLotIdempotencyKey(productId: string, lot: CaptureLotInput): string {
-  return [
+  const readable = [
     "mobile-lot",
-    productId,
+    safeLocalIdentifier(productId, 64),
     lot.identity.identitySource,
     safeLocalIdentifier(lot.identity.value, 48),
     lot.mode,
     lot.initialLocation.kind,
   ].join(":");
+
+  if (readable.length <= 120) {
+    return readable;
+  }
+
+  return [
+    "mobile-lot",
+    safeLocalIdentifier(productId, 30),
+    safeLocalIdentifier(lot.identity.value, 30),
+    lot.mode,
+    lot.initialLocation.kind,
+    stableIdentifierHash(readable),
+  ].join(":");
+}
+
+function centralLotInputForReplay(
+  lot: CaptureLotDetail,
+  centralProductId: string,
+): CaptureLotInput {
+  const base = {
+    productId: centralProductId,
+    identity: lot.identity,
+    approximateQuantity: lot.approximateQuantity,
+    initialLocation: lot.initialLocation,
+  };
+
+  if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
+    return parseLotInput({
+      ...base,
+      mode: lot.mode,
+      expiresAt: lot.expiresAt,
+      ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+    });
+  }
+
+  if (lot.mode === "flv_inspection") {
+    return parseLotInput({
+      ...base,
+      mode: lot.mode,
+      receivedAt: lot.receivedAt,
+      ...(lot.qualityInspectionDueAt === undefined
+        ? {}
+        : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+      ...(lot.qualityWindowDays === undefined ? {} : { qualityWindowDays: lot.qualityWindowDays }),
+    });
+  }
+
+  return parseLotInput({
+    ...base,
+    mode: lot.mode,
+    receivedAt: lot.receivedAt,
+  });
 }
 
 function centralLotSnapshotToSnippet(lot: CentralLotSnapshot): CentralLotSnippet {
@@ -4824,6 +4986,15 @@ function centralObservationToLocal(lot: CentralLotSnapshot): CaptureObservationR
 function safeLocalIdentifier(value: string, maxLength: number): string {
   const normalized = value.replace(/[^a-zA-Z0-9:_-]/g, "-");
   return normalized.length === 0 ? "central" : normalized.slice(0, maxLength);
+}
+
+function stableIdentifierHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(8, "0").slice(0, 8);
 }
 
 function mapLotSnapshot(row: LotRow): CaptureLotSnapshot {

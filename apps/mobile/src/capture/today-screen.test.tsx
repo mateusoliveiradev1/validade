@@ -388,15 +388,14 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Conferir lotes recentes");
   });
 
-  it("renders offline readiness directly after the sales-area safety verdict", async () => {
+  it("keeps healthy sync and offline diagnostics out of the default Hoje scan", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));
     const tree = await renderTodayScreen(repository);
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered.indexOf("Nenhum bloqueio ativo na leitura central")).toBeLessThan(
-      rendered.indexOf("Pronto para operar sem internet"),
-    );
-    expect(rendered).toContain("Tudo sincronizado neste aparelho");
+    expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
+    expect(rendered).not.toContain("Pronto para operar sem internet");
+    expect(rendered).not.toContain("Tudo sincronizado neste aparelho");
   });
 
   it("keeps Hoje as the task execution surface after Ajustes control extraction", async () => {
@@ -967,7 +966,12 @@ describe("TodayScreen", () => {
       accessibilityLabel: "Retirar agora: Ovos FICTICIOS, lote OVOS-FICTICIOS-001",
     });
 
-    expect(rendered.indexOf("Atencao futura")).toBeGreaterThan(rendered.indexOf("Retirar agora"));
+    expect(rendered.indexOf("Monitoramento futuro")).toBeGreaterThan(
+      rendered.indexOf("Retirar agora"),
+    );
+    expect(rendered).toContain(
+      "Sem tarefa ativa agora. Estes lotes ficam no radar para a proxima leitura central.",
+    );
     expect(rendered).toContain("Banana FICTICIA - lote BANANA-RADAR-FICTICIO");
 
     act(() => {

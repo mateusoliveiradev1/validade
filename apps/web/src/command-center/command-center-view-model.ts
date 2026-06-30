@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "phase-12-staging-apk-120";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat14-staging-apk-132";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",
@@ -32,6 +32,45 @@ export function countDeviceReadiness(
     }),
     { apto: 0, atencao: 0, bloqueado: 0 },
   );
+}
+
+export function getConfirmedPilotDevices(
+  devices: CommandCenterProjection["devices"],
+): CommandCenterProjection["devices"] {
+  return devices.filter(
+    (device) =>
+      device.activeUserLabel !== "Usuario nao confirmado" &&
+      !device.blockers.some((blocker) => blocker.code === "invalid_store_or_user"),
+  );
+}
+
+export function getOperationalTurnDevices(
+  devices: CommandCenterProjection["devices"],
+  referenceAt: string,
+): CommandCenterProjection["devices"] {
+  const confirmed = getConfirmedPilotDevices(devices);
+  const withCentralReadToday = confirmed.filter(
+    (device) =>
+      device.lastCentralReadAt !== undefined &&
+      localDateKey(device.lastCentralReadAt) === localDateKey(referenceAt),
+  );
+
+  return withCentralReadToday.length > 0 ? withCentralReadToday : confirmed;
+}
+
+export function getDiagnosticDeviceRecords(
+  devices: CommandCenterProjection["devices"],
+  operationalDevices: CommandCenterProjection["devices"],
+): CommandCenterProjection["devices"] {
+  const operationalIds = new Set(operationalDevices.map((device) => device.deviceIdMasked));
+  return devices.filter((device) => !operationalIds.has(device.deviceIdMasked));
+}
+
+export function countOperationalDeviceReadiness(
+  devices: CommandCenterProjection["devices"],
+  referenceAt: string,
+): DeviceReadinessCounts {
+  return countDeviceReadiness(getOperationalTurnDevices(devices, referenceAt));
 }
 
 export function sortDevicesByReadiness(
@@ -120,8 +159,7 @@ export interface ValidationVerdict {
 export type ValidationRouteReferenceLabel =
   | "Resolver push em Aparelhos"
   | "Resolver atualizacao em Atualizacoes"
-  | "Revisar operacao diaria em Operacao"
-  | "Registrar status da validacao";
+  | "Revisar operacao diaria em Operacao";
 
 const unsafeUpdatePathPattern =
   /(token|secret|password|eas:\/\/|buildUrl|dashboard|builds?\/|private|firebase|google-services)/i;
@@ -155,8 +193,11 @@ export function resolveUpdatePathState(publicUpdateUrl?: string): UpdatePathStat
   };
 }
 
-export function optionalDateLabel(value: string | undefined): string {
-  return value === undefined ? "sem registro" : formatDateTime(value);
+export function optionalDateLabel(
+  value: string | undefined,
+  emptyLabel = "ainda nao reportado",
+): string {
+  return value === undefined ? emptyLabel : formatDateTime(value);
 }
 
 export function routeLabel(route: CommandCenterRoute): string {
@@ -193,7 +234,8 @@ export function deriveValidationVerdict(projection: CommandCenterProjection): Va
     steps.some((step) => step.state === "external_blocked") ||
     projection.pilotBlockers.some((blocker) => blocker.severity === "external");
   const hasPendingStep = steps.some((step) => step.state === "pending");
-  const hasDeviceGateGap = projection.devices.some(
+  const operationalDevices = getOperationalTurnDevices(projection.devices, projection.refreshedAt);
+  const hasDeviceGateGap = operationalDevices.some(
     (device) => device.verdict !== "apto" || device.buildCompatibility !== "atual",
   );
   const allStepsPassed = steps.every((step) => step.state === "passed");
@@ -227,7 +269,7 @@ export function validationReferenceForBlocker(
     return "Revisar operacao diaria em Operacao";
   }
 
-  return "Registrar status da validacao";
+  return "Revisar operacao diaria em Operacao";
 }
 
 export function formatDateTime(value: string): string {
@@ -235,5 +277,14 @@ export function formatDateTime(value: string): string {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
+}
+
+function localDateKey(value: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
   }).format(new Date(value));
 }

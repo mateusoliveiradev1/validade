@@ -6,6 +6,7 @@ import {
   CentralCategoryCatalogResponseSchema,
   CentralLotCreateRequestSchema,
   CentralLotWriteResponseSchema,
+  DevicePushRegistrationCommandSchema,
   FirstAccessActivationRequestSchema,
   InvalidCredentialsResponseSchema,
   InviteValidationResponseSchema,
@@ -37,6 +38,7 @@ import {
   type ShiftCloseSafeRequest,
   type ShiftClosureSnapshot,
   type PrivacyTopicId,
+  type DevicePushRegistrationCommand,
 } from "@validade-zero/contracts";
 import { Image, ScrollView, StyleSheet, View } from "react-native";
 import brandSymbol from "../../assets/brand-symbol.png";
@@ -81,6 +83,7 @@ export interface MobileAuthClient {
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
+  registerPushDevice?: ((input: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   listCentralCategories?: (() => Promise<CentralCategoryCatalogResponse>) | undefined;
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateRequest): Promise<ProductDraftCreateResponse>;
@@ -177,6 +180,13 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
           body: JSON.stringify(body),
         }),
       );
+    },
+    async registerPushDevice(input) {
+      const body = DevicePushRegistrationCommandSchema.parse(input);
+      await request("/capture/push-registrations", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     },
     async listCentralCategories() {
       return CentralCategoryCatalogResponseSchema.parse(await request("/capture/categories"));

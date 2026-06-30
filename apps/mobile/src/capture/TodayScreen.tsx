@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type {
   AlertDeliveryResult,
+  DevicePushRegistrationCommand,
   FutureAttentionRecord,
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
@@ -41,7 +42,6 @@ import {
   todayCopy,
 } from "./today-copy";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
-import type { MobileBuildInfo } from "../build-info";
 import { operatorSafePushFeedback } from "./ajustes-readiness";
 
 const ACTIVE_SECTION_ORDER = [
@@ -50,6 +50,17 @@ const ACTIVE_SECTION_ORDER = [
   "request_markdown",
   "follow_up",
 ] as const satisfies readonly TodayTaskRecord["section"][];
+
+type PushDeviceIdentity = Pick<
+  DevicePushRegistrationCommand,
+  "deviceId" | "deviceLabel" | "audienceRole"
+>;
+
+const defaultPushDeviceIdentity: PushDeviceIdentity = {
+  deviceId: "validade-zero-mobile:local",
+  deviceLabel: "Celular do turno",
+  audienceRole: "shift_team",
+};
 
 function prepareTurnNotice(
   status: PrepareTurnCacheStatus,
@@ -90,6 +101,7 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   onOpenShiftClose,
+  onRegisterPushDevice,
   canCloseShift = false,
   actorLabel = todayCopy.fallbackActor,
   alertChannel,
@@ -98,7 +110,7 @@ export function TodayScreen({
   highlightedTaskId,
   prepareTurnCacheStatus,
   prepareTurnSource,
-  buildInfo,
+  pushDeviceIdentity = defaultPushDeviceIdentity,
   refreshRequest,
   now = () => new Date(),
 }: {
@@ -107,6 +119,7 @@ export function TodayScreen({
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
   onOpenShiftClose?: (() => void) | undefined;
+  onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   canCloseShift?: boolean | undefined;
   actorLabel?: string | undefined;
   alertChannel?: PushAlertChannel;
@@ -115,7 +128,7 @@ export function TodayScreen({
   highlightedTaskId?: string | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
-  buildInfo?: MobileBuildInfo | undefined;
+  pushDeviceIdentity?: PushDeviceIdentity | undefined;
   refreshRequest?: { id: number; source: TodayTaskRefreshSource } | undefined;
   now?: () => Date;
 }) {
@@ -200,6 +213,24 @@ export function TodayScreen({
     void refreshTasks(refreshRequest?.source ?? "today_open");
   }, [refreshRequest?.id]);
 
+  useEffect(() => {
+    if (refreshFeedback === undefined) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => setRefreshFeedback(undefined), 4500);
+    return () => clearTimeout(timeout);
+  }, [refreshFeedback]);
+
+  useEffect(() => {
+    if (acknowledgementFeedback === undefined) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => setAcknowledgementFeedback(undefined), 6500);
+    return () => clearTimeout(timeout);
+  }, [acknowledgementFeedback]);
+
   async function manualSync(): Promise<void> {
     if (syncEngine === undefined || isSyncing) {
       return;
@@ -250,6 +281,17 @@ export function TodayScreen({
     await refreshSyncState();
   }
 
+  async function registerAlertDevice(
+    command: DevicePushRegistrationCommand,
+  ): Promise<DevicePushRegistrationCommand> {
+    const registration = await repository.registerAlertDevice(command);
+    if (onRegisterPushDevice !== undefined) {
+      await onRegisterPushDevice(registration).catch(() => undefined);
+    }
+
+    return registration;
+  }
+
   async function activateAlerts(): Promise<void> {
     if (alertChannel === undefined || isRequestingAlerts) {
       return;
@@ -263,10 +305,8 @@ export function TodayScreen({
 
       if (permission.state !== "active") {
         setAlertChannelState(permission.state);
-        await repository.registerAlertDevice({
-          deviceId: "local-alert-device",
-          deviceLabel: "Celular do turno",
-          audienceRole: "shift_team",
+        await registerAlertDevice({
+          ...pushDeviceIdentity,
           permissionStatus: permission.state === "denied" ? "denied" : "unavailable",
           registeredAt: now().toISOString(),
         });
@@ -278,10 +318,8 @@ export function TodayScreen({
       if (token.state !== "active" || token.expoPushToken === undefined) {
         setAlertChannelState("local_only");
         setAlertChannelFeedback(todayCopy.push.localOnly);
-        await repository.registerAlertDevice({
-          deviceId: "local-alert-device",
-          deviceLabel: "Celular do turno",
-          audienceRole: "shift_team",
+        await registerAlertDevice({
+          ...pushDeviceIdentity,
           permissionStatus: "local_only",
           registeredAt: now().toISOString(),
         });
@@ -289,10 +327,8 @@ export function TodayScreen({
         return;
       }
 
-      await repository.registerAlertDevice({
-        deviceId: "local-alert-device",
-        deviceLabel: "Celular do turno",
-        audienceRole: "shift_team",
+      await registerAlertDevice({
+        ...pushDeviceIdentity,
         permissionStatus: "granted",
         expoPushToken: token.expoPushToken,
         registeredAt: now().toISOString(),
@@ -419,6 +455,11 @@ export function TodayScreen({
     prepareTurnCacheStatus === undefined || prepareTurnCacheStatus === null
       ? undefined
       : prepareTurnNotice(prepareTurnCacheStatus, prepareTurnSource);
+  const showCentralNotice =
+    centralNotice !== undefined &&
+    (!centralPackageReady || (prepareTurnCacheStatus?.conflictCount ?? 0) > 0);
+  const syncPendingCount = syncQueue?.totalCount ?? 0;
+  const hasSyncWork = syncPendingCount > 0;
   const heroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
@@ -447,13 +488,14 @@ export function TodayScreen({
         <Text style={styles.heroKicker}>{todayCopy.title}</Text>
         <Text style={styles.safetyVerdict}>{verdict}</Text>
         <View style={styles.heroStatusStack}>
-          {centralNotice === undefined ? null : (
+          {centralNotice === undefined || !showCentralNotice ? null : (
             <StatusNotice title={centralNotice.label} tone={centralNotice.tone}>
               {centralNotice.body}
             </StatusNotice>
           )}
           <OfflineStatusBand
             disabled={isSyncing || syncEngine === undefined}
+            hideWhenReady
             queue={syncQueue}
             status={offlineStatus}
             onRetry={() => void manualSync()}
@@ -480,10 +522,12 @@ export function TodayScreen({
             <Text style={styles.heroMetricValue}>{tasks.length}</Text>
             <Text style={styles.heroMetricLabel}>tarefas ativas</Text>
           </View>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{syncQueue?.totalCount ?? 0}</Text>
-            <Text style={styles.heroMetricLabel}>a sincronizar</Text>
-          </View>
+          {hasSyncWork ? (
+            <View style={styles.heroMetric}>
+              <Text style={styles.heroMetricValue}>{syncPendingCount}</Text>
+              <Text style={styles.heroMetricLabel}>a sincronizar</Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.heroActions}>
           <View style={styles.heroActionPrimary}>
@@ -516,14 +560,12 @@ export function TodayScreen({
         ) : null}
       </View>
 
-      {buildInfo === undefined ? null : <PilotBuildInfoCard buildInfo={buildInfo} />}
-
       <View style={styles.shiftCloseEntry}>
         <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>
         <Text style={styles.shiftCloseBody}>
           {canCloseShift
-            ? "Revise riscos, sincronização e a conferência física antes de encerrar o turno."
-            : "O fechamento exige liderança autorizada nesta loja."}
+            ? "Revise riscos, sincronizacao e conferencia fisica antes de encerrar o turno."
+            : "O fechamento exige lideranca autorizada nesta loja."}
         </Text>
         {canCloseShift && onOpenShiftClose !== undefined ? (
           <SecondaryAction label="Revisar fechamento do turno" onPress={onOpenShiftClose} />
@@ -557,6 +599,7 @@ export function TodayScreen({
 
       <SyncQueueSummary
         disabled={isSyncing || syncEngine === undefined}
+        hideWhenEmpty
         queue={syncQueue}
         onRetry={() => void manualSync()}
         onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
@@ -631,6 +674,9 @@ export function TodayScreen({
       {futureAttention.length === 0 ? null : (
         <View style={styles.futureSection}>
           <Text style={styles.sectionTitle}>{todayCopy.sections.future_attention}</Text>
+          <Text style={styles.futureIntro}>
+            Sem tarefa ativa agora. Estes lotes ficam no radar para a proxima leitura central.
+          </Text>
           {futureAttention.map((item) => {
             const label = `${item.productDisplayName} - lote ${item.lotIdentity.value}`;
 
@@ -644,57 +690,6 @@ export function TodayScreen({
       )}
     </ScrollView>
   );
-}
-
-function PilotBuildInfoCard({ buildInfo }: { buildInfo: MobileBuildInfo }) {
-  return (
-    <View style={styles.buildInfoCard}>
-      <View style={styles.buildInfoHeader}>
-        <Text style={styles.buildInfoTitle}>Build do piloto</Text>
-        <View
-          style={[
-            styles.buildInfoBadge,
-            buildInfo.buildCompatibility === "atual"
-              ? styles.buildInfoBadgeSuccess
-              : buildInfo.buildCompatibility === "incompativel"
-                ? styles.buildInfoBadgeCritical
-                : styles.buildInfoBadgeWarning,
-          ]}
-        >
-          <Text
-            style={[
-              styles.buildInfoBadgeText,
-              buildInfo.buildCompatibility === "atual"
-                ? styles.buildInfoBadgeSuccessText
-                : buildInfo.buildCompatibility === "incompativel"
-                  ? styles.buildInfoBadgeCriticalText
-                  : undefined,
-            ]}
-          >
-            {pilotBuildCompatibilityLabel(buildInfo.buildCompatibility)}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.buildInfoBody}>
-        Versao {buildInfo.appVersion} ({buildInfo.appBuild}) - {buildInfo.environment}
-      </Text>
-      <View style={styles.buildInfoGrid}>
-        <Text style={styles.buildInfoMeta}>APK aprovado: {buildInfo.approvedArtifactLabel}</Text>
-        <Text style={styles.buildInfoMeta}>
-          Alvo aprovado: {buildInfo.approvedAppVersion} ({buildInfo.approvedBuild})
-        </Text>
-        <Text style={styles.buildInfoMeta}>API: {buildInfo.apiTarget}</Text>
-        <Text style={styles.buildInfoMeta}>Pacote: {buildInfo.packageId}</Text>
-      </View>
-    </View>
-  );
-}
-
-function pilotBuildCompatibilityLabel(state: MobileBuildInfo["buildCompatibility"]): string {
-  if (state === "atual") return "Aprovado";
-  if (state === "desatualizado") return "Atualizar";
-  if (state === "incompativel") return "Incompativel";
-  return "Conferir";
 }
 
 export function TodayTaskRow({
@@ -875,6 +870,10 @@ function AlertChannelSurface({
     );
   }
 
+  if (channelState === "active") {
+    return null;
+  }
+
   const notice = channelNoticeFor(channelState, feedback);
   const isError =
     channelState === "denied" || channelState === "unavailable" || channelState === "failed";
@@ -884,12 +883,10 @@ function AlertChannelSurface({
       <Text style={[styles.alertNoticeText, isError ? styles.alertNoticeWarningText : undefined]}>
         {notice}
       </Text>
-      {channelState === "active" ? null : (
-        <SecondaryAction
-          label={channelState === "denied" ? todayCopy.push.openSettings : todayCopy.push.retry}
-          onPress={onActivate}
-        />
-      )}
+      <SecondaryAction
+        label={channelState === "denied" ? todayCopy.push.openSettings : todayCopy.push.retry}
+        onPress={onActivate}
+      />
     </View>
   );
 }
@@ -1102,7 +1099,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   heroActionSecondary: {
-    flexBasis: 132,
+    flexBasis: 131,
     flexGrow: 1,
   },
   emptyState: {
@@ -1282,7 +1279,7 @@ const styles = StyleSheet.create({
     color: captureColors.warningInk,
   },
   futureSection: {
-    backgroundColor: captureColors.warningSurface,
+    backgroundColor: captureColors.surface,
     borderColor: captureColors.warningBorder,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
@@ -1425,7 +1422,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   futureItem: {
-    color: captureColors.warningInk,
+    color: captureColors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  futureIntro: {
+    color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
   },

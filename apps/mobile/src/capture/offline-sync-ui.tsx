@@ -24,13 +24,20 @@ export function OfflineStatusBand({
   queue,
   onRetry,
   disabled = false,
+  hideWhenReady = false,
 }: {
   status: OfflineCacheStatus | undefined;
   queue: SyncQueueSummaryRecord | undefined;
   onRetry: () => void;
   disabled?: boolean;
+  hideWhenReady?: boolean;
 }) {
   if (status === undefined) {
+    return null;
+  }
+
+  const hasPending = queue !== undefined && queue.totalCount > 0;
+  if (hideWhenReady && status.state === "offline_ready" && !hasPending) {
     return null;
   }
 
@@ -42,8 +49,6 @@ export function OfflineStatusBand({
         : "info";
   const title = offlineTitle(status);
   const body = offlineBody(status);
-  const hasPending = queue !== undefined && queue.totalCount > 0;
-
   return (
     <View
       style={[
@@ -107,13 +112,19 @@ export function SyncQueueSummary({
   onRetry,
   onReviewConflict,
   disabled = false,
+  hideWhenEmpty = false,
 }: {
   queue: SyncQueueSummaryRecord | undefined;
   onRetry: () => void;
   onReviewConflict: (conflictId: string) => void;
   disabled?: boolean;
+  hideWhenEmpty?: boolean;
 }) {
   if (queue === undefined) {
+    return null;
+  }
+
+  if (hideWhenEmpty && queue.totalCount === 0) {
     return null;
   }
 

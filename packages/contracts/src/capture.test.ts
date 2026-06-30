@@ -478,7 +478,8 @@ describe("capture runtime contracts", () => {
           syncState: "pending_central",
           reviewStatus: "pending_review",
           acknowledgedAt: "2030-01-10T09:00:00.000Z",
-          message: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+          message:
+            "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
         },
       }),
     ).toMatchObject({

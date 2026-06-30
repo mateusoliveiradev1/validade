@@ -127,6 +127,15 @@ export function AuditWorkbench({
 
   const isInitialLoading = status === "loading" && events.length === 0;
   const isEmpty = status === "ready" && events.length === 0;
+  const statusCounts = countAuditStatuses(events);
+  const activeFilterCount = [
+    query.from,
+    query.to,
+    query.actorId,
+    query.type,
+    query.targetType,
+    query.targetId,
+  ].filter((value) => value !== undefined).length;
   const filterFormKey = [
     query.from ?? "",
     query.to ?? "",
@@ -144,10 +153,23 @@ export function AuditWorkbench({
             Auditoria operacional
           </h2>
           <p className="text-sm leading-5 text-muted-foreground">
-            Escopo: <strong>{initialStoreName}</strong> ({initialStoreId})
+            Trilha auditavel de acoes, conflitos e acessos da <strong>{initialStoreName}</strong>.
+            Use filtros para investigar um lote, pessoa ou fechamento sem expor dados fora da loja.
           </p>
         </div>
-        <Badge tone="neutral">Consulta por loja</Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="neutral">Consulta por loja</Badge>
+          <Badge tone={activeFilterCount === 0 ? "neutral" : "warning"}>
+            {activeFilterCount} filtro(s)
+          </Badge>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        <AuditMetric label="Eventos visiveis" tone="neutral" value={events.length} />
+        <AuditMetric label="Recebidos" tone="success" value={statusCounts.received} />
+        <AuditMetric label="Pendentes" tone="warning" value={statusCounts.pending} />
+        <AuditMetric label="Conflitos/negados" tone="critical" value={statusCounts.blocked} />
       </div>
 
       <form
@@ -273,16 +295,21 @@ export function AuditWorkbench({
       ) : null}
 
       {nextCursor === undefined ? null : (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          onClick={() =>
-            void loadEvents(AuditQuerySchema.parse({ ...query, cursor: nextCursor }), "append")
-          }
-        >
-          Carregar mais eventos
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Mostrando {events.length} evento(s). Ha mais registros para estes filtros.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit"
+            onClick={() =>
+              void loadEvents(AuditQuerySchema.parse({ ...query, cursor: nextCursor }), "append")
+            }
+          >
+            Carregar mais 25 eventos
+          </Button>
+        </div>
       )}
 
       <Sheet
@@ -296,6 +323,49 @@ export function AuditWorkbench({
         </SheetContent>
       </Sheet>
     </section>
+  );
+}
+
+function AuditMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "neutral" | "success" | "warning" | "critical";
+  value: number;
+}) {
+  return (
+    <div className="grid gap-1 rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xl font-semibold leading-6">{value}</p>
+        <Badge tone={tone}>
+          {tone === "success" ? "OK" : tone === "neutral" ? "Info" : "Revisar"}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+function countAuditStatuses(events: readonly AuditTimelineItem[]): {
+  blocked: number;
+  pending: number;
+  received: number;
+} {
+  return events.reduce(
+    (counts, event) => {
+      if (event.status === "received") {
+        return { ...counts, received: counts.received + 1 };
+      }
+
+      if (event.status === "pending_ack") {
+        return { ...counts, pending: counts.pending + 1 };
+      }
+
+      return { ...counts, blocked: counts.blocked + 1 };
+    },
+    { blocked: 0, pending: 0, received: 0 },
   );
 }
 

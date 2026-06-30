@@ -23,7 +23,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   const pageText = await page.locator("body").innerText();
   expect(pageText).not.toContain("UAT Loja 18");
-  expect(pageText).not.toContain("phase-12-staging-apk-120");
+  expect(pageText).not.toContain("uat14-staging-apk-132");
   expect(pageText).not.toContain("Provider push sem prova atual");
   expect(pageText.indexOf("Lotes criticos")).toBeLessThan(pageText.indexOf("Tarefas atrasadas"));
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
@@ -37,17 +37,17 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
   );
 
   await navigation.getByRole("button", { name: "Aparelhos", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Aparelhos" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Bloqueado, atencao, apto" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aparelhos", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aparelhos em uso no turno" })).toBeVisible();
   await expect(page.getByText("Moto G Lideranca Loja 18")).toBeVisible();
-  await expect(page.getByText("moto...018 - Lideranca FICTICIA")).toBeVisible();
-  await expect(page.getByText("APK aprovado")).toBeVisible();
+  await expect(page.getByText("Operador: Lideranca FICTICIA. ID seguro: moto...018")).toBeVisible();
+  await expect(page.getByText("APK aprovado", { exact: true })).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 
   await navigation.getByRole("button", { name: "Atualizacoes", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Atualizacoes" })).toBeVisible();
-  await expect(page.getByText("phase-12-staging-apk-120")).toBeVisible();
+  await expect(page.getByText("uat14-staging-apk-132")).toBeVisible();
   await expect(page.getByRole("button", { name: "Ver instrucoes manuais" })).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
@@ -60,7 +60,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
   await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
   await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
   await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
-  await expect(page.getByText("phase-12-staging-apk-120")).toHaveCount(0);
+  await expect(page.getByText("uat14-staging-apk-132")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 });
@@ -71,7 +71,9 @@ test("role and store scope keep operational routes denied for admin-only access"
   await installWebFixture(page, { session: adminSession });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Convites e vinculos da loja" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Convites, papeis e pessoas autorizadas" }),
+  ).toBeVisible();
   await expect(page.getByText("Lideranca V1 FICTICIA")).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "Navegacao principal" });
   await expect(navigation.getByRole("button", { name: "Operacao", exact: true })).toBeDisabled();

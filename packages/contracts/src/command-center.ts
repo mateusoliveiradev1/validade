@@ -181,6 +181,7 @@ export const CommandCenterProductDraftSchema = z
     reviewStatus: z.enum(["pending_review", "rejected", "discarded"]),
     detail: RequiredTextSchema,
     similarCount: z.number().int().nonnegative(),
+    syncedLotCount: z.number().int().nonnegative(),
     requestedByLabel: RequiredTextSchema,
     createdAt: IsoDateTimeSchema,
   })

@@ -146,7 +146,7 @@ describe("ShiftCloseScreen", () => {
       );
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("passagem insegura continua disponível");
+    expect(JSON.stringify(tree!.toJSON())).toContain("passagem com pendencias continua disponivel");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Encerrar turno com area segura" }).props
         .disabled,
@@ -155,16 +155,16 @@ describe("ShiftCloseScreen", () => {
     await act(() => {
       tree!.root
         .findByProps({ accessibilityLabel: "Motivo" })
-        .props.onChangeText("Risco vencido ainda em conferência.");
+        .props.onChangeText("Risco vencido ainda em conferencia.");
       tree!.root
-        .findByProps({ accessibilityLabel: "Responsável pela continuidade" })
+        .findByProps({ accessibilityLabel: "Responsavel pela continuidade" })
         .props.onChangeText("Lideranca Ficticia Noturna");
       tree!.root
-        .findByProps({ accessibilityLabel: "Prazo (ISO)" })
-        .props.onChangeText("2030-01-10T19:00:00.000Z");
+        .findByProps({ accessibilityLabel: "Prazo da passagem" })
+        .props.onChangeText("19:00");
       tree!.root
         .findByProps({ accessibilityLabel: "Nota para a passagem" })
-        .props.onChangeText("Retomar retirada física.");
+        .props.onChangeText("Retomar retirada fisica.");
     });
 
     await act(() => {
@@ -177,6 +177,13 @@ describe("ShiftCloseScreen", () => {
       "Fechamento inseguro pendente de sincronizacao",
     );
     expect(queueUnsafeShiftClose).toHaveBeenCalledTimes(1);
+    expect(queueUnsafeShiftClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          continuityDeadline: "2030-01-10T22:00:00.000Z",
+        }),
+      }),
+    );
   });
 
   it("keeps safe close blocked when the central turn read is still empty", async () => {
@@ -253,6 +260,6 @@ describe("ShiftCloseScreen", () => {
       );
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("exige liderança autorizada");
+    expect(JSON.stringify(tree!.toJSON())).toContain("exige lideranca autorizada");
   });
 });

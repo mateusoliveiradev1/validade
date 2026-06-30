@@ -7,7 +7,7 @@ describe("mobile build info", () => {
       application: {
         applicationId: "com.validadezero.app",
         nativeApplicationVersion: "0.12.0",
-        nativeBuildVersion: "120",
+        nativeBuildVersion: "132",
       },
       constants: {
         default: {
@@ -17,10 +17,10 @@ describe("mobile build info", () => {
             extra: {
               EXPO_PUBLIC_API_URL: "https://api.ficticia.invalid",
               VALIDADE_ZERO_APP_ENV: "staging",
-              VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL: "phase-12-staging-apk-120",
+              VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL: "uat14-staging-apk-132",
               VALIDADE_ZERO_APPROVED_APP_VERSION: "0.12.0",
-              VALIDADE_ZERO_APPROVED_BUILD: "120",
-              VALIDADE_ZERO_BUILD_REF: "phase12-public",
+              VALIDADE_ZERO_APPROVED_BUILD: "132",
+              VALIDADE_ZERO_BUILD_REF: "uat14-public",
             },
           },
         },
@@ -29,14 +29,14 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "120",
+      appBuild: "132",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       packageId: "com.validadezero.app",
-      approvedArtifactLabel: "phase-12-staging-apk-120",
+      approvedArtifactLabel: "uat14-staging-apk-132",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "120",
-      buildRef: "phase12-public",
+      approvedBuild: "132",
+      buildRef: "uat14-public",
       buildCompatibility: "atual",
     });
   });
@@ -47,7 +47,7 @@ describe("mobile build info", () => {
       constants: {
         expoConfig: {
           version: "0.12.0",
-          android: { package: "com.validadezero.app", versionCode: 120 },
+          android: { package: "com.validadezero.app", versionCode: 132 },
           extra: {},
         },
       },
@@ -55,7 +55,7 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "120",
+      appBuild: "132",
       packageId: "com.validadezero.app",
       buildCompatibility: "atual",
     });
@@ -73,7 +73,7 @@ describe("mobile build info", () => {
     const futureBuild = readMobileBuildInfo({
       application: {
         nativeApplicationVersion: "0.13.0",
-        nativeBuildVersion: "130",
+        nativeBuildVersion: "132",
       },
       constants: { expoConfig: { extra: {} } },
     });
@@ -93,7 +93,7 @@ describe("mobile build info", () => {
     expect(oldBuild.buildCompatibility).toBe("desatualizado");
     expect(futureBuild.buildCompatibility).toBe("incompativel");
     expect(unknownBuild.buildCompatibility).toBe("desconhecido");
-    expect(unknownBuild.approvedArtifactLabel).toBe("phase-12-staging-apk-120");
+    expect(unknownBuild.approvedArtifactLabel).toBe("uat14-staging-apk-132");
     expect(unknownBuild.buildRef).not.toBe(longRef);
     expect(unknownBuild.buildRef).toMatch(/^abcdef123\.\.\./);
     expect(JSON.stringify(unknownBuild)).not.toMatch(/token|segredo|expo\.dev|abcdef1234567890/i);

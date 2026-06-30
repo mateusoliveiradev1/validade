@@ -131,7 +131,7 @@ export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftClose
   if (central !== undefined && central.pendingProductDraftCount > 0) {
     blockers.push({
       code: "central_product_review_pending",
-      label: "Ha produto em rascunho aguardando revisao central.",
+      label: "Ha cadastro de produto aguardando revisao central.",
       actionLabel: "Revisar cadastro pendente",
     });
   }

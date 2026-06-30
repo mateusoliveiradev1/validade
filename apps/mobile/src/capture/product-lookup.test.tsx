@@ -140,7 +140,7 @@ describe("manual product discovery", () => {
     });
 
     act(() => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Cadastrar produto novo");
     });
 
     expect(openProductFormWith?.gtin).toBe("7890000000001");
@@ -197,7 +197,7 @@ describe("manual product discovery", () => {
     });
 
     await act(async () => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Cadastrar produto novo");
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -207,7 +207,7 @@ describe("manual product discovery", () => {
     expect(created).toEqual([]);
 
     await act(async () => {
-      press(tree!, "Criar rascunho operacional");
+      press(tree!, "Cadastrar produto novo");
       await Promise.resolve();
       await Promise.resolve();
     });

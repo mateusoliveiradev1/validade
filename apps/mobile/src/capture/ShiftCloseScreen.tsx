@@ -19,9 +19,9 @@ import { ShiftCloseReceipt } from "./ShiftCloseReceipt";
 import { createSafeShiftCloseRequest, createUnsafeShiftCloseRequest } from "./shift-close";
 
 const checklistCopy: Record<ShiftCloseChecklistKey, string> = {
-  sales_area_checked: "Conferi fisicamente a área de venda.",
-  pending_work_explained: "Expliquei as pendências que continuam ativas.",
-  handoff_ready: "A passagem está pronta para a próxima liderança.",
+  sales_area_checked: "Conferi fisicamente a area de venda.",
+  pending_work_explained: "Expliquei as pendencias que continuam ativas.",
+  handoff_ready: "A passagem esta pronta para a proxima lideranca.",
 };
 
 export function ShiftCloseScreen({
@@ -102,7 +102,7 @@ export function ShiftCloseScreen({
       <ScrollView contentContainerStyle={styles.screen}>
         <ScreenHeader title="Fechamento do turno" />
         <StatusNotice tone="info">
-          O fechamento exige liderança autorizada nesta loja. Continue a execução das tarefas do
+          O fechamento exige lideranca autorizada nesta loja. Continue a execucao das tarefas do
           turno.
         </StatusNotice>
         <SecondaryAction label="Voltar para Hoje" onPress={onBack} />
@@ -122,16 +122,27 @@ export function ShiftCloseScreen({
     );
   }
 
+  const parsedDeadline = parseContinuityDeadline(deadline, now());
+  const deadlineError =
+    deadline.trim().length === 0 || parsedDeadline !== undefined
+      ? undefined
+      : "Informe um horario como 19:00 ou uma data ISO valida.";
   const canQueueUnsafe =
     reason.trim().length > 0 &&
     owner.trim().length > 0 &&
-    deadline.trim().length > 0 &&
+    parsedDeadline !== undefined &&
     note.trim().length > 0;
   const canRequestSafe = evaluation?.eligibility === "eligible_safe" && onSafeClose !== undefined;
 
   async function queueUnsafeClose(): Promise<void> {
-    if (!canQueueUnsafe || repository.queueUnsafeShiftClose === undefined) {
-      setFeedback("Não foi possível salvar a passagem insegura neste aparelho.");
+    const continuityDeadline = parseContinuityDeadline(deadline, now());
+
+    if (
+      !canQueueUnsafe ||
+      continuityDeadline === undefined ||
+      repository.queueUnsafeShiftClose === undefined
+    ) {
+      setFeedback("Nao foi possivel salvar a passagem com pendencias neste aparelho.");
       return;
     }
     const timestamp = now().toISOString();
@@ -140,7 +151,7 @@ export function ShiftCloseScreen({
       verdict: "unsafe",
       reason: reason.trim(),
       continuityOwner: owner.trim(),
-      continuityDeadline: deadline.trim(),
+      continuityDeadline,
       note: note.trim(),
       checklist,
       occurredAt: timestamp,
@@ -170,7 +181,23 @@ export function ShiftCloseScreen({
       );
       setSafeClosure(closure);
     } catch {
-      setFeedback("A validação central encontrou uma mudança. Registre a passagem com pendências.");
+      const fallbackDeadline = defaultContinuityDeadline(now());
+
+      setReason((current) =>
+        current.trim().length === 0
+          ? "A leitura central mudou durante a validacao segura."
+          : current,
+      );
+      setOwner((current) => (current.trim().length === 0 ? "Lideranca seguinte" : current));
+      setDeadline((current) => (current.trim().length === 0 ? fallbackDeadline : current));
+      setNote((current) =>
+        current.trim().length === 0
+          ? "Atualizar Hoje, revisar bloqueios e continuar a conferencia fisica."
+          : current,
+      );
+      setFeedback(
+        "A central encontrou mudanca antes de aceitar area segura. A passagem com pendencias ja ficou preparada abaixo.",
+      );
       await refresh();
     } finally {
       setIsValidating(false);
@@ -181,15 +208,15 @@ export function ShiftCloseScreen({
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
         title="Fechamento do turno"
-        body="O horário de saída não transforma pendências em área segura."
+        body="O horario de saida nao transforma pendencias em area segura."
       />
       <StatusNotice tone={evaluation?.eligibility === "eligible_safe" ? "success" : "error"}>
         {evaluation?.eligibility === "eligible_safe"
-          ? "Pronto para validação central de área segura."
-          : "Há bloqueios ou dados sem validação central. A passagem insegura continua disponível."}
+          ? "Pronto para validacao central de area segura."
+          : "Ha bloqueios ou dados sem validacao central. A passagem com pendencias continua disponivel."}
       </StatusNotice>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Conferência física obrigatória</Text>
+        <Text style={styles.sectionTitle}>Conferencia fisica obrigatoria</Text>
         {SHIFT_CLOSE_CHECKLIST_KEYS.map((key) => {
           const checked = checklist.includes(key);
           return (
@@ -205,7 +232,7 @@ export function ShiftCloseScreen({
               }
               style={[styles.checkRow, checked ? styles.checkRowChecked : undefined]}
             >
-              <Text style={styles.checkMark}>{checked ? "✓" : "○"}</Text>
+              <Text style={styles.checkMark}>{checked ? "OK" : "-"}</Text>
               <Text style={styles.checkText}>{checklistCopy[key]}</Text>
             </Pressable>
           );
@@ -229,7 +256,7 @@ export function ShiftCloseScreen({
       />
       {onSafeClose === undefined ? (
         <Text style={styles.helper}>
-          A confirmação segura só aparece após a API central validar o turno.
+          A confirmacao segura so aparece apos a API central validar o turno.
         </Text>
       ) : null}
       <View style={[styles.card, styles.unsafeCard]}>
@@ -242,25 +269,28 @@ export function ShiftCloseScreen({
           label="Motivo"
           value={reason}
           onChangeText={setReason}
-          placeholder="Ex.: retirada crítica ainda em conferência"
+          placeholder="Ex.: retirada critica ainda em conferencia"
         />
         <Field
-          label="Responsável pela continuidade"
+          label="Responsavel pela continuidade"
           value={owner}
           onChangeText={setOwner}
-          placeholder="Nome da liderança seguinte"
+          placeholder="Nome da lideranca seguinte"
         />
         <Field
-          label="Prazo (ISO)"
+          label="Prazo da passagem"
           value={deadline}
           onChangeText={setDeadline}
-          placeholder="2030-01-10T19:00:00.000Z"
+          placeholder="Ex.: 19:00"
         />
+        {deadlineError === undefined ? null : (
+          <Text style={styles.fieldError}>{deadlineError}</Text>
+        )}
         <Field
           label="Nota para a passagem"
           value={note}
           onChangeText={setNote}
-          placeholder="Próximo passo físico obrigatório"
+          placeholder="Proximo passo fisico obrigatorio"
         />
         <PrimaryAction
           disabled={!canQueueUnsafe}
@@ -309,6 +339,39 @@ function centralStateFromPrepareTurn(
     pendingCommandCount,
     storeBlockerCount: prepared ? 0 : 1,
   };
+}
+
+function parseContinuityDeadline(value: string, reference: Date): string | undefined {
+  const trimmed = value.trim();
+
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  const timeMatch = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
+  if (timeMatch === null) {
+    return undefined;
+  }
+
+  const candidate = new Date(reference);
+  candidate.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+
+  if (candidate.getTime() <= reference.getTime()) {
+    candidate.setDate(candidate.getDate() + 1);
+  }
+
+  return candidate.toISOString();
+}
+
+function defaultContinuityDeadline(reference: Date): string {
+  const candidate = new Date(reference.getTime() + 60 * 60 * 1000);
+  candidate.setMinutes(0, 0, 0);
+  return candidate.toISOString();
 }
 
 const styles = StyleSheet.create({
@@ -382,5 +445,10 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
+  },
+  fieldError: {
+    color: captureColors.critical,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

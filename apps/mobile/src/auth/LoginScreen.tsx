@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     gap: captureSpacing.small,
   },
   supportAction: {
-    flexBasis: 132,
+    flexBasis: 131,
     flexGrow: 1,
   },
 });

@@ -91,7 +91,7 @@ export const todayCopy = {
     check_sales_area: "Conferir na area de venda",
     request_markdown: "Pedir rebaixa",
     follow_up: "Acompanhar",
-    future_attention: "Atencao futura",
+    future_attention: "Monitoramento futuro",
   },
   incompatibleAction:
     "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",

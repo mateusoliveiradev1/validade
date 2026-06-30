@@ -77,14 +77,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "120",
+    appBuild: "132",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedArtifactLabel: "uat14-staging-apk-132",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "120",
-    buildRef: "phase12-public",
+    approvedBuild: "132",
+    buildRef: "uat14-auto-132",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -271,6 +271,11 @@ async function renderAjustes(input: {
         onRequestCentralRefresh={input.onRequestCentralRefresh}
         prepareTurnCacheStatus={input.prepareTurnCacheStatus ?? readyPrepareTurnCacheStatus()}
         prepareTurnSource={input.prepareTurnSource ?? "central"}
+        pushDeviceIdentity={{
+          deviceId: "validade-zero-mobile:loja-ficticia",
+          deviceLabel: "Android piloto - com.validadezero.app",
+          audienceRole: "shift_team",
+        }}
         repository={repository}
         session={input.session}
         syncEngine={input.syncEngine}
@@ -349,7 +354,7 @@ describe("AjustesScreen push controls", () => {
     expect(alertChannel.requestedPermissionCount).toBe(1);
     expect(registerAlertDevice).toHaveBeenCalledWith(
       expect.objectContaining({
-        deviceId: "local-alert-device",
+        deviceId: "validade-zero-mobile:loja-ficticia",
         permissionStatus: "granted",
       }),
     );
@@ -402,8 +407,8 @@ describe("AjustesScreen sync controls", () => {
     expect(text).toContain("10/01/2030");
     expect(text).toContain("06:00");
     expect(text).not.toContain("2030-01-10T09:00:00.000Z");
-    expect(text).toContain("Ultima sincronizacao enviada");
-    expect(text).toContain("Este estado nao bloqueia o fechamento seguro por sync.");
+    expect(text).toContain("Fila local conferida");
+    expect(text).toContain("Sync nao bloqueia o fechamento seguro nesta leitura.");
   });
 
   it("explains stale central reads with local time and a central refresh action", async () => {
@@ -442,7 +447,7 @@ describe("AjustesScreen sync controls", () => {
 
     expect(text).toContain("Atencao");
     expect(text).toContain("Ha pendencias nao criticas neste aparelho");
-    expect(text).toContain("Este estado nao bloqueia o fechamento seguro por sync.");
+    expect(text).toContain("Sync nao bloqueia o fechamento seguro nesta leitura.");
     expect(text).not.toContain("Este estado bloqueia fechamento seguro");
   });
 
@@ -579,9 +584,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("phase-12-staging-apk-120");
+    expect(text).toContain("uat14-staging-apk-132");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("120");
+    expect(text).toContain("132");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

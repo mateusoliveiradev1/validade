@@ -76,8 +76,9 @@ const projection = {
       draftId: "product-draft-001",
       label: "Banana Nanica FICTICIA",
       reviewStatus: "pending_review",
-      detail: "Rascunho criado no mobile e aguardando validacao central.",
+      detail: "Cadastro criado no mobile e aguardando validacao central.",
       similarCount: 1,
+      syncedLotCount: 1,
       requestedByLabel: "Colaborador FICTICIO",
       createdAt: "2030-01-10T11:00:00.000Z",
     },
@@ -134,13 +135,13 @@ const projection = {
       storeId: "loja-piloto",
       storeName: "Loja Ficticia Piloto",
       appVersion: "0.12.0",
-      appBuild: "120",
+      appBuild: "132",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "phase-12-staging-apk-120",
+      approvedArtifactLabel: "uat14-staging-apk-132",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "120",
+      approvedBuild: "132",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       lastCentralReadAt: "2030-01-10T11:56:00.000Z",
@@ -338,9 +339,9 @@ function pilotBlockers() {
       category: "product_review",
       severity: "warning",
       ownership: "operator",
-      label: "Produto pendente de revisao",
-      cause: "Rascunho criado no mobile e aguardando validacao central.",
-      nextAction: "Revisar produto antes de declarar catalogo pronto.",
+      label: "Cadastro de produto em revisao",
+      cause: "Cadastro criado no mobile e aguardando validacao central.",
+      nextAction: "Validar o cadastro do produto antes de declarar catalogo pronto.",
       affectedLabel: "Banana Nanica FICTICIA",
       updatedAt,
     },
@@ -361,33 +362,46 @@ describe("CommandCenter", () => {
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
     expect(screen.getByText("Foto da central")).toBeTruthy();
-    expect(screen.getByText("Aparelhos: 0 aptos, 1 em atencao, 0 bloqueados")).toBeTruthy();
+    expect(
+      screen.getByText("Aparelhos do turno: 0 aptos, 1 em atencao, 0 bloqueados"),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Abrir Aparelhos" })).toBeTruthy();
     expect(
       screen.getByText("Nenhum bloqueio de aparelho afeta a operacao diaria agora."),
     ).toBeTruthy();
     expect(screen.getByText("1 lote central")).toBeTruthy();
-    expect(screen.getByText("1 produto em rascunho")).toBeTruthy();
+    expect(screen.getByText("1 cadastro em revisao")).toBeTruthy();
     expect(screen.getByText("Por que venceu")).toBeTruthy();
     expect(screen.getAllByText("Prazo formal ja passou").length).toBeGreaterThan(0);
     expect(screen.getByText("Sync da retirada ainda nao foi confirmado.")).toBeTruthy();
     expect(screen.getByText("Retirar, registrar destino e reconferir a gondola")).toBeTruthy();
-    expect(screen.getByText("Produtos em revisao")).toBeTruthy();
+    expect(screen.getByText("Cadastros de produto em revisao")).toBeTruthy();
     expect(screen.getByText("Banana Nanica FICTICIA")).toBeTruthy();
+    expect(screen.getByText("1 produto(s) parecido(s) revisado(s)")).toBeTruthy();
+    expect(screen.getByText("1 lote sincronizado")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Impacto: lote ja aparece na operacao; falta validar o cadastro do produto.",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("Acoes descartadas pela central")).toBeTruthy();
     expect(screen.getByText("Historico resolvido")).toBeTruthy();
     expect(screen.getByText(/Retirada confirmada por Lider FICTICIO/)).toBeTruthy();
     const text = document.body.textContent ?? "";
-    expect(text.indexOf("Por que venceu")).toBeLessThan(text.indexOf("Produtos em revisao"));
+    expect(text.indexOf("Por que venceu")).toBeLessThan(
+      text.indexOf("Cadastros de produto em revisao"),
+    );
     expect(text).not.toContain("UAT Loja 18");
     expect(text).not.toContain("Aparelhos do piloto");
     expect(text).not.toContain("Bloqueios do piloto");
-    expect(text).not.toContain("phase-12-staging-apk-120");
+    expect(text).not.toContain("uat14-staging-apk-132");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Lembrete aceito pelo provider");
     expect(text).not.toContain("Provider push sem prova atual");
     expect(text).not.toMatch(/pushToken|expoPushToken|rawDeviceId|buildUrl/i);
-    expect(text.indexOf("Produtos em revisao")).toBeLessThan(text.indexOf("Lotes criticos"));
+    expect(text.indexOf("Cadastros de produto em revisao")).toBeLessThan(
+      text.indexOf("Lotes criticos"),
+    );
     expect(text.indexOf("Lotes criticos")).toBeLessThan(text.indexOf("Tarefas atrasadas"));
     expect(text.indexOf("Tarefas atrasadas")).toBeLessThan(text.indexOf("Rebaixas pendentes"));
     expect(text.indexOf("Rebaixas pendentes")).toBeLessThan(
@@ -543,8 +557,8 @@ describe("CommandCenter", () => {
     const text = document.body.textContent ?? "";
     expect(text.indexOf("Aparelho Bloqueado")).toBeLessThan(text.indexOf("Aparelho Atencao"));
     expect(text.indexOf("Aparelho Atencao")).toBeLessThan(text.indexOf("Aparelho Apto"));
-    expect(screen.getByText("moto...bloq - Lider FICTICIO")).toBeTruthy();
-    expect(screen.getAllByText("Causa:").length).toBeGreaterThan(0);
+    expect(screen.getByText("Operador: Lider FICTICIO. ID seguro: moto...bloq")).toBeTruthy();
+    expect(screen.getAllByText("Estado:").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Agora:").length).toBeGreaterThan(0);
     expect(
       screen.getByText(
@@ -577,7 +591,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Atual",
             buildCompatibility: "atual",
             appVersion: "0.12.0",
-            appBuild: "120",
+            appBuild: "132",
             nextAction: "Aparelho ja esta na build aprovada.",
             updatedAt: "2030-01-10T12:04:00.000Z",
           },
@@ -607,7 +621,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Incompativel",
             buildCompatibility: "incompativel",
             appVersion: "0.13.0",
-            appBuild: "130",
+            appBuild: "132",
             nextAction: "Remover build incompativel e reinstalar a aprovada.",
             updatedAt: "2030-01-10T12:01:00.000Z",
           },
@@ -618,9 +632,9 @@ describe("CommandCenter", () => {
     render(<CommandCenter activeRoute="atualizacoes" client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByRole("heading", { name: "Atualizacoes" })).toBeTruthy();
-    expect(screen.getByText("phase-12-staging-apk-120")).toBeTruthy();
+    expect(screen.getByText("uat14-staging-apk-132")).toBeTruthy();
     expect(screen.getAllByText("0.12.0").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("120").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("132").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Ver instrucoes manuais" })).toBeTruthy();
 
     const text = document.body.textContent ?? "";
@@ -671,14 +685,16 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Resolver push em Aparelhos")).toBeTruthy();
     expect(screen.getByText("Resolver atualizacao em Atualizacoes")).toBeTruthy();
     expect(screen.getByText("Revisar operacao diaria em Operacao")).toBeTruthy();
-    expect(screen.getByText("Registrar status da validacao")).toBeTruthy();
+    expect(
+      screen.getByText(/O status de validacao e calculado pela leitura central atual/),
+    ).toBeTruthy();
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("Causa:");
     expect(text).toContain("Agora:");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Ver instrucoes manuais");
-    expect(text).not.toContain("phase-12-staging-apk-120");
+    expect(text).not.toContain("uat14-staging-apk-132");
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Resolver push em Aparelhos" }));
@@ -747,7 +763,7 @@ describe("CommandCenter", () => {
     });
     expect(await screen.findByText("Aparelho operando apenas com lembrete local")).toBeTruthy();
     expect(screen.getByText("Configurar push remoto e repetir o teste seguro.")).toBeTruthy();
-    expect(screen.getByText(/nao resolve tarefa, nao prova area segura/i)).toBeTruthy();
+    expect(screen.getByText(/prova apenas o canal de push/i)).toBeTruthy();
   });
 
   it("keeps shared route selectors public-safe and projection-derived", () => {

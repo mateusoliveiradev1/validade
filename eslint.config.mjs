@@ -102,6 +102,7 @@ export default tseslint.config(
             "apps/web/src/memberships/invite-administration.test.tsx",
             "apps/web/src/privacy/privacy-center.test.tsx",
             "apps/web/vite.config.ts",
+            "packages/adapters/src/alerts.test.ts",
             "packages/adapters/src/evidence.test.ts",
             "packages/config/src/index.test.ts",
             "packages/contracts/src/authorization.test.ts",

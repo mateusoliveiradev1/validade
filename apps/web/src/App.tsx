@@ -75,7 +75,7 @@ export function App() {
     setSessionToken(parsed.sessionToken);
     setScreen("login");
   }
-  if (screen === "loading")
+  if (screen === "loading" || (session !== undefined && sessionToken === undefined))
     return (
       <main className="grid min-h-screen place-items-center bg-background p-4">
         <div className="grid w-full max-w-md gap-3">

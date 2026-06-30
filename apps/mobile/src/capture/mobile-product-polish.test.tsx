@@ -36,10 +36,9 @@ describe("mobile product polish", () => {
 
     expect(chain).toContain("Buscar produto por nome, codigo ou categoria");
     expect(chain).toContain("Usar este produto");
-    expect(chain).toContain("Criar rascunho operacional");
-    expect(chain).toContain(
-      "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
-    );
+    expect(chain).toContain("Cadastrar produto novo");
+    expect(chain).toContain("Produto e lote sao etapas diferentes");
+    expect(chain).toContain("Cadastro do produto em revisao central. O lote pode sincronizar");
     expect(chain).toContain("Previa de risco");
     expect(chain).toContain("Acao salva neste aparelho");
     expect(chain).not.toMatch(/#F5F7EF|#E6EEE4|#112016|#3F5546|#B42318/);
@@ -65,6 +64,6 @@ describe("mobile product polish", () => {
     expect(copy).toContain("Ainda falta sincronizar para confirmacao central.");
     expect(task).toContain('evidence.kind === "photo_pending"');
     expect(shiftClose).toContain("Bloqueios atuais");
-    expect(shiftClose).toContain("O horário de saída não transforma pendências em área segura.");
+    expect(shiftClose).toContain("O horario de saida nao transforma pendencias em area segura.");
   });
 });

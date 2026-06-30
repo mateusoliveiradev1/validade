@@ -167,7 +167,7 @@ export function localLotCentralSyncMetadata(
       centralSyncState: "pending_central",
       centralSource: "pending_central",
       centralAcknowledgementMessage:
-        "Produto em rascunho. Lote salvo neste aparelho e pendente da validacao central.",
+        "Cadastro do produto em revisao. Lote salvo neste aparelho e pendente da validacao central.",
     };
   }
 
@@ -347,6 +347,7 @@ export interface CaptureRepository {
   listProductCategories?: () => Promise<readonly CaptureProductCategory[]>;
   findProductsByCategory?: (categoryId: string) => Promise<readonly CaptureProductRecord[]>;
   saveLot(input: SaveLotInput): Promise<CaptureLotSnapshot>;
+  syncPendingCentralLots?: () => Promise<readonly CaptureLotSnapshot[]>;
   appendObservation(
     lotId: string,
     input: PhysicalObservationInput,
@@ -478,7 +479,8 @@ export function productDraftToLocalRecord(draft: ProductDraftReviewState): Captu
     reviewStatus: draft.reviewStatus,
     centralSyncState: draft.syncState,
     draftId: draft.draftId,
-    draftReviewMessage: "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+    draftReviewMessage:
+      "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
     similarCandidateCount: draft.similarCandidates.length,
   };
 }

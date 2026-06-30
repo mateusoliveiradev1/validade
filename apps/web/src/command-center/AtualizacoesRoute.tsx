@@ -1,11 +1,15 @@
 import type { CommandCenterProjection } from "@validade-zero/contracts";
 import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
   DEFAULT_APPROVED_ARTIFACT_LABEL,
   formatDateTime,
+  getConfirmedPilotDevices,
+  getDiagnosticDeviceRecords,
+  getOperationalTurnDevices,
   resolveUpdatePathState,
   sortDevicesByBuildCompatibility,
 } from "./command-center-view-model";
@@ -80,13 +84,18 @@ export function AtualizacoesRoute({
 }
 
 function AtualizacoesContent({ projection }: { projection: CommandCenterProjection }) {
-  const firstDevice = projection.devices[0];
+  const [showManualInstructions, setShowManualInstructions] = useState(false);
+  const confirmedDevices = getConfirmedPilotDevices(projection.devices);
+  const firstDevice = confirmedDevices[0] ?? projection.devices[0];
   const approvedArtifactLabel =
     firstDevice?.approvedArtifactLabel ?? DEFAULT_APPROVED_ARTIFACT_LABEL;
   const approvedAppVersion = firstDevice?.approvedAppVersion ?? "0.12.0";
-  const approvedBuild = firstDevice?.approvedBuild ?? "120";
+  const approvedBuild = firstDevice?.approvedBuild ?? "132";
   const updatePath = resolveUpdatePathState();
-  const sortedDevices = sortDevicesByBuildCompatibility(projection.devices);
+  const operationalDevices = getOperationalTurnDevices(projection.devices, projection.refreshedAt);
+  const diagnosticDevices = getDiagnosticDeviceRecords(projection.devices, operationalDevices);
+  const sortedDevices = sortDevicesByBuildCompatibility(operationalDevices);
+  const buildSummary = summarizeBuilds(operationalDevices);
 
   return (
     <div className="grid gap-6">
@@ -109,6 +118,20 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
           <BuildMetric label="Versao aprovada" value={approvedAppVersion} />
           <BuildMetric label="Build aprovada" value={approvedBuild} />
         </div>
+        <div className="grid gap-2 sm:grid-cols-4">
+          <BuildSummaryMetric label="Aprovados" tone="success" value={buildSummary.atual} />
+          <BuildSummaryMetric label="Antigos" tone="warning" value={buildSummary.desatualizado} />
+          <BuildSummaryMetric
+            label="Desconhecidos"
+            tone="warning"
+            value={buildSummary.desconhecido}
+          />
+          <BuildSummaryMetric
+            label="Incompativeis"
+            tone="critical"
+            value={buildSummary.incompativel}
+          />
+        </div>
       </section>
 
       <section
@@ -126,9 +149,32 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
             {updatePath.detail}
           </p>
         </div>
-        <Button className="min-h-12 w-fit" variant="outline">
+        <Button
+          className="min-h-12 w-fit"
+          variant="outline"
+          onClick={() => {
+            if (updatePath.href !== undefined) {
+              window.open(updatePath.href, "_blank", "noopener,noreferrer");
+              return;
+            }
+            setShowManualInstructions((current) => !current);
+          }}
+        >
           {updatePath.ctaLabel}
         </Button>
+        {showManualInstructions ? (
+          <div className="grid gap-2 rounded-md border border-border bg-background p-3 text-sm leading-5">
+            <p className="font-semibold">Atualizacao manual segura</p>
+            <p className="text-muted-foreground">
+              Instale apenas o APK aprovado ({approvedArtifactLabel}) no aparelho piloto, abra o app
+              com internet e use Preparar turno para a central registrar versao, build e loja.
+            </p>
+            <p className="text-muted-foreground">
+              Se aparecer build desconhecido, entre novamente com convite ativo da loja antes de
+              repetir o UAT.
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <section
@@ -138,9 +184,10 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid gap-1">
             <p className="text-sm font-semibold text-primary">Versoes instaladas</p>
-            <h2 className="text-xl font-semibold leading-6">Aparelhos fora da build primeiro</h2>
+            <h2 className="text-xl font-semibold leading-6">Build instalada por aparelho</h2>
             <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-              Incompativel, desatualizado e desconhecido aparecem antes dos aparelhos atuais.
+              Mostra apenas aparelhos confirmados no turno. Incompativel, desatualizado e
+              desconhecido aparecem antes dos aparelhos atuais.
             </p>
           </div>
           <Badge tone={sortedDevices.length === 0 ? "warning" : "neutral"}>
@@ -193,6 +240,66 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
           </div>
         )}
       </section>
+
+      {diagnosticDevices.length === 0 ? null : (
+        <section
+          className="grid gap-3 rounded-lg border border-border bg-card p-4"
+          aria-label="Builds em diagnostico"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid gap-1">
+              <p className="text-sm font-semibold text-primary">Diagnostico</p>
+              <h2 className="text-xl font-semibold leading-6">Registros fora do turno atual</h2>
+              <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+                Historico antigo, duplicado ou sem usuario confirmado aparece aqui para suporte e
+                nao entra no placar principal.
+              </p>
+            </div>
+            <Badge tone="neutral">{diagnosticDevices.length} registro(s)</Badge>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {sortDevicesByBuildCompatibility(diagnosticDevices).map((device) => (
+              <div
+                key={`${device.deviceIdMasked}-${device.updatedAt}`}
+                className="grid gap-1 rounded-md border p-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-medium">{device.deviceLabel}</p>
+                  <Badge tone={buildCompatibilityTone(device.buildCompatibility)}>
+                    {buildCompatibilityLabel(device.buildCompatibility)}
+                  </Badge>
+                </div>
+                <p className="text-sm leading-5 text-muted-foreground">
+                  {device.deviceIdMasked} - {device.activeUserLabel}
+                </p>
+                <p className="text-sm leading-5 text-muted-foreground">
+                  Instalada: {device.appVersion} / build {device.appBuild}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function BuildSummaryMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "success" | "warning" | "critical";
+  value: number;
+}) {
+  return (
+    <div className="grid gap-1 rounded-md border border-border bg-background p-3">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xl font-semibold leading-6">{value}</p>
+        <Badge tone={tone}>{tone === "success" ? "OK" : "Revisar"}</Badge>
+      </div>
     </div>
   );
 }
@@ -223,6 +330,18 @@ function buildCompatibilityLabel(
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";
+}
+
+function summarizeBuilds(
+  devices: CommandCenterProjection["devices"],
+): Record<CommandCenterProjection["devices"][number]["buildCompatibility"], number> {
+  return devices.reduce(
+    (summary, device) => ({
+      ...summary,
+      [device.buildCompatibility]: summary[device.buildCompatibility] + 1,
+    }),
+    { atual: 0, desconhecido: 0, desatualizado: 0, incompativel: 0 },
+  );
 }
 
 function AtualizacoesSkeleton() {

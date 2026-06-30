@@ -285,12 +285,15 @@ function CommandCenterProjectionView({
       ) : null}
 
       <div className="grid gap-4">
-        <FunnelSection title="Produtos em revisao" count={projection.pendingProductDrafts.length}>
+        <FunnelSection
+          title="Cadastros de produto em revisao"
+          count={projection.pendingProductDrafts.length}
+        >
           {projection.pendingProductDrafts.map((item) => (
             <FunnelRow
               key={item.draftId}
               title={item.label}
-              detail={`${item.requestedByLabel} - ${item.detail}`}
+              detail={`${item.requestedByLabel} - ${productDraftLegacyDetail(item)}`}
               tone="warning"
             />
           ))}
@@ -728,8 +731,8 @@ function DeviceReadinessPanel({
                     {optionalDateLabel(device.lastCentralReadAt)}
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">Ultimo sync: </span>
-                    {optionalDateLabel(device.lastSyncAt)}
+                    <span className="font-medium text-foreground">Fila local: </span>
+                    {optionalDateLabel(device.lastSyncAt, "ainda nao reportada pelo APK")}
                   </p>
                   <p>
                     <span className="font-medium text-foreground">Push: </span>
@@ -864,8 +867,8 @@ function CentralSnapshotPanel({
           value={countLabel(snapshot.productCount, "produto central", "produtos centrais")}
           detail={countLabel(
             snapshot.draftProductCount,
-            "produto em rascunho",
-            "produtos em rascunho",
+            "cadastro em revisao",
+            "cadastros em revisao",
           )}
         />
         <CentralSnapshotMetric
@@ -1713,8 +1716,8 @@ function permissionLabel(
 ): string {
   if (permission === "granted") return "permitida";
   if (permission === "denied") return "negada";
-  if (permission === "not_requested") return "nao solicitada";
-  return "desconhecida";
+  if (permission === "not_requested") return "ainda nao solicitada";
+  return "ainda nao reportada pelo APK";
 }
 
 function pushStateLabel(
@@ -1729,7 +1732,7 @@ function pushStateLabel(
   if (provider === "provider_failed") return `${permissionText}, provedor falhou`;
   if (provider === "local_only") return `${permissionText}, apenas local`;
   if (provider === "not_configured") return `${permissionText}, provedor nao configurado`;
-  return `${permissionText}, provedor desconhecido`;
+  return `${permissionText}, provedor ainda nao reportado`;
 }
 
 function pushTestStateTone(
@@ -1771,8 +1774,8 @@ function pushPermissionOutcomeLabel(
 ): string {
   if (outcome === "granted") return "permitida";
   if (outcome === "denied") return "negada";
-  if (outcome === "not_requested") return "nao solicitada";
-  return "desconhecida";
+  if (outcome === "not_requested") return "ainda nao solicitada";
+  return "ainda nao reportada";
 }
 
 function pushProviderOutcomeLabel(
@@ -1818,8 +1821,19 @@ function appendSafePushTestResult(
   };
 }
 
-function optionalDateLabel(value: string | undefined): string {
-  return value === undefined ? "sem registro" : formatDateTime(value);
+function optionalDateLabel(value: string | undefined, emptyLabel = "ainda nao reportado"): string {
+  return value === undefined ? emptyLabel : formatDateTime(value);
+}
+
+function productDraftLegacyDetail(
+  item: CommandCenterProjection["pendingProductDrafts"][number],
+): string {
+  const lotCopy =
+    item.syncedLotCount === 0
+      ? "nenhum lote ativo ligado a este cadastro"
+      : `${item.syncedLotCount} ${item.syncedLotCount === 1 ? "lote sincronizado" : "lotes sincronizados"}`;
+
+  return `${lotCopy}. ${item.detail}`;
 }
 
 function formatDateTime(value: string): string {

@@ -24,6 +24,10 @@ export default defineConfig({
         target: "http://127.0.0.1:8787",
         changeOrigin: true,
       },
+      "/pilot": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
       "/audit": {
         target: "http://127.0.0.1:8787",
         changeOrigin: true,

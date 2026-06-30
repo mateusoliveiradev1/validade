@@ -8,7 +8,7 @@ import {
   type CaptureProductRecord,
   type CaptureRepository,
 } from "./repository";
-import { captureCopy, productModeLabels } from "./capture-copy";
+import { captureCopy, productLotFlowCopy, productModeLabels } from "./capture-copy";
 import {
   Field,
   PrimaryAction,
@@ -81,7 +81,7 @@ export function ProductDiscoveryScreen({
     setMessage(
       results.length === 0
         ? captureCopy.noMatch
-        : "Selecione o produto e confirme antes de informar o lote.",
+        : "Produto encontrado. Confirme o cadastro correto antes de informar o lote fisico.",
     );
   }
 
@@ -138,6 +138,7 @@ export function ProductDiscoveryScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader title={captureCopy.discoveryTitle} body={captureCopy.discoveryBody} />
+      <StatusNotice title={productLotFlowCopy.title}>{productLotFlowCopy.body}</StatusNotice>
       <Field
         label="Buscar produto por nome, codigo ou categoria"
         value={query}
@@ -181,10 +182,14 @@ export function ProductDiscoveryScreen({
           <Text style={styles.metadata}>Perfil operacional: {resolvedMode}</Text>
           <Text style={styles.metadata}>Modo de trabalho: {productModeLabels[resolvedMode]}</Text>
           {candidate.reviewStatus === "pending_review" ? (
-            <StatusNotice tone="warning" title="Rascunho operacional">
-              Produto em rascunho. O lote entra com risco conservador ate a validacao.
+            <StatusNotice tone="warning" title={productLotFlowCopy.draftProductTitle}>
+              {productLotFlowCopy.draftProductBody}
             </StatusNotice>
-          ) : null}
+          ) : (
+            <StatusNotice title={productLotFlowCopy.centralProductTitle}>
+              {productLotFlowCopy.centralProductBody}
+            </StatusNotice>
+          )}
           <PrimaryAction label="Usar este produto" onPress={() => onConfirmProduct(candidate)} />
         </View>
       )}
@@ -226,15 +231,15 @@ function searchResultMessage(
   state: "reuse_available" | "similar_requires_review" | "draft_pending_review" | "no_safe_reuse",
 ): string {
   if (state === "reuse_available") {
-    return "Produto central encontrado. Use este produto antes de cadastrar outro.";
+    return "Produto do catalogo central encontrado. Use este cadastro antes de criar outro.";
   }
 
   if (state === "similar_requires_review") {
-    return "Produtos parecidos encontrados. Confira antes de criar rascunho operacional.";
+    return "Produtos parecidos encontrados. Confira antes de cadastrar um produto novo.";
   }
 
   if (state === "draft_pending_review") {
-    return "Produto em rascunho. O lote entra com risco conservador ate a validacao.";
+    return "Cadastro em revisao central. Voce pode registrar o lote, mas o produto ainda precisa de validacao.";
   }
 
   return captureCopy.noMatch;
@@ -244,7 +249,7 @@ function productDetail(product: CaptureProductRecord): string {
   const category = product.categoryName ?? product.categoryId;
 
   if (product.reviewStatus === "pending_review") {
-    return `${category} - rascunho em revisao`;
+    return `${category} - cadastro em revisao central`;
   }
 
   if (product.catalogSource === "central") {

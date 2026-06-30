@@ -228,14 +228,13 @@ describe("Today accessibility and copy hardening", () => {
     expect(rendered).not.toContain("Cancelar");
   });
 
-  it("keeps screen-reader order on safety verdict before offline sync support", async () => {
+  it("keeps screen-reader order focused on the safety verdict before healthy diagnostics", async () => {
     const tree = await renderTodayScreen(createRepository(() => Promise.resolve(refreshWith([]))));
     const rendered = JSON.stringify(tree.toJSON());
 
-    expect(rendered.indexOf("Nenhum bloqueio ativo na leitura central")).toBeLessThan(
-      rendered.indexOf("Pronto para operar sem internet"),
-    );
-    expect(rendered).toContain("Tudo sincronizado neste aparelho");
+    expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
+    expect(rendered).not.toContain("Pronto para operar sem internet");
+    expect(rendered).not.toContain("Tudo sincronizado neste aparelho");
     expect(rendered).not.toContain("Sincronizar pendencias");
   });
 

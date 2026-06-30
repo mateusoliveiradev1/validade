@@ -118,6 +118,13 @@ function AuthenticatedCaptureApp({
   }, [apiBaseUrl, authClient, repository, session.store.storeId, session.store.storeName]);
   const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
   const closeShiftClient = useMemo(() => authClient.closeShift.bind(authClient), [authClient]);
+  const registerPushDeviceClient = useMemo(
+    () =>
+      authClient.registerPushDevice === undefined
+        ? undefined
+        : authClient.registerPushDevice.bind(authClient),
+    [authClient],
+  );
 
   if (repository === undefined) {
     return <LaunchRecoveryScreen />;
@@ -135,6 +142,7 @@ function AuthenticatedCaptureApp({
       syncEngine={syncEngine}
       prepareTurnClient={prepareTurnClient}
       closeShiftClient={closeShiftClient}
+      {...(registerPushDeviceClient === undefined ? {} : { registerPushDeviceClient })}
       {...(alertChannel === undefined ? {} : { alertChannel })}
     />
   );

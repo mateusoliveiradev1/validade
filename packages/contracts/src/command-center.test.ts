@@ -192,13 +192,13 @@ describe("Command Center contracts", () => {
   });
 
   it("compares device build only against the approved staging artifact", () => {
-    const approved = { approvedAppVersion: "0.12.0", approvedBuild: "120" };
+    const approved = { approvedAppVersion: "0.12.0", approvedBuild: "132" };
 
     expect(
       resolvePilotBuildCompatibility({
         ...approved,
         appVersion: "0.12.0",
-        appBuild: "120",
+        appBuild: "132",
       }),
     ).toBe("atual");
     expect(
@@ -212,7 +212,7 @@ describe("Command Center contracts", () => {
       resolvePilotBuildCompatibility({
         ...approved,
         appVersion: "0.13.0",
-        appBuild: "130",
+        appBuild: "132",
       }),
     ).toBe("incompativel");
     expect(
@@ -323,13 +323,13 @@ function baseDeviceReadiness() {
     storeId: "loja-ficticia",
     storeName: "Loja Ficticia Piloto",
     appVersion: "0.12.0",
-    appBuild: "120",
+    appBuild: "132",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     buildCompatibility: "atual" as const,
-    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedArtifactLabel: "uat14-staging-apk-132",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "120",
+    approvedBuild: "132",
     lastForegroundAt: "2030-01-10T11:59:00.000Z",
     lastSyncAt: "2030-01-10T11:58:00.000Z",
     lastCentralReadAt: "2030-01-10T11:57:00.000Z",

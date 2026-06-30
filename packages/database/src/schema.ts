@@ -705,6 +705,7 @@ export const centralDeviceSnapshots = pgTable(
     source: centralPackageSourceEnum("source").notNull().default("central"),
     pushPermission: text("push_permission").notNull().default("unknown"),
     pushProviderState: text("push_provider_state").notNull().default("unknown"),
+    expoPushToken: text("expo_push_token"),
     cameraPermission: text("camera_permission").notNull().default("unknown"),
     readinessVerdict: text("readiness_verdict"),
     readinessBlockers: jsonb("readiness_blockers")

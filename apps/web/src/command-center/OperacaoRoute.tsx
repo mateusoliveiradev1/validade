@@ -5,9 +5,11 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
-  countDeviceReadiness,
+  countOperationalDeviceReadiness,
   formatDateTime,
   getDailyOperationDeviceBlockers,
+  getDiagnosticDeviceRecords,
+  getOperationalTurnDevices,
   optionalDateLabel,
 } from "./command-center-view-model";
 
@@ -140,6 +142,7 @@ function OperacaoContent({
 
       <DeviceReadinessStrip
         devices={projection.devices}
+        referenceAt={projection.refreshedAt}
         {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
       />
 
@@ -169,12 +172,16 @@ function OperacaoContent({
 function DeviceReadinessStrip({
   devices,
   onOpenAparelhos,
+  referenceAt,
 }: {
   devices: CommandCenterProjection["devices"];
   onOpenAparelhos?: () => void;
+  referenceAt: string;
 }) {
-  const counts = countDeviceReadiness(devices);
-  const dailyBlockerDevices = devices
+  const operationalDevices = getOperationalTurnDevices(devices, referenceAt);
+  const diagnosticDevices = getDiagnosticDeviceRecords(devices, operationalDevices);
+  const counts = countOperationalDeviceReadiness(devices, referenceAt);
+  const dailyBlockerDevices = operationalDevices
     .map((device) => ({ device, blockers: getDailyOperationDeviceBlockers(device) }))
     .filter((item) => item.blockers.length > 0);
 
@@ -187,12 +194,12 @@ function DeviceReadinessStrip({
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Aparelhos</p>
           <h2 className="text-xl font-semibold leading-6">
-            Aparelhos: {counts.apto} aptos, {counts.atencao} em atencao, {counts.bloqueado}{" "}
+            Aparelhos do turno: {counts.apto} aptos, {counts.atencao} em atencao, {counts.bloqueado}{" "}
             bloqueados
           </h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Prontidao fica visivel aqui; detalhes de push, camera, build e historico ficam em
-            Aparelhos.
+            Este resumo usa aparelhos confirmados na leitura atual. Historico antigo, duplicado ou
+            sem usuario confirmado fica separado em Aparelhos.
           </p>
         </div>
         <Button
@@ -209,6 +216,9 @@ function DeviceReadinessStrip({
       {dailyBlockerDevices.length === 0 ? (
         <div className="rounded-md border border-border bg-background p-3 text-sm leading-5 text-muted-foreground">
           Nenhum bloqueio de aparelho afeta a operacao diaria agora.
+          {diagnosticDevices.length === 0
+            ? ""
+            : ` ${diagnosticDevices.length} registro(s) antigo(s) ou de diagnostico seguem visiveis fora deste resumo.`}
         </div>
       ) : (
         <div className="grid">
@@ -280,8 +290,8 @@ function CentralSnapshotPanel({
           value={countLabel(snapshot.productCount, "produto central", "produtos centrais")}
           detail={countLabel(
             snapshot.draftProductCount,
-            "produto em rascunho",
-            "produtos em rascunho",
+            "cadastro em revisao",
+            "cadastros em revisao",
           )}
         />
         <CentralSnapshotMetric
@@ -424,14 +434,12 @@ function InsightMetric({ label, tone, value }: { label: string; tone: FunnelTone
 function OperationalFunnel({ projection }: { projection: CommandCenterProjection }) {
   return (
     <div className="grid gap-4">
-      <FunnelSection title="Produtos em revisao" count={projection.pendingProductDrafts.length}>
+      <FunnelSection
+        title="Cadastros de produto em revisao"
+        count={projection.pendingProductDrafts.length}
+      >
         {projection.pendingProductDrafts.map((item) => (
-          <FunnelRow
-            key={item.draftId}
-            title={item.label}
-            detail={`${item.requestedByLabel} - ${item.detail}`}
-            tone="warning"
-          />
+          <ProductDraftRow key={item.draftId} item={item} />
         ))}
       </FunnelSection>
       <FunnelSection title="Lotes criticos" count={projection.criticalLots.length}>
@@ -518,6 +526,48 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
           />
         ))}
       </FunnelSection>
+    </div>
+  );
+}
+
+function ProductDraftRow({
+  item,
+}: {
+  item: CommandCenterProjection["pendingProductDrafts"][number];
+}) {
+  const similarLabel =
+    item.similarCount === 0
+      ? "Sem produto parecido encontrado"
+      : `${item.similarCount} produto(s) parecido(s) revisado(s)`;
+  const syncedLotLabel =
+    item.syncedLotCount === 0
+      ? "Nenhum lote ativo ligado a este cadastro"
+      : `${item.syncedLotCount} ${item.syncedLotCount === 1 ? "lote sincronizado" : "lotes sincronizados"}`;
+  const impactLabel =
+    item.syncedLotCount === 0
+      ? "Impacto: cadastro pendente; registre ou confira o lote fisico."
+      : "Impacto: lote ja aparece na operacao; falta validar o cadastro do produto.";
+
+  return (
+    <div className="grid gap-3 rounded-md border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="grid min-w-0 gap-1">
+          <span className="font-medium">{item.label}</span>
+          <span className="text-sm leading-5 text-muted-foreground">
+            Criado por {item.requestedByLabel} em {formatDateTime(item.createdAt)}
+          </span>
+        </div>
+        <Badge className="w-fit" tone="warning">
+          Revisao central
+        </Badge>
+      </div>
+      <div className="grid gap-2 text-sm leading-5 text-muted-foreground sm:grid-cols-3">
+        <span>{similarLabel}</span>
+        <span>{syncedLotLabel}</span>
+        <span>Status: {productDraftStatusLabel(item.reviewStatus)}</span>
+      </div>
+      <p className="text-sm leading-5 text-muted-foreground">{impactLabel}</p>
+      <p className="text-sm leading-5">{item.detail}</p>
     </div>
   );
 }
@@ -610,4 +660,12 @@ function verdictLabel(state: CommandCenterProjection["verdict"]["state"]): strin
 
 function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function productDraftStatusLabel(
+  status: CommandCenterProjection["pendingProductDrafts"][number]["reviewStatus"],
+): string {
+  if (status === "rejected") return "reprovado";
+  if (status === "discarded") return "descartado";
+  return "pendente";
 }

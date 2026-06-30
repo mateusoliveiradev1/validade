@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PrepareTurnRequest, PrepareTurnResponse } from "@validade-zero/contracts";
-import { createFakePushAlertChannel } from "./alert-channel";
+import { createFakePushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import { CaptureApp } from "./CaptureApp";
 import { createMemoryCaptureRepository } from "./memory-repository";
 import type { MobileBuildInfo } from "../build-info";
+import type { SyncEngine } from "./sync-engine";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -75,31 +76,92 @@ describe("prepare-turn gate", () => {
         deviceId: "validade-zero-mobile:loja-piloto",
         deviceLabel: "Android piloto - com.validadezero.app",
         appVersion: "0.12.0",
-        appBuild: "120",
+        appBuild: "132",
         environment: "staging",
         apiTarget: "https://api.ficticia.invalid",
         lastForegroundAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         localSnapshot: expect.objectContaining({ pendingCommandCount: 0 }),
       }),
     );
-    expect(textContent(tree)).toContain("Build do piloto");
-    expect(textContent(tree)).toContain("Versao 0.12.0 (120) - staging");
-    expect(textContent(tree)).toContain("APK aprovado: phase-12-staging-apk-120");
-    expect(textContent(tree)).toContain("Pronto para operar com a leitura central.");
+    expect(textContent(tree)).not.toContain("Build do piloto");
+    expect(textContent(tree)).toContain("Area de venda com risco agora");
     expect(textContent(tree)).toContain("Morango FICTICIO");
   });
 
-  it("opens Hoje from a ready central cache on app reentry", async () => {
+  it("opens Hoje from a ready central cache and checks in silently on app reentry", async () => {
     const repository = createRepository();
     await repository.hydratePrepareTurn?.(preparedTurnResponse());
     const prepareTurnClient = vi.fn(() => Promise.resolve(preparedTurnResponse()));
     const tree = await renderApp(repository, prepareTurnClient);
 
-    expect(prepareTurnClient).not.toHaveBeenCalled();
+    expect(prepareTurnClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appBuild: "132",
+        lastForegroundAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      }),
+    );
     expect(findButton(tree, "Preparar turno")).toBeUndefined();
-    expect(textContent(tree)).toContain("Build do piloto");
-    expect(textContent(tree)).toContain("Pronto para operar com a leitura central.");
+    expect(textContent(tree)).not.toContain("Build do piloto");
     expect(textContent(tree)).toContain("Morango FICTICIO");
+  });
+
+  it("reports remote push readiness during the automatic device check-in", async () => {
+    const repository = createRepository();
+    await repository.hydratePrepareTurn?.(preparedTurnResponse());
+    const alertChannel = createFakePushAlertChannel({
+      permissionState: "active",
+      tokenResult: {
+        state: "active",
+        expoPushToken: "ExpoPushToken-FICTICIO-AUTO",
+      },
+    });
+    const prepareTurnClient = vi.fn(() => Promise.resolve(preparedTurnResponse()));
+
+    await renderApp(repository, prepareTurnClient, { alertChannel });
+
+    expect(prepareTurnClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pushPermission: "granted",
+        pushProviderState: "token_registered",
+      }),
+    );
+  });
+
+  it("drains existing local sync commands automatically after opening with central cache", async () => {
+    const repository = createRepository();
+    await repository.hydratePrepareTurn?.(preparedTurnResponse());
+    const prepareTurnClient = vi.fn(() => Promise.resolve(preparedTurnResponse()));
+    const syncPendingCommands = vi.fn<SyncEngine["syncPendingCommands"]>(() =>
+      Promise.resolve({
+        state: "sent",
+        network: {
+          kind: "online",
+          isConnected: true,
+          isInternetReachable: true,
+          checkedAt: "2030-01-10T12:30:00.000Z",
+          source: "fake",
+        },
+        selectedCommandIds: ["sync-melao-ficticio"],
+        attemptedCommandIds: ["sync-melao-ficticio"],
+        appliedResults: [
+          {
+            status: "ack",
+            commandId: "sync-melao-ficticio",
+            idempotencyKey: "sync-melao-ficticio-key",
+            syncedAt: "2030-01-10T12:30:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    await renderApp(repository, prepareTurnClient, {
+      syncEngine: { syncPendingCommands },
+    });
+
+    expect(syncPendingCommands).toHaveBeenCalledWith({
+      deviceId: "validade-zero-mobile:loja-piloto",
+    });
+    expect(prepareTurnClient).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the loading decision copy visible before Hoje is ready", async () => {
@@ -138,15 +200,15 @@ describe("prepare-turn gate", () => {
 
     await press(tree, "Iniciar cadastro da loja");
 
-    expect(textContent(tree)).toContain("Registrar lote");
+    expect(textContent(tree)).toContain("Produto do lote");
     expect(textContent(tree)).not.toContain("Area de venda segura");
 
     await changeText(tree, "Buscar produto por nome, codigo ou categoria", "banana prata");
     await press(tree, "Buscar manualmente");
-    await press(tree, "Criar rascunho operacional");
+    await press(tree, "Cadastrar produto novo");
     await changeText(tree, "Nome do produto", "Banana Prata");
     await press(tree, "Frutas");
-    await press(tree, "Criar rascunho operacional");
+    await press(tree, "Cadastrar produto novo");
 
     expect(textContent(tree)).toContain("Produto salvo na central");
     expect(textContent(tree)).toContain("Preparar turno novamente");
@@ -204,16 +266,21 @@ function createRepository() {
 async function renderApp(
   repository: ReturnType<typeof createRepository>,
   prepareTurnClient: (request: PrepareTurnRequest) => Promise<PrepareTurnResponse>,
+  input: {
+    alertChannel?: PushAlertChannel | undefined;
+    syncEngine?: SyncEngine | undefined;
+  } = {},
 ): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
 
   await act(async () => {
     tree = create(
       <CaptureApp
-        alertChannel={createFakePushAlertChannel()}
+        alertChannel={input.alertChannel ?? createFakePushAlertChannel()}
         prepareTurnClient={prepareTurnClient}
         buildInfo={pilotBuildInfo()}
         repository={repository}
+        syncEngine={input.syncEngine}
         storeId="loja-piloto"
       />,
     );
@@ -230,14 +297,14 @@ async function renderApp(
 function pilotBuildInfo(): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "120",
+    appBuild: "132",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "phase-12-staging-apk-120",
+    approvedArtifactLabel: "uat14-staging-apk-132",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "120",
-    buildRef: "phase12-public",
+    approvedBuild: "132",
+    buildRef: "uat14-auto-132",
     buildCompatibility: "atual",
   };
 }

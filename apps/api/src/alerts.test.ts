@@ -310,6 +310,60 @@ describe("alert dispatch API seam", () => {
     });
   });
 
+  it("lets an authorized mobile session register its push token without exposing it", async () => {
+    const captureRepository = createInMemoryCaptureRepository();
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        {
+          subjectId: "collaborator-local",
+          role: "collaborator",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+      ]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/push-registrations", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:collaborator-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        deviceId: "local-alert-device",
+        deviceLabel: "Celular do turno",
+        audienceRole: "shift_team",
+        permissionStatus: "granted",
+        expoPushToken: FAKE_TOKEN,
+        registeredAt: NOW,
+      }),
+    });
+    const target = await captureRepository.findDevicePushTarget({
+      storeId: "loja-piloto",
+      deviceIdMasked: "loca...ice",
+    });
+    const readiness = await captureRepository.listDeviceReadiness({
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+      now: new Date(NOW),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "registered",
+      pushProviderState: "token_registered",
+    });
+    expect(target).toMatchObject({
+      deviceLabel: "Celular do turno",
+      expoPushToken: FAKE_TOKEN,
+    });
+    expect(JSON.stringify(readiness)).not.toContain(FAKE_TOKEN);
+  });
+
   it("allows same-store admin to run the push test without granting Command Center read", async () => {
     const { app } = await createPilotPushTestApp();
 
@@ -465,6 +519,17 @@ async function createPilotPushTestApp() {
     pushProviderState: "remote_ready",
     cameraPermission: "granted",
     updatedAt: new Date("2030-01-10T11:48:00.000Z"),
+  });
+  await captureRepository.registerDevicePushChannel({
+    deviceId: "android-piloto-secret-001",
+    storeId: "loja-piloto",
+    storeName: "Loja Ficticia Piloto",
+    deviceLabel: "Moto G Lideranca",
+    activeUserLabel: "Lider FICTICIO",
+    pushPermission: "granted",
+    pushProviderState: "token_registered",
+    expoPushToken: FAKE_TOKEN,
+    registeredAt: new Date("2030-01-10T11:48:30.000Z"),
   });
   await captureRepository.upsertDeviceSnapshot({
     deviceId: "android-outra-secret-001",

@@ -63,7 +63,7 @@ export function MembershipTable(input: {
   return (
     <section
       aria-labelledby="membership-table-title"
-      className="grid gap-4 rounded-xl border border-border bg-card p-5"
+      className="grid gap-4 rounded-lg border border-border bg-card p-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
@@ -71,7 +71,8 @@ export function MembershipTable(input: {
             Vinculos por loja
           </h2>
           <p className="m-0 text-sm text-muted-foreground">
-            Mudancas ficam auditadas; identidade e unidade nao sao alteradas nesta tela.
+            Ajuste apenas o papel operacional. Identidade, loja e historico ficam preservados para
+            auditoria.
           </p>
         </div>
         <Badge>{input.items.length} registro(s)</Badge>

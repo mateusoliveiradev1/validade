@@ -6,6 +6,8 @@ import { Skeleton } from "../components/ui/skeleton";
 import {
   deriveValidationVerdict,
   formatDateTime,
+  getDiagnosticDeviceRecords,
+  getOperationalTurnDevices,
   validationReferenceForBlocker,
   type ValidationRouteReferenceLabel,
 } from "./command-center-view-model";
@@ -110,6 +112,8 @@ function ValidacaoContent({
   const externalCount = projection.pilotUat.steps.filter(
     (step) => step.state === "external_blocked",
   ).length;
+  const operationalDevices = getOperationalTurnDevices(projection.devices, projection.refreshedAt);
+  const diagnosticDevices = getDiagnosticDeviceRecords(projection.devices, operationalDevices);
 
   return (
     <div className="grid gap-6">
@@ -219,7 +223,10 @@ function ValidacaoContent({
         )}
       </section>
 
-      <DeviceEvidencePanel devices={projection.devices} />
+      <DeviceEvidencePanel
+        devices={operationalDevices}
+        diagnosticCount={diagnosticDevices.length}
+      />
 
       <RouteReferencePanel
         {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
@@ -273,7 +280,13 @@ function ChecklistRows({ steps }: { steps: CommandCenterProjection["pilotUat"]["
   );
 }
 
-function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["devices"] }) {
+function DeviceEvidencePanel({
+  devices,
+  diagnosticCount,
+}: {
+  devices: CommandCenterProjection["devices"];
+  diagnosticCount: number;
+}) {
   return (
     <section
       className="grid gap-4 rounded-lg border border-border bg-card p-4"
@@ -282,10 +295,10 @@ function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["de
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Evidencia sanitizada</p>
-          <h2 className="text-xl font-semibold leading-6">Aparelhos e build usados na prova</h2>
+          <h2 className="text-xl font-semibold leading-6">Aparelhos confirmados na prova</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
             A validacao mostra somente id mascarado, compatibilidade, versao instalada e horarios de
-            leitura. A etiqueta aprovada fica em Atualizacoes.
+            leitura dos aparelhos do turno. A etiqueta aprovada fica em Atualizacoes.
           </p>
         </div>
         <Badge tone={devices.length === 0 ? "warning" : "neutral"}>
@@ -327,13 +340,19 @@ function DeviceEvidencePanel({ devices }: { devices: CommandCenterProjection["de
                 <p>
                   <span className="font-medium text-foreground">Leitura central: </span>
                   {device.lastCentralReadAt === undefined
-                    ? "sem registro"
+                    ? "ainda nao reportada pelo APK"
                     : formatDateTime(device.lastCentralReadAt)}
                 </p>
               </div>
             </article>
           ))}
         </div>
+      )}
+      {diagnosticCount === 0 ? null : (
+        <p className="rounded-md border border-border bg-background p-3 text-sm leading-5 text-muted-foreground">
+          {diagnosticCount} registro(s) antigo(s), duplicado(s) ou sem confirmacao foram mantidos em
+          Aparelhos/Atualizacoes para suporte, mas nao contam como prova principal desta leitura.
+        </p>
       )}
     </section>
   );
@@ -355,9 +374,10 @@ function RouteReferencePanel({
     >
       <div className="grid gap-1">
         <p className="text-sm font-semibold text-primary">Proximas acoes</p>
-        <h2 className="text-xl font-semibold leading-6">Validacao referencia, nao duplica</h2>
+        <h2 className="text-xl font-semibold leading-6">Resolva na rota dona da acao</h2>
         <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-          Use a rota dona de cada acao para resolver o gate e volte para registrar o status.
+          A Validacao consolida Go/No-Go. Push, build e operacao continuam sendo corrigidos nas
+          telas onde a evidencia nasce.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -376,14 +396,10 @@ function RouteReferencePanel({
           icon="operacao"
           {...(onOpenOperacao === undefined ? {} : { onClick: onOpenOperacao })}
         />
-        <Button
-          className="min-h-12"
-          disabled
-          title="Registro sera habilitado quando houver endpoint seguro."
-        >
-          <ClipboardCheck className="size-4" aria-hidden="true" />
-          Registrar status da validacao
-        </Button>
+      </div>
+      <div className="rounded-md border border-border bg-background p-3 text-sm leading-5 text-muted-foreground">
+        O status de validacao e calculado pela leitura central atual. Quando todos os gates forem
+        resolvidos, esta tela muda para Go sem precisar registrar um status manual.
       </div>
     </section>
   );

@@ -9,7 +9,7 @@ import {
   type CaptureProductRecord,
   type CaptureRepository,
 } from "./repository";
-import { captureCopy, productModeLabels } from "./capture-copy";
+import { captureCopy, productLotFlowCopy, productModeLabels } from "./capture-copy";
 import {
   Field,
   PrimaryAction,
@@ -110,7 +110,7 @@ export function ProductFormScreen({
     }
 
     if (!canCreate) {
-      setError("Informe nome do produto e categoria para cadastrar o rascunho.");
+      setError("Informe nome do produto e categoria para enviar o cadastro a revisao central.");
       return;
     }
 
@@ -139,7 +139,7 @@ export function ProductFormScreen({
           setSimilarCandidates(response.similarCandidates);
           setError(undefined);
           setNotice(
-            "Produtos parecidos encontrados. Use um existente ou confirme o rascunho operacional.",
+            "Produtos parecidos encontrados. Use um existente ou confirme o cadastro novo.",
           );
           return;
         }
@@ -149,7 +149,7 @@ export function ProductFormScreen({
           return;
         }
 
-        setError("Nao foi possivel criar o rascunho operacional deste produto.");
+        setError("Nao foi possivel cadastrar este produto para revisao central.");
         return;
       }
 
@@ -173,9 +173,12 @@ export function ProductFormScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
-        title="Criar produto para este lote"
-        body="Informe nome e categoria. O codigo lido fica vinculado ao produto para as proximas leituras."
+        title="Cadastrar produto novo"
+        body="Use esta etapa quando o produto nao existe no catalogo. Depois registre o lote fisico."
       />
+      <StatusNotice title={productLotFlowCopy.draftProductTitle}>
+        {productLotFlowCopy.draftProductBody}
+      </StatusNotice>
       <Field label="Nome do produto" value={displayName} onChangeText={setDisplayName} />
       <Text style={styles.sectionLabel}>Categoria</Text>
       {categories.length > 8 ? (

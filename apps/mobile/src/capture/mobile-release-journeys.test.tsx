@@ -773,7 +773,7 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Preparar turno");
     expect(hydratedCaches).toHaveLength(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Pronto para operar com a leitura central.");
+    expect(JSON.stringify(tree.toJSON())).toContain("Nenhum bloqueio ativo na leitura central");
 
     await press(tree, "Registrar lote");
     await act(async () => {

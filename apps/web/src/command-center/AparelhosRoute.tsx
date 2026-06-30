@@ -6,6 +6,8 @@ import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
   formatDateTime,
+  getDiagnosticDeviceRecords,
+  getOperationalTurnDevices,
   getSafePushTestDisabledReason,
   optionalDateLabel,
   sortDevicesByReadiness,
@@ -39,7 +41,8 @@ export function AparelhosRoute({
             Aparelhos
           </h1>
           <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
-            Veja prontidao por aparelho, leitura central, sync, push, camera, build e proxima acao.
+            Confira quais aparelhos reportaram leitura central, fila local, push remoto, camera e
+            APK aprovado.
           </p>
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {lastClientRefreshAt === undefined
@@ -85,6 +88,7 @@ export function AparelhosRoute({
           canSendPilotPushTest={canSendPilotPushTest}
           devices={projection.devices}
           onSendSafePushTest={onSendSafePushTest}
+          referenceAt={projection.refreshedAt}
         />
       )}
     </section>
@@ -95,43 +99,53 @@ function DeviceReadinessList({
   canSendPilotPushTest,
   devices,
   onSendSafePushTest,
+  referenceAt,
 }: {
   canSendPilotPushTest: boolean;
   devices: CommandCenterProjection["devices"];
   onSendSafePushTest: (device: CommandCenterProjection["devices"][number]) => Promise<void>;
+  referenceAt: string;
 }) {
   const [pendingDeviceId, setPendingDeviceId] = useState<string>();
-  const sortedDevices = sortDevicesByReadiness(devices);
+  const [sendError, setSendError] = useState<{ deviceId: string; message: string }>();
+  const operationalDevices = sortDevicesByReadiness(
+    getOperationalTurnDevices(devices, referenceAt),
+  );
+  const diagnosticDevices = sortDevicesByReadiness(
+    getDiagnosticDeviceRecords(devices, operationalDevices),
+  );
 
   return (
     <section className="grid gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Prontidao por aparelho</p>
-          <h2 className="text-xl font-semibold leading-6">Bloqueado, atencao, apto</h2>
+          <h2 className="text-xl font-semibold leading-6">Aparelhos em uso no turno</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Build aparece aqui como resumo de compatibilidade. A orientacao detalhada de atualizacao
-            fica em Atualizacoes.
+            A lista principal mostra aparelho com usuario e loja confirmados na leitura atual.
+            Registros antigos ou incompletos ficam em diagnostico, sem travar a rotina do dia.
           </p>
         </div>
-        <Badge tone={devices.length === 0 ? "warning" : "neutral"}>
-          {devices.length} aparelho(s)
+        <Badge tone={operationalDevices.length === 0 ? "warning" : "neutral"}>
+          {operationalDevices.length} em uso
         </Badge>
       </div>
 
-      {sortedDevices.length === 0 ? (
+      {operationalDevices.length === 0 ? (
         <div className="rounded-md border border-border bg-background p-3 text-sm leading-5 text-muted-foreground">
-          Nenhum aparelho aprovado apareceu nesta loja. Entre no APK de staging com convite ativo,
-          abra Preparar turno e volte aqui para validar a leitura central.
+          Nenhum aparelho confirmado apareceu nesta leitura. Abra o APK aprovado com uma conta da
+          loja, aguarde a leitura central e atualize o painel.
         </div>
       ) : (
         <div className="grid">
-          {sortedDevices.map((device) => {
+          {operationalDevices.map((device) => {
             const disabledReason = getSafePushTestDisabledReason({
               canSendPilotPushTest,
               device,
             });
             const pending = pendingDeviceId === device.deviceIdMasked;
+            const errorMessage =
+              sendError?.deviceId === device.deviceIdMasked ? sendError.message : undefined;
 
             return (
               <article
@@ -142,7 +156,7 @@ function DeviceReadinessList({
                   <div className="grid min-w-0 gap-1">
                     <h3 className="text-lg font-semibold leading-6">{device.deviceLabel}</h3>
                     <p className="text-sm leading-5 text-muted-foreground">
-                      {device.deviceIdMasked} - {device.activeUserLabel}
+                      Operador: {device.activeUserLabel}. ID seguro: {device.deviceIdMasked}
                     </p>
                   </div>
                   <Badge tone={deviceVerdictTone(device.verdict)}>
@@ -152,7 +166,7 @@ function DeviceReadinessList({
 
                 <div className="grid gap-2 text-sm leading-5">
                   <p>
-                    <span className="font-medium">Causa: </span>
+                    <span className="font-medium">Estado: </span>
                     {readinessCauseLabel(device)}
                   </p>
                   <p>
@@ -167,11 +181,11 @@ function DeviceReadinessList({
                     {optionalDateLabel(device.lastCentralReadAt)}
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">Ultimo sync: </span>
-                    {optionalDateLabel(device.lastSyncAt)}
+                    <span className="font-medium text-foreground">Fila local: </span>
+                    {optionalDateLabel(device.lastSyncAt, "ainda nao reportada pelo APK")}
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">Push: </span>
+                    <span className="font-medium text-foreground">Push remoto: </span>
                     {pushStateLabel(device.pushPermission, device.pushProviderState)}
                   </p>
                   <p>
@@ -197,20 +211,34 @@ function DeviceReadinessList({
                   <div className="grid gap-1">
                     <p className="text-sm font-semibold">Teste seguro de push</p>
                     <p className="text-sm leading-5 text-muted-foreground">
-                      Canal de lembrete, nao execucao fisica. Este teste nao resolve tarefa, nao
-                      prova area segura e valida apenas o canal de lembrete.
+                      Envia um lembrete remoto para este aparelho. O teste prova apenas o canal de
+                      push; nao resolve tarefa nem declara area segura.
                     </p>
                     {disabledReason === undefined ? null : (
                       <p className="text-sm leading-5 text-muted-foreground">{disabledReason}</p>
                     )}
                   </div>
+                  {errorMessage === undefined ? null : (
+                    <p className="rounded-md border border-critical-border bg-critical-surface p-3 text-sm leading-5 text-destructive">
+                      {errorMessage}
+                    </p>
+                  )}
                   <Button
                     className="min-h-12 w-fit"
                     disabled={disabledReason !== undefined || pending}
                     title={disabledReason}
                     onClick={() => {
                       setPendingDeviceId(device.deviceIdMasked);
-                      void onSendSafePushTest(device).finally(() => setPendingDeviceId(undefined));
+                      setSendError(undefined);
+                      void onSendSafePushTest(device)
+                        .catch(() => {
+                          setSendError({
+                            deviceId: device.deviceIdMasked,
+                            message:
+                              "Nao foi possivel registrar o teste seguro agora. Atualize o painel e tente novamente; se persistir, o caminho /pilot da API ainda nao esta publicado.",
+                          });
+                        })
+                        .finally(() => setPendingDeviceId(undefined));
                     }}
                   >
                     <BellRing className="size-4" aria-hidden="true" />
@@ -221,6 +249,49 @@ function DeviceReadinessList({
               </article>
             );
           })}
+        </div>
+      )}
+
+      {diagnosticDevices.length === 0 ? null : (
+        <div className="grid gap-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid gap-1">
+              <p className="text-sm font-semibold text-primary">Diagnostico</p>
+              <h3 className="text-lg font-semibold leading-6">
+                Registros antigos ou sem confirmacao
+              </h3>
+              <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+                Mantidos para suporte e auditoria. Eles ajudam a entender rollback, APK antigo ou
+                convite incompleto, mas nao entram no resumo do turno.
+              </p>
+            </div>
+            <Badge tone="neutral">{diagnosticDevices.length} registro(s)</Badge>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {diagnosticDevices.map((device) => (
+              <div key={device.deviceIdMasked} className="grid gap-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="grid min-w-0 gap-1">
+                    <p className="font-medium">{device.deviceLabel}</p>
+                    <p className="text-sm leading-5 text-muted-foreground">
+                      {device.deviceIdMasked} - {device.activeUserLabel}
+                    </p>
+                  </div>
+                  <Badge tone={deviceVerdictTone(device.verdict)}>
+                    {deviceVerdictLabel(device.verdict)}
+                  </Badge>
+                </div>
+                <p className="text-sm leading-5 text-muted-foreground">
+                  Build {device.appVersion} / {device.appBuild}; leitura central{" "}
+                  {optionalDateLabel(device.lastCentralReadAt)}.
+                </p>
+                <p className="text-sm leading-5">
+                  <span className="font-medium">Agora: </span>
+                  {device.nextAction}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>
@@ -235,7 +306,8 @@ function PushTestTimeline({
   if (items.length === 0) {
     return (
       <p className="text-sm leading-5 text-muted-foreground">
-        Nenhum teste seguro registrado para este aparelho nesta leitura.
+        Nenhum teste remoto apareceu nesta leitura. Envie um teste e atualize o painel para ver o
+        retorno do provedor.
       </p>
     );
   }
@@ -307,8 +379,8 @@ function permissionLabel(
 ): string {
   if (permission === "granted") return "permitida";
   if (permission === "denied") return "negada";
-  if (permission === "not_requested") return "nao solicitada";
-  return "desconhecida";
+  if (permission === "not_requested") return "ainda nao solicitada";
+  return "ainda nao reportada pelo APK";
 }
 
 function pushStateLabel(
@@ -323,7 +395,7 @@ function pushStateLabel(
   if (provider === "provider_failed") return `${permissionText}, provedor falhou`;
   if (provider === "local_only") return `${permissionText}, apenas local`;
   if (provider === "not_configured") return `${permissionText}, provedor nao configurado`;
-  return `${permissionText}, provedor desconhecido`;
+  return `${permissionText}, provedor ainda nao reportado`;
 }
 
 function pushTestStateTone(

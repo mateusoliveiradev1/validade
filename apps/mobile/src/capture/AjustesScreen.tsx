@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AlertChannelState } from "@validade-zero/domain";
 import type {
+  DevicePushRegistrationCommand,
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
   SessionContextResponse,
@@ -30,15 +31,29 @@ import { SyncConflictPanel, SyncQueueSummary } from "./offline-sync-ui";
 import { alertChannelStateForRegistration, type CaptureRepository } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 
+type PushDeviceIdentity = Pick<
+  DevicePushRegistrationCommand,
+  "deviceId" | "deviceLabel" | "audienceRole"
+>;
+
+const defaultPushDeviceIdentity: PushDeviceIdentity = {
+  deviceId: "validade-zero-mobile:local",
+  deviceLabel: "Celular do turno",
+  audienceRole: "shift_team",
+};
+
 export function AjustesScreen({
   alertChannel,
   authControls,
   buildInfo,
   onBack,
+  onConfirmCentralDeviceState,
   onRequestCentralRefresh,
+  onRegisterPushDevice,
   now = () => new Date(),
   prepareTurnCacheStatus,
   prepareTurnSource,
+  pushDeviceIdentity = defaultPushDeviceIdentity,
   repository,
   session,
   syncEngine,
@@ -47,10 +62,13 @@ export function AjustesScreen({
   alertChannel?: PushAlertChannel | undefined;
   buildInfo?: MobileBuildInfo | undefined;
   now?: (() => Date) | undefined;
+  onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
   onBack: () => void;
   onRequestCentralRefresh?: (() => void) | undefined;
+  onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
+  pushDeviceIdentity?: PushDeviceIdentity | undefined;
   repository: CaptureRepository;
   session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
@@ -78,6 +96,10 @@ export function AjustesScreen({
   const firstConflictId = syncQueue?.commands.find(
     (command) => command.state === "sync_conflict" && command.conflictId !== undefined,
   )?.conflictId;
+  const syncActionLabel =
+    syncReadiness.pendingCount > 0 || syncReadiness.conflictCount > 0
+      ? "Sincronizar pendencias"
+      : "Conferir fila local";
 
   async function refreshPushState(): Promise<void> {
     const [registration, permission] = await Promise.all([
@@ -122,11 +144,12 @@ export function AjustesScreen({
     try {
       const result = await syncEngine.syncPendingCommands({ manual: true });
       await refreshSyncState();
+      await onConfirmCentralDeviceState?.().catch(() => undefined);
 
       if (result.state === "sent" && result.appliedResults.length > 0) {
         setSyncFeedback("Pendencias enviadas. Confira se a central ainda aponta algum bloqueio.");
       } else if (result.state === "empty") {
-        setSyncFeedback("Tudo sincronizado neste aparelho.");
+        setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
       } else if (result.state === "skipped_offline" || result.state === "transport_failed") {
         setSyncFeedback(
           "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
@@ -165,6 +188,17 @@ export function AjustesScreen({
     await refreshSyncState();
   }
 
+  async function registerAlertDevice(
+    command: DevicePushRegistrationCommand,
+  ): Promise<DevicePushRegistrationCommand> {
+    const registration = await repository.registerAlertDevice(command);
+    if (onRegisterPushDevice !== undefined) {
+      await onRegisterPushDevice(registration).catch(() => undefined);
+    }
+
+    return registration;
+  }
+
   async function activateAlerts(): Promise<void> {
     if (alertChannel === undefined || isUpdatingPush) return;
 
@@ -177,10 +211,8 @@ export function AjustesScreen({
 
       if (permission.state !== "active") {
         const permissionStatus = permission.state === "denied" ? "denied" : "unavailable";
-        await repository.registerAlertDevice({
-          deviceId: "local-alert-device",
-          deviceLabel: "Celular do turno",
-          audienceRole: "shift_team",
+        await registerAlertDevice({
+          ...pushDeviceIdentity,
           permissionStatus,
           registeredAt,
         });
@@ -192,10 +224,8 @@ export function AjustesScreen({
       const token = await alertChannel.getExpoPushToken();
 
       if (token.state !== "active" || token.expoPushToken === undefined) {
-        await repository.registerAlertDevice({
-          deviceId: "local-alert-device",
-          deviceLabel: "Celular do turno",
-          audienceRole: "shift_team",
+        await registerAlertDevice({
+          ...pushDeviceIdentity,
           permissionStatus: "local_only",
           registeredAt,
         });
@@ -204,10 +234,8 @@ export function AjustesScreen({
         return;
       }
 
-      await repository.registerAlertDevice({
-        deviceId: "local-alert-device",
-        deviceLabel: "Celular do turno",
-        audienceRole: "shift_team",
+      await registerAlertDevice({
+        ...pushDeviceIdentity,
         permissionStatus: "granted",
         expoPushToken: token.expoPushToken,
         registeredAt,
@@ -226,10 +254,8 @@ export function AjustesScreen({
     setIsUpdatingPush(true);
     setPushFeedback(undefined);
     try {
-      await repository.registerAlertDevice({
-        deviceId: "local-alert-device",
-        deviceLabel: "Celular do turno",
-        audienceRole: "shift_team",
+      await registerAlertDevice({
+        ...pushDeviceIdentity,
         permissionStatus: "denied",
         registeredAt: now().toISOString(),
       });
@@ -374,14 +400,14 @@ export function AjustesScreen({
           ) : (
             <PrimaryAction
               disabled={isSyncing || syncEngine === undefined}
-              label={isSyncing ? "Sincronizando pendencias" : "Sincronizar pendencias"}
+              label={isSyncing ? "Conferindo fila local" : syncActionLabel}
               onPress={() => void manualSync()}
             />
           )}
           {syncReadiness.centralRefreshRequired && syncEngine !== undefined ? (
             <SecondaryAction
               disabled={isSyncing}
-              label={isSyncing ? "Sincronizando pendencias" : "Sincronizar pendencias"}
+              label={isSyncing ? "Conferindo fila local" : syncActionLabel}
               onPress={() => void manualSync()}
             />
           ) : null}
@@ -492,11 +518,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "120"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "132"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "phase-12-staging-apk-120"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat14-staging-apk-132"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

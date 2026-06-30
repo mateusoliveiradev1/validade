@@ -25,6 +25,7 @@ apps/mobile/fcm*.json
 dist/
 build/
 coverage/
+artifacts/
 .turbo/
 .expo/
 .wrangler/

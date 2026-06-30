@@ -305,11 +305,21 @@ describe("Hoje push alert UI", () => {
     });
 
     expect(channel.requestedPermissionCount).toBe(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Alertas do turno ativos neste aparelho.");
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Alertas do turno ativos neste aparelho.");
+    expect(JSON.stringify(tree.toJSON())).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+  });
+
+  it("hides the healthy active-alert state from Hoje without hiding tasks", async () => {
+    const { repository } = createRepository({ channel: registration("granted") });
+    const tree = await renderToday({ repository });
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).not.toContain("Alertas do turno ativos neste aparelho.");
+    expect(rendered).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+    expect(rendered).toContain("Retirar agora");
   });
 
   it.each([
-    ["granted", "Alertas do turno ativos neste aparelho."],
     ["denied", "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje."],
     [
       "unavailable",
@@ -479,6 +489,37 @@ describe("Hoje push alert UI", () => {
 });
 
 describe("push notification routing", () => {
+  it("registers remote push with the operational device id when the app opens", async () => {
+    const { repository } = createRepository();
+    const registerPushDeviceClient = vi.fn(() => Promise.resolve());
+    const channel = createFakePushAlertChannel({ permissionState: "active" });
+
+    await act(async () => {
+      create(
+        <CaptureApp
+          repository={repository}
+          alertChannel={channel}
+          registerPushDeviceClient={registerPushDeviceClient}
+          storeId="loja-18"
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(registerPushDeviceClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: "validade-zero-mobile:loja-18",
+        deviceLabel: expect.stringContaining("Android piloto"),
+        permissionStatus: "granted",
+        expoPushToken: "ExpoPushToken-FICTICIO-001",
+      }),
+    );
+    expect(registerPushDeviceClient).not.toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "local-alert-device" }),
+    );
+  });
+
   it("uses the Android back gesture to return from task resolution to Hoje", async () => {
     const task = expiredTask();
     const { repository } = createRepository({ tasks: [task] });

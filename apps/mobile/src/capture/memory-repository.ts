@@ -409,7 +409,7 @@ export function createMemoryCaptureRepository(
       centralSyncState: "pending_central",
       draftId: `draft:${normalizedName}`,
       draftReviewMessage:
-        "Produto em rascunho. O lote entra com risco conservador ate a validacao.",
+        "Cadastro do produto em revisao. O lote entra com risco conservador ate a validacao.",
       similarCandidateCount: similarCandidates.length,
     };
     products.set(record.id, record);
@@ -619,6 +619,70 @@ export function createMemoryCaptureRepository(
 
       throw new Error("central_lot_write_failed", { cause: error });
     }
+  }
+
+  async function syncPendingCentralLots(): Promise<readonly CaptureLotSnapshot[]> {
+    if (
+      dependencies.createCentralLot === undefined ||
+      prepareTurnCacheStatus?.state !== "ready" ||
+      prepareTurnCacheStatus.source !== "central"
+    ) {
+      return [];
+    }
+
+    const syncedLots: CaptureLotSnapshot[] = [];
+
+    for (const [localLotId, localLot] of [...lots.entries()]) {
+      if (
+        localLot.centralSyncState !== "pending_central" &&
+        localLot.centralSyncState !== "local"
+      ) {
+        continue;
+      }
+
+      const localProduct = findProductForLot(localLot.productId);
+      const product =
+        localProduct === undefined ? undefined : centralProductForPendingLot(localProduct);
+
+      if (product === undefined || product.centralProductId === undefined) {
+        continue;
+      }
+
+      const centralLot = centralLotInputForReplay(localLot, product.centralProductId);
+      const request = parseCentralLotCreateRequest({
+        lot: centralLot,
+        actorLabel: localLot.currentObservation.actorLabel,
+        occurredAt: localLot.currentObservation.occurredAt,
+        idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
+      });
+
+      try {
+        const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
+        const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+        const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
+          [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
+        ]);
+
+        lots.delete(localLotId);
+        observations.delete(localLotId);
+        lots.set(synced.id, synced);
+        observations.set(synced.id, [synced.currentObservation]);
+
+        if (response.taskProjection.attention === "active_task") {
+          const task = centralActiveTaskToLocal(
+            centralActiveTaskSnippetFromWriteResponse(response),
+            lotsById,
+          );
+          todayTasks.set(task.id, task);
+        }
+
+        syncedLots.push(synced);
+      } catch {
+        continue;
+      }
+    }
+
+    return syncedLots;
   }
 
   function appendObservation(
@@ -1760,6 +1824,7 @@ export function createMemoryCaptureRepository(
     listProductCategories,
     findProductsByCategory,
     saveLot,
+    syncPendingCentralLots,
     appendObservation,
     listRecentLots,
     loadLotDetail,
@@ -1823,6 +1888,27 @@ export function createMemoryCaptureRepository(
               : "validated",
       centralSyncState: product.state,
     };
+  }
+
+  function centralProductForPendingLot(
+    product: CaptureProductRecord,
+  ): CaptureProductRecord | undefined {
+    if (!isPendingCentralProduct(product)) {
+      return product;
+    }
+
+    if (product.centralProductId === undefined) {
+      return undefined;
+    }
+
+    return [...products.values()].find(
+      (candidate) =>
+        !isPendingCentralProduct(candidate) &&
+        (candidate.id === product.centralProductId ||
+          candidate.centralProductId === product.centralProductId ||
+          (candidate.normalizedName === product.normalizedName &&
+            candidate.categoryId === product.categoryId)),
+    );
   }
 
   function localProductToCatalogItem(product: CaptureProductRecord): ProductCatalogItem {
@@ -2188,6 +2274,47 @@ export function createMemoryCaptureRepository(
     };
   }
 
+  function centralLotInputForReplay(
+    lot: CaptureLotSnapshot,
+    centralProductId: string,
+  ): CaptureLotInput {
+    const base = {
+      productId: centralProductId,
+      identity: lot.identity,
+      approximateQuantity: lot.approximateQuantity,
+      initialLocation: lot.initialLocation,
+    };
+
+    if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
+      return parseLotInput({
+        ...base,
+        mode: lot.mode,
+        expiresAt: lot.expiresAt,
+        ...(lot.receivedAt === undefined ? {} : { receivedAt: lot.receivedAt }),
+      });
+    }
+
+    if (lot.mode === "flv_inspection") {
+      return parseLotInput({
+        ...base,
+        mode: lot.mode,
+        receivedAt: lot.receivedAt,
+        ...(lot.qualityInspectionDueAt === undefined
+          ? {}
+          : { qualityInspectionDueAt: lot.qualityInspectionDueAt }),
+        ...(lot.qualityWindowDays === undefined
+          ? {}
+          : { qualityWindowDays: lot.qualityWindowDays }),
+      });
+    }
+
+    return parseLotInput({
+      ...base,
+      mode: lot.mode,
+      receivedAt: lot.receivedAt,
+    });
+  }
+
   function centralLotInput(lot: CentralLotSnippet): CaptureLotInput {
     const base = {
       productId: lot.centralProductId,
@@ -2309,13 +2436,26 @@ export function createMemoryCaptureRepository(
   }
 
   function centralLotIdempotencyKey(productId: string, lot: CaptureLotInput): string {
-    return [
+    const readable = [
       "mobile-lot",
-      productId,
+      safeLocalIdentifier(productId, 64),
       lot.identity.identitySource,
-      lot.identity.value.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 48),
+      safeLocalIdentifier(lot.identity.value, 48),
       lot.mode,
       lot.initialLocation.kind,
+    ].join(":");
+
+    if (readable.length <= 120) {
+      return readable;
+    }
+
+    return [
+      "mobile-lot",
+      safeLocalIdentifier(productId, 30),
+      safeLocalIdentifier(lot.identity.value, 30),
+      lot.mode,
+      lot.initialLocation.kind,
+      stableIdentifierHash(readable),
     ].join(":");
   }
 
@@ -2760,6 +2900,20 @@ function auditSummaryForCommand(command: SyncCommandRecord): string {
   }
 
   return "Conferencia de rebaixa salva neste aparelho.";
+}
+
+function safeLocalIdentifier(value: string, maxLength: number): string {
+  const normalized = value.replace(/[^a-zA-Z0-9:_-]/g, "-");
+  return normalized.length === 0 ? "central" : normalized.slice(0, maxLength);
+}
+
+function stableIdentifierHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(8, "0").slice(0, 8);
 }
 
 function isActiveTask(task: TodayTaskRecord): boolean {

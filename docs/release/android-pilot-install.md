@@ -7,18 +7,18 @@ Use `staging` for real-device tests outside the development computer. A staging 
 Approved Phase 12 public build identity:
 
 - App version: `0.12.0`
-- Android `versionCode`: `120`
+- Android `versionCode`: `132`
 - Environment: `staging`
-- Approved artifact label: `phase-12-staging-apk-120`
+- Approved artifact label: `uat14-staging-apk-132`
 - Approved API target: `https://validade-zero-api-staging.validadezero.workers.dev`
 
 This label is the public-safe compatibility anchor used by the mobile app and Command Center. It is not an install URL, dashboard URL, provider ticket, account identifier, token, or credential.
 
 ## Current Go/No-Go
 
-Current install rollout is blocked externally. The repo can build and identify the approved Phase 12 artifact, but the public record still lacks a connected approved Android target, a current Maestro pass, provider push delivery/open proof, camera or approved fallback proof, and the physical Loja 18 UAT walkthrough.
+Current install rollout is partially proven. On 2026-06-29, local APK `0.12.0` / `versionCode 132` was generated from the staging code, installed on a connected Android device, and opened without a crash in `logcat`. The public record still needs a current Maestro pass, provider push delivery/open proof, camera or approved fallback proof, and the complete physical Loja 18 UAT walkthrough.
 
-The public release record may say only that the approved artifact label is `phase-12-staging-apk-120`. It must not include the APK URL, dashboard URL, Expo account details, provider ticket, device serial, push token, Firebase file, or private links.
+The public release record may say only that the approved artifact label is `uat14-staging-apk-132`. It must not include the APK URL, dashboard URL, Expo account details, provider ticket, device serial, push token, Firebase file, or private links.
 
 Official Expo references checked on 2026-06-23:
 
@@ -60,6 +60,16 @@ Official Expo references checked on 2026-06-23:
    ```
 7. Restrict distribution of the resulting build link to the approved pilot group. Treat the link as sensitive operational access information, and record only the public-safe artifact label above in repo docs.
 
+## Local Windows APK Build
+
+For direct device testing on Windows, use the repo script instead of running Gradle from the long workspace path. It copies the current workspace to a short build root and installs pnpm with `virtual-store-dir=.v`, avoiding Android/CMake path-length failures.
+
+```powershell
+pnpm.cmd build:android:local
+```
+
+The script writes a local-only APK to `artifacts/validade-zero-staging-0.12.0-132.apk`. `artifacts/` is ignored by Git and must not be used as a public distribution channel.
+
 For a local-only emulator build during development, run Metro with:
 
 ```powershell
@@ -73,7 +83,7 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 2. Confirm Android permits installation from the approved source for that device.
 3. Install with the Android package installer, or use `adb install path-to-pilot.apk` for an emulator/local device workflow.
 4. Open the app and confirm the VZ splash, login, invitation path, Privacy Center (cards open detail screens), and session loading appear before operational work.
-5. Open Command Center and confirm the device reports build compatibility as `atual` against `phase-12-staging-apk-120`. `desatualizado`, `desconhecido`, or `incompativel` blocks pilot rollout even if sync still works.
+5. Open Command Center and confirm the device reports build compatibility as `atual` against `uat14-staging-apk-132`. `desatualizado`, `desconhecido`, or `incompativel` blocks pilot rollout even if sync still works.
 6. Run the Maestro script with `pnpm.cmd test:e2e:mobile` when the device is connected.
 7. Record current pass/block status in the controlled release note and in the public-safe Phase 12 UAT matrix. Do not reuse older APK/emulator PASS evidence as current proof.
 
@@ -87,4 +97,4 @@ pnpm.cmd exec expo start --host lan --port 8081 --clear
 
 The historical local emulator path was verified with Metro and the Neon staging database. On 2026-06-26, the staging Worker was deployed from the release code at that time and an internal Android APK was generated through EAS with the Firebase `GOOGLE_SERVICES_JSON` file variable available to the builder.
 
-Phase 12 stops shipping the pilot as `0.0.0`: the repo now configures mobile `0.12.0`, Android `versionCode` `120`, and the approved staging artifact label `phase-12-staging-apk-120`. The current installed Android gate is still blocked until an approved emulator or Android device is connected and `pnpm.cmd test:e2e:mobile` passes. In the latest public run, `adb devices` listed no attached devices and Maestro reported `Not enough devices connected (0) to run the requested number of shards (1).` Physical-device notification delivery, camera permissions, installation, offline behavior, and the complete Loja 18 UAT loop still require approved Android hardware/provider evidence.
+UAT 14 keeps the pilot on mobile `0.12.0`, Android `versionCode` `132`, and the approved staging artifact label `uat14-staging-apk-132`. The installed Android gate still requires an approved emulator or Android device plus `pnpm.cmd test:e2e:mobile` for full proof. Physical-device notification delivery, camera permissions, installation, offline behavior, and the complete Loja 18 UAT loop require approved Android hardware/provider evidence.

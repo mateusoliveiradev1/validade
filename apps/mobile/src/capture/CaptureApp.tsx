@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as ExpoCamera from "expo-camera";
 import type {
   CaptureProductRecord,
   CaptureRepository,
@@ -24,6 +25,7 @@ import type {
   PrepareTurnCacheStatus,
   PrepareTurnRequest,
   PrepareTurnResponse,
+  DevicePushRegistrationCommand,
   ProductIdentifierInput,
   SessionContextResponse,
   ShiftCloseSafeRequest,
@@ -62,12 +64,19 @@ type CaptureRoute =
   | { name: "settings" };
 
 const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
+type PrepareTurnMode = "manual" | "silent";
+type RegisterPushDeviceClient = (request: DevicePushRegistrationCommand) => Promise<void>;
+type PushDeviceIdentity = Pick<
+  DevicePushRegistrationCommand,
+  "deviceId" | "deviceLabel" | "audienceRole"
+>;
 
 export function CaptureApp({
   repository,
   alertChannel,
   syncEngine,
   prepareTurnClient,
+  registerPushDeviceClient,
   closeShiftClient,
   buildInfo,
   authControls,
@@ -80,6 +89,7 @@ export function CaptureApp({
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   prepareTurnClient?: ((request: PrepareTurnRequest) => Promise<PrepareTurnResponse>) | undefined;
+  registerPushDeviceClient?: RegisterPushDeviceClient | undefined;
   closeShiftClient?:
     | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
     | undefined;
@@ -105,12 +115,32 @@ export function CaptureApp({
   const [todayRefreshRequest, setTodayRefreshRequest] = useState<
     { id: number; source: TodayTaskRefreshSource } | undefined
   >();
+  const autoPrepareTurnAttemptedRef = useRef(false);
+  const autoSyncAttemptedRef = useRef(false);
   const resolvedAlertChannel = useMemo(
     () => alertChannel ?? createExpoPushAlertChannel(),
     [alertChannel],
   );
   const resolvedBuildInfo = useMemo(() => buildInfo ?? readMobileBuildInfo(), [buildInfo]);
+  const pushDeviceIdentity = useMemo(
+    (): PushDeviceIdentity => ({
+      deviceId: `validade-zero-mobile:${storeId}`,
+      deviceLabel: deviceLabelFor(resolvedBuildInfo.packageId),
+      audienceRole: "shift_team",
+    }),
+    [resolvedBuildInfo.packageId, storeId],
+  );
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+
+  useEffect(() => {
+    void refreshLocalPushRegistration(
+      repository,
+      resolvedAlertChannel,
+      () => new Date().toISOString(),
+      pushDeviceIdentity,
+      registerPushDeviceClient,
+    ).catch(() => undefined);
+  }, [pushDeviceIdentity, registerPushDeviceClient, repository, resolvedAlertChannel]);
 
   const navigate = useCallback((route: CaptureRoute): void => {
     setRouteStack((current) => [...current, route]);
@@ -235,58 +265,168 @@ export function CaptureApp({
     };
   }, [repository, resolvedAlertChannel]);
 
-  async function prepareTurn(): Promise<void> {
-    if (prepareTurnClient === undefined) {
-      setPrepareTurnState("ready");
-      return;
-    }
+  const prepareTurn = useCallback(
+    async (mode: PrepareTurnMode = "manual"): Promise<void> => {
+      const isSilent = mode === "silent";
 
-    setPrepareTurnError(undefined);
-    setPrepareTurnState("preparing");
-
-    try {
-      const [cache, queue] = await Promise.all([
-        loadPrepareTurnCache(repository),
-        repository.listSyncQueue(),
-      ]);
-      const requestedAt = new Date().toISOString();
-      const response = await prepareTurnClient({
-        deviceId: `validade-zero-mobile:${storeId}`,
-        deviceLabel: `Android piloto - ${resolvedBuildInfo.packageId}`,
-        requestedAt,
-        appVersion: resolvedBuildInfo.appVersion,
-        appBuild: resolvedBuildInfo.appBuild,
-        environment: resolvedBuildInfo.environment,
-        apiTarget: resolvedBuildInfo.apiTarget,
-        lastForegroundAt: requestedAt,
-        localSnapshot: {
-          ...(cache?.lastCentralReadAt === undefined
-            ? {}
-            : { lastCentralReadAt: cache.lastCentralReadAt }),
-          knownProductCount: cache?.productCount ?? 0,
-          knownLotCount: cache?.lotCount ?? 0,
-          pendingCommandCount: queue.totalCount,
-        },
-      });
-
-      await hydratePrepareTurn(repository, response);
-      setPrepareTurnCache(response.cache);
-
-      if (response.store.readiness === "prepared") {
-        setPrepareTurnSource("central");
-        setPrepareTurnState("ready");
+      if (prepareTurnClient === undefined) {
+        if (!isSilent) {
+          setPrepareTurnState("ready");
+        }
         return;
       }
 
-      setPrepareTurnError(response.store.blockers[0] ?? "A leitura central exige revisao.");
-      setPrepareTurnState("needs_review");
-    } catch {
-      const cache = await loadPrepareTurnCache(repository).catch(() => null);
-      setPrepareTurnCache(cache);
-      setPrepareTurnError("Nao foi possivel baixar a leitura central agora.");
-      setPrepareTurnState(cache?.state === "ready" ? "cache_only" : "error");
+      autoPrepareTurnAttemptedRef.current = true;
+      if (!isSilent) {
+        setPrepareTurnError(undefined);
+        setPrepareTurnState("preparing");
+      }
+
+      try {
+        const [cache, queue, pushReadiness, cameraPermission] = await Promise.all([
+          loadPrepareTurnCache(repository),
+          repository.listSyncQueue(),
+          resolvePrepareTurnPushReadiness(
+            repository,
+            resolvedAlertChannel,
+            () => new Date().toISOString(),
+            pushDeviceIdentity,
+            registerPushDeviceClient,
+          ),
+          readCameraPermissionState(),
+        ]);
+        const requestedAt = new Date().toISOString();
+        const response = await prepareTurnClient({
+          deviceId: pushDeviceIdentity.deviceId,
+          deviceLabel: pushDeviceIdentity.deviceLabel,
+          requestedAt,
+          appVersion: resolvedBuildInfo.appVersion,
+          appBuild: resolvedBuildInfo.appBuild,
+          environment: resolvedBuildInfo.environment,
+          apiTarget: resolvedBuildInfo.apiTarget,
+          lastForegroundAt: requestedAt,
+          ...pushReadiness,
+          ...(cameraPermission === undefined ? {} : { cameraPermission }),
+          localSnapshot: {
+            ...(cache?.lastCentralReadAt === undefined
+              ? {}
+              : { lastCentralReadAt: cache.lastCentralReadAt }),
+            lastSyncedAt: queue.updatedAt,
+            knownProductCount: cache?.productCount ?? 0,
+            knownLotCount: cache?.lotCount ?? 0,
+            pendingCommandCount: queue.totalCount,
+          },
+        });
+
+        await hydratePrepareTurn(repository, response);
+        setPrepareTurnCache(response.cache);
+        setPrepareTurnSource("central");
+
+        if (response.store.readiness === "prepared") {
+          setPrepareTurnState("ready");
+          if (isSilent) {
+            setTodayRefreshRequest((current) => ({
+              id: (current?.id ?? 0) + 1,
+              source: "today_open",
+            }));
+          }
+          return;
+        }
+
+        if (isSilent) {
+          setPrepareTurnState("ready");
+          setTodayRefreshRequest((current) => ({
+            id: (current?.id ?? 0) + 1,
+            source: "today_open",
+          }));
+          return;
+        }
+
+        setPrepareTurnError(response.store.blockers[0] ?? "A leitura central exige revisao.");
+        setPrepareTurnState("needs_review");
+      } catch {
+        const cache = await loadPrepareTurnCache(repository).catch(() => null);
+        setPrepareTurnCache(cache);
+        if (isSilent) {
+          if (cache?.state === "ready") {
+            setPrepareTurnSource(cache.source === "central" ? "central" : "local_cache");
+            setPrepareTurnState("ready");
+          }
+          return;
+        }
+
+        setPrepareTurnError("Nao foi possivel baixar a leitura central agora.");
+        setPrepareTurnState(cache?.state === "ready" ? "cache_only" : "error");
+      }
+    },
+    [
+      prepareTurnClient,
+      pushDeviceIdentity,
+      registerPushDeviceClient,
+      repository,
+      resolvedAlertChannel,
+      resolvedBuildInfo,
+    ],
+  );
+
+  const syncPendingCommandsAutomatically = useCallback(async (): Promise<void> => {
+    const [syncedLots, result] = await Promise.all([
+      repository.syncPendingCentralLots === undefined
+        ? Promise.resolve([])
+        : repository.syncPendingCentralLots().catch(() => []),
+      syncEngine === undefined
+        ? Promise.resolve(undefined)
+        : syncEngine.syncPendingCommands({
+            deviceId: pushDeviceIdentity.deviceId,
+          }),
+    ]);
+
+    if (syncedLots.length > 0 || (result?.state === "sent" && result.appliedResults.length > 0)) {
+      await prepareTurn("silent");
     }
-  }
+  }, [prepareTurn, pushDeviceIdentity.deviceId, repository, syncEngine]);
+
+  useEffect(() => {
+    if (
+      autoPrepareTurnAttemptedRef.current ||
+      prepareTurnClient === undefined ||
+      prepareTurnState !== "ready" ||
+      prepareTurnCache?.state !== "ready" ||
+      prepareTurnCache.source !== "central"
+    ) {
+      return;
+    }
+
+    void prepareTurn("silent");
+  }, [
+    prepareTurn,
+    prepareTurnCache?.source,
+    prepareTurnCache?.state,
+    prepareTurnClient,
+    prepareTurnState,
+  ]);
+
+  useEffect(() => {
+    if (
+      autoSyncAttemptedRef.current ||
+      (syncEngine === undefined && repository.syncPendingCentralLots === undefined) ||
+      prepareTurnState !== "ready" ||
+      prepareTurnCache?.state !== "ready" ||
+      prepareTurnCache.source !== "central"
+    ) {
+      return;
+    }
+
+    autoSyncAttemptedRef.current = true;
+    void syncPendingCommandsAutomatically().catch(() => undefined);
+  }, [
+    prepareTurnCache?.source,
+    prepareTurnCache?.state,
+    prepareTurnState,
+    repository,
+    syncEngine,
+    syncPendingCommandsAutomatically,
+  ]);
 
   function enterWithLocalCache(): void {
     if (prepareTurnCache === null || prepareTurnCache.state !== "ready") {
@@ -419,9 +559,14 @@ export function CaptureApp({
         onRequestCentralRefresh={requestCentralReprepare}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
+        pushDeviceIdentity={pushDeviceIdentity}
         repository={repository}
         session={session}
         syncEngine={syncEngine}
+        onConfirmCentralDeviceState={() => prepareTurn("silent")}
+        {...(registerPushDeviceClient === undefined
+          ? {}
+          : { onRegisterPushDevice: registerPushDeviceClient })}
       />,
     );
   }
@@ -432,7 +577,7 @@ export function CaptureApp({
         cache={prepareTurnCache}
         error={initializationError ?? prepareTurnError}
         state={prepareTurnState}
-        onPrepare={() => void prepareTurn()}
+        onPrepare={() => void prepareTurn("manual")}
         onStartFirstSetup={
           isFirstStoreSetupState(prepareTurnCache) ? startFirstStoreSetup : undefined
         }
@@ -455,8 +600,11 @@ export function CaptureApp({
           syncEngine={syncEngine}
           prepareTurnCacheStatus={prepareTurnCache}
           prepareTurnSource={prepareTurnSource}
-          buildInfo={resolvedBuildInfo}
+          pushDeviceIdentity={pushDeviceIdentity}
           refreshRequest={todayRefreshRequest}
+          {...(registerPushDeviceClient === undefined
+            ? {}
+            : { onRegisterPushDevice: registerPushDeviceClient })}
           onRegisterLot={() => navigate({ name: "discovery" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
@@ -531,15 +679,16 @@ export function CaptureApp({
     return withSessionBar(
       <ScrollView contentContainerStyle={styles.screen}>
         <ScreenHeader
-          title="Produto confirmado"
-          body="Produto pronto para o proximo passo. Registrar lote e opcional neste momento."
+          title="Produto escolhido"
+          body="Agora registre o lote fisico deste produto: validade, quantidade e local."
         />
         <Text style={styles.productName}>{currentRoute.product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {currentRoute.product.categoryId}</Text>
         <Text style={styles.metadata}>Perfil operacional: {productModeLabels[mode]}</Text>
         {currentRoute.product.reviewStatus === "pending_review" ? (
-          <StatusNotice>
-            Produto em rascunho. O lote entra com risco conservador ate a validacao.
+          <StatusNotice title="Cadastro em revisao central" tone="warning">
+            O lote pode ser registrado e sincronizado, mas este produto ainda aparece no painel como
+            cadastro em revisao ate a validacao central.
           </StatusNotice>
         ) : null}
         {needsCentralReprepareBeforeLot ? (
@@ -712,6 +861,225 @@ async function hydratePrepareTurn(
   }
 
   await repository.hydratePrepareTurn(response);
+}
+
+async function resolvePrepareTurnPushReadiness(
+  repository: CaptureRepository,
+  alertChannel: PushAlertChannel,
+  now: () => string,
+  pushDeviceIdentity: PushDeviceIdentity,
+  registerPushDeviceClient?: RegisterPushDeviceClient,
+): Promise<Partial<Pick<PrepareTurnRequest, "pushPermission" | "pushProviderState">>> {
+  const registration = await refreshLocalPushRegistration(
+    repository,
+    alertChannel,
+    now,
+    pushDeviceIdentity,
+    registerPushDeviceClient,
+  ).catch(async () => repository.loadAlertChannelState().catch(() => null));
+
+  return prepareTurnPushFieldsFor(registration);
+}
+
+async function refreshLocalPushRegistration(
+  repository: CaptureRepository,
+  alertChannel: PushAlertChannel,
+  now: () => string,
+  pushDeviceIdentity: PushDeviceIdentity,
+  registerPushDeviceClient?: RegisterPushDeviceClient,
+): Promise<DevicePushRegistrationCommand | null> {
+  const permission = await alertChannel.getPermissionState();
+  const registeredAt = now();
+
+  if (permission.state === "active") {
+    const token = await alertChannel.getExpoPushToken();
+
+    if (token.state === "active" && token.expoPushToken !== undefined) {
+      return registerPushDevice(repository, registerPushDeviceClient, {
+        ...pushDeviceIdentity,
+        permissionStatus: "granted",
+        expoPushToken: token.expoPushToken,
+        registeredAt,
+      });
+    }
+
+    return registerPushDevice(repository, registerPushDeviceClient, {
+      ...pushDeviceIdentity,
+      permissionStatus: "local_only",
+      registeredAt,
+    });
+  }
+
+  return registerPushDevice(repository, registerPushDeviceClient, {
+    ...pushDeviceIdentity,
+    permissionStatus: pushPermissionStatusFor(permission.state),
+    registeredAt,
+  });
+}
+
+async function registerPushDevice(
+  repository: CaptureRepository,
+  registerPushDeviceClient: RegisterPushDeviceClient | undefined,
+  command: DevicePushRegistrationCommand,
+): Promise<DevicePushRegistrationCommand> {
+  const registration = await repository.registerAlertDevice(command);
+  if (registerPushDeviceClient !== undefined) {
+    await registerPushDeviceClient(registration).catch(() => undefined);
+  }
+
+  return registration;
+}
+
+function pushPermissionStatusFor(
+  state: Awaited<ReturnType<PushAlertChannel["getPermissionState"]>>["state"],
+): DevicePushRegistrationCommand["permissionStatus"] {
+  if (state === "denied" || state === "not_requested" || state === "unavailable") {
+    return state;
+  }
+
+  return "unavailable";
+}
+
+function deviceLabelFor(packageId: string): string {
+  const constants = safePlatformConstants();
+  const manufacturer = textFromUnknown(constants?.Manufacturer ?? constants?.Brand);
+  const model = textFromUnknown(constants?.Model ?? constants?.model);
+  const deviceNameParts = ["Android", manufacturer, model].filter(
+    (part): part is string => part !== undefined && part.trim().length > 0,
+  );
+  const deviceName =
+    manufacturer === undefined && model === undefined
+      ? "Android piloto"
+      : deviceNameParts.join(" ");
+
+  return `${deviceName} - ${packageId}`;
+}
+
+function safePlatformConstants():
+  | {
+      Brand?: unknown;
+      Manufacturer?: unknown;
+      Model?: unknown;
+      model?: unknown;
+    }
+  | undefined {
+  try {
+    return (
+      Platform as unknown as
+        | {
+            constants?: {
+              Brand?: unknown;
+              Manufacturer?: unknown;
+              Model?: unknown;
+              model?: unknown;
+            };
+          }
+        | undefined
+    )?.constants;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readCameraPermissionState(): Promise<PrepareTurnRequest["cameraPermission"]> {
+  const cameraModule = safeCameraModule();
+
+  if (cameraModule.getCameraPermissionsAsync === undefined) {
+    return undefined;
+  }
+
+  try {
+    const permission = await cameraModule.getCameraPermissionsAsync();
+    return cameraPermissionStatusFor(permission);
+  } catch {
+    return undefined;
+  }
+}
+
+function safeCameraModule(): {
+  getCameraPermissionsAsync?: () => Promise<{
+    granted?: unknown;
+    status?: unknown;
+  }>;
+} {
+  try {
+    const cameraModule = ExpoCamera as unknown as {
+      getCameraPermissionsAsync?: () => Promise<{
+        granted?: unknown;
+        status?: unknown;
+      }>;
+    };
+    const getCameraPermissionsAsync = cameraModule.getCameraPermissionsAsync;
+
+    if (typeof getCameraPermissionsAsync !== "function") {
+      return {};
+    }
+
+    return { getCameraPermissionsAsync };
+  } catch {
+    return {};
+  }
+}
+
+function cameraPermissionStatusFor(input: {
+  granted?: unknown;
+  status?: unknown;
+}): PrepareTurnRequest["cameraPermission"] {
+  if (input.granted === true || input.status === "granted") return "granted";
+  if (input.status === "denied") return "denied";
+  if (input.status === "undetermined") return "not_requested";
+  return "unknown";
+}
+
+function textFromUnknown(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function prepareTurnPushFieldsFor(
+  registration: DevicePushRegistrationCommand | null,
+): Partial<Pick<PrepareTurnRequest, "pushPermission" | "pushProviderState">> {
+  if (registration === null) {
+    return {
+      pushPermission: "not_requested",
+      pushProviderState: "not_configured",
+    };
+  }
+
+  if (registration.permissionStatus === "granted") {
+    return {
+      pushPermission: "granted",
+      pushProviderState:
+        registration.expoPushToken === undefined ? "local_only" : "token_registered",
+    };
+  }
+
+  if (registration.permissionStatus === "local_only") {
+    return {
+      pushPermission: "granted",
+      pushProviderState: "local_only",
+    };
+  }
+
+  if (registration.permissionStatus === "denied") {
+    return {
+      pushPermission: "denied",
+      pushProviderState: "not_configured",
+    };
+  }
+
+  if (registration.permissionStatus === "not_requested") {
+    return {
+      pushPermission: "not_requested",
+      pushProviderState: "not_configured",
+    };
+  }
+
+  return {
+    pushPermission: "unknown",
+    pushProviderState: "not_configured",
+  };
 }
 
 function PrepareTurnScreen({

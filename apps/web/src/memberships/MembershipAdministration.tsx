@@ -128,15 +128,15 @@ export function MembershipAdministration({
 
   return (
     <section aria-label="Administracao de vinculos" className="grid gap-5">
-      <header className="grid gap-4 rounded-xl border border-border bg-card p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <header className="grid gap-4 rounded-lg border border-border bg-card p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="grid gap-2">
-          <p className="text-sm font-semibold text-primary">Administracao de acessos</p>
+          <p className="text-sm font-semibold text-primary">Acessos da loja</p>
           <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]">
-            Convites e vinculos da loja
+            Convites, papeis e pessoas autorizadas
           </h1>
           <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
-            Crie o primeiro acesso, acompanhe quem ja esta ativo e ajuste papeis sem abrir cadastro
-            publico fora do escopo autorizado.
+            Controle quem pode operar, liderar e administrar esta loja. Toda mudanca fica auditada e
+            nenhum convite concede acesso fora do escopo selecionado.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -147,6 +147,15 @@ export function MembershipAdministration({
           <Badge>{state.context.store.storeName}</Badge>
         </div>
       </header>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AccessMetric label="Ativos" tone="success" value={activeMembershipCount(state.items)} />
+        <AccessMetric
+          label="Revogados"
+          tone="neutral"
+          value={state.items.filter((item) => item.status !== "active").length}
+        />
+        <AccessMetric label="Lojas administraveis" tone="neutral" value={state.stores.length} />
+      </div>
       {state.stores.length > 1 ? (
         <label className="grid max-w-md gap-1 text-sm font-semibold">
           Loja para administrar
@@ -175,6 +184,26 @@ export function MembershipAdministration({
       />
       <MembershipTable fetcher={fetcher} items={state.items} onChanged={update} />
     </section>
+  );
+}
+
+function AccessMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "success" | "neutral";
+  value: number;
+}) {
+  return (
+    <div className="grid gap-1 rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xl font-semibold leading-6">{value}</p>
+        <Badge tone={tone}>{tone === "success" ? "OK" : "Info"}</Badge>
+      </div>
+    </div>
   );
 }
 

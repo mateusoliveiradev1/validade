@@ -44,7 +44,10 @@ describe("AuditWorkbench", () => {
 
     render(<AuditWorkbench client={client} />);
 
-    expect(screen.getByText(/Escopo:/i).textContent).toContain("Loja Ficticia Piloto");
+    expect(screen.getByText(/Trilha auditavel de acoes/i).textContent).toContain(
+      "Loja Ficticia Piloto",
+    );
+    expect(screen.getByText("Eventos visiveis")).toBeTruthy();
     const trigger = await screen.findByRole("button", {
       name: /Retirada registrada na area de venda/i,
     });
@@ -78,7 +81,7 @@ describe("AuditWorkbench", () => {
     render(<AuditWorkbench client={{ listEvents }} />);
 
     await screen.findByText("Retirada registrada na area de venda.");
-    fireEvent.click(screen.getByRole("button", { name: "Carregar mais eventos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais 25 eventos" }));
 
     await screen.findByText("Presenca fisica confirmada.");
     expect(listEvents).toHaveBeenLastCalledWith(

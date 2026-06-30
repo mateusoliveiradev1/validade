@@ -529,6 +529,172 @@ describe("memory capture repository", () => {
     });
   });
 
+  it("replays an existing pending lot once its draft product is validated under the central product id", async () => {
+    const createCentralLot = vi.fn((request) =>
+      Promise.resolve({
+        requestId: "write-pending-lot-central-ficticio",
+        lot: {
+          centralLotId: "lote-central-melao-001",
+          centralProductId: request.lot.productId,
+          productDisplayName: "Melao Amarelo KG PED FICTICIO",
+          lotIdentity: request.lot.identity,
+          mode: "formal_validity" as const,
+          expiresAt: "2030-01-12",
+          receivedAt: "2030-01-10",
+          approximateQuantity: request.lot.approximateQuantity,
+          initialLocation: request.lot.initialLocation,
+          currentObservation: {
+            centralObservationId: "observacao-central-melao-001",
+            centralLotId: "lote-central-melao-001",
+            status: "present" as const,
+            actorLabel: request.actorLabel,
+            occurredAt: request.occurredAt,
+            location: request.lot.initialLocation,
+            quantityState: "estimated" as const,
+            approximateQuantity: request.lot.approximateQuantity,
+            isCorrection: false,
+          },
+          lifecycleStatus: "active" as const,
+          state: "synchronized" as const,
+          source: "central" as const,
+          riskState: "radar" as const,
+          taskProjection: {
+            attention: "future_attention" as const,
+            riskState: "radar" as const,
+            observedAt: "2030-01-10T09:00:00.000Z",
+          },
+          createdAt: "2030-01-10T09:00:00.000Z",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        taskProjection: {
+          attention: "future_attention" as const,
+          riskState: "radar" as const,
+          observedAt: "2030-01-10T09:00:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-central-melao-001",
+          centralLotId: "lote-central-melao-001",
+          state: "synchronized" as const,
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Lote confirmado na central.",
+        },
+      }),
+    );
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: (() => {
+        const identifiers = ["produto-melao-local", "lote-melao-local", "obs-melao-local"];
+        return () => identifiers.shift() ?? "id-melao-extra";
+      })(),
+      createCentralLot,
+    });
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Melao Amarelo KG PED FICTICIO",
+      categoryId: "categoria-ficticia-frutas",
+      categoryName: "Frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    const validatedCentralProductId = "product:loja-ficticia:melao-amarelo-kg-ped-ficticio";
+    const pendingLot = await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "generated_internal", value: "INTERNO-LOCAL-MELAO" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-12",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 4,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaborador local",
+    });
+
+    expect(pendingLot.centralSyncState).toBe("pending_central");
+    expect(createCentralLot).not.toHaveBeenCalled();
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-melao-validado",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: validatedCentralProductId,
+          displayName: "Melao Amarelo KG PED FICTICIO",
+          categoryId: "categoria-ficticia-frutas",
+          categoryName: "Frutas",
+          categoryRuleProfile: {
+            categoryId: "categoria-ficticia-frutas",
+            mode: "formal_validity",
+            windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+          },
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:05:00.000Z",
+        },
+      ],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(repository.syncPendingCentralLots?.()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-melao-001",
+        centralSyncState: "synchronized",
+        centralSource: "central",
+      }),
+    ]);
+    expect(createCentralLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey:
+          "mobile-lot:product:loja-ficticia:melao-am:INTERNO-LOCAL-MELAO:formal_validity:area_de_venda:01yemza4",
+      }),
+    );
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({ id: "lote-central-melao-001" }),
+    ]);
+  });
+
   it("does not confirm central-cache lots locally when the central write fails", async () => {
     const createCentralLot = vi.fn(() => Promise.reject(new Error("network unavailable")));
     const repository = createMemoryCaptureRepository({

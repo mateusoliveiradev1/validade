@@ -20,6 +20,14 @@
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/command-center/:path*"
     },
     {
+      "source": "/pilot/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/pilot/:path*"
+    },
+    {
+      "source": "/capture/:path*",
+      "destination": "https://validade-zero-api-staging.validadezero.workers.dev/capture/:path*"
+    },
+    {
       "source": "/audit/:path*",
       "destination": "https://validade-zero-api-staging.validadezero.workers.dev/audit/:path*"
     },

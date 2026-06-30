@@ -46,12 +46,12 @@ export const ajustesPushCopy = {
 export const ajustesSyncCopy = {
   title: "Sincronizacao",
   centralReadLabel: "Ultima leitura central",
-  syncSendLabel: "Ultima sincronizacao enviada",
-  clearSafeClose: "Este estado nao bloqueia o fechamento seguro por sync.",
+  syncSendLabel: "Fila local conferida",
+  clearSafeClose: "Sync nao bloqueia o fechamento seguro nesta leitura.",
   blockedSafeClose:
     "Este estado bloqueia fechamento seguro ate a central confirmar ou o conflito ser resolvido.",
   missingCentralRead: "Sem leitura central confirmada",
-  missingSyncSend: "Sem envio confirmado",
+  missingSyncSend: "Ainda nao conferida neste aparelho",
   localCacheBlocker: "Leitura local em uso; prepare a central antes de declarar area segura.",
   staleCentralRead: "Leitura central vencida; atualize antes de declarar area segura.",
   refreshCentralRead: "Atualizar leitura central",
@@ -63,7 +63,7 @@ export const ajustesSyncCopy = {
     "Ha pendencias nao criticas neste aparelho. Sincronize assim que a conexao permitir.",
   offlineStale: "Cache offline pode estar desatualizado neste aparelho.",
   offlineUnavailable: "Este aparelho ainda nao tem cache offline preparado.",
-  ready: "Leitura central atual e sem pendencias criticas.",
+  ready: "Leitura central atual e fila local sem pendencias criticas.",
 } as const;
 
 export function pushReadinessFor(input: {

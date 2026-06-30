@@ -20,6 +20,7 @@ import {
   formatOperationalTime,
   lotRegisteredCopy,
   operationalLocations,
+  productLotFlowCopy,
   productModeLabels,
   requiredFieldError,
 } from "./capture-copy";
@@ -150,15 +151,17 @@ export function LotRegistrationScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader
-        title={captureCopy.registerLot}
-        body="Confirme cada dado deste lote antes do registro."
-      />
+      <ScreenHeader title={captureCopy.registerLot} body={productLotFlowCopy.lotRegistrationBody} />
       <View style={styles.productSummary}>
         <Text style={styles.productName}>{product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {product.categoryId}</Text>
         <Text style={styles.metadata}>Perfil: {productModeLabels[mode]}</Text>
       </View>
+      {product.reviewStatus === "pending_review" ? (
+        <StatusNotice title={productLotFlowCopy.draftProductTitle} tone="warning">
+          {productLotFlowCopy.draftProductBody}
+        </StatusNotice>
+      ) : null}
       <Field
         label="Identificação impressa do lote"
         value={printedIdentity}
@@ -403,7 +406,7 @@ function lotSaveConsequence(product: CaptureProductRecord): {
     return {
       tone: pending.tone,
       label: pending.label,
-      body: "Produto em rascunho. O lote entra com risco conservador ate a validacao central.",
+      body: "Cadastro do produto em revisao central. O lote pode sincronizar, mas o produto ainda precisa ser validado.",
     };
   }
 

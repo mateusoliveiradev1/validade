@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "phase-12-staging-apk-120",
+  artifactLabel: "uat14-staging-apk-132",
   appVersion: "0.12.0",
-  build: "120",
+  build: "132",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,7 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "phase12-public", 24),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "uat14-auto-132", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,

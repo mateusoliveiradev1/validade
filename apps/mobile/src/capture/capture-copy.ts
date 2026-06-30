@@ -4,16 +4,17 @@ const operationalTimeZone = "America/Sao_Paulo";
 
 export const captureCopy = {
   appName: "Validade Zero",
-  discoveryTitle: "Registrar lote",
-  discoveryBody: "Primeiro confirme o produto. Depois informe os dados do lote físico.",
+  discoveryTitle: "Produto do lote",
+  discoveryBody:
+    "Escolha um produto do catalogo. Se ele ainda nao existir, cadastre o produto novo e depois registre o lote fisico.",
   manualSearch: "Buscar manualmente",
   registerLot: "Registrar lote",
   confirmProduct: "Confirmar produto",
-  createProduct: "Criar rascunho operacional",
+  createProduct: "Cadastrar produto novo",
   backAndReview: "Voltar e revisar",
   supplierPending: "Fornecedor pendente",
   gtinPending: "GTIN pendente",
-  noMatch: "Nenhum produto corresponde a esta busca.",
+  noMatch: "Nenhum produto encontrado. Cadastre o produto novo e depois registre o lote.",
   recent: "Recentes",
   frequent: "Frequentes",
   byCategory: "Por categoria",
@@ -26,6 +27,18 @@ export const captureCopy = {
   internalIdentity: "Gerar identificação interna",
   otherLocation: "Outro local",
   repeatLot: "Registrar outro lote",
+} as const;
+
+export const productLotFlowCopy = {
+  title: "Produto e lote sao etapas diferentes",
+  body: "Produto e o cadastro usado pela central. Lote e a unidade fisica na loja, com validade, quantidade e local. Um lote pode sincronizar enquanto o produto novo ainda aguarda validacao central.",
+  centralProductTitle: "Produto do catalogo central",
+  centralProductBody: "Proximo passo: registrar o lote fisico encontrado na loja.",
+  draftProductTitle: "Cadastro em revisao central",
+  draftProductBody:
+    "Voce pode registrar o lote. No painel web, este produto continua em revisao ate a central validar o cadastro.",
+  lotRegistrationBody:
+    "Lote e a unidade fisica deste produto na loja. Informe identificacao, quantidade, local e validade.",
 } as const;
 
 export const productModeLabels = {
