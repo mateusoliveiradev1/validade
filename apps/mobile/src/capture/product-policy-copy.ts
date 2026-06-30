@@ -49,7 +49,7 @@ export function toDomainCategoryRuleProfile(
   };
 }
 
-function resolveProductPolicyForProduct(
+export function resolveProductPolicyForProduct(
   product: CaptureProductRecord,
 ): ProductOperationalPolicy | undefined {
   if (product.storePresentation === undefined) {

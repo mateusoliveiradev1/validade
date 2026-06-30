@@ -44,7 +44,10 @@ function createRepository() {
   });
 }
 
-async function createProduct(mode: "formal_validity" | "flv_inspection" | "receiving_monitored") {
+async function createProduct(
+  mode: "formal_validity" | "flv_inspection" | "processed_repack_loss" | "receiving_monitored",
+  options: { storePresentation?: CaptureProductRecord["storePresentation"] } = {},
+) {
   const repository = createRepository();
   const product = await repository.createProduct({
     displayName: "Produto Exemplo FICTICIO",
@@ -60,6 +63,9 @@ async function createProduct(mode: "formal_validity" | "flv_inspection" | "recei
         ...(mode === "flv_inspection" ? { qualityWindowDays: 2 } : {}),
       },
     },
+    ...(options.storePresentation === undefined
+      ? {}
+      : { storePresentation: options.storePresentation }),
   });
 
   return { repository, product };
@@ -114,10 +120,12 @@ function selectDate(tree: ReactTestRenderer, label: string, value: Date): void {
 
 describe("mode-aware lot registration", () => {
   it("blocks incomplete formal-validity registration, calculates its operational window, and resets safely for repeat capture", async () => {
-    const { repository, product } = await createProduct("formal_validity");
+    const { repository, product } = await createProduct("formal_validity", {
+      storePresentation: "supplier_packaged",
+    });
     const tree = renderLotScreen(repository, product);
 
-    expect(JSON.stringify(tree.toJSON())).toContain("Data de validade");
+    expect(JSON.stringify(tree.toJSON())).toContain("Data de validade impressa");
     expect(
       tree.root
         .findAllByType("Pressable")
@@ -134,10 +142,11 @@ describe("mode-aware lot registration", () => {
       press(tree, "Área de venda");
     });
     act(() => {
-      selectDate(tree, "Data de validade", new Date(2030, 0, 15, 12));
+      selectDate(tree, "Data de validade impressa", new Date(2030, 0, 15, 12));
     });
 
-    expect(JSON.stringify(tree.toJSON())).toContain("Avaliacao operacional");
+    expect(JSON.stringify(tree.toJSON())).toContain("Proxima acao");
+    expect(JSON.stringify(tree.toJSON())).toContain("fica no radar");
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
@@ -173,7 +182,7 @@ describe("mode-aware lot registration", () => {
 
     expect(JSON.stringify(flvTree.toJSON())).toContain("Data de recebimento");
     expect(JSON.stringify(flvTree.toJSON())).toContain("Janela de qualidade (dias)");
-    expect(JSON.stringify(flvTree.toJSON())).not.toContain("Data de validade");
+    expect(JSON.stringify(flvTree.toJSON())).not.toContain("Data de validade impressa");
     expect(
       flvTree.root
         .findAllByType("Pressable")
@@ -184,7 +193,7 @@ describe("mode-aware lot registration", () => {
     const receivingTree = renderLotScreen(receiving.repository, receiving.product);
 
     expect(JSON.stringify(receivingTree.toJSON())).toContain("Data de recebimento");
-    expect(JSON.stringify(receivingTree.toJSON())).not.toContain("Data de validade");
+    expect(JSON.stringify(receivingTree.toJSON())).not.toContain("Data de validade impressa");
     expect(
       receivingTree.root
         .findAllByType("Pressable")
@@ -226,5 +235,97 @@ describe("mode-aware lot registration", () => {
     });
     expect(JSON.stringify(formalTree.toJSON())).toContain("Identificação interna");
     expect(JSON.stringify(formalTree.toJSON())).not.toContain("Código do fornecedor");
+  });
+
+  it("uses store presentation policy before legacy mode fields and blocks rebaixa for unknown products", async () => {
+    const loose = await createProduct("formal_validity", { storePresentation: "loose_whole" });
+    const looseTree = renderLotScreen(loose.repository, loose.product);
+    const looseRendered = JSON.stringify(looseTree.toJSON());
+
+    expect(looseRendered).toContain("Data de recebimento");
+    expect(looseRendered).toContain("Janela de qualidade (dias)");
+    expect(looseRendered).toContain("conferir qualidade");
+    expect(looseRendered).not.toContain("Data de validade impressa");
+
+    const unknown = await createProduct("formal_validity", { storePresentation: "unknown_other" });
+    const unknownTree = renderLotScreen(unknown.repository, unknown.product);
+    const unknownRendered = JSON.stringify(unknownTree.toJSON());
+
+    expect(unknownRendered).toContain("Data de recebimento");
+    expect(unknownRendered).toContain("Politica conservadora");
+    expect(unknownRendered).toContain("Sem rebaixa automatica");
+    expect(unknownRendered).not.toContain("Solicitar rebaixa");
+    expect(unknownRendered).not.toContain("pedir rebaixa");
+  });
+
+  it("renders operational next actions without offering unsafe markdown", async () => {
+    const formal = await createProduct("formal_validity", {
+      storePresentation: "supplier_packaged",
+    });
+    const formalTree = renderLotScreen(formal.repository, formal.product);
+
+    act(() => {
+      selectDate(formalTree, "Data de validade impressa", new Date(2026, 6, 10, 12));
+    });
+    expect(JSON.stringify(formalTree.toJSON())).toContain("pedir rebaixa");
+
+    act(() => {
+      selectDate(formalTree, "Data de validade impressa", new Date(2026, 5, 29, 12));
+    });
+    const expiredFormal = JSON.stringify(formalTree.toJSON());
+    expect(expiredFormal).toContain("retirar/perda");
+    expect(expiredFormal).not.toContain("pedir rebaixa");
+
+    const ped = await createProduct("formal_validity", { storePresentation: "store_cut_ped" });
+    const pedTree = renderLotScreen(ped.repository, ped.product);
+
+    act(() => {
+      selectDate(pedTree, "Data de preparo/validade curta", new Date(2026, 5, 29, 12));
+    });
+    const pedRendered = JSON.stringify(pedTree.toJSON());
+    expect(pedRendered).toContain("reembalar/perda");
+    expect(pedRendered).not.toContain("pedir rebaixa");
+  });
+
+  it("keeps pre-Phase-15 products saveable for every existing product mode", async () => {
+    const scenarios = [
+      { mode: "formal_validity", dateLabel: "Data de validade impressa" },
+      { mode: "processed_repack_loss", dateLabel: "Data de preparo/validade curta" },
+      { mode: "flv_inspection", dateLabel: "Data de recebimento", qualityWindowDays: "2" },
+      { mode: "receiving_monitored", dateLabel: "Data de recebimento" },
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const { repository, product } = await createProduct(scenario.mode);
+      const tree = renderLotScreen(repository, product);
+
+      act(() => {
+        tree.root.findAllByType("TextInput")[0]?.props.onChangeText(`LOTE-${scenario.mode}`);
+      });
+      act(() => {
+        tree.root.findAllByType("TextInput")[1]?.props.onChangeText("4");
+      });
+      act(() => {
+        tree.root.findAllByType("Pressable")[1]?.props.onPress();
+      });
+      act(() => {
+        selectDate(tree, scenario.dateLabel, new Date(2030, 0, 15, 12));
+      });
+      if ("qualityWindowDays" in scenario) {
+        act(() => {
+          getInput(tree, "Janela de qualidade (dias)").props.onChangeText(
+            scenario.qualityWindowDays,
+          );
+        });
+      }
+
+      await act(async () => {
+        press(tree, "Registrar lote");
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(JSON.stringify(tree.toJSON())).toContain("Lote registrado em");
+    }
   });
 });

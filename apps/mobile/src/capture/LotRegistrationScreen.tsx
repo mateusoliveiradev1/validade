@@ -7,6 +7,10 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   calculateLotRisk,
   type CategoryRuleProfile,
+  type ProductOperationalPolicy,
+  type ProductPolicyKey,
+  type ProductPolicyRequiredLotField,
+  type ProductPolicyTerminalAction,
   type ProductMode,
   type ProductRuleOverride,
   type RiskCalculationLot,
@@ -21,9 +25,13 @@ import {
   lotRegisteredCopy,
   operationalLocations,
   productLotFlowCopy,
-  productModeLabels,
+  productPolicyPreviewTerms,
   requiredFieldError,
 } from "./capture-copy";
+import {
+  resolveProductPolicyForProduct,
+  toDomainCategoryRuleProfile,
+} from "./product-policy-copy";
 import {
   DatePickerAction,
   Field,
@@ -45,13 +53,16 @@ export function LotRegistrationScreen({
   product,
   onBack,
   onSaved,
+  now = () => new Date(),
 }: {
   repository: CaptureRepository;
   product: CaptureProductRecord;
   onBack: () => void;
   onSaved?: () => void;
+  now?: () => Date;
 }) {
-  const mode = product.productRuleOverride?.mode ?? product.categoryRuleProfile.mode;
+  const policy = useMemo(() => lotPolicyForProduct(product), [product]);
+  const mode = policy.mode;
   const [printedIdentity, setPrintedIdentity] = useState("");
   const [generatedIdentity, setGeneratedIdentity] = useState<string | undefined>();
   const [quantity, setQuantity] = useState("");
@@ -66,18 +77,31 @@ export function LotRegistrationScreen({
   const resolvedLocation = resolveLocation(location, customLocationName);
   const approximateQuantity = parseNonNegativeQuantity(quantity);
   const identityValue = generatedIdentity ?? printedIdentity.trim();
+  const requiresExpiresAt = policy.requiredLotFields.includes("expiresAt");
+  const requiresReceivedAt = policy.requiredLotFields.includes("receivedAt");
+  const requiresQualityWindowDays = policy.requiredLotFields.includes("qualityWindowDays");
   const hasRequiredDates =
-    ((mode === "formal_validity" || mode === "processed_repack_loss") && isIsoDate(expiresAt)) ||
-    (mode === "flv_inspection" && isIsoDate(receivedAt) && isPositiveInteger(qualityWindowDays)) ||
-    (mode === "receiving_monitored" && isIsoDate(receivedAt));
+    (!requiresExpiresAt || isIsoDate(expiresAt)) &&
+    (!requiresReceivedAt || isIsoDate(receivedAt)) &&
+    (!requiresQualityWindowDays || isPositiveInteger(qualityWindowDays));
   const canSave =
     identityValue.length > 0 &&
     approximateQuantity !== undefined &&
     resolvedLocation !== undefined &&
     hasRequiredDates;
+  const currentDate = now().toISOString().slice(0, 10);
   const riskAssessment = useMemo(
-    () => calculatePreview(product, mode, identityValue, expiresAt, receivedAt, qualityWindowDays),
-    [expiresAt, identityValue, mode, product, qualityWindowDays, receivedAt],
+    () =>
+      calculatePreview(
+        product,
+        mode,
+        identityValue,
+        expiresAt,
+        receivedAt,
+        qualityWindowDays,
+        currentDate,
+      ),
+    [currentDate, expiresAt, identityValue, mode, product, qualityWindowDays, receivedAt],
   );
   const saveConsequence = lotSaveConsequence(product);
 
@@ -155,8 +179,8 @@ export function LotRegistrationScreen({
       <View style={styles.productSummary}>
         <Text style={styles.productName}>{product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {product.categoryId}</Text>
-        <Text style={styles.metadata}>Perfil: {productModeLabels[mode]}</Text>
       </View>
+      <StatusNotice title="Politica do lote">{lotPolicySummary(product, policy)}</StatusNotice>
       {product.reviewStatus === "pending_review" ? (
         <StatusNotice title={productLotFlowCopy.draftProductTitle} tone="warning">
           {productLotFlowCopy.draftProductBody}
@@ -216,15 +240,17 @@ export function LotRegistrationScreen({
       {resolvedLocation === undefined ? (
         <Text style={styles.errorText}>{requiredFieldError("o local inicial")}</Text>
       ) : null}
-      {mode === "formal_validity" || mode === "processed_repack_loss" ? (
-        <DateField label="Data de validade" value={expiresAt} onChangeText={setExpiresAt} />
+      {requiresExpiresAt ? (
+        <DateField
+          label={expiresAtLabelForPolicy(policy)}
+          value={expiresAt}
+          onChangeText={setExpiresAt}
+        />
       ) : null}
-      {mode === "processed_repack_loss" ||
-      mode === "flv_inspection" ||
-      mode === "receiving_monitored" ? (
+      {requiresReceivedAt ? (
         <DateField label="Data de recebimento" value={receivedAt} onChangeText={setReceivedAt} />
       ) : null}
-      {mode === "flv_inspection" ? (
+      {requiresQualityWindowDays ? (
         <Field
           label="Janela de qualidade (dias)"
           value={qualityWindowDays}
@@ -238,7 +264,7 @@ export function LotRegistrationScreen({
         />
       ) : null}
       <StatusNotice title="Previa de risco" tone={riskPreviewTone(riskAssessment.state)}>
-        Avaliacao operacional: {riskAssessment.state}. Proxima orientacao: {riskAssessment.command}.
+        {lotRiskPreviewCopy(policy, riskAssessment)}
       </StatusNotice>
       <StatusNotice tone={saveConsequence.tone} title={saveConsequence.label}>
         {saveConsequence.body}
@@ -395,6 +421,126 @@ function riskPreviewTone(state: string): "critical" | "warning" | "neutral" {
   return "neutral";
 }
 
+const REQUIRED_FIELDS_BY_MODE: Record<ProductMode, readonly ProductPolicyRequiredLotField[]> = {
+  formal_validity: ["expiresAt"],
+  flv_inspection: ["receivedAt", "qualityWindowDays"],
+  processed_repack_loss: ["expiresAt"],
+  receiving_monitored: ["receivedAt"],
+};
+
+function lotPolicyForProduct(product: CaptureProductRecord): ProductOperationalPolicy {
+  const resolved = resolveProductPolicyForProduct(product);
+
+  if (resolved !== undefined) {
+    return resolved;
+  }
+
+  const mode = product.productRuleOverride?.mode ?? product.categoryRuleProfile.mode;
+
+  return {
+    mode,
+    requiredLotFields: REQUIRED_FIELDS_BY_MODE[mode],
+    allowMarkdown: mode === "formal_validity",
+    defaultMarkdownDays:
+      mode === "formal_validity"
+        ? (product.productRuleOverride?.windows?.markdownDays ??
+          product.categoryRuleProfile.windows?.markdownDays ??
+          null)
+        : null,
+    qualityWindowDays:
+      mode === "flv_inspection"
+        ? (product.productRuleOverride?.windows?.qualityWindowDays ??
+          product.categoryRuleProfile.windows?.qualityWindowDays ??
+          null)
+        : null,
+    terminalAction: terminalActionForMode(mode),
+    requiresCentralReview: mode === "receiving_monitored",
+    publicPolicyKey: publicPolicyKeyForLegacyMode(mode),
+  };
+}
+
+function terminalActionForMode(mode: ProductMode): ProductPolicyTerminalAction {
+  if (mode === "processed_repack_loss") {
+    return "repack_or_loss";
+  }
+
+  if (mode === "formal_validity") {
+    return "withdraw_or_loss";
+  }
+
+  return "check_presence";
+}
+
+function publicPolicyKeyForLegacyMode(mode: ProductMode): ProductPolicyKey {
+  if (mode === "flv_inspection") {
+    return "quality_inspection";
+  }
+
+  if (mode === "processed_repack_loss") {
+    return "internal_repack_loss";
+  }
+
+  if (mode === "receiving_monitored") {
+    return "conservative_review";
+  }
+
+  return "printed_validity";
+}
+
+function lotPolicySummary(
+  product: CaptureProductRecord,
+  policy: ProductOperationalPolicy,
+): string {
+  if (policy.publicPolicyKey === "conservative_review") {
+    return "Politica conservadora: conferir com a lideranca. Sem rebaixa automatica.";
+  }
+
+  if (policy.publicPolicyKey === "quality_inspection") {
+    return "Politica: conferir qualidade e presenca fisica.";
+  }
+
+  if (policy.publicPolicyKey === "internal_repack_loss") {
+    return "Politica: validade curta da loja. Sem rebaixa automatica.";
+  }
+
+  return "Politica: validade impressa. A previa do lote indica a proxima acao.";
+}
+
+function expiresAtLabelForPolicy(policy: ProductOperationalPolicy): string {
+  if (policy.publicPolicyKey === "printed_validity") {
+    return "Data de validade impressa";
+  }
+
+  return "Data de preparo/validade curta";
+}
+
+function lotRiskPreviewCopy(
+  policy: ProductOperationalPolicy,
+  riskAssessment: ReturnType<typeof calculateLotRisk>,
+): string {
+  if (riskAssessment.state === "uncertain") {
+    return "Complete os dados obrigatorios para prever a proxima acao.";
+  }
+
+  if (policy.terminalAction === "repack_or_loss") {
+    return `Proxima acao: ${productPolicyPreviewTerms.repackLoss}. Sem rebaixa automatica.`;
+  }
+
+  if (policy.publicPolicyKey === "quality_inspection") {
+    return `Proxima acao: ${productPolicyPreviewTerms.qualityCheck}.`;
+  }
+
+  if (riskAssessment.state === "expired") {
+    return `Proxima acao: ${productPolicyPreviewTerms.withdrawLoss}.`;
+  }
+
+  if (riskAssessment.state === "markdown_due" && policy.allowMarkdown) {
+    return `Proxima acao: ${productPolicyPreviewTerms.requestMarkdown}.`;
+  }
+
+  return `Proxima acao: ${productPolicyPreviewTerms.radar}.`;
+}
+
 function lotSaveConsequence(product: CaptureProductRecord): {
   tone: StatusNoticeTone;
   label: string;
@@ -436,20 +582,11 @@ function calculatePreview(
   expiresAt: string,
   receivedAt: string,
   qualityWindowDays: string,
+  currentDate: string,
 ) {
-  const categoryProfile: CategoryRuleProfile = {
-    categoryId: product.categoryRuleProfile.categoryId,
-    mode: product.categoryRuleProfile.mode,
-    ...(product.categoryRuleProfile.windows === undefined
-      ? {}
-      : { windows: toRiskWindows(product.categoryRuleProfile.windows) }),
-    ...(product.categoryRuleProfile.maxPhysicalConfirmationAgeHours === undefined
-      ? {}
-      : {
-          maxPhysicalConfirmationAgeHours:
-            product.categoryRuleProfile.maxPhysicalConfirmationAgeHours,
-        }),
-  };
+  const categoryProfile: CategoryRuleProfile = toDomainCategoryRuleProfile(
+    product.categoryRuleProfile,
+  );
   const productOverride: ProductRuleOverride | undefined =
     product.productRuleOverride === undefined
       ? undefined
@@ -490,7 +627,7 @@ function calculatePreview(
           };
 
   return calculateLotRisk({
-    currentDate: new Date().toISOString().slice(0, 10),
+    currentDate,
     categoryProfile,
     ...(productOverride === undefined ? {} : { productOverride }),
     lot,
