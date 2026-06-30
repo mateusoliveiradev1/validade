@@ -814,6 +814,12 @@ describe("mobile release journeys", () => {
       identitySource: "printed",
       value: "BAN-LOTE-001",
     });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Lote registrado");
+    expect(JSON.stringify(tree.toJSON())).toContain("Sincronizado com a central");
+
+    await press(tree, "Voltar para Hoje");
+
     expect(refreshTodayTasks).toHaveBeenCalledWith(
       expect.objectContaining({ source: "lot_change" }),
     );

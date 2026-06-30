@@ -45,6 +45,7 @@ export function ProductDiscoveryScreen({
   const [categories, setCategories] = useState<readonly CaptureProductCategory[]>([]);
   const [candidate, setCandidate] = useState<CaptureProductRecord | undefined>();
   const [message, setMessage] = useState<string | undefined>();
+  const [isSearching, setIsSearching] = useState(false);
   const [createGate, setCreateGate] = useState<"hidden" | "no_safe_reuse" | "similar_reviewed">(
     "hidden",
   );
@@ -61,35 +62,58 @@ export function ProductDiscoveryScreen({
       return;
     }
 
-    if (repository.searchCentralProducts !== undefined) {
-      const response = await repository.searchCentralProducts({
-        requestedAt: new Date().toISOString(),
-        ...centralProductLookupPayload(trimmedQuery, initialLookupSource),
-      });
-      const results = [
-        ...response.reusableProducts.map(productCatalogItemToLocalRecord),
-        ...response.similarCandidates.map(productCatalogItemToLocalRecord),
-        ...(response.draft === undefined ? [] : [productDraftToLocalRecord(response.draft)]),
-      ];
+    setIsSearching(true);
 
-      setMatches(results);
+    try {
+      if (repository.searchCentralProducts !== undefined) {
+        const response = await repository.searchCentralProducts({
+          requestedAt: new Date().toISOString(),
+          ...centralProductLookupPayload(trimmedQuery, initialLookupSource),
+        });
+        const results = [
+          ...response.reusableProducts.map(productCatalogItemToLocalRecord),
+          ...response.similarCandidates.map(productCatalogItemToLocalRecord),
+          ...(response.draft === undefined ? [] : [productDraftToLocalRecord(response.draft)]),
+        ];
+
+        setProductResults(
+          results,
+          createGateForSearchState(response.resultState),
+          searchResultMessage(response.resultState),
+        );
+        return;
+      }
+
+      const results = await repository.findProducts(trimmedQuery);
+      setProductResults(
+        results,
+        results.length === 0 ? "no_safe_reuse" : "hidden",
+        results.length === 0
+          ? captureCopy.noMatch
+          : "Produto encontrado. Confirme o cadastro correto antes de informar o lote fisico.",
+      );
+    } catch {
+      const localResults = await repository.findProducts(trimmedQuery).catch(() => []);
+
+      if (localResults.length > 0) {
+        setProductResults(
+          localResults,
+          "hidden",
+          "Nao foi possivel consultar a central agora. Use apenas produto ja salvo neste aparelho.",
+        );
+        return;
+      }
+
+      setMatches([]);
       setCategories([]);
       setCandidate(undefined);
-      setCreateGate(createGateForSearchState(response.resultState));
-      setMessage(searchResultMessage(response.resultState));
-      return;
+      setCreateGate("hidden");
+      setMessage(
+        "Nao foi possivel consultar a central agora. Atualize a leitura central antes de cadastrar para evitar duplicidade.",
+      );
+    } finally {
+      setIsSearching(false);
     }
-
-    const results = await repository.findProducts(query);
-    setMatches(results);
-    setCategories([]);
-    setCandidate(undefined);
-    setCreateGate(results.length === 0 ? "no_safe_reuse" : "hidden");
-    setMessage(
-      results.length === 0
-        ? captureCopy.noMatch
-        : "Produto encontrado. Confirme o cadastro correto antes de informar o lote fisico.",
-    );
   }
 
   function openCreateProduct(): void {
@@ -102,12 +126,16 @@ export function ProductDiscoveryScreen({
       return;
     }
 
-    const results = await repository.listFrequentProducts();
-    setMatches(results);
-    setCategories([]);
-    setCandidate(undefined);
-    setCreateGate("hidden");
-    setMessage(results.length === 0 ? captureCopy.frequentEmpty : captureCopy.frequentResults);
+    try {
+      const results = await repository.listFrequentProducts();
+      setProductResults(
+        results,
+        "hidden",
+        results.length === 0 ? captureCopy.frequentEmpty : captureCopy.frequentResults,
+      );
+    } catch {
+      setMessage("Nao foi possivel carregar frequentes agora. Tente a busca manual.");
+    }
   }
 
   async function chooseCategory(): Promise<void> {
@@ -116,14 +144,18 @@ export function ProductDiscoveryScreen({
       return;
     }
 
-    const nextCategories = await repository.listProductCategories();
-    setCategories(nextCategories);
-    setMatches([]);
-    setCandidate(undefined);
-    setCreateGate("hidden");
-    setMessage(
-      nextCategories.length === 0 ? captureCopy.categoryEmpty : captureCopy.categoryPrompt,
-    );
+    try {
+      const nextCategories = await repository.listProductCategories();
+      setCategories(nextCategories);
+      setMatches([]);
+      setCandidate(undefined);
+      setCreateGate("hidden");
+      setMessage(
+        nextCategories.length === 0 ? captureCopy.categoryEmpty : captureCopy.categoryPrompt,
+      );
+    } catch {
+      setMessage("Nao foi possivel carregar categorias agora. Atualize a leitura central.");
+    }
   }
 
   async function showProductsByCategory(categoryId: string): Promise<void> {
@@ -132,12 +164,28 @@ export function ProductDiscoveryScreen({
       return;
     }
 
-    const results = await repository.findProductsByCategory(categoryId);
-    setCategories([]);
+    try {
+      const results = await repository.findProductsByCategory(categoryId);
+      setProductResults(
+        results,
+        "hidden",
+        results.length === 0 ? captureCopy.noMatch : captureCopy.categoryResults,
+      );
+    } catch {
+      setMessage("Nao foi possivel carregar produtos desta categoria agora.");
+    }
+  }
+
+  function setProductResults(
+    results: readonly CaptureProductRecord[],
+    gate: "hidden" | "no_safe_reuse" | "similar_reviewed",
+    nextMessage: string,
+  ): void {
     setMatches(results);
-    setCandidate(undefined);
-    setCreateGate("hidden");
-    setMessage(results.length === 0 ? captureCopy.noMatch : captureCopy.categoryResults);
+    setCategories([]);
+    setCandidate(results.length === 1 ? results[0] : undefined);
+    setCreateGate(gate);
+    setMessage(nextMessage);
   }
 
   return (
@@ -150,14 +198,26 @@ export function ProductDiscoveryScreen({
         onChangeText={setQuery}
         placeholder="Ex.: alface ou 7890000000001"
       />
-      <PrimaryAction label={captureCopy.manualSearch} onPress={() => void searchManually()} />
+      <PrimaryAction
+        disabled={isSearching}
+        label={isSearching ? "Buscando produto" : captureCopy.manualSearch}
+        onPress={() => void searchManually()}
+      />
       {onScanCode === undefined ? null : (
         <SecondaryAction label="Ler codigo" onPress={onScanCode} />
       )}
       <View style={styles.shortcuts}>
         <SecondaryAction label={captureCopy.recent} onPress={onOpenRecent ?? (() => undefined)} />
-        <SecondaryAction label={captureCopy.frequent} onPress={() => void showFrequentProducts()} />
-        <SecondaryAction label={captureCopy.byCategory} onPress={() => void chooseCategory()} />
+        <SecondaryAction
+          disabled={isSearching}
+          label={captureCopy.frequent}
+          onPress={() => void showFrequentProducts()}
+        />
+        <SecondaryAction
+          disabled={isSearching}
+          label={captureCopy.byCategory}
+          onPress={() => void chooseCategory()}
+        />
       </View>
       {createGate === "no_safe_reuse" ? (
         <SecondaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />

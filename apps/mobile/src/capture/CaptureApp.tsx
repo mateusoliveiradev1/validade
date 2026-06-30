@@ -726,7 +726,7 @@ export function CaptureApp({
         repository={repository}
         product={currentRoute.product}
         onBack={goBack}
-        onSaved={() => resetToToday({ refreshSource: "lot_change" })}
+        onDone={() => resetToToday({ refreshSource: "lot_change" })}
       />,
     );
   }

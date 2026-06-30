@@ -49,12 +49,14 @@ export function LotRegistrationScreen({
   repository,
   product,
   onBack,
+  onDone,
   onSaved,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
   product: CaptureProductRecord;
   onBack: () => void;
+  onDone?: (() => void) | undefined;
   onSaved?: () => void;
   now?: () => Date;
 }) {
@@ -165,6 +167,9 @@ export function LotRegistrationScreen({
         <StatusNotice>{savedMessage}</StatusNotice>
         <Text style={styles.metadata}>Registro atribuído a: {LOCAL_ACTOR_LABEL}</Text>
         <PrimaryAction label={captureCopy.repeatLot} onPress={resetForAnotherLot} />
+        {onDone === undefined ? null : (
+          <SecondaryAction label="Voltar para Hoje" onPress={onDone} />
+        )}
         <SecondaryAction label={captureCopy.backAndReview} onPress={onBack} />
       </ScrollView>
     );

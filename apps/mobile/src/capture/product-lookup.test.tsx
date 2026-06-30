@@ -171,6 +171,98 @@ describe("manual product discovery", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Local inicial");
   });
 
+  it("auto-selects a single pending central draft so the lot can continue without recreating it", async () => {
+    const repository = createRepository();
+    const confirmed: CaptureProductRecord[] = [];
+    let tree: ReactTestRenderer | undefined;
+
+    await repository.createProductDraft?.({
+      displayName: "Melancia Processada Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-processados",
+      categoryName: "Processados",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-processados",
+        mode: "processed_repack_loss",
+        windows: { radarDays: 3, markdownDays: 1, criticalDays: 0, expiredDays: 0 },
+      },
+      storePresentation: "store_cut_ped",
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    act(() => {
+      tree = create(
+        <ProductDiscoveryScreen
+          repository={repository}
+          onConfirmProduct={(product) => confirmed.push(product)}
+          onCreateProduct={() => undefined}
+        />,
+      );
+    });
+
+    act(() => {
+      getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText(
+        "Melancia Processada Exemplo FICTICIA",
+      );
+    });
+
+    await act(async () => {
+      press(tree!, "Buscar manualmente");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Cadastro em revisao central");
+    expect(rendered).toContain("Usar este produto");
+    expect(rendered).not.toContain("Cadastrar produto novo");
+
+    act(() => {
+      press(tree!, "Usar este produto");
+    });
+
+    expect(confirmed).toHaveLength(1);
+    expect(confirmed[0]?.reviewStatus).toBe("pending_review");
+  });
+
+  it("shows a central lookup failure instead of exposing duplicate product creation", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "lookup-failure-id",
+      searchCentralProducts: () => Promise.reject(new Error("network")),
+    });
+    let openedCreation = false;
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <ProductDiscoveryScreen
+          repository={repository}
+          onConfirmProduct={() => undefined}
+          onCreateProduct={() => {
+            openedCreation = true;
+          }}
+        />,
+      );
+    });
+
+    act(() => {
+      getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText(
+        "Melancia Processada Exemplo FICTICIA",
+      );
+    });
+
+    await act(async () => {
+      press(tree!, "Buscar manualmente");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Nao foi possivel consultar a central agora");
+    expect(rendered).not.toContain("Cadastrar produto novo");
+    expect(openedCreation).toBe(false);
+  });
+
   it("asks how the product is in the store before showing category rows", async () => {
     const repository = createRepository();
     await repository.initialize();
