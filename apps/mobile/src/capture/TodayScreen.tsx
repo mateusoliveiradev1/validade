@@ -205,7 +205,10 @@ export function TodayScreen({
   }, [acknowledgementFeedback]);
 
   async function manualSync(): Promise<void> {
-    if (syncEngine === undefined || isSyncing) {
+    if (
+      (syncEngine === undefined && repository.syncPendingCentralLots === undefined) ||
+      isSyncing
+    ) {
       return;
     }
 
@@ -214,14 +217,25 @@ export function TodayScreen({
     setRefreshFeedback(undefined);
 
     try {
-      const result = await syncEngine.syncPendingCommands({ manual: true });
+      const [syncedLots, result] = await Promise.all([
+        repository.syncPendingCentralLots === undefined
+          ? Promise.resolve([])
+          : repository.syncPendingCentralLots(),
+        syncEngine === undefined
+          ? Promise.resolve(undefined)
+          : syncEngine.syncPendingCommands({ manual: true }),
+      ]);
       await refreshSyncState();
 
-      if (result.state === "sent" && result.appliedResults.length > 0) {
+      if (syncedLots.length > 0) {
+        await refreshTasks("manual_refresh");
+        setRefreshFeedback("Lote enviado para a central. Hoje foi atualizado com a leitura local.");
+      } else if (result?.state === "sent" && result.appliedResults.length > 0) {
+        await refreshTasks("manual_refresh");
         setRefreshFeedback(todayCopy.sync.retryHelper);
-      } else if (result.state === "empty") {
+      } else if (result?.state === "empty") {
         setRefreshFeedback(todayCopy.sync.allSynced);
-      } else if (result.state === "transport_failed") {
+      } else if (result?.state === "transport_failed") {
         setRefreshError(todayCopy.sync.failed);
       }
     } catch {
@@ -494,7 +508,10 @@ export function TodayScreen({
             </View>
           ) : null}
           <OfflineStatusBand
-            disabled={isSyncing || syncEngine === undefined}
+            disabled={
+              isSyncing ||
+              (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+            }
             hideWhenReady
             queue={syncQueue}
             status={offlineStatus}
@@ -600,7 +617,9 @@ export function TodayScreen({
       )}
 
       <SyncQueueSummary
-        disabled={isSyncing || syncEngine === undefined}
+        disabled={
+          isSyncing || (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+        }
         hideWhenEmpty
         queue={syncQueue}
         onRetry={() => void manualSync()}

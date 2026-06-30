@@ -645,6 +645,86 @@ describe("TodayScreen", () => {
     expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
   });
 
+  it("syncs pending central lots from Hoje when manual sync is visible", async () => {
+    const syncPendingCentralLots = vi.fn().mockResolvedValue([
+      {
+        id: "lote-centralizado-ficticio",
+        productId: "produto-melancia-ficticia",
+        productDisplayName: "Melancia FICTICIA",
+        identity: { identitySource: "printed", value: "MELANCIA-001" },
+        mode: "processed_repack_loss",
+        expiresAt: "2030-01-10",
+        approximateQuantity: 1,
+        initialLocation: { kind: "area_de_venda" },
+        currentObservation: {
+          id: "obs-melancia-001",
+          lotId: "lote-centralizado-ficticio",
+          status: "present",
+          actorLabel: "Colaborador local",
+          occurredAt: "2030-01-10T09:00:00.000Z",
+          location: { kind: "area_de_venda" },
+          quantityState: "estimated",
+          approximateQuantity: 1,
+          isCorrection: false,
+        },
+      },
+    ]);
+    const refreshTodayTasks = vi
+      .fn()
+      .mockResolvedValueOnce(emptyRefresh())
+      .mockResolvedValueOnce(
+        refreshWith({
+          tasks: [
+            taskFixture({
+              id: "task-melancia-presenca",
+              activeKey: "lote-melancia:presence_missing:check_presence:root",
+              lotId: "lote-melancia",
+              productDisplayName: "Melancia FICTICIA",
+              lotIdentity: { identitySource: "printed", value: "MELANCIA-001" },
+              riskState: "uncertain",
+              severity: "attention",
+              dueBucket: "today",
+              requiredResolution: "check_presence",
+              section: "follow_up",
+              sourceRisk: {
+                state: "uncertain",
+                reasons: [{ code: "presence_missing", field: "lastPhysicalConfirmation" }],
+              },
+            }),
+          ],
+        }),
+      );
+    const repository = createRepository(refreshTodayTasks, {
+      syncPendingCentralLots,
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_pending",
+            totalCount: 1,
+            commands: [syncCommandSummary()],
+          }),
+        ),
+    });
+    const syncPendingCommands = vi.fn().mockResolvedValue({
+      state: "empty",
+      network: { kind: "online" },
+      selectedCommandIds: [],
+      attemptedCommandIds: [],
+      appliedResults: [],
+    });
+    const tree = await renderTodayScreen(repository, { syncPendingCommands });
+
+    await act(async () => {
+      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(refreshTodayTasks).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tree.toJSON())).toContain("Melancia FICTICIA");
+  });
+
   it("requires a reason before discarding an offline conflict", async () => {
     const resolveSyncConflict = vi.fn().mockResolvedValue(conflictRecord());
     const repository = createRepository(() => Promise.resolve(emptyRefresh()), {

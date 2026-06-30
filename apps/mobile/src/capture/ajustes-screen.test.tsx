@@ -190,6 +190,7 @@ function createAjustesRepository(
     offlineStatus?: OfflineCacheStatus | undefined;
     queue?: SyncQueueSummary | undefined;
     conflict?: SyncConflictRecord | null | undefined;
+    syncPendingCentralLots?: CaptureRepository["syncPendingCentralLots"] | undefined;
   } = {},
 ) {
   let channel = input.channel ?? null;
@@ -217,6 +218,9 @@ function createAjustesRepository(
     listSyncQueue: () => Promise.resolve(input.queue ?? emptySyncQueue()),
     loadSyncConflict: () => Promise.resolve(input.conflict ?? null),
     resolveSyncConflict,
+    ...(input.syncPendingCentralLots === undefined
+      ? {}
+      : { syncPendingCentralLots: input.syncPendingCentralLots }),
   } as unknown as CaptureRepository;
 
   return { repository, registerAlertDevice, resolveTodayTask, resolveSyncConflict };
@@ -246,6 +250,7 @@ async function renderAjustes(input: {
   queue?: SyncQueueSummary | undefined;
   session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
+  syncPendingCentralLots?: CaptureRepository["syncPendingCentralLots"] | undefined;
 }): Promise<{
   tree: ReactTestRenderer;
   registerAlertDevice: ReturnType<typeof vi.fn>;
@@ -258,6 +263,7 @@ async function renderAjustes(input: {
       conflict: input.conflict,
       offlineStatus: input.offlineStatus,
       queue: input.queue,
+      syncPendingCentralLots: input.syncPendingCentralLots,
     });
   let tree: ReactTestRenderer | undefined;
 
@@ -531,6 +537,30 @@ describe("AjustesScreen sync controls", () => {
     await press(tree, "Sincronizar pendencias");
 
     expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
+  });
+
+  it("syncs pending central lots from Ajustes even when command queue is empty", async () => {
+    const syncPendingCentralLots = vi
+      .fn()
+      .mockResolvedValue([{ id: "lote-melancia-centralizado" }]);
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue(),
+      syncEngine: {
+        syncPendingCommands: vi.fn().mockResolvedValue({
+          state: "empty",
+          network: { kind: "online" },
+          selectedCommandIds: [],
+          attemptedCommandIds: [],
+          appliedResults: [],
+        }),
+      },
+      syncPendingCentralLots,
+    });
+
+    await press(tree, "Conferir fila local");
+
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(renderedText(tree)).toContain("Lote enviado para a central");
   });
 
   it("sends an explicit reason when discarding an offline conflict", async () => {

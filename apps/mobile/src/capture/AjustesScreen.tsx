@@ -134,7 +134,10 @@ export function AjustesScreen({
   }, [repository]);
 
   async function manualSync(): Promise<void> {
-    if (syncEngine === undefined || isSyncing) {
+    if (
+      (syncEngine === undefined && repository.syncPendingCentralLots === undefined) ||
+      isSyncing
+    ) {
       return;
     }
 
@@ -142,15 +145,26 @@ export function AjustesScreen({
     setSyncFeedback(undefined);
 
     try {
-      const result = await syncEngine.syncPendingCommands({ manual: true });
+      const [syncedLots, result] = await Promise.all([
+        repository.syncPendingCentralLots === undefined
+          ? Promise.resolve([])
+          : repository.syncPendingCentralLots(),
+        syncEngine === undefined
+          ? Promise.resolve(undefined)
+          : syncEngine.syncPendingCommands({ manual: true }),
+      ]);
       await refreshSyncState();
       await onConfirmCentralDeviceState?.().catch(() => undefined);
 
-      if (result.state === "sent" && result.appliedResults.length > 0) {
+      if (syncedLots.length > 0) {
+        setSyncFeedback(
+          "Lote enviado para a central. Atualize a leitura central e confira Hoje novamente.",
+        );
+      } else if (result?.state === "sent" && result.appliedResults.length > 0) {
         setSyncFeedback("Pendencias enviadas. Confira se a central ainda aponta algum bloqueio.");
-      } else if (result.state === "empty") {
+      } else if (result?.state === "empty") {
         setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
-      } else if (result.state === "skipped_offline" || result.state === "transport_failed") {
+      } else if (result?.state === "skipped_offline" || result?.state === "transport_failed") {
         setSyncFeedback(
           "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
         );
@@ -399,12 +413,16 @@ export function AjustesScreen({
             />
           ) : (
             <PrimaryAction
-              disabled={isSyncing || syncEngine === undefined}
+              disabled={
+                isSyncing ||
+                (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+              }
               label={isSyncing ? "Conferindo fila local" : syncActionLabel}
               onPress={() => void manualSync()}
             />
           )}
-          {syncReadiness.centralRefreshRequired && syncEngine !== undefined ? (
+          {syncReadiness.centralRefreshRequired &&
+          (syncEngine !== undefined || repository.syncPendingCentralLots !== undefined) ? (
             <SecondaryAction
               disabled={isSyncing}
               label={isSyncing ? "Conferindo fila local" : syncActionLabel}
@@ -427,7 +445,9 @@ export function AjustesScreen({
         />
       )}
       <SyncQueueSummary
-        disabled={isSyncing || syncEngine === undefined}
+        disabled={
+          isSyncing || (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+        }
         queue={syncQueue}
         onRetry={() => void manualSync()}
         onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
