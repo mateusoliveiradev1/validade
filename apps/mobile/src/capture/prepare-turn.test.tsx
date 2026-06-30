@@ -207,6 +207,7 @@ describe("prepare-turn gate", () => {
     await press(tree, "Buscar manualmente");
     await press(tree, "Cadastrar produto novo");
     await changeText(tree, "Nome do produto", "Banana Prata");
+    await press(tree, "Embalado pelo fornecedor");
     await press(tree, "Frutas");
     await press(tree, "Cadastrar produto novo");
 

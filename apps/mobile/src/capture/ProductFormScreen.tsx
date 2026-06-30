@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
-import type { ProductMode } from "@validade-zero/domain";
+import {
+  resolveProductOperationalPolicy,
+  type ProductOperationalPolicy,
+  type StorePresentationKind,
+} from "@validade-zero/domain";
 import type { ProductIdentifierInput, ProductSearchCandidate } from "@validade-zero/contracts";
 import {
   productCatalogItemToLocalRecord,
@@ -9,7 +13,14 @@ import {
   type CaptureProductRecord,
   type CaptureRepository,
 } from "./repository";
-import { captureCopy, productLotFlowCopy, productModeLabels } from "./capture-copy";
+import {
+  captureCopy,
+  productLotFlowCopy,
+  productPolicyPreviewTerms,
+  productPolicyPublicLabels,
+  productPresentationChoices,
+  productPresentationQuestion,
+} from "./capture-copy";
 import {
   Field,
   PrimaryAction,
@@ -42,7 +53,7 @@ export function ProductFormScreen({
   const [categoryLoadState, setCategoryLoadState] = useState<"loading" | "ready" | "error">(
     repository.listProductCategories === undefined ? "error" : "loading",
   );
-  const [overrideMode, setOverrideMode] = useState<ProductMode | undefined>();
+  const [storePresentation, setStorePresentation] = useState<StorePresentationKind | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [similarCandidates, setSimilarCandidates] = useState<readonly ProductSearchCandidate[]>([]);
@@ -101,9 +112,25 @@ export function ProductFormScreen({
         normalizeCategoryLookup(category.categoryId).includes(query),
     );
   }, [categories, categoryQuery]);
-  const canCreate = displayName.trim().length > 0 && selectedCategory !== undefined;
+  const selectedPolicy =
+    selectedCategory === undefined || storePresentation === undefined
+      ? undefined
+      : resolveProductOperationalPolicy({
+          storePresentation,
+          categoryRuleProfile: selectedCategory.categoryRuleProfile,
+        });
+  const canCreate =
+    displayName.trim().length > 0 &&
+    storePresentation !== undefined &&
+    selectedCategory !== undefined &&
+    selectedPolicy !== undefined;
 
   async function createProduct(): Promise<void> {
+    if (storePresentation === undefined) {
+      setError("Responda como esse produto esta na loja antes de escolher a categoria.");
+      return;
+    }
+
     if (selectedCategory === undefined) {
       setError("Escolha uma categoria do catalogo geral antes de criar o produto.");
       return;
@@ -115,7 +142,20 @@ export function ProductFormScreen({
     }
 
     try {
-      const categoryRuleProfile = selectedCategory.categoryRuleProfile;
+      const policy = resolveProductOperationalPolicy({
+        storePresentation,
+        categoryRuleProfile: selectedCategory.categoryRuleProfile,
+      });
+      const categoryRuleProfile = {
+        ...selectedCategory.categoryRuleProfile,
+        mode: policy.mode,
+        windows: {
+          ...selectedCategory.categoryRuleProfile.windows,
+          ...(policy.qualityWindowDays === null
+            ? {}
+            : { qualityWindowDays: policy.qualityWindowDays }),
+        },
+      };
 
       if (repository.createProductDraft !== undefined) {
         const response = await repository.createProductDraft({
@@ -127,6 +167,7 @@ export function ProductFormScreen({
           ...(supplierName.trim().length === 0 ? {} : { supplierName }),
           ...(gtin.trim().length === 0 ? {} : { gtin }),
           ...(linkedIdentifier === undefined ? {} : { identifiers: [linkedIdentifier] }),
+          storePresentation,
           similarCandidateIds: similarCandidates.map((candidate) => candidate.centralProductId),
         });
 
@@ -159,7 +200,7 @@ export function ProductFormScreen({
         categoryRuleProfile,
         ...(supplierName.trim().length === 0 ? {} : { supplierName }),
         ...(gtin.trim().length === 0 ? {} : { gtin }),
-        ...(overrideMode === undefined ? {} : { productRuleOverride: { mode: overrideMode } }),
+        storePresentation,
       });
 
       onCreated(product);
@@ -180,73 +221,59 @@ export function ProductFormScreen({
         {productLotFlowCopy.draftProductBody}
       </StatusNotice>
       <Field label="Nome do produto" value={displayName} onChangeText={setDisplayName} />
-      <Text style={styles.sectionLabel}>Categoria</Text>
-      {categories.length > 8 ? (
-        <Field
-          label="Filtrar categorias"
-          value={categoryQuery}
-          onChangeText={setCategoryQuery}
-          placeholder="Ex.: frutas, ovos, folhosos"
-        />
-      ) : null}
-      {categoryLoadState === "loading" ? (
-        <StatusNotice>Carregando catalogo geral de categorias.</StatusNotice>
-      ) : null}
-      {categoryLoadState === "error" ? (
-        <StatusNotice tone="error">
-          Nao foi possivel carregar o catalogo geral de categorias neste aparelho.
-        </StatusNotice>
-      ) : null}
-      {categoryLoadState === "ready" && categories.length === 0 ? (
-        <StatusNotice tone="error">
-          Catalogo geral de categorias vazio. Prepare o turno online antes de criar produtos.
-        </StatusNotice>
-      ) : null}
-      {filteredCategories.map((category) => (
+      <Text style={styles.sectionLabel}>{productPresentationQuestion}</Text>
+      {presentationOptions.map(([kind, label]) => (
         <SelectionRow
-          key={category.categoryId}
-          label={category.categoryName}
-          detail={categoryDetail(category)}
-          selected={selectedCategoryId === category.categoryId}
+          key={kind}
+          label={label}
+          detail={presentationDetail(kind)}
+          selected={storePresentation === kind}
           onPress={() => {
-            setSelectedCategoryId(category.categoryId);
-            setOverrideMode(undefined);
+            setStorePresentation(kind);
             setError(undefined);
           }}
         />
       ))}
-      {selectedCategory === undefined ? null : (
+      {storePresentation === undefined ? null : (
         <>
-          <StatusNotice>
-            Perfil operacional: {productModeLabels[selectedCategory.categoryRuleProfile.mode]}.
-          </StatusNotice>
-          <SecondaryAction
-            label="Definir excecao de perfil"
-            onPress={() =>
-              setOverrideMode(
-                overrideMode === undefined
-                  ? firstAlternativeMode(selectedCategory.categoryRuleProfile.mode)
-                  : undefined,
-              )
-            }
-          />
-        </>
-      )}
-      {overrideMode === undefined ? null : (
-        <>
-          <StatusNotice>
-            Excecao explicita do produto: {productModeLabels[overrideMode]}.
-          </StatusNotice>
-          <Text style={styles.sectionLabel}>Perfil especifico deste produto</Text>
-          {Object.entries(productModeLabels).map(([mode, label]) => (
+          <Text style={styles.sectionLabel}>Categoria</Text>
+          {categories.length > 8 ? (
+            <Field
+              label="Filtrar categorias"
+              value={categoryQuery}
+              onChangeText={setCategoryQuery}
+              placeholder="Ex.: frutas, ovos, folhosos"
+            />
+          ) : null}
+          {categoryLoadState === "loading" ? (
+            <StatusNotice>Carregando catalogo geral de categorias.</StatusNotice>
+          ) : null}
+          {categoryLoadState === "error" ? (
+            <StatusNotice tone="error">
+              Nao foi possivel carregar o catalogo geral de categorias neste aparelho.
+            </StatusNotice>
+          ) : null}
+          {categoryLoadState === "ready" && categories.length === 0 ? (
+            <StatusNotice tone="error">
+              Catalogo geral de categorias vazio. Prepare o turno online antes de criar produtos.
+            </StatusNotice>
+          ) : null}
+          {filteredCategories.map((category) => (
             <SelectionRow
-              key={`override-${mode}`}
-              label={`Usar ${label} como excecao`}
-              selected={overrideMode === mode}
-              onPress={() => setOverrideMode(mode as ProductMode)}
+              key={category.categoryId}
+              label={category.categoryName}
+              detail={categoryDetail(category)}
+              selected={selectedCategoryId === category.categoryId}
+              onPress={() => {
+                setSelectedCategoryId(category.categoryId);
+                setError(undefined);
+              }}
             />
           ))}
         </>
+      )}
+      {selectedPolicy === undefined ? null : (
+        <StatusNotice title="Politica do lote">{policyPreview(selectedPolicy)}</StatusNotice>
       )}
       <Field label="Fornecedor opcional" value={supplierName} onChangeText={setSupplierName} />
       {supplierName.trim().length === 0 ? (
@@ -299,13 +326,53 @@ const styles = StyleSheet.create({
   },
 });
 
+const presentationOptions = Object.entries(productPresentationChoices) as ReadonlyArray<
+  readonly [StorePresentationKind, string]
+>;
+
 function categoryDetail(category: CaptureProductCategory): string {
   const productCountCopy =
     category.productCount === 0
       ? "catalogo geral"
       : `${category.productCount} ${category.productCount === 1 ? "produto local" : "produtos locais"}`;
 
-  return `${productModeLabels[category.categoryRuleProfile.mode]} - ${productCountCopy}`;
+  return productCountCopy;
+}
+
+function presentationDetail(kind: StorePresentationKind): string {
+  if (kind === "unknown_other") {
+    return "Politica conservadora e revisao central. Sem rebaixa automatica.";
+  }
+
+  if (kind === "loose_whole") {
+    return "Conferir qualidade e presenca fisica.";
+  }
+
+  if (
+    kind === "store_cut_ped" ||
+    kind === "store_fractioned_repacked" ||
+    kind === "prepared_ready_to_eat"
+  ) {
+    return "Sem rebaixa automatica; tratar vencimento como perda ou reembalo.";
+  }
+
+  return "Validade impressa; rebaixa so dentro da janela da politica.";
+}
+
+function policyPreview(policy: ProductOperationalPolicy): string {
+  if (policy.publicPolicyKey === "conservative_review") {
+    return "Politica conservadora: conferir com a lideranca. Sem rebaixa automatica.";
+  }
+
+  if (policy.publicPolicyKey === "quality_inspection") {
+    return `Politica: ${productPolicyPublicLabels.quality_inspection}. Proxima acao: ${productPolicyPreviewTerms.qualityCheck}.`;
+  }
+
+  if (policy.publicPolicyKey === "internal_repack_loss") {
+    return `Politica: validade curta da loja. Proxima acao: ${productPolicyPreviewTerms.repackLoss} ou ${productPolicyPreviewTerms.withdrawLoss}.`;
+  }
+
+  return `Politica: ${productPolicyPublicLabels.printed_validity}. Proxima acao: ${policy.allowMarkdown ? productPolicyPreviewTerms.requestMarkdown : productPolicyPreviewTerms.radar}.`;
 }
 
 function normalizeCategoryLookup(value: string): string {
@@ -315,16 +382,4 @@ function normalizeCategoryLookup(value: string): string {
     .trim()
     .replace(/\s+/g, " ")
     .toLocaleLowerCase("pt-BR");
-}
-
-function firstAlternativeMode(mode: ProductMode): ProductMode {
-  if (mode === "formal_validity") {
-    return "flv_inspection";
-  }
-
-  if (mode === "flv_inspection") {
-    return "processed_repack_loss";
-  }
-
-  return "formal_validity";
 }

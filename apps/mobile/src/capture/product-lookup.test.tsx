@@ -169,6 +169,55 @@ describe("manual product discovery", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Local inicial");
   });
 
+  it("asks how the product is in the store before showing category rows", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await repository.createProduct({
+      displayName: "Banana Prata Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <ProductFormScreen
+          repository={repository}
+          onCreated={() => undefined}
+          onBack={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const initialRender = JSON.stringify(tree!.toJSON());
+    expect(initialRender).toContain("Como esse produto esta na loja?");
+    expect(initialRender).toContain("Inteiro solto");
+    expect(initialRender).toContain("Embalado pelo fornecedor");
+    expect(initialRender).toContain("Cortado/PED");
+    expect(initialRender).toContain("Fracionado ou reembalado na loja");
+    expect(initialRender).toContain("Preparado pronto");
+    expect(initialRender).toContain("Ovos");
+    expect(initialRender).toContain("Industrial/refrigerado com validade");
+    expect(initialRender).toContain("Outro/nao sei");
+    expect(initialRender).not.toContain("categoria-ficticia-frutas");
+
+    act(() => {
+      press(tree!, "Outro/nao sei");
+    });
+
+    const afterClassifier = JSON.stringify(tree!.toJSON());
+    expect(afterClassifier).toContain("categoria-ficticia-frutas");
+    expect(afterClassifier).toContain("Politica conservadora");
+    expect(afterClassifier).toContain("Sem rebaixa automatica");
+    expect(afterClassifier).not.toContain("pedir rebaixa");
+  });
+
   it("requires similar central candidates to be reviewed before continuing creation", async () => {
     const repository = createRepository();
     await repository.initialize();
@@ -251,6 +300,10 @@ describe("manual product discovery", () => {
 
     act(() => {
       getInput(tree!, "Nome do produto").props.onChangeText("Banana Nanica Exemplo FICTICIA");
+      press(tree!, "Embalado pelo fornecedor");
+    });
+
+    act(() => {
       press(tree!, "categoria-ficticia-frutas");
     });
 
