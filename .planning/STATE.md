@@ -108,6 +108,7 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 | 260627-mpa | Adicionar multiplos identificadores por produto e fluxo para vincular codigo novo sem duplicar produto | 2026-06-27 | pending | Verified | [260627-mpa-adicionar-m-ltiplos-identificadores-por-](./quick/260627-mpa-adicionar-m-ltiplos-identificadores-por-/) |
 | 260628-rmd | Gerar APK Android local atual para testar login e sync da Loja 18 sem validar push remoto | 2026-06-28 | local | Verified | [260628-rmd-gerar-apk-android-local-atual-para-testa](./quick/260628-rmd-gerar-apk-android-local-atual-para-testa/) |
 | 260630-bw1 | Gerar APK local Phase 15 sem USB | 2026-06-30 | local | Verified | [260630-bw1-gerar-apk-local-phase-15-sem-usb](./quick/260630-bw1-gerar-apk-local-phase-15-sem-usb/) |
+| 260630-c12 | Deploy Phase 15 web staging and decide API | 2026-06-30 | remote | Verified | [260630-c12-deploy-phase-15-web-staging-and-decide-a](./quick/260630-c12-deploy-phase-15-web-staging-and-decide-a/) |
 
 ## Performance Metrics
 
