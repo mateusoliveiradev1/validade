@@ -13,6 +13,7 @@ import {
   ProductSearchResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
+  StorePresentationKindSchema,
   type ProductCatalogItem,
   type ProductDraftReviewState,
   type ProductSearchCandidate,
@@ -20,6 +21,52 @@ import {
 } from "./capture";
 
 describe("capture runtime contracts", () => {
+  it("accepts only the bounded store-presentation classifier values", () => {
+    const classifierValues = [
+      "loose_whole",
+      "supplier_packaged",
+      "store_cut_ped",
+      "store_fractioned_repacked",
+      "prepared_ready_to_eat",
+      "eggs",
+      "industrial_chilled_validity",
+      "unknown_other",
+    ] as const;
+
+    expect(StorePresentationKindSchema.options).toEqual(classifierValues);
+    classifierValues.forEach((value) => {
+      expect(StorePresentationKindSchema.parse(value)).toBe(value);
+    });
+
+    expect(() => StorePresentationKindSchema.parse("formal_validity")).toThrow();
+    expect(() => StorePresentationKindSchema.parse("loose_bulk")).toThrow();
+  });
+
+  it("keeps pre-classifier product and draft payloads compatible", () => {
+    expect(
+      CaptureProductInputSchema.parse({
+        displayName: "Ovos Brancos FICTICIOS",
+        categoryId: "categoria-ficticia-ovos",
+        categoryRuleProfile: categoryRuleProfile(),
+      }),
+    ).toMatchObject({
+      displayName: "Ovos Brancos FICTICIOS",
+    });
+
+    expect(
+      ProductDraftCreateRequestSchema.parse({
+        displayName: "Ovos Caipiras FICTICIOS",
+        categoryId: "categoria-ficticia-ovos",
+        categoryName: "Ovos ficticios",
+        categoryRuleProfile: categoryRuleProfile(),
+        requestedAt: "2030-01-10T09:00:00.000Z",
+        reason: "Produto visto no corredor durante o piloto.",
+      }),
+    ).toMatchObject({
+      displayName: "Ovos Caipiras FICTICIOS",
+    });
+  });
+
   it("accepts processed lots only with a validity date for repack-or-loss handling", () => {
     expect(
       CaptureLotInputSchema.parse({

@@ -40,6 +40,17 @@ const ForbiddenHydrationFields = ["uri", "base64", "objectKey", "photoUri", "ima
 
 const CentralRiskStateSchema = z.enum([...TODAY_ACTIONABLE_RISK_STATES, "radar"] as const);
 
+export const StorePresentationKindSchema = z.enum([
+  "loose_whole",
+  "supplier_packaged",
+  "store_cut_ped",
+  "store_fractioned_repacked",
+  "prepared_ready_to_eat",
+  "eggs",
+  "industrial_chilled_validity",
+  "unknown_other",
+]);
+
 export const CentralPackageSourceSchema = z.enum(["central", "local_cache", "pending_central"]);
 
 export const VisibleCentralSyncStateSchema = z.enum([
@@ -83,6 +94,7 @@ export const CaptureProductInputSchema = z
     supplierName: RequiredTextSchema.optional(),
     gtin: IdentifierSchema.optional(),
     productRuleOverride: ProductRuleOverrideSchema.optional(),
+    storePresentation: StorePresentationKindSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -371,6 +383,7 @@ export const CentralProductSnippetSchema = z
       .max(12)
       .optional(),
     categoryRuleProfile: CategoryRuleProfileSchema,
+    storePresentation: StorePresentationKindSchema.optional(),
   })
   .strict();
 
@@ -473,6 +486,7 @@ const ProductCatalogItemFields = {
   updatedAt: IsoDateTimeSchema,
   gtin: ProductGtinSchema.optional(),
   identifiers: z.array(ProductIdentifierSchema).max(12).optional(),
+  storePresentation: StorePresentationKindSchema.optional(),
 } as const;
 
 export const ProductCatalogItemSchema = z
@@ -530,6 +544,7 @@ export const ProductDraftReviewStateSchema = z
     similarCandidates: z.array(ProductSearchCandidateSchema).max(5),
     gtin: ProductGtinSchema.optional(),
     identifiers: z.array(ProductIdentifierSchema).max(12).optional(),
+    storePresentation: StorePresentationKindSchema.optional(),
     reviewReason: RequiredTextSchema.optional(),
     reviewedAt: IsoDateTimeSchema.optional(),
   })
@@ -616,6 +631,7 @@ export const ProductDraftCreateRequestSchema = z
     gtin: ProductGtinSchema.optional(),
     identifiers: z.array(ProductIdentifierInputSchema).max(8).optional(),
     supplierName: RequiredTextSchema.optional(),
+    storePresentation: StorePresentationKindSchema.optional(),
     reason: RequiredTextSchema.optional(),
     similarCandidateIds: z.array(IdentifierSchema).max(5).optional(),
   })
@@ -897,10 +913,12 @@ export const CaptureContract = {
   productDraftCreateResponse: ProductDraftCreateResponseSchema,
   productDraftReviewRequest: ProductDraftReviewRequestSchema,
   productDraftReviewResponse: ProductDraftReviewResponseSchema,
+  storePresentationKind: StorePresentationKindSchema,
 } as const;
 
 export type CategoryRuleProfileInput = z.infer<typeof CategoryRuleProfileSchema>;
 export type ProductRuleOverrideInput = z.infer<typeof ProductRuleOverrideSchema>;
+export type StorePresentationKind = z.infer<typeof StorePresentationKindSchema>;
 export type CaptureProductInput = z.infer<typeof CaptureProductInputSchema>;
 export type OperationalLocation = z.infer<typeof OperationalLocationSchema>;
 export type LotIdentity = z.infer<typeof LotIdentitySchema>;
