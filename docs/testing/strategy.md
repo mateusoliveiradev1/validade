@@ -112,3 +112,12 @@ Public evidence rules remain strict: no raw screenshots, real photos, push token
 - These tests prove component and route behavior only. They do not prove an installed Android APK, remote push provider delivery, camera/evidence capture, or physical Loja 18 UAT.
 - Keep Phase 14 evidence public-safe: no raw APK/build URLs, EAS links, push tokens, provider tickets/receipts, raw device IDs, screenshots with sensitive content, camera files, real product names, real lot values, credentials, or private store details.
 - Installed-device, provider, camera/evidence, and physical-store proof must be recorded separately when a real approved device/build is available.
+
+## Phase 15 operational surface distillation
+
+- `pnpm.cmd --filter @validade-zero/mobile test` covers the repo-local Hoje, Preparar turno, product/lot entry, Ajustes readiness, and Fechamento behavior with fictional data.
+- `pnpm.cmd --filter @validade-zero/domain test` and `pnpm.cmd --filter @validade-zero/contracts test` cover strict product policy, safe-close blockers, and public Command Center labels.
+- `pnpm.cmd --filter @validade-zero/web test` covers Command Center vocabulary and routing across Operacao, Aparelhos, Atualizacoes, and Validacao.
+- `pnpm.cmd check` is the Phase 15 repository gate and includes typecheck, lint/boundaries, format, full tests, smoke tests, build, security, and performance budgets.
+- Phase 15 repository gates do not prove installed Android, real provider push, camera/evidence capture, second-device convergence, or physical Loja 18 UAT. Record those as external proof gates unless they are actually run with sanitized evidence.
+- Keep Phase 15 vocabulary public-safe: leitura central, cache local, fila local, fila de sincronizacao, push, camera, build, autorizacao do aparelho, revisao de produto, and lote sincronizado. Do not commit raw build URLs, provider payloads, push tokens, raw device IDs, real photos, real product names, real lot values, credentials, or private store details.
