@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandCenterClient } from "./command-center-client";
 import { CommandCenter } from "./CommandCenter";
@@ -420,6 +420,69 @@ describe("CommandCenter", () => {
       text.indexOf("Historico resolvido"),
     );
     expect(text).not.toMatch(/sales|revenue|forecast|supplier/i);
+  });
+
+  it("approves pending product drafts from Operacao when catalog review is allowed", async () => {
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(projection)
+      .mockResolvedValueOnce({
+        ...projection,
+        centralSnapshot: { ...projection.centralSnapshot, draftProductCount: 0 },
+        pendingProductDrafts: [],
+      });
+    const reviewProductDraft = vi.fn().mockResolvedValue({
+      draft: {
+        draftId: "product-draft-001",
+        centralProductId: "product-draft-001",
+        displayName: "Banana Nanica FICTICIA",
+        normalizedKey: "banana nanica ficticia",
+        categoryId: "categoria-ficticia-frutas",
+        categoryName: "Frutas",
+        categoryRuleProfile: {
+          categoryId: "categoria-ficticia-frutas",
+          mode: "formal_validity",
+          windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+        },
+        source: "draft_pending_review",
+        reviewStatus: "validated",
+        syncState: "synchronized",
+        requestedAt: "2030-01-10T11:00:00.000Z",
+        requestedByLabel: "Colaborador FICTICIO",
+        similarCandidates: [],
+        acknowledgementMessage: "Produto validado na central.",
+        reviewReason: "Aprovado pela central.",
+        reviewedAt: "2030-01-10T12:05:00.000Z",
+      },
+      acknowledgement: {
+        state: "validated",
+        message: "Produto validado na central.",
+      },
+    });
+    const client: CommandCenterClient = {
+      read,
+      reviewProductDraft,
+      sendSafePushTest: vi.fn(),
+    };
+    render(<CommandCenter canReviewProductDrafts client={client} storeId="loja-piloto" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aprovar produto Banana Nanica FICTICIA",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(reviewProductDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          storeId: "loja-piloto",
+          draftId: "product-draft-001",
+          reviewedAt: expect.any(String),
+        }),
+      ),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/Banana Nanica FICTICIA validado na central/)).toBeTruthy();
   });
 
   it("promotes daily device blockers in Operacao without promoting push-only blockers", async () => {

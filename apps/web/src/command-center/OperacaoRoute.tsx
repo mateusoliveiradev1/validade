@@ -1,6 +1,6 @@
 import type { CommandCenterProjection } from "@validade-zero/contracts";
-import { RefreshCw, Search, Smartphone } from "lucide-react";
-import type { ReactNode } from "react";
+import { CheckCircle2, RefreshCw, Search, Smartphone } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
@@ -18,7 +18,9 @@ type FunnelTone = "success" | "warning" | "critical";
 
 export function OperacaoRoute({
   canOpenAudit,
+  canReviewProductDrafts,
   lastClientRefreshAt,
+  onApproveProductDraft,
   onOpenAparelhos,
   onOpenAudit,
   onRefresh,
@@ -26,7 +28,9 @@ export function OperacaoRoute({
   status,
 }: {
   canOpenAudit: boolean;
+  canReviewProductDrafts: boolean;
   lastClientRefreshAt?: Date;
+  onApproveProductDraft: (draftId: string) => Promise<void>;
   onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
   onRefresh: () => void;
@@ -34,6 +38,30 @@ export function OperacaoRoute({
   status: OperacaoStatus;
 }) {
   const isInitialLoading = status === "loading" && projection === undefined;
+  const [reviewingDraftId, setReviewingDraftId] = useState<string>();
+  const [productReviewFeedback, setProductReviewFeedback] = useState<string>();
+
+  async function approveProductDraft(
+    draft: CommandCenterProjection["pendingProductDrafts"][number],
+  ): Promise<void> {
+    if (!canReviewProductDrafts || reviewingDraftId !== undefined) return;
+
+    setReviewingDraftId(draft.draftId);
+    setProductReviewFeedback(undefined);
+
+    try {
+      await onApproveProductDraft(draft.draftId);
+      setProductReviewFeedback(
+        `${draft.label} validado na central. Atualize a leitura central no aparelho e sincronize o lote novamente.`,
+      );
+    } catch {
+      setProductReviewFeedback(
+        "Nao foi possivel validar o produto agora. Confira sua permissao de catalogo e tente novamente.",
+      );
+    } finally {
+      setReviewingDraftId(undefined);
+    }
+  }
 
   return (
     <section className="grid gap-6" aria-labelledby="operacao-heading">
@@ -85,12 +113,24 @@ export function OperacaoRoute({
         </div>
       ) : null}
 
+      {productReviewFeedback === undefined ? null : (
+        <div
+          className="rounded-lg border border-border bg-card p-4 text-sm leading-5"
+          role="status"
+        >
+          {productReviewFeedback}
+        </div>
+      )}
+
       {projection === undefined ? null : (
         <OperacaoContent
           canOpenAudit={canOpenAudit}
+          canReviewProductDrafts={canReviewProductDrafts}
+          onApproveProductDraft={(draft) => void approveProductDraft(draft)}
           {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
           {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
           projection={projection}
+          reviewingDraftId={reviewingDraftId}
         />
       )}
     </section>
@@ -99,14 +139,20 @@ export function OperacaoRoute({
 
 function OperacaoContent({
   canOpenAudit,
+  canReviewProductDrafts,
+  onApproveProductDraft,
   onOpenAparelhos,
   onOpenAudit,
   projection,
+  reviewingDraftId,
 }: {
   canOpenAudit: boolean;
+  canReviewProductDrafts: boolean;
+  onApproveProductDraft: (draft: CommandCenterProjection["pendingProductDrafts"][number]) => void;
   onOpenAparelhos?: () => void;
   onOpenAudit?: () => void;
   projection: CommandCenterProjection;
+  reviewingDraftId: string | undefined;
 }) {
   const isEmpty =
     projection.verdict.state === "safe" &&
@@ -160,7 +206,12 @@ function OperacaoContent({
         </section>
       ) : null}
 
-      <OperationalFunnel projection={projection} />
+      <OperationalFunnel
+        canReviewProductDrafts={canReviewProductDrafts}
+        onApproveProductDraft={onApproveProductDraft}
+        projection={projection}
+        reviewingDraftId={reviewingDraftId}
+      />
       <AuditActionButton
         canOpenAudit={canOpenAudit}
         {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
@@ -431,7 +482,17 @@ function InsightMetric({ label, tone, value }: { label: string; tone: FunnelTone
   );
 }
 
-function OperationalFunnel({ projection }: { projection: CommandCenterProjection }) {
+function OperationalFunnel({
+  canReviewProductDrafts,
+  onApproveProductDraft,
+  projection,
+  reviewingDraftId,
+}: {
+  canReviewProductDrafts: boolean;
+  onApproveProductDraft: (draft: CommandCenterProjection["pendingProductDrafts"][number]) => void;
+  projection: CommandCenterProjection;
+  reviewingDraftId: string | undefined;
+}) {
   return (
     <div className="grid gap-4">
       <FunnelSection
@@ -439,7 +500,13 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
         count={projection.pendingProductDrafts.length}
       >
         {projection.pendingProductDrafts.map((item) => (
-          <ProductDraftRow key={item.draftId} item={item} />
+          <ProductDraftRow
+            key={item.draftId}
+            canReviewProductDrafts={canReviewProductDrafts}
+            isReviewing={reviewingDraftId === item.draftId}
+            item={item}
+            onApprove={() => onApproveProductDraft(item)}
+          />
         ))}
       </FunnelSection>
       <FunnelSection title="Lotes criticos" count={projection.criticalLots.length}>
@@ -534,9 +601,15 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
 }
 
 function ProductDraftRow({
+  canReviewProductDrafts,
+  isReviewing,
   item,
+  onApprove,
 }: {
+  canReviewProductDrafts: boolean;
+  isReviewing: boolean;
   item: CommandCenterProjection["pendingProductDrafts"][number];
+  onApprove: () => void;
 }) {
   const similarLabel =
     item.similarCount === 0
@@ -571,6 +644,20 @@ function ProductDraftRow({
       </div>
       <p className="text-sm leading-5 text-muted-foreground">{impactLabel}</p>
       <p className="text-sm leading-5">{item.detail}</p>
+      {canReviewProductDrafts ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            aria-label={`Aprovar produto ${item.label}`}
+            disabled={isReviewing}
+            size="sm"
+            type="button"
+            onClick={onApprove}
+          >
+            <CheckCircle2 className="size-4" aria-hidden="true" />
+            {isReviewing ? "Validando..." : "Aprovar produto"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -21,6 +21,7 @@ type CommandCenterStatus = "loading" | "ready" | "error";
 export function CommandCenter({
   activeRoute = "operacao",
   canOpenAudit,
+  canReviewProductDrafts,
   canSendPilotPushTest,
   client: providedClient,
   fetcher,
@@ -32,6 +33,7 @@ export function CommandCenter({
 }: {
   activeRoute?: CommandCenterRoute;
   canOpenAudit?: boolean;
+  canReviewProductDrafts?: boolean;
   canSendPilotPushTest?: boolean;
   client?: CommandCenterClient;
   fetcher?: WebFetcher;
@@ -80,6 +82,22 @@ export function CommandCenter({
     [client, storeId],
   );
 
+  const approveProductDraft = React.useCallback(
+    async (draftId: string) => {
+      if (client.reviewProductDraft === undefined) {
+        throw new Error("Revisao de produto indisponivel neste cliente.");
+      }
+
+      await client.reviewProductDraft({
+        storeId,
+        draftId,
+        reviewedAt: new Date().toISOString(),
+      });
+      await load({ background: true });
+    },
+    [client, load, storeId],
+  );
+
   React.useEffect(() => {
     void load();
   }, [load]);
@@ -100,9 +118,11 @@ export function CommandCenter({
     return (
       <OperacaoRoute
         canOpenAudit={canOpenAuditRoute}
+        canReviewProductDrafts={canReviewProductDrafts === true}
         {...(lastClientRefreshAt === undefined ? {} : { lastClientRefreshAt })}
         {...(onOpenAparelhos === undefined ? {} : { onOpenAparelhos })}
         {...(onOpenAudit === undefined ? {} : { onOpenAudit })}
+        onApproveProductDraft={approveProductDraft}
         onRefresh={() => void load()}
         projection={current}
         status={status}

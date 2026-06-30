@@ -1,12 +1,19 @@
 import {
   CommandCenterProjectionSchema,
+  ProductDraftReviewResponseSchema,
   SafePushTestResultSchema,
   type CommandCenterProjection,
+  type ProductDraftReviewResponse,
   type SafePushTestResult,
 } from "@validade-zero/contracts";
 
 export interface CommandCenterClient {
   read(input: { storeId: string }): Promise<CommandCenterProjection>;
+  reviewProductDraft?: (input: {
+    storeId: string;
+    draftId: string;
+    reviewedAt: string;
+  }) => Promise<ProductDraftReviewResponse>;
   sendSafePushTest(input: {
     storeId: string;
     deviceIdMasked: string;
@@ -27,6 +34,27 @@ export function createFetchCommandCenterClient(fetcher: typeof fetch = fetch): C
       }
 
       return CommandCenterProjectionSchema.parse(payload);
+    },
+    async reviewProductDraft(input) {
+      const response = await fetcher(
+        `/capture/products/drafts/${encodeURIComponent(input.draftId)}/review?storeId=${encodeURIComponent(input.storeId)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            draftId: input.draftId,
+            decision: "approve",
+            reviewedAt: input.reviewedAt,
+          }),
+        },
+      );
+      const payload: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error("Nao foi possivel validar o produto.");
+      }
+
+      return ProductDraftReviewResponseSchema.parse(payload);
     },
     async sendSafePushTest(input) {
       const response = await fetcher("/pilot/push-tests", {

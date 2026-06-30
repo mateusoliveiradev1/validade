@@ -173,6 +173,7 @@ export function App() {
           activeRoute={activeRoute}
           storeId={session.store.storeId}
           canOpenAudit={session.actions.canReadStoreAudit}
+          canReviewProductDrafts={session.actions.canReviewProductDrafts}
           canSendPilotPushTest={session.actions.canSendPilotPushTest}
           fetcher={apiFetch}
           onOpenAparelhos={() => setRoute("aparelhos")}
