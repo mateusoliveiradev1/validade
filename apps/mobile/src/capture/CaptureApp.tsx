@@ -1098,15 +1098,19 @@ function PrepareTurnScreen({
   onUseCache?: (() => void) | undefined;
 }) {
   const preparing = state === "checking" || state === "preparing";
-  const status = prepareTurnStatusFor(state, cache);
+  const firstStoreSetup = onStartFirstSetup !== undefined;
+  const status = prepareTurnStatusFor(state, cache, firstStoreSetup);
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader title="Preparar turno" body={prepareTurnBodyFor(state)} />
-      <StatusNotice title={prepareTurnTitleFor(state)} tone={status.tone}>
+      <ScreenHeader
+        title={firstStoreSetup ? "Registrar primeiro lote" : "Preparar turno"}
+        body={prepareTurnBodyFor(state, firstStoreSetup)}
+      />
+      <StatusNotice title={prepareTurnTitleFor(state, firstStoreSetup)} tone={status.tone}>
         {status.body}
       </StatusNotice>
-      <Text style={styles.prepareBody}>{prepareTurnDetailFor(state, cache)}</Text>
+      <Text style={styles.prepareBody}>{prepareTurnDetailFor(state, cache, firstStoreSetup)}</Text>
       {cache === null ? null : (
         <View style={styles.prepareMetrics}>
           <Text style={styles.prepareMetric}>{cache.productCount} produtos centrais</Text>
@@ -1116,10 +1120,14 @@ function PrepareTurnScreen({
         </View>
       )}
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
-      <PrimaryAction disabled={preparing} label="Preparar turno" onPress={onPrepare} />
-      {onStartFirstSetup === undefined ? null : (
-        <PrimaryAction label="Iniciar cadastro da loja" onPress={onStartFirstSetup} />
+      {firstStoreSetup ? (
+        <PrimaryAction label={captureCopy.registerLot} onPress={onStartFirstSetup} />
+      ) : (
+        <PrimaryAction disabled={preparing} label="Preparar turno" onPress={onPrepare} />
       )}
+      {firstStoreSetup ? (
+        <SecondaryAction disabled={preparing} label="Preparar turno" onPress={onPrepare} />
+      ) : null}
       {onUseCache === undefined ? null : (
         <SecondaryAction label="Entrar com leitura local" onPress={onUseCache} />
       )}
@@ -1130,7 +1138,16 @@ function PrepareTurnScreen({
 function prepareTurnStatusFor(
   state: Parameters<typeof PrepareTurnScreen>[0]["state"],
   cache: PrepareTurnCacheStatus | null,
+  firstStoreSetup = false,
 ): MobileStatusDescriptor {
+  if (firstStoreSetup) {
+    return {
+      ...mobileStatusDescriptorFor("synced_transport"),
+      label: "Primeiro lote da loja",
+      body: "Leitura central vazia e esperada no primeiro uso. Registre o primeiro lote fisico; zero tarefas nao comprova area segura.",
+    };
+  }
+
   if (state === "checking" || state === "preparing") {
     return {
       ...mobileStatusDescriptorFor("syncing"),
@@ -1177,7 +1194,11 @@ function isFirstStoreSetupState(cache: PrepareTurnCacheStatus | null): boolean {
   );
 }
 
-function prepareTurnTitleFor(state: Parameters<typeof PrepareTurnScreen>[0]["state"]): string {
+function prepareTurnTitleFor(
+  state: Parameters<typeof PrepareTurnScreen>[0]["state"],
+  firstStoreSetup = false,
+): string {
+  if (firstStoreSetup) return "Loja pronta para o primeiro lote";
   if (state === "checking") return "Conferindo este aparelho";
   if (state === "preparing") return "Baixando leitura central";
   if (state === "needs_review") return "Leitura central exige revisao";
@@ -1186,7 +1207,14 @@ function prepareTurnTitleFor(state: Parameters<typeof PrepareTurnScreen>[0]["sta
   return "Leitura central obrigatoria";
 }
 
-function prepareTurnBodyFor(state: Parameters<typeof PrepareTurnScreen>[0]["state"]): string {
+function prepareTurnBodyFor(
+  state: Parameters<typeof PrepareTurnScreen>[0]["state"],
+  firstStoreSetup = false,
+): string {
+  if (firstStoreSetup) {
+    return "A leitura central voltou vazia. Comece registrando o lote fisico encontrado na loja.";
+  }
+
   if (state === "checking") return "Aguarde a verificacao local antes de abrir Hoje.";
   if (state === "preparing") return "Baixando a leitura central da loja...";
   if (state === "needs_review") {
@@ -1202,7 +1230,12 @@ function prepareTurnBodyFor(state: Parameters<typeof PrepareTurnScreen>[0]["stat
 function prepareTurnDetailFor(
   state: Parameters<typeof PrepareTurnScreen>[0]["state"],
   cache: PrepareTurnCacheStatus | null,
+  firstStoreSetup = false,
 ): string {
+  if (firstStoreSetup) {
+    return "Zero produtos, lotes, tarefas e conflitos e um estado inicial esperado. Fechamento seguro ainda depende de leitura central, tarefas, sincronizacao e checklist fisico.";
+  }
+
   if (cache === null) {
     return "Nenhuma leitura central esta salva neste aparelho. O cockpit do turno fica bloqueado ate a preparacao ou um fallback local claramente marcado.";
   }

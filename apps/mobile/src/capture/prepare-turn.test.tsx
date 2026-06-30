@@ -194,11 +194,13 @@ describe("prepare-turn gate", () => {
 
     await press(tree, "Preparar turno");
 
-    expect(textContent(tree)).toContain("Leitura central exige revisao");
+    expect(textContent(tree)).toContain("Registrar primeiro lote");
+    expect(textContent(tree)).toContain("Loja pronta para o primeiro lote");
     expect(textContent(tree)).toContain("Leitura central sem fatos");
+    expect(textContent(tree)).not.toContain("Turno nao preparado");
     expect(textContent(tree)).not.toContain("Area de venda segura");
 
-    await press(tree, "Iniciar cadastro da loja");
+    await press(tree, "Registrar lote");
 
     expect(textContent(tree)).toContain("Produto do lote");
     expect(textContent(tree)).not.toContain("Area de venda segura");

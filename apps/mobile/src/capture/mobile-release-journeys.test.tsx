@@ -296,6 +296,20 @@ function pilotPrepareTurnResponse(): PrepareTurnResponse {
   };
 }
 
+function firstStorePrepareTurnCache(): PrepareTurnCacheStatus {
+  return {
+    state: "needs_first_central_read",
+    source: "central",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    staleAfterHours: 4,
+    productCount: 0,
+    lotCount: 0,
+    activeTaskCount: 0,
+    conflictCount: 0,
+    resolvedHistoryCount: 0,
+  };
+}
+
 function createPilotJourneyRepository(input: {
   saveLot: (snapshot: CaptureLotSnapshot) => void;
   hydratePrepareTurn: (cache: PrepareTurnCacheStatus) => void;
@@ -804,6 +818,45 @@ describe("mobile release journeys", () => {
       expect.objectContaining({ source: "lot_change" }),
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Hoje");
+  });
+
+  it("guides an empty first-store central read into first lot registration", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    const repository = {
+      ...createPilotJourneyRepository({
+        saveLot: () => undefined,
+        hydratePrepareTurn: () => undefined,
+      }),
+      loadPrepareTurnCacheStatus: () => Promise.resolve(firstStorePrepareTurnCache()),
+    } as CaptureRepository;
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={repository}
+          alertChannel={createFakePushAlertChannel()}
+          prepareTurnClient={() => Promise.resolve(pilotPrepareTurnResponse())}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("First-store journey did not render.");
+
+    const initialText = renderedText(tree);
+    expect(initialText).toContain("Registrar primeiro lote");
+    expect(initialText).toContain("Registrar lote");
+    expect(initialText).not.toContain("Turno nao preparado");
+    expect(initialText).not.toContain("Area segura com leitura central");
+    expect(initialText).toContain("zero tarefas nao comprova area segura");
+
+    await press(tree, "Registrar lote");
+
+    expect(renderedText(tree)).toContain("Produto do lote");
+    expect(renderedText(tree)).toContain("Buscar produto por nome, codigo ou categoria");
   });
 
   it("keeps terminal local save and pending-central truth visible in the release fixture", async () => {
