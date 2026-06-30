@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SHIFT_CLOSE_CHECKLIST_KEYS } from "@validade-zero/domain";
 import {
+  ShiftCloseEvaluationSchema,
   ShiftCloseSafeRequestSchema,
   ShiftCloseUnsafeRequestSchema,
   ShiftClosureSnapshotSchema,
@@ -52,6 +53,28 @@ describe("shift close contracts", () => {
         checklist: [...SHIFT_CLOSE_CHECKLIST_KEYS].reverse(),
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts public safe-close blocker codes for build and authorization", () => {
+    expect(
+      ShiftCloseEvaluationSchema.parse({
+        eligibility: "must_close_unsafe",
+        blockers: [
+          {
+            code: "required_build_update",
+            label: "Atualizacao obrigatoria do app antes do fechamento seguro.",
+            actionLabel: "Atualizar app aprovado",
+          },
+          {
+            code: "device_authorization_blocker",
+            label: "Conta, loja ou aparelho sem autorizacao.",
+            actionLabel: "Revalidar acesso",
+          },
+        ],
+        checklistComplete: true,
+        ruleVersion: "phase-10-central-v1",
+      }),
+    ).toMatchObject({ eligibility: "must_close_unsafe" });
   });
 
   it("keeps unsafe snapshots immutable in shape with their continuity fields", () => {

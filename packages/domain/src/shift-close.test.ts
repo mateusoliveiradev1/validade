@@ -63,13 +63,33 @@ describe("shift close policy", () => {
     );
   });
 
+  it("blocks safe close for critical sync conflict and critical pending command", () => {
+    const conflict = evaluateShiftClose({
+      ...baseInput,
+      syncCommands: [{ state: "sync_conflict", urgency: "critical" }],
+    });
+    const pending = evaluateShiftClose({
+      ...baseInput,
+      syncCommands: [{ state: "pending_sync", urgency: "critical" }],
+    });
+
+    expect(conflict.eligibility).toBe("must_close_unsafe");
+    expect(conflict.blockers.map((blocker) => blocker.code)).toContain("critical_sync_conflict");
+    expect(pending.eligibility).toBe("must_close_unsafe");
+    expect(pending.blockers.map((blocker) => blocker.code)).toContain("critical_pending_sync");
+  });
+
   it("never qualifies safe while stale, unavailable, or offline", () => {
     for (const cacheState of ["offline_stale", "offline_unavailable", "offline_mode"] as const) {
       expect(evaluateShiftClose({ ...baseInput, cacheState }).eligibility).toBe("cannot_evaluate");
     }
   });
 
-  it("fails closed when the central capture read is stale or empty", () => {
+  it("fails closed when the central capture read is missing, stale, or empty", () => {
+    const { central: _central, ...withoutCentral } = baseInput;
+
+    expect(evaluateShiftClose(withoutCentral).eligibility).toBe("cannot_evaluate");
+
     const evaluation = evaluateShiftClose({
       ...baseInput,
       central: {
@@ -106,6 +126,38 @@ describe("shift close policy", () => {
         "central_discarded_action",
         "pending_unsafe_close_sync",
       ]),
+    );
+  });
+
+  it("blocks safe close for required build update, invalid authorization, and incomplete checklist", () => {
+    const evaluation = evaluateShiftClose({
+      ...baseInput,
+      buildCompatibility: "desatualizado",
+      buildRequiredForSafeClose: true,
+      deviceAuthorization: "invalid",
+      checklist: [],
+    });
+
+    expect(evaluation.eligibility).toBe("must_close_unsafe");
+    expect(evaluation.checklistComplete).toBe(false);
+    expect(evaluation.blockers.map((blocker) => blocker.code)).toEqual(
+      expect.arrayContaining([
+        "required_build_update",
+        "device_authorization_blocker",
+        "incomplete_checklist",
+      ]),
+    );
+  });
+
+  it("blocks incompatible builds even when no explicit update flag is provided", () => {
+    const evaluation = evaluateShiftClose({
+      ...baseInput,
+      buildCompatibility: "incompativel",
+    });
+
+    expect(evaluation.eligibility).toBe("must_close_unsafe");
+    expect(evaluation.blockers.map((blocker) => blocker.code)).toContain(
+      "required_build_update",
     );
   });
 });

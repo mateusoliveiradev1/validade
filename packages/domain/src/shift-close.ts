@@ -32,6 +32,8 @@ export const SHIFT_CLOSE_BLOCKER_CODES = [
   "offline_mode_requires_central_revalidation",
   "required_evidence_pending",
   "pending_unsafe_close_sync",
+  "device_authorization_blocker",
+  "required_build_update",
   "incomplete_checklist",
 ] as const;
 export type ShiftCloseBlockerCode = (typeof SHIFT_CLOSE_BLOCKER_CODES)[number];
@@ -77,6 +79,14 @@ export interface ShiftCloseCentralState {
   storeBlockerCount: number;
 }
 
+export type ShiftCloseBuildCompatibility =
+  | "atual"
+  | "desatualizado"
+  | "desconhecido"
+  | "incompativel";
+
+export type ShiftCloseDeviceAuthorization = "valid" | "invalid" | "unknown";
+
 export interface ShiftCloseBlocker {
   code: ShiftCloseBlockerCode;
   label: string;
@@ -90,6 +100,9 @@ export interface ShiftCloseEvaluationInput {
   evidence?: readonly ShiftCloseEvidenceState[];
   checklist?: readonly ShiftCloseChecklistKey[];
   central?: ShiftCloseCentralState;
+  buildCompatibility?: ShiftCloseBuildCompatibility;
+  buildRequiredForSafeClose?: boolean;
+  deviceAuthorization?: ShiftCloseDeviceAuthorization;
   pendingUnsafeCloseCount?: number;
 }
 
@@ -106,12 +119,12 @@ export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftClose
   const central = input.central;
 
   if (
-    central !== undefined &&
-    (central.source !== "central" ||
-      central.readiness !== "prepared" ||
-      !central.hasCurrentRead ||
-      !central.hasCentralFacts ||
-      central.storeBlockerCount > 0)
+    central === undefined ||
+    central.source !== "central" ||
+    central.readiness !== "prepared" ||
+    !central.hasCurrentRead ||
+    !central.hasCentralFacts ||
+    central.storeBlockerCount > 0
   ) {
     blockers.push({
       code: "central_capture_not_ready",
@@ -242,6 +255,25 @@ export function evaluateShiftClose(input: ShiftCloseEvaluationInput): ShiftClose
       code: "pending_unsafe_close_sync",
       label: "Ha fechamento inseguro local aguardando sincronizacao.",
       actionLabel: "Sincronizar passagem pendente",
+    });
+  }
+
+  if (
+    input.buildCompatibility === "incompativel" ||
+    (input.buildRequiredForSafeClose === true && input.buildCompatibility !== "atual")
+  ) {
+    blockers.push({
+      code: "required_build_update",
+      label: "Atualizacao obrigatoria do app antes do fechamento seguro.",
+      actionLabel: "Atualizar app aprovado",
+    });
+  }
+
+  if (input.deviceAuthorization === "invalid") {
+    blockers.push({
+      code: "device_authorization_blocker",
+      label: "Conta, loja ou aparelho sem autorizacao para fechar o turno com area segura.",
+      actionLabel: "Revalidar acesso",
     });
   }
 
