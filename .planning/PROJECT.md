@@ -34,12 +34,12 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 - [x] **AUD-01..AUD-04** - Trilha de auditoria, RBAC, evidência fora do Postgres, autorização por loja, checks de segurança, threat model e release gates - v1.0.
 - [x] **UI-01..UI-04** - Mobile-first, área de venda segura como primeira resposta, copy operacional, acessibilidade, polish e revisão Impeccable - v1.0.
 - [x] **P10/P11/P12 pilot hardening** - Fluxo real de piloto com central truth, segundo aparelho, Command Center consistente, versionamento do APK, readiness de device e blocker synthesis - v1.0.
+- [x] **OPS-01..OPS-04** - Superfícies operacionais destiladas: produto/lote guiados pela apresentação real na loja, Hoje/Ajustes/Fechamento com prontidão no peso certo, fechamento seguro bloqueado por leitura central/build/autorização/checklist, e web/mobile usando o mesmo vocabulário público - Phase 15.
 
 ### Active
 
 - [x] Separar no web a operação diária, aparelhos, atualizações e validação Go/No-Go sem esconder a prontidão dos aparelhos - Phase 13.
 - [ ] Criar no mobile uma área de Ajustes que concentre push/lembretes, sync, atualizações, build, privacidade, conta e saída.
-- [ ] Reduzir ruído operacional: estados saudáveis de sync/push/build ficam compactos, enquanto bloqueios aparecem com próximo passo claro.
 - [ ] Guiar a validação real da Loja 18 com produto/lote reais e provas externas honestas para APK, push, câmera/evidência, segundo aparelho e fechamento.
 
 ### Out of Scope
@@ -62,6 +62,7 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 - O hotfix pós-v1.0 confirmou que o APK local consegue preparar turno contra a Loja 18 quando o backend usa a loja da sessão autenticada; a próxima etapa é transformar esse piloto funcional em experiência de loja real.
 - Aparelhos são verdade operacional permanente, não apenas uma tela de piloto; UAT e Go/No-Go são validação de rollout e não devem competir com a rotina do corredor.
 - APK local instalado fora de loja/app store não deve ser tratado como autoatualizável. A área de atualizações deve mostrar versão instalada, versão aprovada e caminho de instalação; OTA/EAS Update fica como possibilidade futura apenas para atualizações compatíveis com o mesmo runtime.
+- Phase 15 confirmou o fluxo operacional destilado no repositório: cadastro de produto/lote parte da apresentação física na loja, produtos antigos continuam compatíveis, Hoje mostra apenas blockers relevantes, e fechamento seguro falha fechado sem leitura central atual, build/autorização válidos e checklist físico completo.
 
 ## Constraints
 
@@ -93,6 +94,8 @@ Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada 
 | Aparelhos ficam permanentes, mas detalhes saem do Command Center diário | A liderança precisa ver prontidão de aparelhos sempre, sem misturar diagnóstico com risco da área de venda | Good - Phase 13 separou Operacao e Aparelhos |
 | UAT/Go-No-Go vira superfície de validação, não rotina operacional | Checklist de rollout é importante para provar loja real, mas não deve poluir o uso diário depois da validação | Good - Phase 13 criou Validacao |
 | Atualizações do APK precisam ser verdade explícita | APK local não atualiza sozinho de forma confiável; operador precisa saber se está na build aprovada e como atualizar | Good - Phase 13 criou Atualizacoes |
+| Classificação de produto deve partir da apresentação física na loja | O operador reconhece como o produto está exposto antes de pensar em modo técnico, validade formal ou rebaixa | Good - Phase 15 criou política determinística sem expor `ProductMode` |
+| Fechamento seguro depende de leitura central atual e checklist físico | Encerrar turno não pode transformar pendência, cache local ou diagnóstico saudável em prova de área segura | Good - Phase 15 tornou leitura central, build, autorização e checklist bloqueios explícitos |
 
 ## Evolution
 
@@ -112,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-06-28 after starting v1.1 milestone*
+*Last updated: 2026-06-30 after completing Phase 15*

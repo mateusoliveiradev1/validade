@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
-current_phase: 15
-status: executing
-stopped_at: Completed 15-05-PLAN.md
-last_updated: "2026-06-30T10:51:33.311Z"
+current_phase: 16
+status: ready_to_plan
+stopped_at: Phase 15 complete (6/6) - ready to discuss Phase 16
+last_updated: 2026-06-30T11:35:00.000Z
 last_activity: 2026-06-30
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 16
-  completed_plans: 15
-  percent: 50
+  completed_plans: 16
+  percent: 75
 ---
 
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 15
+**Current phase:** 16
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -26,10 +26,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-29)
+See: .planning/PROJECT.md (updated 2026-06-30)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 15 — operational-surface-distillation
+**Current focus:** Phase 16 - loja 18 validation runbook and go/no go proof
 
 ## Roadmap Progress
 
@@ -37,7 +37,7 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 |-------|--------|-------|
 | 13 | Complete | Web Operational Navigation and Readiness Surfaces - 5 plans implemented and verified |
 | 14 | Complete | Mobile Ajustes and Device Controls - 5 plans implemented; ready for verification |
-| 15 | Pending | Operational Surface Distillation - OPS-01..OPS-04 |
+| 15 | Complete | Operational Surface Distillation - OPS-01..OPS-04 implemented and verified |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
 
 ## Active Constraints
@@ -50,11 +50,7 @@ See: .planning/PROJECT.md (updated 2026-06-29)
 
 ## Next Step
 
-Clear/uninstall the Validade Zero package on the Android device, then install the Phase 14 safe-boot APK and check whether the app opens or shows the recovery screen instead of the Android repeated-crash dialog.
-
-```powershell
-dist\android\validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk
-```
+Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 
 ## Accumulated Context
 
@@ -180,11 +176,12 @@ dist\android\validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk
 | Phase 15 P03 | 9 min | 3 tasks | 4 files |
 | Phase 15 P04 | 8 min | 3 tasks | 8 files |
 | Phase 15 P05 | 10 min | 3 tasks | 6 files |
+| Phase 15 P06 | 16 min | 3 tasks | 12 files |
 
 ## Session
 
-**Last session:** 2026-06-30T10:51:33.306Z
-**Stopped at:** Completed 15-05-PLAN.md
+**Last session:** 2026-06-30T11:06:07.660Z
+**Stopped at:** Completed 15-06-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -265,15 +262,15 @@ dist\android\validade-zero-local-staging-0.12.0-122-uat14-safe-boot.apk
 
 ## Current Position
 
-Phase: 15 (operational-surface-distillation) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
+Phase: 16 (loja-18-validation-runbook-and-go/no-go-proof) - READY_TO_PLAN
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-06-30
 
 ## Operator Next Steps
 
-- Verify Phase 14 with `$gsd-verify-work 14`.
-- Preserve the Phase 14 proof boundary: repo-local gates are green, while installed APK, provider push, camera/evidence, and physical Loja 18 UAT remain external validation evidence.
+- Start `$gsd-discuss-phase 16` or `$gsd-plan-phase 16` for the Loja 18 validation runbook and Go/No-Go proof.
+- Preserve the Phase 15 proof boundary: repo-local gates are green, while installed APK, provider push, camera/evidence, second-device convergence, and physical Loja 18 UAT remain external validation evidence.
 
 ## Deferred Items
 
