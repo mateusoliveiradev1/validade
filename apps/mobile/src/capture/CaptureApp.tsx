@@ -33,6 +33,7 @@ import type {
   ShiftClosureSnapshot,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
+import type { ShiftCloseDeviceAuthorization } from "@validade-zero/domain";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
@@ -647,6 +648,12 @@ export function CaptureApp({
         storeId={storeId}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
+        buildInfo={resolvedBuildInfo}
+        deviceAuthorization={shiftCloseDeviceAuthorizationFor({
+          activeRole,
+          session,
+          storeId,
+        })}
         onSafeClose={closeShiftClient}
         onBack={goBack}
       />,
@@ -954,6 +961,31 @@ function deviceLabelFor(packageId: string): string {
       : deviceNameParts.join(" ");
 
   return `${deviceName} - ${packageId}`;
+}
+
+function shiftCloseDeviceAuthorizationFor({
+  activeRole,
+  session,
+  storeId,
+}: {
+  activeRole: "collaborator" | "lead" | "admin" | undefined;
+  session: SessionContextResponse | undefined;
+  storeId: string;
+}): ShiftCloseDeviceAuthorization {
+  if (session === undefined) {
+    return "unknown";
+  }
+
+  if (
+    session.accountStatus !== "active" ||
+    session.store.storeId !== storeId ||
+    activeRole !== "lead" ||
+    session.actions.canCloseShift !== true
+  ) {
+    return "invalid";
+  }
+
+  return "valid";
 }
 
 function safePlatformConstants():

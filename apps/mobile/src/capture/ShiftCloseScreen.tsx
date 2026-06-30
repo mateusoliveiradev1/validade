@@ -10,8 +10,10 @@ import {
   evaluateShiftClose,
   type ShiftCloseCentralState,
   type ShiftCloseChecklistKey,
+  type ShiftCloseDeviceAuthorization,
   type ShiftCloseEvaluation,
 } from "@validade-zero/domain";
+import type { MobileBuildInfo } from "../build-info";
 import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { CaptureRepository, ShiftCloseOutboxRecord } from "./repository";
@@ -43,6 +45,8 @@ export function ShiftCloseScreen({
   storeId = "loja-local",
   prepareTurnCacheStatus,
   prepareTurnSource,
+  buildInfo,
+  deviceAuthorization,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -52,6 +56,8 @@ export function ShiftCloseScreen({
   storeId?: string | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
+  buildInfo?: MobileBuildInfo | undefined;
+  deviceAuthorization?: ShiftCloseDeviceAuthorization | undefined;
   now?: () => Date;
 }) {
   const [evaluation, setEvaluation] = useState<ShiftCloseEvaluation | undefined>();
@@ -86,8 +92,10 @@ export function ShiftCloseScreen({
     setSummary(
       shiftCloseSummaryFrom({
         activeTaskCount: tasks.filter((task) => task.status === "active").length,
+        buildInfo,
         central,
         checklistCount: checklist.length,
+        deviceAuthorization,
         syncConflictCount: queue.conflictCount,
         syncPendingCount: queue.totalCount,
       }),
@@ -108,6 +116,13 @@ export function ShiftCloseScreen({
         })),
         evidence: evidence.map((item) => ({ required: true, state: item.state })),
         ...(central === undefined ? {} : { central }),
+        ...(buildInfo === undefined
+          ? {}
+          : {
+              buildCompatibility: buildInfo.buildCompatibility,
+              buildRequiredForSafeClose: true,
+            }),
+        ...(deviceAuthorization === undefined ? {} : { deviceAuthorization }),
         pendingUnsafeCloseCount: pendingOutbox.length,
         checklist,
       }),
@@ -368,8 +383,10 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 function shiftCloseSummaryFrom(input: {
   activeTaskCount: number;
+  buildInfo: MobileBuildInfo | undefined;
   central: ShiftCloseCentralState | undefined;
   checklistCount: number;
+  deviceAuthorization: ShiftCloseDeviceAuthorization | undefined;
   syncConflictCount: number;
   syncPendingCount: number;
 }): CloseSummary {
@@ -384,8 +401,8 @@ function shiftCloseSummaryFrom(input: {
     syncPendingCount: input.syncPendingCount,
     syncConflictCount: input.syncConflictCount,
     centralReadStatus: centralReadStatusLabel(input.central),
-    buildStatus: "nao informado",
-    deviceAuthorizationStatus: "nao informado",
+    buildStatus: buildStatusLabel(input.buildInfo),
+    deviceAuthorizationStatus: deviceAuthorizationStatusLabel(input.deviceAuthorization),
     checklistProgress: `${input.checklistCount}/${SHIFT_CLOSE_CHECKLIST_KEYS.length} conferencias`,
     centralValidationAvailable,
   };
@@ -417,6 +434,36 @@ function centralReadStatusLabel(central: ShiftCloseCentralState | undefined): st
 
 function taskCountLabel(count: number): string {
   return count === 1 ? "1 tarefa ativa" : `${count} tarefas ativas`;
+}
+
+function buildStatusLabel(buildInfo: MobileBuildInfo | undefined): string {
+  if (buildInfo === undefined) {
+    return "nao informado";
+  }
+
+  if (buildInfo.buildCompatibility === "atual") {
+    return "build atual";
+  }
+
+  if (buildInfo.buildCompatibility === "incompativel") {
+    return "build incompativel";
+  }
+
+  if (buildInfo.buildCompatibility === "desatualizado") {
+    return "atualizacao obrigatoria";
+  }
+
+  return "build nao confirmado";
+}
+
+function deviceAuthorizationStatusLabel(
+  authorization: ShiftCloseDeviceAuthorization | undefined,
+): string {
+  if (authorization === undefined || authorization === "unknown") {
+    return "nao informado";
+  }
+
+  return authorization === "valid" ? "conta e loja autorizadas" : "autorizacao invalida";
 }
 
 function centralStateFromPrepareTurn(

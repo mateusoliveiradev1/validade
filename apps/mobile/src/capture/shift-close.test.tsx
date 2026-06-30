@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PrepareTurnCacheStatus, ShiftClosureSnapshot } from "@validade-zero/contracts";
+import type { MobileBuildInfo } from "../build-info";
 import type { CaptureRepository } from "./repository";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
 
@@ -141,6 +142,22 @@ function safeClosure(): ShiftClosureSnapshot {
   };
 }
 
+function pilotBuildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
+  return {
+    appVersion: "0.12.0",
+    appBuild: "132",
+    environment: "staging",
+    apiTarget: "https://private-build-url.example",
+    packageId: "com.validadezero.app",
+    approvedArtifactLabel: "uat14-staging-apk-132",
+    approvedAppVersion: "0.12.0",
+    approvedBuild: "132",
+    buildRef: "uat14-auto-132",
+    buildCompatibility: "atual",
+    ...overrides,
+  };
+}
+
 describe("ShiftCloseScreen", () => {
   it("keeps safe close blocked and saves a required unsafe handoff locally", async () => {
     let tree: ReactTestRenderer;
@@ -278,6 +295,73 @@ describe("ShiftCloseScreen", () => {
       idempotencyKey: "safe-shift-close:2030-01-10T18:00:00.000Z",
     });
     expect(JSON.stringify(tree!.toJSON())).toContain("Turno aceito pela central");
+  });
+
+  it("blocks safe close when the installed build is incompatible", async () => {
+    let tree: ReactTestRenderer;
+    await act(() => {
+      tree = create(
+        <ShiftCloseScreen
+          repository={{
+            ...repository,
+            listActiveTodayTasks: () => Promise.resolve([]),
+          }}
+          canCloseShift
+          onBack={() => undefined}
+          onSafeClose={() => Promise.resolve(safeClosure())}
+          prepareTurnCacheStatus={readyCentralCache()}
+          prepareTurnSource="central"
+          buildInfo={pilotBuildInfo({ buildCompatibility: "incompativel" })}
+          deviceAuthorization="valid"
+          now={() => new Date("2030-01-10T18:00:00.000Z")}
+        />,
+      );
+    });
+
+    await pressAction(tree!, "Conferi fisicamente");
+    await pressAction(tree!, "Expliquei as pendencias");
+    await pressAction(tree!, "A passagem esta pronta");
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("build incompativel");
+    expect(rendered).toContain("Atualizacao obrigatoria do app antes do fechamento seguro");
+    expect(actionByLabel(tree!, "Encerrar turno com area segura").props.disabled).toBe(true);
+  });
+
+  it("blocks safe close when account, store, or device authorization is invalid", async () => {
+    let tree: ReactTestRenderer;
+    await act(() => {
+      tree = create(
+        <ShiftCloseScreen
+          repository={{
+            ...repository,
+            listActiveTodayTasks: () => Promise.resolve([]),
+          }}
+          canCloseShift
+          onBack={() => undefined}
+          onSafeClose={() => Promise.resolve(safeClosure())}
+          prepareTurnCacheStatus={readyCentralCache()}
+          prepareTurnSource="central"
+          buildInfo={pilotBuildInfo()}
+          deviceAuthorization="invalid"
+          now={() => new Date("2030-01-10T18:00:00.000Z")}
+        />,
+      );
+    });
+
+    await pressAction(tree!, "Conferi fisicamente");
+    await pressAction(tree!, "Expliquei as pendencias");
+    await pressAction(tree!, "A passagem esta pronta");
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("autorizacao invalida");
+    expect(rendered).toContain(
+      "Conta, loja ou aparelho sem autorizacao para fechar o turno com area segura.",
+    );
+    expect(rendered).not.toMatch(
+      /buildUrl|ExpoPushToken|rawDeviceId|secret|password|https:\/\/private-build-url/i,
+    );
+    expect(actionByLabel(tree!, "Encerrar turno com area segura").props.disabled).toBe(true);
   });
 
   it("explains neutral permission denial to collaborators", () => {
