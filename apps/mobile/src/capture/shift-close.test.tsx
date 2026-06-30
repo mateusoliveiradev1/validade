@@ -33,6 +33,15 @@ const queueUnsafeShiftClose = vi.fn((input: unknown) =>
   }),
 );
 
+function emptySyncQueue() {
+  return {
+    commands: [],
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+  };
+}
+
 const repository = {
   listActiveTodayTasks: () =>
     Promise.resolve([
@@ -45,7 +54,7 @@ const repository = {
       },
     ]),
   loadOfflineCacheStatus: () => Promise.resolve({ state: "offline_ready" }),
-  listSyncQueue: () => Promise.resolve({ commands: [] }),
+  listSyncQueue: () => Promise.resolve(emptySyncQueue()),
   listEvidenceUploads: () => Promise.resolve([]),
   listShiftCloseOutbox: () => Promise.resolve([]),
   queueUnsafeShiftClose,
@@ -138,7 +147,19 @@ describe("ShiftCloseScreen", () => {
     await act(() => {
       tree = create(
         <ShiftCloseScreen
-          repository={repository}
+          repository={{
+            ...repository,
+            listSyncQueue: () =>
+              Promise.resolve({
+                commands: [
+                  { state: "pending_sync", urgency: "critical" },
+                  { state: "sync_conflict", urgency: "critical" },
+                ],
+                totalCount: 2,
+                conflictCount: 1,
+                hasCriticalConflict: true,
+              }),
+          }}
           canCloseShift
           onBack={() => undefined}
           now={() => new Date("2030-01-10T18:00:00.000Z")}
@@ -146,7 +167,14 @@ describe("ShiftCloseScreen", () => {
       );
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("passagem com pendencias continua disponivel");
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("passagem com pendencias continua disponivel");
+    expect(rendered).toContain("Resumo antes do fechamento seguro");
+    expect(rendered).toContain("1 tarefa ativa");
+    expect(rendered).toContain("2 pendencias, 1 conflitos");
+    expect(rendered).toContain("Leitura central");
+    expect(rendered).toContain("nao informado");
+    expect(rendered).toContain("0/3 conferencias");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Encerrar turno com area segura" }).props
         .disabled,

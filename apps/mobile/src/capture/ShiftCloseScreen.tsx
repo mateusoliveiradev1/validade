@@ -24,6 +24,17 @@ const checklistCopy: Record<ShiftCloseChecklistKey, string> = {
   handoff_ready: "A passagem esta pronta para a proxima lideranca.",
 };
 
+interface CloseSummary {
+  activeTaskCount: number;
+  syncPendingCount: number;
+  syncConflictCount: number;
+  centralReadStatus: string;
+  buildStatus: string;
+  deviceAuthorizationStatus: string;
+  checklistProgress: string;
+  centralValidationAvailable: boolean;
+}
+
 export function ShiftCloseScreen({
   repository,
   canCloseShift,
@@ -44,6 +55,7 @@ export function ShiftCloseScreen({
   now?: () => Date;
 }) {
   const [evaluation, setEvaluation] = useState<ShiftCloseEvaluation | undefined>();
+  const [summary, setSummary] = useState<CloseSummary | undefined>();
   const [checklist, setChecklist] = useState<ShiftCloseChecklistKey[]>([]);
   const [reason, setReason] = useState("");
   const [owner, setOwner] = useState("");
@@ -71,6 +83,15 @@ export function ShiftCloseScreen({
       queue.totalCount,
     );
     setPendingUnsafeClose(pendingOutbox[0]);
+    setSummary(
+      shiftCloseSummaryFrom({
+        activeTaskCount: tasks.filter((task) => task.status === "active").length,
+        central,
+        checklistCount: checklist.length,
+        syncConflictCount: queue.conflictCount,
+        syncPendingCount: queue.totalCount,
+      }),
+    );
     setEvaluation(
       evaluateShiftClose({
         cacheState: cache.state,
@@ -132,7 +153,9 @@ export function ShiftCloseScreen({
     owner.trim().length > 0 &&
     parsedDeadline !== undefined &&
     note.trim().length > 0;
-  const canRequestSafe = evaluation?.eligibility === "eligible_safe" && onSafeClose !== undefined;
+  const safeEvaluationReady =
+    evaluation?.eligibility === "eligible_safe" && summary?.centralValidationAvailable === true;
+  const canRequestSafe = safeEvaluationReady && onSafeClose !== undefined;
 
   async function queueUnsafeClose(): Promise<void> {
     const continuityDeadline = parseContinuityDeadline(deadline, now());
@@ -210,11 +233,41 @@ export function ShiftCloseScreen({
         title="Fechamento do turno"
         body="O horario de saida nao transforma pendencias em area segura."
       />
-      <StatusNotice tone={evaluation?.eligibility === "eligible_safe" ? "success" : "error"}>
-        {evaluation?.eligibility === "eligible_safe"
+      <StatusNotice tone={safeEvaluationReady ? "success" : "error"}>
+        {safeEvaluationReady
           ? "Pronto para validacao central de area segura."
           : "Ha bloqueios ou dados sem validacao central. A passagem com pendencias continua disponivel."}
       </StatusNotice>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Resumo antes do fechamento seguro</Text>
+        <View style={styles.summaryGrid}>
+          <SummaryRow
+            label="Tarefas ativas"
+            value={summary === undefined ? "0 tarefas ativas" : taskCountLabel(summary.activeTaskCount)}
+          />
+          <SummaryRow
+            label="Fila local"
+            value={
+              summary === undefined
+                ? "0 pendencias, 0 conflitos"
+                : `${summary.syncPendingCount} pendencias, ${summary.syncConflictCount} conflitos`
+            }
+          />
+          <SummaryRow
+            label="Leitura central"
+            value={summary?.centralReadStatus ?? "nao informado"}
+          />
+          <SummaryRow label="Atualizacao do app" value={summary?.buildStatus ?? "nao informado"} />
+          <SummaryRow
+            label="Conta e aparelho"
+            value={summary?.deviceAuthorizationStatus ?? "nao informado"}
+          />
+          <SummaryRow
+            label="Checklist fisico"
+            value={summary?.checklistProgress ?? `0/${SHIFT_CLOSE_CHECKLIST_KEYS.length} conferencias`}
+          />
+        </View>
+      </View>
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Conferencia fisica obrigatoria</Text>
         {SHIFT_CLOSE_CHECKLIST_KEYS.map((key) => {
@@ -302,6 +355,68 @@ export function ShiftCloseScreen({
       <SecondaryAction label="Voltar para Hoje" onPress={onBack} />
     </ScrollView>
   );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </View>
+  );
+}
+
+function shiftCloseSummaryFrom(input: {
+  activeTaskCount: number;
+  central: ShiftCloseCentralState | undefined;
+  checklistCount: number;
+  syncConflictCount: number;
+  syncPendingCount: number;
+}): CloseSummary {
+  const centralValidationAvailable =
+    input.central?.source === "central" &&
+    input.central.readiness === "prepared" &&
+    input.central.hasCurrentRead &&
+    input.central.hasCentralFacts;
+
+  return {
+    activeTaskCount: input.activeTaskCount,
+    syncPendingCount: input.syncPendingCount,
+    syncConflictCount: input.syncConflictCount,
+    centralReadStatus: centralReadStatusLabel(input.central),
+    buildStatus: "nao informado",
+    deviceAuthorizationStatus: "nao informado",
+    checklistProgress: `${input.checklistCount}/${SHIFT_CLOSE_CHECKLIST_KEYS.length} conferencias`,
+    centralValidationAvailable,
+  };
+}
+
+function centralReadStatusLabel(central: ShiftCloseCentralState | undefined): string {
+  if (central === undefined) {
+    return "nao informado";
+  }
+
+  if (central.source === "local_cache") {
+    return "leitura local; nao comprova area segura";
+  }
+
+  if (!central.hasCurrentRead) {
+    return "sem leitura central confirmada";
+  }
+
+  if (!central.hasCentralFacts) {
+    return "leitura central sem fatos";
+  }
+
+  if (central.source === "central" && central.readiness === "prepared") {
+    return "leitura central atual";
+  }
+
+  return "revisao central pendente";
+}
+
+function taskCountLabel(count: number): string {
+  return count === 1 ? "1 tarefa ativa" : `${count} tarefas ativas`;
 }
 
 function centralStateFromPrepareTurn(
@@ -440,6 +555,30 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 14,
     lineHeight: 20,
+  },
+  summaryGrid: {
+    gap: captureSpacing.small,
+  },
+  summaryRow: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  summaryLabel: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  summaryValue: {
+    color: captureColors.ink,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 21,
   },
   helper: {
     color: captureColors.mutedInk,
