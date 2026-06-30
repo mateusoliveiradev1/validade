@@ -166,8 +166,8 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
           <div className="grid gap-2 rounded-md border border-border bg-background p-3 text-sm leading-5">
             <p className="font-semibold">Atualizacao manual segura</p>
             <p className="text-muted-foreground">
-              Instale apenas o APK aprovado ({approvedArtifactLabel}) no aparelho piloto, abra o app
-              com internet e use Preparar turno para a central registrar versao, build e loja.
+              Instale apenas a build aprovada ({approvedArtifactLabel}) no aparelho piloto, abra o
+              app com internet e use Preparar turno para a central registrar versao, build e loja.
             </p>
             <p className="text-muted-foreground">
               Se aparecer build desconhecido, entre novamente com convite ativo da loja antes de
@@ -326,7 +326,7 @@ function buildCompatibilityTone(
 function buildCompatibilityLabel(
   state: CommandCenterProjection["devices"][number]["buildCompatibility"],
 ): string {
-  if (state === "atual") return "APK aprovado";
+  if (state === "atual") return "Build aprovado";
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";

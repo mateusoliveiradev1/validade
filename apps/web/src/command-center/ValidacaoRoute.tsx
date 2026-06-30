@@ -376,23 +376,23 @@ function RouteReferencePanel({
         <p className="text-sm font-semibold text-primary">Proximas acoes</p>
         <h2 className="text-xl font-semibold leading-6">Resolva na rota dona da acao</h2>
         <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-          A Validacao consolida Go/No-Go. Push, build e operacao continuam sendo corrigidos nas
-          telas onde a evidencia nasce.
+          A Validacao consolida Go/No-Go. Push, camera, autorizacao do aparelho, build e operacao
+          continuam sendo corrigidos nas telas onde a evidencia nasce.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
         <ReferenceButton
-          label="Resolver push em Aparelhos"
+          label="Resolver push, camera ou autorizacao do aparelho em Aparelhos"
           icon="aparelhos"
           {...(onOpenAparelhos === undefined ? {} : { onClick: onOpenAparelhos })}
         />
         <ReferenceButton
-          label="Resolver atualizacao em Atualizacoes"
+          label="Resolver build em Atualizacoes"
           icon="atualizacoes"
           {...(onOpenAtualizacoes === undefined ? {} : { onClick: onOpenAtualizacoes })}
         />
         <ReferenceButton
-          label="Revisar operacao diaria em Operacao"
+          label="Revisar fila local, revisao de produto ou fechamento em Operacao"
           icon="operacao"
           {...(onOpenOperacao === undefined ? {} : { onClick: onOpenOperacao })}
         />
@@ -479,7 +479,7 @@ function uatStepStateLabel(
 function buildCompatibilityLabel(
   state: CommandCenterProjection["devices"][number]["buildCompatibility"],
 ): string {
-  if (state === "atual") return "APK aprovado";
+  if (state === "atual") return "Build aprovado";
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";

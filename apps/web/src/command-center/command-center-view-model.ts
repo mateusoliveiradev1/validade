@@ -127,7 +127,7 @@ export function getSafePushTestDisabledReason(input: {
   device: CommandCenterProjection["devices"][number];
 }): string | undefined {
   if (!input.canSendPilotPushTest) {
-    return "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
+    return "Teste seguro exige autorizacao do aparelho, loja confirmada e leitura central recente.";
   }
 
   const lacksConfirmedScope = input.device.blockers.some(
@@ -135,7 +135,7 @@ export function getSafePushTestDisabledReason(input: {
       blocker.code === "invalid_store_or_user" || blocker.code === "missing_first_central_read",
   );
   if (lacksConfirmedScope) {
-    return "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
+    return "Teste seguro exige autorizacao do aparelho, loja confirmada e leitura central recente.";
   }
 
   return undefined;
@@ -157,9 +157,9 @@ export interface ValidationVerdict {
 }
 
 export type ValidationRouteReferenceLabel =
-  | "Resolver push em Aparelhos"
-  | "Resolver atualizacao em Atualizacoes"
-  | "Revisar operacao diaria em Operacao";
+  | "Resolver push, camera ou autorizacao do aparelho em Aparelhos"
+  | "Resolver build em Atualizacoes"
+  | "Revisar fila local, revisao de produto ou fechamento em Operacao";
 
 const unsafeUpdatePathPattern =
   /(token|secret|password|eas:\/\/|buildUrl|dashboard|builds?\/|private|firebase|google-services)/i;
@@ -260,16 +260,16 @@ export function validationReferenceForBlocker(
   category: CommandCenterProjection["pilotBlockers"][number]["category"],
 ): ValidationRouteReferenceLabel {
   if (category === "push" || category === "camera" || category === "device") {
-    return "Resolver push em Aparelhos";
+    return "Resolver push, camera ou autorizacao do aparelho em Aparelhos";
   }
 
-  if (category === "build") return "Resolver atualizacao em Atualizacoes";
+  if (category === "build") return "Resolver build em Atualizacoes";
 
   if (category === "sync" || category === "product_review" || category === "shift_close") {
-    return "Revisar operacao diaria em Operacao";
+    return "Revisar fila local, revisao de produto ou fechamento em Operacao";
   }
 
-  return "Revisar operacao diaria em Operacao";
+  return "Revisar fila local, revisao de produto ou fechamento em Operacao";
 }
 
 export function formatDateTime(value: string): string {

@@ -226,7 +226,7 @@ function pilotUatChecklist(storeId: string, storeName: string) {
         label: "Preparar turno",
         state: "passed",
         ownerLabel: "Lideranca Loja 18",
-        actionLabel: "Abrir Preparar turno no APK aprovado.",
+        actionLabel: "Abrir Preparar turno no app aprovado.",
         evidenceReferenceLabel: "Leitura central preparada",
         occurredAt: updatedAt,
         updatedAt,
@@ -361,7 +361,7 @@ describe("CommandCenter", () => {
     render(<CommandCenter client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByText("Area de venda com bloqueios")).toBeTruthy();
-    expect(screen.getByText("Foto da central")).toBeTruthy();
+    expect(screen.getByText("Leitura central")).toBeTruthy();
     expect(
       screen.getByText("Aparelhos do turno: 0 aptos, 1 em atencao, 0 bloqueados"),
     ).toBeTruthy();
@@ -408,9 +408,9 @@ describe("CommandCenter", () => {
       text.indexOf("Evidencias pendentes ou com falha"),
     );
     expect(text.indexOf("Evidencias pendentes ou com falha")).toBeLessThan(
-      text.indexOf("Conflitos de sincronizacao"),
+      text.indexOf("Conflitos da fila de sincronizacao"),
     );
-    expect(text.indexOf("Conflitos de sincronizacao")).toBeLessThan(
+    expect(text.indexOf("Conflitos da fila de sincronizacao")).toBeLessThan(
       text.indexOf("Acoes descartadas pela central"),
     );
     expect(text.indexOf("Acoes descartadas pela central")).toBeLessThan(
@@ -567,10 +567,12 @@ describe("CommandCenter", () => {
     ).toBeTruthy();
     expect(screen.getByText("permitida, remoto pronto")).toBeTruthy();
     expect(screen.getAllByText("permitida").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("APK aprovado").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Build aprovado").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Autorizacao do aparelho:").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("autorizacao confirmada").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText(
-        "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.",
+        "Teste seguro exige autorizacao do aparelho, loja confirmada e leitura central recente.",
       ).length,
     ).toBeGreaterThan(0);
     expect(text).not.toContain("Ver instrucoes manuais");
@@ -648,7 +650,7 @@ describe("CommandCenter", () => {
     expect(text).toContain("Build incompativel");
     expect(text).toContain("Build antigo");
     expect(text).toContain("Build desconhecido");
-    expect(text).toContain("APK aprovado");
+    expect(text).toContain("Build aprovado");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Provider aceitou");
     expect(text).not.toContain("UAT Loja 18");
@@ -682,9 +684,13 @@ describe("CommandCenter", () => {
     expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
     expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
     expect(screen.getByText("moto...001 - Lider FICTICIO")).toBeTruthy();
-    expect(screen.getByText("Resolver push em Aparelhos")).toBeTruthy();
-    expect(screen.getByText("Resolver atualizacao em Atualizacoes")).toBeTruthy();
-    expect(screen.getByText("Revisar operacao diaria em Operacao")).toBeTruthy();
+    expect(
+      screen.getByText("Resolver push, camera ou autorizacao do aparelho em Aparelhos"),
+    ).toBeTruthy();
+    expect(screen.getByText("Resolver build em Atualizacoes")).toBeTruthy();
+    expect(
+      screen.getByText("Revisar fila local, revisao de produto ou fechamento em Operacao"),
+    ).toBeTruthy();
     expect(
       screen.getByText(/O status de validacao e calculado pela leitura central atual/),
     ).toBeTruthy();
@@ -697,9 +703,17 @@ describe("CommandCenter", () => {
     expect(text).not.toContain("uat14-staging-apk-132");
     expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
 
-    fireEvent.click(screen.getByRole("button", { name: "Resolver push em Aparelhos" }));
-    fireEvent.click(screen.getByRole("button", { name: "Resolver atualizacao em Atualizacoes" }));
-    fireEvent.click(screen.getByRole("button", { name: "Revisar operacao diaria em Operacao" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Resolver build em Atualizacoes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Revisar fila local, revisao de produto ou fechamento em Operacao",
+      }),
+    );
     expect(onOpenAparelhos).toHaveBeenCalledTimes(1);
     expect(onOpenAtualizacoes).toHaveBeenCalledTimes(1);
     expect(onOpenOperacao).toHaveBeenCalledTimes(1);
@@ -768,14 +782,22 @@ describe("CommandCenter", () => {
 
   it("keeps shared route selectors public-safe and projection-derived", () => {
     const disabledCopy =
-      "Teste seguro exige aparelho autorizado, loja confirmada e leitura central recente.";
+      "Teste seguro exige autorizacao do aparelho, loja confirmada e leitura central recente.";
     expect(routeLabel("operacao")).toBe("Operacao");
     expect(routeLabel("validacao")).toBe("Validacao");
     expect(deriveValidationVerdict(projection).label).toBe("No-Go");
-    expect(validationReferenceForBlocker("push")).toBe("Resolver push em Aparelhos");
-    expect(validationReferenceForBlocker("build")).toBe("Resolver atualizacao em Atualizacoes");
+    expect(validationReferenceForBlocker("push")).toBe(
+      "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
+    );
+    expect(validationReferenceForBlocker("camera")).toBe(
+      "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
+    );
+    expect(validationReferenceForBlocker("device")).toBe(
+      "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
+    );
+    expect(validationReferenceForBlocker("build")).toBe("Resolver build em Atualizacoes");
     expect(validationReferenceForBlocker("shift_close")).toBe(
-      "Revisar operacao diaria em Operacao",
+      "Revisar fila local, revisao de produto ou fechamento em Operacao",
     );
     expect(countDeviceReadiness(projection.devices)).toEqual({
       apto: 0,

@@ -341,7 +341,10 @@ function CommandCenterProjectionView({
             />
           ))}
         </FunnelSection>
-        <FunnelSection title="Conflitos de sincronizacao" count={projection.syncConflicts.length}>
+        <FunnelSection
+          title="Conflitos da fila de sincronizacao"
+          count={projection.syncConflicts.length}
+        >
           {projection.syncConflicts.map((item) => (
             <FunnelRow
               key={item.conflictId}
@@ -422,8 +425,8 @@ function PilotBlockersPanel({ blockers }: { blockers: CommandCenterProjection["p
           <p className="text-sm font-semibold text-primary">Bloqueios do piloto</p>
           <h2 className="text-xl font-semibold leading-6">O que impede o go/no-go</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Consolida aparelho, build, push, UAT, catalogo, sync e fechamento. Um veredito seguro da
-            area nao esconde bloqueios de rollout.
+            Consolida aparelho, build, push, UAT, catalogo, fila local e fechamento. Um veredito
+            seguro da area nao esconde bloqueios de rollout.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -603,9 +606,12 @@ function DeviceReadinessPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Aparelhos do piloto</p>
-          <h2 className="text-xl font-semibold leading-6">Prontidao por aparelho autorizado</h2>
+          <h2 className="text-xl font-semibold leading-6">
+            Prontidao e autorizacao do aparelho
+          </h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
-            Mostra ultima abertura, sync e leitura central. Isto nao e presenca ao vivo.
+            Mostra ultima abertura, fila local, push, camera, build e leitura central. Isto nao e
+            presenca ao vivo.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -714,7 +720,7 @@ function DeviceReadinessPanel({
                     </Badge>
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">APK aprovado: </span>
+                    <span className="font-medium text-foreground">Build aprovado: </span>
                     {device.approvedArtifactLabel} ({device.approvedAppVersion}/
                     {device.approvedBuild})
                   </p>
@@ -844,13 +850,13 @@ function CentralSnapshotPanel({
   return (
     <section
       className="grid gap-4 rounded-lg border border-border bg-card p-4"
-      aria-label="Foto da central"
+      aria-label="Leitura central"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <p className="text-sm font-semibold text-primary">Foto da central</p>
+          <p className="text-sm font-semibold text-primary">Leitura central</p>
           <h2 className="text-xl font-semibold leading-6">
-            {noCentralLots ? "Nenhum lote salvo na central" : "Dados centrais recebidos"}
+            {noCentralLots ? "Nenhum lote salvo na central" : "Leitura central recebida"}
           </h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
             {noCentralLots
@@ -886,9 +892,13 @@ function CentralSnapshotPanel({
           detail={`${countLabel(snapshot.resolvedHistoryCount, "resolucao central", "resolucoes centrais")} no historico`}
         />
         <CentralSnapshotMetric
-          label="Sync"
-          value={countLabel(syncIssueCount, "pendencia de sync", "pendencias de sync")}
-          detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pelo leitor`}
+          label="Fila local"
+          value={countLabel(
+            syncIssueCount,
+            "pendencia na fila local",
+            "pendencias na fila local",
+          )}
+          detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pela leitura central`}
         />
       </div>
 
@@ -1330,7 +1340,7 @@ function buildCommandCenterInsight(projection: CommandCenterProjection): Command
     },
     {
       key: "sync",
-      label: "Sync ou conflito",
+      label: "Fila local ou conflito",
       count: syncConflictLots.length + syncRetryLots.length + projection.discardedActions.length,
       detail: "Acao offline precisa de revisao ou foi descartada pela verdade central.",
       tone: "critical",
@@ -1684,7 +1694,7 @@ function pilotBlockerCategoryLabel(
 ): string {
   if (category === "device") return "Aparelho";
   if (category === "membership") return "Acesso/loja";
-  if (category === "sync") return "Sincronizacao";
+  if (category === "sync") return "Fila de sincronizacao";
   if (category === "push") return "Push";
   if (category === "camera") return "Camera";
   if (category === "build") return "Build";
@@ -1705,7 +1715,7 @@ function buildCompatibilityTone(
 function buildCompatibilityLabel(
   state: CommandCenterProjection["devices"][number]["buildCompatibility"],
 ): string {
-  if (state === "atual") return "APK aprovado";
+  if (state === "atual") return "Build aprovado";
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";

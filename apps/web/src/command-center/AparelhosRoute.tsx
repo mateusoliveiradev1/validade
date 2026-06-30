@@ -41,8 +41,8 @@ export function AparelhosRoute({
             Aparelhos
           </h1>
           <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
-            Confira quais aparelhos reportaram leitura central, fila local, push remoto, camera e
-            APK aprovado.
+            Confira quais aparelhos reportaram leitura central, fila local, push, camera, build e
+            autorizacao do aparelho.
           </p>
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {lastClientRefreshAt === undefined
@@ -133,7 +133,7 @@ function DeviceReadinessList({
 
       {operationalDevices.length === 0 ? (
         <div className="rounded-md border border-border bg-background p-3 text-sm leading-5 text-muted-foreground">
-          Nenhum aparelho confirmado apareceu nesta leitura. Abra o APK aprovado com uma conta da
+          Nenhum aparelho confirmado apareceu nesta leitura. Abra o app aprovado com uma conta da
           loja, aguarde a leitura central e atualize o painel.
         </div>
       ) : (
@@ -185,7 +185,7 @@ function DeviceReadinessList({
                     {optionalDateLabel(device.lastSyncAt, "ainda nao reportada pelo APK")}
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">Push remoto: </span>
+                    <span className="font-medium text-foreground">Push: </span>
                     {pushStateLabel(device.pushPermission, device.pushProviderState)}
                   </p>
                   <p>
@@ -200,6 +200,12 @@ function DeviceReadinessList({
                     >
                       {buildCompatibilityLabel(device.buildCompatibility)}
                     </Badge>
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">
+                      Autorizacao do aparelho:{" "}
+                    </span>
+                    {deviceAuthorizationLabel(device)}
                   </p>
                   <p>
                     <span className="font-medium text-foreground">Atualizado: </span>
@@ -368,10 +374,16 @@ function buildCompatibilityTone(
 function buildCompatibilityLabel(
   state: CommandCenterProjection["devices"][number]["buildCompatibility"],
 ): string {
-  if (state === "atual") return "APK aprovado";
+  if (state === "atual") return "Build aprovado";
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";
+}
+
+function deviceAuthorizationLabel(device: CommandCenterProjection["devices"][number]): string {
+  return device.blockers.some((blocker) => blocker.code === "invalid_store_or_user")
+    ? "sem autorizacao"
+    : "autorizacao confirmada";
 }
 
 function permissionLabel(

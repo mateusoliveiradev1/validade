@@ -266,13 +266,13 @@ function CentralSnapshotPanel({
   return (
     <section
       className="grid gap-4 rounded-lg border border-border bg-card p-4"
-      aria-label="Foto da central"
+      aria-label="Leitura central"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <p className="text-sm font-semibold text-primary">Foto da central</p>
+          <p className="text-sm font-semibold text-primary">Leitura central</p>
           <h2 className="text-xl font-semibold leading-6">
-            {noCentralLots ? "Nenhum lote salvo na central" : "Dados centrais recebidos"}
+            {noCentralLots ? "Nenhum lote salvo na central" : "Leitura central recebida"}
           </h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
             Estes numeros vieram da leitura central usada pela Operacao, nao de dados locais do
@@ -305,9 +305,13 @@ function CentralSnapshotPanel({
           detail={`${countLabel(snapshot.resolvedHistoryCount, "resolucao central", "resolucoes centrais")} no historico`}
         />
         <CentralSnapshotMetric
-          label="Sync"
-          value={countLabel(syncIssueCount, "pendencia de sync", "pendencias de sync")}
-          detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pelo leitor`}
+          label="Fila local"
+          value={countLabel(
+            syncIssueCount,
+            "pendencia na fila local",
+            "pendencias na fila local",
+          )}
+          detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pela leitura central`}
         />
       </div>
     </section>
@@ -343,7 +347,7 @@ function CommandCenterInsightPanel({ projection }: { projection: CommandCenterPr
     projection.syncConflicts.length + projection.discardedActions.length + shiftBlockers;
   const primaryCause =
     projection.criticalLots[0]?.cause.label ??
-    (syncCount > 0 ? "Sync ou fechamento bloqueado" : "Sem causa ativa");
+    (syncCount > 0 ? "Fila local ou fechamento bloqueado" : "Sem causa ativa");
 
   return (
     <section
@@ -371,7 +375,7 @@ function CommandCenterInsightPanel({ projection }: { projection: CommandCenterPr
           tone={projection.overdueTasks.length === 0 ? "success" : "warning"}
         />
         <InsightMetric
-          label="Sync ou descarte"
+          label="Fila local/descarte"
           value={String(projection.syncConflicts.length + projection.discardedActions.length)}
           tone={
             projection.syncConflicts.length + projection.discardedActions.length === 0
@@ -480,7 +484,10 @@ function OperationalFunnel({ projection }: { projection: CommandCenterProjection
           />
         ))}
       </FunnelSection>
-      <FunnelSection title="Conflitos de sincronizacao" count={projection.syncConflicts.length}>
+      <FunnelSection
+        title="Conflitos da fila de sincronizacao"
+        count={projection.syncConflicts.length}
+      >
         {projection.syncConflicts.map((item) => (
           <FunnelRow
             key={item.conflictId}
