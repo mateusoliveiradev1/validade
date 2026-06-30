@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  productPolicyPreviewTerms,
+  productPolicyPublicLabels,
+  productPresentationChoices,
+  productPresentationQuestion,
+} from "./capture-copy";
 
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
@@ -42,6 +48,38 @@ describe("mobile product polish", () => {
     expect(chain).toContain("Previa de risco");
     expect(chain).toContain("Acao salva neste aparelho");
     expect(chain).not.toMatch(/#F5F7EF|#E6EEE4|#112016|#3F5546|#B42318/);
+  });
+
+  it("keeps product policy copy operator-readable and free of raw mode labels", () => {
+    expect(productPresentationQuestion).toBe("Como esse produto esta na loja?");
+    expect(Object.values(productPresentationChoices)).toEqual([
+      "Inteiro solto",
+      "Embalado pelo fornecedor",
+      "Cortado/PED",
+      "Fracionado ou reembalado na loja",
+      "Preparado pronto",
+      "Ovos",
+      "Industrial/refrigerado com validade",
+      "Outro/nao sei",
+    ]);
+    expect(Object.values(productPolicyPreviewTerms)).toEqual([
+      "fica no radar",
+      "pedir rebaixa",
+      "retirar/perda",
+      "reembalar/perda",
+      "conferir qualidade",
+    ]);
+
+    const publicVocabulary = [
+      productPresentationQuestion,
+      ...Object.values(productPresentationChoices),
+      ...Object.values(productPolicyPreviewTerms),
+      ...Object.values(productPolicyPublicLabels),
+    ].join(" ");
+
+    expect(publicVocabulary).not.toMatch(
+      /formal_validity|flv_inspection|processed_repack_loss|receiving_monitored/,
+    );
   });
 
   it("keeps account identity, safety loading, sync, evidence, and close truth explicit", () => {

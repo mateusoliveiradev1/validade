@@ -1,4 +1,4 @@
-import type { OperationalLocation } from "@validade-zero/contracts";
+import type { OperationalLocation, StorePresentationKind } from "@validade-zero/contracts";
 
 const operationalTimeZone = "America/Sao_Paulo";
 
@@ -46,6 +46,34 @@ export const productModeLabels = {
   flv_inspection: "Inspeção de FLV",
   processed_repack_loss: "Processado: reembalar/avaria",
   receiving_monitored: "Recebimento monitorado",
+} as const;
+
+export const productPresentationQuestion = "Como esse produto esta na loja?";
+
+export const productPresentationChoices = {
+  loose_whole: "Inteiro solto",
+  supplier_packaged: "Embalado pelo fornecedor",
+  store_cut_ped: "Cortado/PED",
+  store_fractioned_repacked: "Fracionado ou reembalado na loja",
+  prepared_ready_to_eat: "Preparado pronto",
+  eggs: "Ovos",
+  industrial_chilled_validity: "Industrial/refrigerado com validade",
+  unknown_other: "Outro/nao sei",
+} as const satisfies Readonly<Record<StorePresentationKind, string>>;
+
+export const productPolicyPreviewTerms = {
+  radar: "fica no radar",
+  requestMarkdown: "pedir rebaixa",
+  withdrawLoss: "retirar/perda",
+  repackLoss: "reembalar/perda",
+  qualityCheck: "conferir qualidade",
+} as const;
+
+export const productPolicyPublicLabels = {
+  printed_validity: "validade impressa",
+  quality_inspection: productPolicyPreviewTerms.qualityCheck,
+  internal_repack_loss: productPolicyPreviewTerms.repackLoss,
+  conservative_review: "conferir com a lideranca",
 } as const;
 
 export const operationalLocations = [
