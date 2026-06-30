@@ -1354,11 +1354,12 @@ describe("memory capture repository", () => {
     ]);
   });
 
-  it("does not confirm central-cache lots locally when the central write fails", async () => {
+  it("keeps central-cache lots local and retryable when the immediate central write fails", async () => {
     const createCentralLot = vi.fn(() => Promise.reject(new Error("network unavailable")));
+    const identifiers = ["lote-alface-local", "obs-alface-local"];
     const repository = createMemoryCaptureRepository({
       clock: () => "2030-01-10T09:00:00.000Z",
-      createId: () => "identificador-local-nao-usado",
+      createId: () => identifiers.shift() ?? "id-alface-extra",
       createCentralLot,
     });
 
@@ -1423,21 +1424,33 @@ describe("memory capture repository", () => {
       conflicts: [],
     });
 
-    await expect(
-      repository.saveLot({
-        lot: {
-          productId: "produto-central-alface-001",
-          identity: { identitySource: "printed", value: "LOTE-CENTRAL-FICTICIO-001" },
-          mode: "formal_validity",
-          expiresAt: "2030-01-12",
-          receivedAt: "2030-01-10",
-          approximateQuantity: 9,
-          initialLocation: { kind: "area_de_venda" },
-        },
-        actorLabel: "Colaboradora Central FICTICIA",
-      }),
-    ).rejects.toThrow("central_lot_write_failed");
+    const localLot = await repository.saveLot({
+      lot: {
+        productId: "produto-central-alface-001",
+        identity: { identitySource: "printed", value: "LOTE-CENTRAL-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-12",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 9,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora Central FICTICIA",
+    });
+
     expect(createCentralLot).toHaveBeenCalledOnce();
-    await expect(repository.listRecentLots()).resolves.toEqual([]);
+    expect(localLot).toMatchObject({
+      id: "lote-alface-local",
+      centralSyncState: "local",
+      centralSource: "local_cache",
+      centralAcknowledgementMessage:
+        "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
+    });
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-alface-local",
+        centralSyncState: "local",
+        centralSource: "local_cache",
+      }),
+    ]);
   });
 });

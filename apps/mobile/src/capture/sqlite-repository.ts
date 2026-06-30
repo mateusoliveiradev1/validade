@@ -1041,13 +1041,13 @@ export function createSQLiteCaptureRepository(
     }
 
     if (product.centralProductId === undefined) {
-      throw new Error("central_lot_requires_central_product");
+      return null;
     }
 
     const cache = await loadPrepareTurnCacheStatus().catch(() => null);
 
     if (cache?.state !== "ready" || cache.source !== "central") {
-      throw new Error("central_lot_requires_ready_prepare_turn");
+      return null;
     }
 
     const occurredAt = dependencies.clock();
@@ -1082,16 +1082,8 @@ export function createSQLiteCaptureRepository(
       });
 
       return centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.message === "central_lot_requires_central_product" ||
-          error.message === "central_lot_requires_ready_prepare_turn")
-      ) {
-        throw error;
-      }
-
-      throw new Error("central_lot_write_failed", { cause: error });
+    } catch {
+      return null;
     }
   }
 
