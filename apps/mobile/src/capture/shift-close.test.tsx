@@ -145,14 +145,14 @@ function safeClosure(): ShiftClosureSnapshot {
 function pilotBuildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "137",
+    appBuild: "138",
     environment: "staging",
     apiTarget: "https://private-build-url.example",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat15-sync-debug-apk-137",
+    approvedArtifactLabel: "uat15-sync-debug-apk-138",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "137",
-    buildRef: "sync-debug-137",
+    approvedBuild: "138",
+    buildRef: "sync-debug-138",
     buildCompatibility: "atual",
     ...overrides,
   };

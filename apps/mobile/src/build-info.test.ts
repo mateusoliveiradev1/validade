@@ -7,7 +7,7 @@ describe("mobile build info", () => {
       application: {
         applicationId: "com.validadezero.app",
         nativeApplicationVersion: "0.12.0",
-        nativeBuildVersion: "137",
+        nativeBuildVersion: "138",
       },
       constants: {
         default: {
@@ -17,9 +17,9 @@ describe("mobile build info", () => {
             extra: {
               EXPO_PUBLIC_API_URL: "https://api.ficticia.invalid",
               VALIDADE_ZERO_APP_ENV: "staging",
-              VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL: "uat15-sync-debug-apk-137",
+              VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL: "uat15-sync-debug-apk-138",
               VALIDADE_ZERO_APPROVED_APP_VERSION: "0.12.0",
-              VALIDADE_ZERO_APPROVED_BUILD: "137",
+              VALIDADE_ZERO_APPROVED_BUILD: "138",
               VALIDADE_ZERO_BUILD_REF: "uat14-public",
             },
           },
@@ -29,13 +29,13 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "137",
+      appBuild: "138",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       packageId: "com.validadezero.app",
-      approvedArtifactLabel: "uat15-sync-debug-apk-137",
+      approvedArtifactLabel: "uat15-sync-debug-apk-138",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "137",
+      approvedBuild: "138",
       buildRef: "uat14-public",
       buildCompatibility: "atual",
     });
@@ -47,7 +47,7 @@ describe("mobile build info", () => {
       constants: {
         expoConfig: {
           version: "0.12.0",
-          android: { package: "com.validadezero.app", versionCode: 137 },
+          android: { package: "com.validadezero.app", versionCode: 138 },
           extra: {},
         },
       },
@@ -55,7 +55,7 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "137",
+      appBuild: "138",
       packageId: "com.validadezero.app",
       buildCompatibility: "atual",
     });
@@ -93,8 +93,8 @@ describe("mobile build info", () => {
     expect(oldBuild.buildCompatibility).toBe("desatualizado");
     expect(futureBuild.buildCompatibility).toBe("incompativel");
     expect(unknownBuild.buildCompatibility).toBe("desconhecido");
-    expect(unknownBuild.approvedArtifactLabel).toBe("uat15-sync-debug-apk-137");
-    expect(unknownBuild.approvedBuild).toBe("137");
+    expect(unknownBuild.approvedArtifactLabel).toBe("uat15-sync-debug-apk-138");
+    expect(unknownBuild.approvedBuild).toBe("138");
     expect(unknownBuild.buildRef).not.toBe(longRef);
     expect(unknownBuild.buildRef).toMatch(/^abcdef123\.\.\./);
     expect(JSON.stringify(unknownBuild)).not.toMatch(/token|segredo|expo\.dev|abcdef1234567890/i);

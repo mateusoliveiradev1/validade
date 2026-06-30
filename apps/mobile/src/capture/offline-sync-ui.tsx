@@ -25,12 +25,14 @@ export function OfflineStatusBand({
   onRetry,
   disabled = false,
   hideWhenReady = false,
+  showRetryAction = true,
 }: {
   status: OfflineCacheStatus | undefined;
   queue: SyncQueueSummaryRecord | undefined;
-  onRetry: () => void;
+  onRetry?: (() => void) | undefined;
   disabled?: boolean;
   hideWhenReady?: boolean;
+  showRetryAction?: boolean | undefined;
 }) {
   if (status === undefined) {
     return null;
@@ -66,7 +68,7 @@ export function OfflineStatusBand({
       ) : (
         <Text style={styles.bandMeta}>{todayCopy.sync.allSynced}</Text>
       )}
-      {hasPending ? (
+      {hasPending && showRetryAction && onRetry !== undefined ? (
         <SecondaryAction
           disabled={disabled || queue?.state === "syncing"}
           label={queue?.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.primary}
@@ -113,12 +115,16 @@ export function SyncQueueSummary({
   onReviewConflict,
   disabled = false,
   hideWhenEmpty = false,
+  showRetryAction = true,
+  title,
 }: {
   queue: SyncQueueSummaryRecord | undefined;
-  onRetry: () => void;
+  onRetry?: (() => void) | undefined;
   onReviewConflict: (conflictId: string) => void;
   disabled?: boolean;
   hideWhenEmpty?: boolean;
+  showRetryAction?: boolean | undefined;
+  title?: string | undefined;
 }) {
   if (queue === undefined) {
     return null;
@@ -136,7 +142,7 @@ export function SyncQueueSummary({
     <View style={styles.queue}>
       <View style={styles.queueHeader}>
         <Text style={styles.queueTitle}>
-          {queue.totalCount === 0 ? todayCopy.sync.allSynced : todayCopy.sync.primary}
+          {title ?? (queue.totalCount === 0 ? todayCopy.sync.allSynced : todayCopy.sync.primary)}
         </Text>
         <Text style={styles.queueMeta}>
           {queue.criticalCount} criticas, {queue.highCount} altas, {queue.mediumCount} medias
@@ -165,11 +171,13 @@ export function SyncQueueSummary({
               onReviewConflict={onReviewConflict}
             />
           ))}
-          <PrimaryAction
-            disabled={disabled || queue.state === "syncing"}
-            label={queue.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.retry}
-            onPress={onRetry}
-          />
+          {showRetryAction && onRetry !== undefined ? (
+            <PrimaryAction
+              disabled={disabled || queue.state === "syncing"}
+              label={queue.state === "syncing" ? todayCopy.sync.syncing : todayCopy.sync.retry}
+              onPress={onRetry}
+            />
+          ) : null}
           {queue.state === "has_failed" ? <SyncRetryNotice /> : null}
         </>
       )}

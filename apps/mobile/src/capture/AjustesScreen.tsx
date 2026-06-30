@@ -438,14 +438,6 @@ export function AjustesScreen({
               onPress={() => void manualSync()}
             />
           )}
-          {syncReadiness.centralRefreshRequired &&
-          (syncEngine !== undefined || repository.syncPendingCentralLots !== undefined) ? (
-            <SecondaryAction
-              disabled={isSyncing}
-              label={isSyncing ? "Conferindo fila local" : syncActionLabel}
-              onPress={() => void manualSync()}
-            />
-          ) : null}
           {firstConflictId === undefined ? null : (
             <SecondaryAction
               label="Revisar conflito"
@@ -466,7 +458,8 @@ export function AjustesScreen({
           isSyncing || (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
         }
         queue={syncQueue}
-        onRetry={() => void manualSync()}
+        showRetryAction={false}
+        title="Fila local neste aparelho"
         onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
       />
       <BuildUpdateCard
@@ -555,11 +548,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "137"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "138"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat15-sync-debug-apk-137"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat15-sync-debug-apk-138"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

@@ -323,6 +323,46 @@ describe("mobile auth flow", () => {
     );
   });
 
+  it("preserves central lot API error codes instead of masking them as network failures", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(Response.json({ error: "central_product_not_found" }, { status: 404 })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const auth = createMobileAuthClient({ baseUrl: "https://api.example.test" });
+
+    await expect(
+      auth.createCentralLot({
+        lot: {
+          productId: "product-melancia-ficticia",
+          identity: { identitySource: "printed", value: "MELANCIA-001" },
+          mode: "formal_validity",
+          expiresAt: "2030-01-10",
+          approximateQuantity: 1,
+          initialLocation: { kind: "area_de_venda" },
+        },
+        actorLabel: "Colaborador FICTICIO",
+        occurredAt: "2030-01-10T12:00:00.000Z",
+        idempotencyKey: "lot-write-melancia-001",
+      }),
+    ).rejects.toThrow("central_product_not_found");
+
+    await expect(
+      auth.createCentralLot({
+        lot: {
+          productId: "product-melancia-ficticia",
+          identity: { identitySource: "printed", value: "MELANCIA-002" },
+          mode: "formal_validity",
+          expiresAt: "2030-01-10",
+          approximateQuantity: 1,
+          initialLocation: { kind: "area_de_venda" },
+        },
+        actorLabel: "Colaborador FICTICIO",
+        occurredAt: "2030-01-10T12:01:00.000Z",
+        idempotencyKey: "lot-write-melancia-002",
+      }),
+    ).rejects.not.toMatchObject({ code: "network" });
+  });
+
   it("uses the authenticated central shift-close endpoint for safe close validation", async () => {
     const sessionToken = "sessao-ficticia-com-tamanho-valido-0002";
     const expectedAuthorization = `${"Bearer"} ${sessionToken}`;

@@ -569,10 +569,7 @@ function normalizeApiBaseUrl(value: string | undefined): string {
   return /^https?:\/\//.test(baseUrl) ? baseUrl.replace(/\/$/, "") : "";
 }
 
-function toMobileAuthError(
-  payload: unknown,
-  response?: { path: string; status: number },
-): MobileAuthError {
+function toMobileAuthError(payload: unknown, response?: { path: string; status: number }): Error {
   const apiError = apiErrorCode(payload);
 
   if (response?.path === "/auth/session" && response.status === 401)
@@ -582,7 +579,7 @@ function toMobileAuthError(
   if (response?.path === "/capture/lots") {
     if (response.status === 401) return new MobileAuthError("session_expired", apiError);
     if (response.status === 403) return new MobileAuthError("no_permission", apiError);
-    if (apiError !== undefined) return new MobileAuthError("network", apiError);
+    if (apiError !== undefined) return new Error(apiError);
   }
   const invite = InviteValidationResponseSchema.safeParse(payload);
   if (invite.success && invite.data.status !== "valid")

@@ -45,6 +45,11 @@ describe("memory capture repository", () => {
     expect(pendingCentralLotWriteBlocker(new Error("central_product_not_found"))).toBe(
       "central_product_not_ready",
     );
+    expect(
+      pendingCentralLotWriteBlocker(
+        Object.assign(new Error("central_product_not_found"), { code: "network" }),
+      ),
+    ).toBe("central_product_not_ready");
     expect(pendingCentralLotWriteBlocker(new Error("invalid_central_lot_request"))).toBe(
       "central_lot_local_replay_failed",
     );

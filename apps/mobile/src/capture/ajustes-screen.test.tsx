@@ -78,14 +78,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "137",
+    appBuild: "138",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat15-sync-debug-apk-137",
+    approvedArtifactLabel: "uat15-sync-debug-apk-138",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "137",
-    buildRef: "sync-debug-137",
+    approvedBuild: "138",
+    buildRef: "sync-debug-138",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -315,6 +315,12 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
   });
 }
 
+function findActionButtons(tree: ReactTestRenderer, label: string) {
+  return tree.root
+    .findAllByType("Pressable")
+    .filter((candidate) => candidate.props.accessibilityLabel === label);
+}
+
 function renderedText(tree: ReactTestRenderer): string {
   return flattenText(tree.toJSON());
 }
@@ -508,6 +514,34 @@ describe("AjustesScreen sync controls", () => {
     expect(renderedText(tree)).toContain("Sem leitura central confirmada");
   });
 
+  it("shows only the central refresh action when the central read is missing", async () => {
+    const onRequestCentralRefresh = vi.fn();
+    const { tree } = await renderAjustes({
+      onRequestCentralRefresh,
+      prepareTurnCacheStatus: prepareTurnWithoutCentralRead(),
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        highCount: 1,
+        commands: [syncCommandSummary({ urgency: "high" })],
+      }),
+      syncEngine: {
+        syncPendingCommands: vi.fn().mockResolvedValue({
+          state: "empty",
+          network: { kind: "online" },
+          selectedCommandIds: [],
+          attemptedCommandIds: [],
+          appliedResults: [],
+        }),
+      },
+    });
+
+    expect(findActionButtons(tree, "Atualizar leitura central")).toHaveLength(1);
+    expect(findActionButtons(tree, "Sincronizar pendencias")).toHaveLength(0);
+    expect(renderedText(tree)).toContain("Fila local neste aparelho");
+    expect(renderedText(tree)).not.toContain("Tentar sincronizar novamente");
+  });
+
   it("blocks safe close for a local-cache-only prepare state", async () => {
     const { tree } = await renderAjustes({
       prepareTurnCacheStatus: readyPrepareTurnCacheStatus({ source: "local_cache" }),
@@ -517,6 +551,29 @@ describe("AjustesScreen sync controls", () => {
 
     expect(text).toContain("Leitura local em uso");
     expect(text).toContain("Este estado bloqueia fechamento seguro");
+  });
+
+  it("shows a single pending-sync action while the queue details stay read-only", async () => {
+    const syncPendingCommands = vi.fn().mockResolvedValue({
+      state: "empty",
+      network: { kind: "online" },
+      selectedCommandIds: [],
+      attemptedCommandIds: [],
+      appliedResults: [],
+    });
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        highCount: 1,
+        commands: [syncCommandSummary({ urgency: "high" })],
+      }),
+      syncEngine: { syncPendingCommands },
+    });
+
+    expect(findActionButtons(tree, "Sincronizar pendencias")).toHaveLength(1);
+    expect(renderedText(tree)).toContain("Fila local neste aparelho");
+    expect(renderedText(tree)).not.toContain("Tentar sincronizar novamente");
   });
 
   it("runs manual sync from Ajustes with the manual flag", async () => {
@@ -658,9 +715,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("uat15-sync-debug-apk-137");
+    expect(text).toContain("uat15-sync-debug-apk-138");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("137");
+    expect(text).toContain("138");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

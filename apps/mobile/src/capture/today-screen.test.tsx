@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
-  SyncConflictRecord,
   SyncCommandSummary,
   SyncQueueSummary,
   FutureAttentionRecord,
@@ -14,7 +13,6 @@ import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
 import { createMemoryCaptureRepository } from "./memory-repository";
-import { PendingCentralLotSyncError } from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -257,33 +255,6 @@ function syncCommandSummary(overrides: Partial<SyncCommandSummary> = {}): SyncCo
     lotIdentity: { identitySource: "printed", value: "OVOS-FICTICIOS-001" },
     currentLocation: { kind: "area_de_venda" },
     savedAt: "2030-01-10T10:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function conflictRecord(overrides: Partial<SyncConflictRecord> = {}): SyncConflictRecord {
-  return {
-    id: "conflict-ficticio-001",
-    commandId: "sync-cmd-conflito",
-    severity: "critical",
-    reason: "Tarefa critica mudou antes do envio offline.",
-    localAction: {
-      commandId: "sync-cmd-conflito",
-      kind: "resolve_task",
-      label: "Confirmar retirada",
-      actorLabel: "Colaborador local",
-      occurredAt: "2030-01-10T10:30:00.000Z",
-      productDisplayName: "Maca FICTICIA",
-      lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
-      currentLocation: { kind: "area_de_venda" },
-    },
-    remoteChange: {
-      kind: "task_changed",
-      summary: "A tarefa atual exige reconferencia da area de venda.",
-      changedAt: "2030-01-10T11:00:00.000Z",
-    },
-    allowedActions: ["keep_local_and_retry", "use_current_task", "discard_offline_action"],
-    createdAt: "2030-01-10T11:05:00.000Z",
     ...overrides,
   };
 }
@@ -549,7 +520,7 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Pendente central. Ainda nao use como confirmacao da loja.");
   });
 
-  it("renders critical conflicts before pending commands in the compact queue", async () => {
+  it("keeps critical sync blockers compact in Hoje without duplicate sync controls", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
       listSyncQueue: () =>
         Promise.resolve(
@@ -584,157 +555,18 @@ describe("TodayScreen", () => {
     const rendered = JSON.stringify(tree.toJSON());
     const text = renderedText(tree);
 
-    expect(text).toContain("1 criticas, 1 altas, 0 medias");
-    expect(rendered.indexOf("MACA-CONFLITO-001")).toBeLessThan(
-      rendered.indexOf("BANANA-PENDENTE-001"),
-    );
-    expect(rendered).toContain("Conflito de sincronizacao. Revise antes de confirmar esta acao.");
+    expect(text).toContain("Sincronizacao");
+    expect(text).toContain("Conflito critico de sincronizacao");
+    expect(text).toContain("2");
+    expect(text).toContain("a sincronizar");
+    expect(rendered).not.toContain("MACA-CONFLITO-001");
+    expect(rendered).not.toContain("BANANA-PENDENTE-001");
+    expect(rendered).not.toContain("Sincronizar pendencias");
+    expect(rendered).not.toContain("Tentar sincronizar novamente");
   });
 
-  it("disables the manual sync CTA while queue sync is already running", async () => {
+  it("keeps pending central lots visible in Hoje without adding a second sync action", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
-      listSyncQueue: () =>
-        Promise.resolve(
-          emptySyncQueue({
-            state: "syncing",
-            totalCount: 1,
-            criticalCount: 1,
-            commands: [syncCommandSummary({ state: "syncing" })],
-          }),
-        ),
-    });
-    const tree = await renderTodayScreen(repository);
-    const syncingButtons = tree.root.findAllByProps({
-      accessibilityLabel: "Sincronizando pendencias",
-    });
-
-    expect(
-      syncingButtons.some((button) => button.props.accessibilityState?.disabled === true),
-    ).toBe(true);
-  });
-
-  it("runs manual sync from Hoje and refreshes queue state", async () => {
-    const syncPendingCommands = vi.fn().mockResolvedValue({
-      state: "sent",
-      network: { kind: "online" },
-      selectedCommandIds: ["sync-cmd-ficticio-001"],
-      attemptedCommandIds: ["sync-cmd-ficticio-001"],
-      appliedResults: [
-        {
-          status: "ack",
-          commandId: "sync-cmd-ficticio-001",
-          idempotencyKey: "sync-cmd-ficticio-001",
-          syncedAt: "2030-01-10T12:00:00.000Z",
-        },
-      ],
-    });
-    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
-      listSyncQueue: () =>
-        Promise.resolve(
-          emptySyncQueue({
-            state: "has_pending",
-            totalCount: 1,
-            criticalCount: 1,
-            commands: [syncCommandSummary()],
-          }),
-        ),
-    });
-    const tree = await renderTodayScreen(repository, { syncPendingCommands });
-    const syncButton = findButton(tree, "Sincronizar pendencias");
-
-    await act(async () => {
-      syncButton.props.onPress();
-      await Promise.resolve();
-    });
-
-    expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
-  });
-
-  it("syncs pending central lots from Hoje when manual sync is visible", async () => {
-    const syncPendingCentralLots = vi.fn().mockResolvedValue([
-      {
-        id: "lote-centralizado-ficticio",
-        productId: "produto-melancia-ficticia",
-        productDisplayName: "Melancia FICTICIA",
-        identity: { identitySource: "printed", value: "MELANCIA-001" },
-        mode: "processed_repack_loss",
-        expiresAt: "2030-01-10",
-        approximateQuantity: 1,
-        initialLocation: { kind: "area_de_venda" },
-        currentObservation: {
-          id: "obs-melancia-001",
-          lotId: "lote-centralizado-ficticio",
-          status: "present",
-          actorLabel: "Colaborador local",
-          occurredAt: "2030-01-10T09:00:00.000Z",
-          location: { kind: "area_de_venda" },
-          quantityState: "estimated",
-          approximateQuantity: 1,
-          isCorrection: false,
-        },
-      },
-    ]);
-    const refreshTodayTasks = vi
-      .fn()
-      .mockResolvedValueOnce(emptyRefresh())
-      .mockResolvedValueOnce(
-        refreshWith({
-          tasks: [
-            taskFixture({
-              id: "task-melancia-presenca",
-              activeKey: "lote-melancia:presence_missing:check_presence:root",
-              lotId: "lote-melancia",
-              productDisplayName: "Melancia FICTICIA",
-              lotIdentity: { identitySource: "printed", value: "MELANCIA-001" },
-              riskState: "uncertain",
-              severity: "attention",
-              dueBucket: "today",
-              requiredResolution: "check_presence",
-              section: "follow_up",
-              sourceRisk: {
-                state: "uncertain",
-                reasons: [{ code: "presence_missing", field: "lastPhysicalConfirmation" }],
-              },
-            }),
-          ],
-        }),
-      );
-    const repository = createRepository(refreshTodayTasks, {
-      syncPendingCentralLots,
-      listSyncQueue: () =>
-        Promise.resolve(
-          emptySyncQueue({
-            state: "has_pending",
-            totalCount: 1,
-            commands: [syncCommandSummary()],
-          }),
-        ),
-    });
-    const syncPendingCommands = vi.fn().mockResolvedValue({
-      state: "empty",
-      network: { kind: "online" },
-      selectedCommandIds: [],
-      attemptedCommandIds: [],
-      appliedResults: [],
-    });
-    const tree = await renderTodayScreen(repository, { syncPendingCommands });
-
-    await act(async () => {
-      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
-    expect(refreshTodayTasks).toHaveBeenCalledTimes(2);
-    expect(JSON.stringify(tree.toJSON())).toContain("Melancia FICTICIA");
-  });
-
-  it("shows feedback when only a pending central lot remains without command sync", async () => {
-    const syncPendingCentralLots = vi.fn().mockResolvedValue([]);
-    const onConfirmCentralDeviceState = vi.fn().mockResolvedValue(undefined);
-    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
-      syncPendingCentralLots,
       listSyncQueue: () =>
         Promise.resolve(
           emptySyncQueue({
@@ -745,121 +577,18 @@ describe("TodayScreen", () => {
           }),
         ),
     });
-    const tree = await renderTodayScreen(repository, undefined, undefined, {
-      onConfirmCentralDeviceState,
+    const tree = await renderTodayScreen(repository, undefined, {
+      status: readyPrepareTurnCacheStatus(),
+      source: "central",
     });
+    const text = renderedText(tree);
+    const rendered = JSON.stringify(tree.toJSON());
 
-    await act(async () => {
-      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(onConfirmCentralDeviceState).toHaveBeenCalledTimes(1);
-    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
-    expect(renderedText(tree)).toContain("Ainda existe lote salvo neste aparelho");
-  });
-
-  it("shows the central blocker when pending lot replay is rejected", async () => {
-    const syncPendingCentralLots = vi
-      .fn()
-      .mockRejectedValue(new PendingCentralLotSyncError("central_lot_write_failed"));
-    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
-      syncPendingCentralLots,
-      listSyncQueue: () =>
-        Promise.resolve(
-          emptySyncQueue({
-            state: "has_pending",
-            totalCount: 1,
-            mediumCount: 1,
-            commands: [],
-          }),
-        ),
-    });
-    const tree = await renderTodayScreen(repository);
-
-    await act(async () => {
-      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
-    expect(renderedText(tree)).toContain("A central ainda nao confirmou o envio do lote");
-  });
-
-  it("requires a reason before discarding an offline conflict", async () => {
-    const resolveSyncConflict = vi.fn().mockResolvedValue(conflictRecord());
-    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
-      listSyncQueue: () =>
-        Promise.resolve(
-          emptySyncQueue({
-            state: "has_conflict",
-            totalCount: 1,
-            conflictCount: 1,
-            hasCriticalConflict: true,
-            criticalCount: 1,
-            commands: [
-              syncCommandSummary({
-                id: "sync-cmd-conflito",
-                state: "sync_conflict",
-                conflictId: "conflict-ficticio-001",
-                productDisplayName: "Maca FICTICIA",
-                lotIdentity: { identitySource: "printed", value: "MACA-CONFLITO-001" },
-              }),
-            ],
-          }),
-        ),
-      loadSyncConflict: () => Promise.resolve(conflictRecord()),
-      resolveSyncConflict,
-    });
-    const tree = await renderTodayScreen(repository);
-    const reviewButton = findButton(tree, "Revisar conflito");
-
-    await act(async () => {
-      reviewButton.props.onPress();
-      await Promise.resolve();
-    });
-
-    const renderedConflict = JSON.stringify(tree.toJSON());
-    const conflictText = renderedText(tree);
-    const disabledDiscard = tree.root
-      .findAllByProps({ accessibilityLabel: "Descartar acao offline" })
-      .find((button) => button.props.accessibilityState?.disabled === true);
-
-    expect(renderedConflict).toContain("Confirmar retirada");
-    expect(renderedConflict).toContain("Maca FICTICIA - lote MACA-CONFLITO-001");
-    expect(conflictText).toContain("Local:");
-    expect(conflictText).toContain("venda");
-    expect(conflictText).toContain("Acao local as");
-    expect(conflictText).toContain("A tarefa atual exige reconferencia da area de venda.");
-    expect(disabledDiscard).toBeDefined();
-
-    const reasonInput = tree.root.findByProps({
-      accessibilityLabel: "Motivo para descartar a acao offline",
-    });
-
-    await act(async () => {
-      reasonInput.props.onChangeText("Tarefa atual exige nova conferencia fisica.");
-      await Promise.resolve();
-    });
-
-    const enabledDiscard = tree.root
-      .findAllByProps({ accessibilityLabel: "Descartar acao offline" })
-      .find((button) => button.props.accessibilityState?.disabled === false);
-
-    await act(async () => {
-      enabledDiscard?.props.onPress();
-      await Promise.resolve();
-    });
-
-    expect(resolveSyncConflict).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conflictId: "conflict-ficticio-001",
-        action: "discard_offline_action",
-        reason: "Tarefa atual exige nova conferencia fisica.",
-      }),
-    );
+    expect(text).toContain("1");
+    expect(text).toContain("a sincronizar");
+    expect(text).toContain("Ha pendencias nao criticas neste aparelho");
+    expect(rendered).not.toContain("Sincronizar pendencias");
+    expect(rendered).not.toContain("Tentar sincronizar novamente");
   });
 
   it("keeps the previous task list visible when manual refresh fails", async () => {

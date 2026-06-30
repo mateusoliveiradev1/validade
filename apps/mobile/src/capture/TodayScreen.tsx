@@ -6,7 +6,6 @@ import type {
   FutureAttentionRecord,
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
-  SyncConflictRecord,
   SyncQueueSummary as SyncQueueSummaryRecord,
   TaskAlertStateRecord,
   TodayTaskRecord,
@@ -20,13 +19,7 @@ import { PrimaryAction, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
-import {
-  OfflineCacheNotice,
-  OfflineStatusBand,
-  SyncConflictPanel,
-  SyncQueueSummary,
-} from "./offline-sync-ui";
-import { pendingCentralLotSyncFeedback } from "./central-lot-sync-feedback";
+import { OfflineCacheNotice, OfflineStatusBand } from "./offline-sync-ui";
 import {
   alertChannelStateForRegistration,
   type CaptureRepository,
@@ -73,13 +66,11 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   onOpenShiftClose,
-  onConfirmCentralDeviceState,
   onRequestCentralRefresh,
   onRegisterPushDevice,
   canCloseShift = false,
   actorLabel = todayCopy.fallbackActor,
   alertChannel,
-  syncEngine,
   pushFallbackNotice,
   highlightedTaskId,
   prepareTurnCacheStatus,
@@ -112,7 +103,6 @@ export function TodayScreen({
   const [futureAttention, setFutureAttention] = useState<readonly FutureAttentionRecord[]>([]);
   const [offlineStatus, setOfflineStatus] = useState<OfflineCacheStatus | undefined>();
   const [syncQueue, setSyncQueue] = useState<SyncQueueSummaryRecord | undefined>();
-  const [selectedConflict, setSelectedConflict] = useState<SyncConflictRecord | undefined>();
   const [alertStates, setAlertStates] = useState<readonly TaskAlertStateRecord[]>([]);
   const [alertChannelState, setAlertChannelState] = useState<AlertChannelState>("not_requested");
   const [alertChannelFeedback, setAlertChannelFeedback] = useState<string | undefined>();
@@ -120,7 +110,6 @@ export function TodayScreen({
   const [refreshError, setRefreshError] = useState<string | undefined>();
   const [refreshFeedback, setRefreshFeedback] = useState<string | undefined>();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isRequestingAlerts, setIsRequestingAlerts] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
@@ -207,84 +196,6 @@ export function TodayScreen({
     const timeout = setTimeout(() => setAcknowledgementFeedback(undefined), 6500);
     return () => clearTimeout(timeout);
   }, [acknowledgementFeedback]);
-
-  async function manualSync(): Promise<void> {
-    if (
-      (syncEngine === undefined && repository.syncPendingCentralLots === undefined) ||
-      isSyncing
-    ) {
-      return;
-    }
-
-    setIsSyncing(true);
-    setRefreshError(undefined);
-    setRefreshFeedback(undefined);
-
-    try {
-      await onConfirmCentralDeviceState?.().catch(() => undefined);
-      const [syncedLots, result] = await Promise.all([
-        repository.syncPendingCentralLots === undefined
-          ? Promise.resolve([])
-          : repository.syncPendingCentralLots(),
-        syncEngine === undefined
-          ? Promise.resolve(undefined)
-          : syncEngine.syncPendingCommands({ manual: true }),
-      ]);
-      const queueAfterSync = await refreshSyncState();
-      const hasRemainingPending = queueAfterSync.totalCount > 0;
-
-      if (syncedLots.length > 0) {
-        await refreshTasks("manual_refresh");
-        setRefreshFeedback("Lote enviado para a central. Hoje foi atualizado com a leitura local.");
-      } else if (result?.state === "sent" && result.appliedResults.length > 0) {
-        await refreshTasks("manual_refresh");
-        setRefreshFeedback(
-          hasRemainingPending
-            ? "Pendencias enviadas, mas ainda existe lote salvo neste aparelho aguardando a central."
-            : todayCopy.sync.retryHelper,
-        );
-      } else if (result?.state === "skipped_offline" || result?.state === "transport_failed") {
-        setRefreshError(todayCopy.sync.failed);
-      } else if (hasRemainingPending) {
-        setRefreshFeedback(
-          "Ainda existe lote salvo neste aparelho aguardando a central. Sincronize de novo depois da validacao/leitura central.",
-        );
-      } else if (
-        result === undefined ||
-        result.state === "empty" ||
-        result.state === "skipped_degraded"
-      ) {
-        setRefreshFeedback(todayCopy.sync.allSynced);
-      }
-    } catch (error) {
-      setRefreshError(pendingCentralLotSyncFeedback(error) ?? todayCopy.sync.failed);
-    } finally {
-      setIsSyncing(false);
-    }
-  }
-
-  async function reviewConflict(conflictId: string): Promise<void> {
-    const conflict = await repository.loadSyncConflict(conflictId);
-    setSelectedConflict(conflict ?? undefined);
-  }
-
-  async function resolveConflict(input: {
-    action: SyncConflictRecord["allowedActions"][number];
-    reason?: string | undefined;
-  }): Promise<void> {
-    if (selectedConflict === undefined) {
-      return;
-    }
-
-    await repository.resolveSyncConflict({
-      conflictId: selectedConflict.id,
-      action: input.action,
-      resolvedAt: now().toISOString(),
-      ...(input.reason === undefined ? {} : { reason: input.reason }),
-    });
-    setSelectedConflict(undefined);
-    await refreshSyncState();
-  }
 
   async function registerAlertDevice(
     command: DevicePushRegistrationCommand,
@@ -526,14 +437,10 @@ export function TodayScreen({
             </View>
           ) : null}
           <OfflineStatusBand
-            disabled={
-              isSyncing ||
-              (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
-            }
             hideWhenReady
             queue={syncQueue}
+            showRetryAction={false}
             status={offlineStatus}
-            onRetry={() => void manualSync()}
           />
           <OfflineCacheNotice status={offlineStatus} />
         </View>
@@ -625,24 +532,6 @@ export function TodayScreen({
           onActivate={() => void activateAlerts()}
         />
       )}
-
-      {selectedConflict === undefined ? null : (
-        <SyncConflictPanel
-          conflict={selectedConflict}
-          onClose={() => setSelectedConflict(undefined)}
-          onResolve={(input) => void resolveConflict(input)}
-        />
-      )}
-
-      <SyncQueueSummary
-        disabled={
-          isSyncing || (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
-        }
-        hideWhenEmpty
-        queue={syncQueue}
-        onRetry={() => void manualSync()}
-        onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
-      />
 
       {isInitialLoading ? (
         <TodayLoadingState />
