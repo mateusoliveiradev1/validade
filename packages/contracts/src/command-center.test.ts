@@ -114,7 +114,7 @@ describe("Command Center contracts", () => {
                           : "O APK ainda sincroniza, mas nao e a versao aprovada do UAT.",
                       nextAction:
                         verdict === "bloqueado"
-                          ? "Abrir Preparar turno no aparelho autorizado."
+                          ? "Confirmar autorizacao do aparelho e abrir Preparar turno."
                           : "Atualizar antes de provar etapa critica do piloto.",
                       severity: verdict === "bloqueado" ? "blocking" : "warning",
                     },
@@ -138,7 +138,7 @@ describe("Command Center contracts", () => {
         blockers: [
           {
             code: "invalid_store_or_user",
-            label: "Usuario ou loja invalida",
+            label: "Autorizacao do aparelho invalida",
             detail: "A sessao nao confirma uma loja ativa para este aparelho.",
             nextAction: "Revalidar convite, loja e papel antes do UAT.",
             severity: "blocking",
@@ -152,14 +152,14 @@ describe("Command Center contracts", () => {
           },
           {
             code: "stale_critical_sync",
-            label: "Sync critico desatualizado",
+            label: "Fila local critica desatualizada",
             detail: "Existe pendencia critica sem leitura recente suficiente.",
             nextAction: "Sincronizar e revisar conflito antes do piloto.",
             severity: "blocking",
           },
           {
             code: "push_required_without_push",
-            label: "Push remoto indisponivel",
+            label: "Push indisponivel",
             detail: "A etapa atual precisa provar push remoto e o aparelho nao esta pronto.",
             nextAction: "Conceder permissao, reinstalar APK nativo ou revisar credencial.",
             severity: "blocking",
@@ -182,6 +182,12 @@ describe("Command Center contracts", () => {
       "push_required_without_push",
       "camera_required_without_camera",
     ]);
+    const publicText = JSON.stringify(parsed.blockers);
+    expect(publicText).toContain("Autorizacao do aparelho");
+    expect(publicText).toContain("leitura central");
+    expect(publicText).toContain("Fila local");
+    expect(publicText).toContain("Push");
+    expect(publicText).toContain("Camera");
     expect(JSON.stringify(parsed)).not.toMatch(/pushToken|expoPushToken|rawDeviceId|buildUrl/i);
     expect(() =>
       PilotDeviceReadinessSchema.parse({
@@ -358,7 +364,7 @@ function pilotUatChecklist(overrides: Partial<PilotUatChecklist> = {}): PilotUat
         label: "Preparar turno",
         state: "passed",
         ownerLabel: "Lideranca Loja 18",
-        actionLabel: "Abrir Preparar turno no APK aprovado.",
+        actionLabel: "Abrir Preparar turno no app aprovado.",
         evidenceReferenceLabel: "Leitura central registrada",
         occurredAt: updatedAt,
         updatedAt,
