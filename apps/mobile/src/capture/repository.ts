@@ -179,6 +179,32 @@ export function localLotCentralSyncMetadata(
   };
 }
 
+export type PendingCentralLotSyncBlocker =
+  | "central_read_required"
+  | "central_write_unavailable"
+  | "central_product_not_ready"
+  | "central_lot_write_failed";
+
+export class PendingCentralLotSyncError extends Error {
+  readonly blocker: PendingCentralLotSyncBlocker;
+
+  constructor(blocker: PendingCentralLotSyncBlocker, message = blocker, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "PendingCentralLotSyncError";
+    this.blocker = blocker;
+  }
+}
+
+export function isPendingCentralLotSyncError(error: unknown): error is PendingCentralLotSyncError {
+  return (
+    error instanceof PendingCentralLotSyncError ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { name?: unknown }).name === "PendingCentralLotSyncError" &&
+      typeof (error as { blocker?: unknown }).blocker === "string")
+  );
+}
+
 export type CaptureLotDetail = CaptureLotSnapshot & {
   product: CaptureProductRecord;
   observations: readonly CaptureObservationRecord[];

@@ -14,6 +14,7 @@ import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import { PendingCentralLotSyncError } from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -757,6 +758,34 @@ describe("TodayScreen", () => {
     expect(onConfirmCentralDeviceState).toHaveBeenCalledTimes(1);
     expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
     expect(renderedText(tree)).toContain("Ainda existe lote salvo neste aparelho");
+  });
+
+  it("shows the central blocker when pending lot replay is rejected", async () => {
+    const syncPendingCentralLots = vi
+      .fn()
+      .mockRejectedValue(new PendingCentralLotSyncError("central_lot_write_failed"));
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()), {
+      syncPendingCentralLots,
+      listSyncQueue: () =>
+        Promise.resolve(
+          emptySyncQueue({
+            state: "has_pending",
+            totalCount: 1,
+            mediumCount: 1,
+            commands: [],
+          }),
+        ),
+    });
+    const tree = await renderTodayScreen(repository);
+
+    await act(async () => {
+      tree.root.findByProps({ accessibilityLabel: "Sincronizar pendencias" }).props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(renderedText(tree)).toContain("A central recusou o envio do lote");
   });
 
   it("requires a reason before discarding an offline conflict", async () => {

@@ -14,6 +14,7 @@ import type { AuthGateReadyControls } from "../auth/AuthGate";
 import type { MobileBuildInfo } from "../build-info";
 import { createFakePushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import { AjustesScreen } from "./AjustesScreen";
+import { PendingCentralLotSyncError } from "./repository";
 import type { CaptureRepository } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 
@@ -77,14 +78,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "135",
+    appBuild: "136",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat15-lot-sync-apk-135",
+    approvedArtifactLabel: "uat15-sync-debug-apk-136",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "135",
-    buildRef: "lot-sync-135",
+    approvedBuild: "136",
+    buildRef: "sync-debug-136",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -586,6 +587,26 @@ describe("AjustesScreen sync controls", () => {
     expect(renderedText(tree)).toContain("Ainda existe lote salvo neste aparelho");
   });
 
+  it("shows the central blocker when Ajustes replay is rejected", async () => {
+    const syncPendingCentralLots = vi
+      .fn()
+      .mockRejectedValue(new PendingCentralLotSyncError("central_lot_write_failed"));
+    const { tree } = await renderAjustes({
+      queue: emptySyncQueue({
+        state: "has_pending",
+        totalCount: 1,
+        mediumCount: 1,
+        commands: [],
+      }),
+      syncPendingCentralLots,
+    });
+
+    await press(tree, "Sincronizar pendencias");
+
+    expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
+    expect(renderedText(tree)).toContain("A central recusou o envio do lote");
+  });
+
   it("sends an explicit reason when discarding an offline conflict", async () => {
     const { tree, resolveSyncConflict } = await renderAjustes({
       conflict: conflictRecord(),
@@ -637,9 +658,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("uat15-lot-sync-apk-135");
+    expect(text).toContain("uat15-sync-debug-apk-136");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("135");
+    expect(text).toContain("136");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

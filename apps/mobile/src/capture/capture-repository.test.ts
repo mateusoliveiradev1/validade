@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryCaptureRepository } from "./memory-repository";
-import { productDraftToLocalRecord } from "./repository";
+import { PendingCentralLotSyncError, productDraftToLocalRecord } from "./repository";
 
 const categoryRuleProfile = {
   categoryId: "categoria-ficticia-folhas",
@@ -875,6 +875,106 @@ describe("memory capture repository", () => {
         lot: expect.objectContaining({ productId: "produto-central-alho-inteiro-001" }),
       }),
     );
+  });
+
+  it("reports central write blockers when replaying a pending lot fails", async () => {
+    const formalCategoryProfile = {
+      categoryId: "categoria-ficticia-frutas",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+    };
+    const createCentralLot = vi.fn(() => Promise.reject(new Error("central denied")));
+    const identifiers = ["produto-melao-local", "lote-melao-local", "obs-melao-local"];
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "id-extra",
+      createCentralLot,
+    });
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Melao Amarelo KG PED FICTICIO",
+      categoryId: "categoria-ficticia-frutas",
+      categoryName: "Frutas",
+      categoryRuleProfile: formalCategoryProfile,
+      storePresentation: "supplier_packaged",
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "printed", value: "LOTE-MELAO-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-12",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 4,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaborador local",
+    });
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-melao-validado",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: "produto-central-melao-001",
+          displayName: "Melao Amarelo KG PED FICTICIO",
+          categoryId: "categoria-ficticia-frutas",
+          categoryName: "Frutas",
+          categoryRuleProfile: formalCategoryProfile,
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:05:00.000Z",
+        },
+      ],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(repository.syncPendingCentralLots?.()).rejects.toMatchObject({
+      name: "PendingCentralLotSyncError",
+      blocker: "central_lot_write_failed",
+    } satisfies Partial<PendingCentralLotSyncError>);
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({ centralSyncState: "pending_central" }),
+    ]);
   });
 
   it("does not confirm central-cache lots locally when the central write fails", async () => {

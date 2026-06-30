@@ -27,6 +27,7 @@ import {
   SecondaryAction,
   StatusNotice,
 } from "./capture-ui";
+import { pendingCentralLotSyncFeedback } from "./central-lot-sync-feedback";
 import { SyncConflictPanel, SyncQueueSummary } from "./offline-sync-ui";
 import { alertChannelStateForRegistration, type CaptureRepository } from "./repository";
 import type { SyncEngine } from "./sync-engine";
@@ -184,9 +185,10 @@ export function AjustesScreen({
       ) {
         setSyncFeedback("Fila local conferida. Nao havia pendencia para enviar.");
       }
-    } catch {
+    } catch (error) {
       setSyncFeedback(
-        "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
+        pendingCentralLotSyncFeedback(error) ??
+          "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
       );
     } finally {
       setIsSyncing(false);
@@ -553,11 +555,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "135"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "136"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat15-lot-sync-apk-135"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat15-sync-debug-apk-136"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

@@ -26,6 +26,7 @@ import {
   SyncConflictPanel,
   SyncQueueSummary,
 } from "./offline-sync-ui";
+import { pendingCentralLotSyncFeedback } from "./central-lot-sync-feedback";
 import {
   alertChannelStateForRegistration,
   type CaptureRepository,
@@ -255,8 +256,8 @@ export function TodayScreen({
       ) {
         setRefreshFeedback(todayCopy.sync.allSynced);
       }
-    } catch {
-      setRefreshError(todayCopy.sync.failed);
+    } catch (error) {
+      setRefreshError(pendingCentralLotSyncFeedback(error) ?? todayCopy.sync.failed);
     } finally {
       setIsSyncing(false);
     }

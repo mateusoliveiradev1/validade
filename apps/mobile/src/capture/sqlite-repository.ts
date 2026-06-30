@@ -92,6 +92,7 @@ import {
   localLotCentralSyncMetadata,
   nextGeneratedId,
   normalizeProductLookup,
+  PendingCentralLotSyncError,
   categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
@@ -1096,16 +1097,6 @@ export function createSQLiteCaptureRepository(
   async function syncPendingCentralLots(): Promise<readonly CaptureLotSnapshot[]> {
     await initialize();
 
-    if (dependencies.createCentralLot === undefined) {
-      return [];
-    }
-
-    const cache = await loadPrepareTurnCacheStatus().catch(() => null);
-
-    if (cache?.state !== "ready" || cache.source !== "central") {
-      return [];
-    }
-
     const db = await getDatabase();
     const rows = await db.getAllAsync<LotRow>(
       `${LOT_SELECT}
@@ -1113,7 +1104,24 @@ export function createSQLiteCaptureRepository(
        ORDER BY l.current_occurred_at ASC
        LIMIT 20`,
     );
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    if (dependencies.createCentralLot === undefined) {
+      throw new PendingCentralLotSyncError("central_write_unavailable");
+    }
+
+    const cache = await loadPrepareTurnCacheStatus().catch(() => null);
+
+    if (cache?.state !== "ready" || cache.source !== "central") {
+      throw new PendingCentralLotSyncError("central_read_required");
+    }
+
     const syncedLots: CaptureLotSnapshot[] = [];
+    let blockedByProduct = false;
+    let writeFailure: unknown;
 
     for (const row of rows) {
       const localLot = mapLotSnapshot(row);
@@ -1126,6 +1134,7 @@ export function createSQLiteCaptureRepository(
       const product = await resolveCentralProductForPendingLot(db, detail.product);
 
       if (product?.centralProductId === undefined) {
+        blockedByProduct = true;
         continue;
       }
 
@@ -1162,8 +1171,24 @@ export function createSQLiteCaptureRepository(
         });
 
         syncedLots.push(centralLotSnapshotToLocal(response.lot, response.acknowledgement.message));
-      } catch {
+      } catch (error) {
+        writeFailure = error;
         continue;
+      }
+    }
+
+    if (syncedLots.length === 0) {
+      if (writeFailure !== undefined) {
+        throw new PendingCentralLotSyncError(
+          "central_lot_write_failed",
+          "central_lot_write_failed",
+          {
+            cause: writeFailure,
+          },
+        );
+      }
+      if (blockedByProduct) {
+        throw new PendingCentralLotSyncError("central_product_not_ready");
       }
     }
 
