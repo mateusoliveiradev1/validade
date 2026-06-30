@@ -13,6 +13,7 @@ import type {
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
+import { createMemoryCaptureRepository } from "./memory-repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -871,6 +872,50 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Conferencia da etiqueta atrasada");
     expect(rendered).toContain("Lideranca avisada as");
     expect(rendered).toContain("Cobrando responsavel e lideranca");
+  });
+
+  it("keeps pre-Phase-15 formal lots visible and task-producing without classifier metadata", async () => {
+    let nextIdentifier = 1;
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => `pre-phase-15-${nextIdentifier++}`,
+    });
+    await repository.initialize();
+    const product = await repository.createProduct({
+      displayName: "Queijo Minas PRE-PHASE-15 FICTICIO",
+      categoryId: "categoria-pre-phase-15",
+      categoryRuleProfile: {
+        categoryId: "categoria-pre-phase-15",
+        mode: "formal_validity",
+        windows: {
+          radarDays: 60,
+          markdownDays: 15,
+          criticalDays: 3,
+          expiredDays: 0,
+        },
+      },
+    });
+    await repository.saveLot({
+      actorLabel: "Colaboradora PRE-PHASE-15",
+      lot: {
+        productId: product.id,
+        identity: { identitySource: "printed", value: "QUEIJO-PRE15-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-01-20",
+        approximateQuantity: 6,
+        initialLocation: { kind: "area_de_venda" },
+      },
+    });
+
+    const tree = await renderTodayScreen(repository);
+    const rendered = JSON.stringify(tree.toJSON());
+    const tasks = await repository.listActiveTodayTasks();
+
+    expect(rendered).toContain("Pedir rebaixa");
+    expect(rendered).toContain("Queijo Minas PRE-PHASE-15 FICTICIO");
+    expect(rendered).toContain("QUEIJO-PRE15-001");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.requiredResolution).toBe("request_markdown");
   });
 
   it("keeps per-lot duplicate product tasks visible as separate rows", async () => {
