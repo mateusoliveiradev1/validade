@@ -2,6 +2,7 @@ import type { AlertChannelState } from "@validade-zero/domain";
 import type {
   DevicePushRegistrationCommand,
   OfflineCacheStatus,
+  PilotBuildCompatibility,
   PrepareTurnCacheStatus,
   SyncQueueSummary,
 } from "@validade-zero/contracts";
@@ -26,6 +27,22 @@ export interface SyncReadiness {
   lastSyncSendValue: string;
   pendingCount: number;
   conflictCount: number;
+}
+
+export type TodayReadinessClassification = "compact" | "blocking_for_today";
+
+export interface TodayReadinessFact {
+  key:
+    | "central_read"
+    | "sync_queue"
+    | "push"
+    | "camera"
+    | "build"
+    | "device_authorization";
+  classification: TodayReadinessClassification;
+  label: string;
+  body: string;
+  actionLabel?: string;
 }
 
 export const ajustesPushCopy = {
@@ -200,6 +217,112 @@ export function syncReadinessFor(input: {
     lastSyncSendValue,
     pendingCount,
     conflictCount,
+  };
+}
+
+export function todayReadinessFactsFor(input: {
+  sync: Parameters<typeof syncReadinessFor>[0];
+  push?: Parameters<typeof pushReadinessFor>[0] | undefined;
+  cameraPermission?: "granted" | "denied" | "not_requested" | "unavailable" | "unknown";
+  cameraRequiredForValidation?: boolean | undefined;
+  buildCompatibility?: PilotBuildCompatibility | undefined;
+  buildRequiredForToday?: boolean | undefined;
+  deviceAuthorization?: "valid" | "invalid" | "unknown" | undefined;
+}): readonly TodayReadinessFact[] {
+  const syncReadiness = syncReadinessFor(input.sync);
+  const facts: TodayReadinessFact[] = [
+    {
+      key: syncReadiness.centralRefreshRequired ? "central_read" : "sync_queue",
+      classification:
+        syncReadiness.verdict === "Bloqueado" ? "blocking_for_today" : "compact",
+      label: syncReadiness.centralRefreshRequired ? "Leitura central" : "Sincronizacao",
+      body: syncReadiness.body,
+      ...(syncReadiness.centralRefreshRequired
+        ? { actionLabel: ajustesSyncCopy.refreshCentralRead }
+        : {}),
+    },
+  ];
+
+  if (input.push !== undefined) {
+    const push = pushReadinessFor(input.push);
+    facts.push({
+      key: "push",
+      classification: push.verdict === "Bloqueado" ? "blocking_for_today" : "compact",
+      label: ajustesPushCopy.title,
+      body: push.body,
+      actionLabel: push.primaryActionLabel,
+    });
+  }
+
+  if (input.cameraPermission !== undefined) {
+    facts.push(cameraReadinessFact(input.cameraPermission, input.cameraRequiredForValidation));
+  }
+
+  if (input.buildCompatibility !== undefined) {
+    facts.push(buildReadinessFact(input.buildCompatibility, input.buildRequiredForToday));
+  }
+
+  if (input.deviceAuthorization !== undefined) {
+    facts.push(deviceAuthorizationFact(input.deviceAuthorization));
+  }
+
+  return facts;
+}
+
+function cameraReadinessFact(
+  permission: NonNullable<Parameters<typeof todayReadinessFactsFor>[0]["cameraPermission"]>,
+  required: boolean | undefined,
+): TodayReadinessFact {
+  const blocked = required === true && permission !== "granted";
+
+  return {
+    key: "camera",
+    classification: blocked ? "blocking_for_today" : "compact",
+    label: "Camera",
+    body:
+      permission === "granted"
+        ? "Camera liberada para leitura e evidencias quando necessario."
+        : "Camera indisponivel; use busca manual ou registre motivo quando a evidencia for exigida.",
+    ...(blocked ? { actionLabel: "Liberar camera" } : {}),
+  };
+}
+
+function buildReadinessFact(
+  compatibility: PilotBuildCompatibility,
+  required: boolean | undefined,
+): TodayReadinessFact {
+  const blocked =
+    compatibility === "incompativel" ||
+    (required === true && compatibility !== "atual");
+
+  return {
+    key: "build",
+    classification: blocked ? "blocking_for_today" : "compact",
+    label: "Atualizacao do app",
+    body:
+      compatibility === "atual"
+        ? "Build instalado compativel com o piloto."
+        : "Atualize o app antes de validar esta operacao.",
+    ...(blocked ? { actionLabel: "Atualizar app" } : {}),
+  };
+}
+
+function deviceAuthorizationFact(
+  authorization: NonNullable<Parameters<typeof todayReadinessFactsFor>[0]["deviceAuthorization"]>,
+): TodayReadinessFact {
+  const blocked = authorization === "invalid";
+
+  return {
+    key: "device_authorization",
+    classification: blocked ? "blocking_for_today" : "compact",
+    label: "Conta e loja",
+    body:
+      authorization === "valid"
+        ? "Conta, loja e aparelho autorizados para operar."
+        : blocked
+          ? "Conta, loja ou aparelho sem autorizacao para validar esta operacao."
+          : "Autorizacao ainda precisa ser confirmada quando a central responder.",
+    ...(blocked ? { actionLabel: "Revalidar acesso" } : {}),
   };
 }
 

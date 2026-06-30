@@ -8,6 +8,8 @@ import {
   sortMobileStatusesByPriority,
 } from "./mobile-status";
 import { StatusNotice } from "./capture-ui";
+import { todayReadinessFactsFor } from "./ajustes-readiness";
+import type { PrepareTurnCacheStatus, SyncQueueSummary } from "@validade-zero/contracts";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -106,4 +108,157 @@ describe("mobile status vocabulary", () => {
     expect(JSON.stringify(warning?.toJSON())).not.toContain("#166534");
     expect(JSON.stringify(critical?.toJSON())).not.toContain("#166534");
   });
+
+  it("classifies healthy readiness facts as compact for Today", () => {
+    const facts = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: readyCache(),
+        prepareTurnSource: "central",
+        queue: emptyQueue(),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+      push: { channelState: "active" },
+      cameraPermission: "granted",
+      buildCompatibility: "atual",
+      deviceAuthorization: "valid",
+    });
+
+    expect(facts.every((fact) => fact.classification === "compact")).toBe(true);
+  });
+
+  it("classifies stale or missing central read as blocking for Today", () => {
+    const missing = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: null,
+        queue: emptyQueue(),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+    });
+    const stale = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: readyCache({ lastCentralReadAt: "2030-01-10T04:00:00.000Z" }),
+        prepareTurnSource: "central",
+        queue: emptyQueue(),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+    });
+
+    expect(missing[0]).toMatchObject({
+      key: "central_read",
+      classification: "blocking_for_today",
+    });
+    expect(stale[0]).toMatchObject({
+      key: "central_read",
+      classification: "blocking_for_today",
+    });
+  });
+
+  it("classifies critical sync conflict and critical pending command as blocking for Today", () => {
+    const conflict = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: readyCache(),
+        prepareTurnSource: "central",
+        queue: queueWith({ state: "sync_conflict", urgency: "critical" }),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+    });
+    const pending = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: readyCache(),
+        prepareTurnSource: "central",
+        queue: queueWith({ state: "pending_sync", urgency: "critical" }),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+    });
+
+    expect(conflict[0]?.classification).toBe("blocking_for_today");
+    expect(pending[0]?.classification).toBe("blocking_for_today");
+  });
+
+  it("keeps Today readiness labels free of private provider, build, and mode values", () => {
+    const facts = todayReadinessFactsFor({
+      sync: {
+        prepareTurnCacheStatus: readyCache(),
+        prepareTurnSource: "central",
+        queue: emptyQueue(),
+        now: new Date("2030-01-10T10:00:00.000Z"),
+      },
+      push: {
+        channelState: "active",
+        storedPermissionStatus: "granted",
+        requireRemoteProof: true,
+      },
+      cameraPermission: "denied",
+      cameraRequiredForValidation: true,
+      buildCompatibility: "incompativel",
+      buildRequiredForToday: true,
+      deviceAuthorization: "invalid",
+    });
+    const publicText = facts
+      .flatMap((fact) => [fact.label, fact.body, fact.actionLabel ?? ""])
+      .join(" ");
+
+    expect(publicText).not.toMatch(
+      /ExpoPushToken|rawDeviceId|buildUrl|https:\/\/|eas:\/\/|token|secret|formal_validity|flv_inspection|processed_repack_loss|receiving_monitored/i,
+    );
+  });
 });
+
+function readyCache(overrides: Partial<PrepareTurnCacheStatus> = {}): PrepareTurnCacheStatus {
+  return {
+    state: "ready",
+    source: "central",
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+    staleAfterHours: 4,
+    productCount: 3,
+    lotCount: 2,
+    activeTaskCount: 1,
+    conflictCount: 0,
+    resolvedHistoryCount: 0,
+    ...overrides,
+  };
+}
+
+function emptyQueue(overrides: Partial<SyncQueueSummary> = {}): SyncQueueSummary {
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: "2030-01-10T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function queueWith(input: {
+  state: "pending_sync" | "sync_conflict";
+  urgency: "critical" | "high";
+}): SyncQueueSummary {
+  return emptyQueue({
+    state: input.state === "sync_conflict" ? "has_conflict" : "has_pending",
+    totalCount: 1,
+    conflictCount: input.state === "sync_conflict" ? 1 : 0,
+    hasCriticalConflict: input.state === "sync_conflict" && input.urgency === "critical",
+    criticalCount: input.urgency === "critical" ? 1 : 0,
+    highCount: input.urgency === "high" ? 1 : 0,
+    commands: [
+      {
+        id: `cmd-${input.state}`,
+        kind: "resolve_task",
+        state: input.state,
+        urgency: input.urgency,
+        productDisplayName: "Produto FICTICIO",
+        lotIdentity: { identitySource: "printed", value: "LOTE-FICTICIO" },
+        currentLocation: { kind: "area_de_venda" },
+        savedAt: "2030-01-10T09:30:00.000Z",
+        ...(input.state === "sync_conflict" ? { conflictId: "conflict-ficticio" } : {}),
+      },
+    ],
+  });
+}
