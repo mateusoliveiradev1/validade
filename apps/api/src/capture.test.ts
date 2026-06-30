@@ -436,6 +436,62 @@ describe("capture product catalog API", () => {
     });
   });
 
+  it("reviews a pending product draft when the web sends its central product id", async () => {
+    const captureRepository = createInMemoryCaptureRepository();
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        leadMembership("loja-piloto"),
+        adminMembership("loja-piloto"),
+      ]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+    const created = await app.request("/capture/products/drafts", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(productDraftRequest({ displayName: "Cabotia KG PED FICTICIO" })),
+    });
+    const createdBody = (await created.json()) as {
+      draft?: { draftId?: string; centralProductId?: string };
+    };
+    const draftId = createdBody.draft?.draftId ?? "draft-nao-criado";
+    const centralProductId = createdBody.draft?.centralProductId ?? "product-nao-criado";
+
+    const reviewedByProductId = await app.request(
+      `/capture/products/drafts/${encodeURIComponent(centralProductId)}/review`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer fake:admin-local",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          draftId: centralProductId,
+          decision: "approve",
+          reviewedAt: NOW,
+        }),
+      },
+    );
+    const reviewedBody = (await reviewedByProductId.json()) as {
+      draft?: { draftId?: string; centralProductId?: string; reviewStatus?: string };
+      acknowledgement?: { state?: string };
+    };
+
+    expect(reviewedByProductId.status).toBe(200);
+    expect(reviewedBody).toMatchObject({
+      draft: {
+        draftId,
+        centralProductId,
+        reviewStatus: "validated",
+      },
+      acknowledgement: { state: "validated" },
+    });
+  });
+
   it("rejects forged product store authority in request bodies", async () => {
     const response = await createApiApp().request("/capture/products/drafts", {
       method: "POST",

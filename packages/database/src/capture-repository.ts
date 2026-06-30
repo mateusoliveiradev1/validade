@@ -1339,7 +1339,7 @@ export function createCaptureRepositoryFromQuery(
         d.draft_id, d.requested_by_label, d.created_at
       from central_product_drafts d
       join central_products p on p.central_product_id = d.central_product_id and p.store_id = d.store_id
-      where d.store_id = $1 and d.draft_id = $2
+      where d.store_id = $1 and (d.draft_id = $2 or d.central_product_id = $2)
       limit 1`,
       [input.storeId, input.request.draftId],
     )) as (ProductRow & {
@@ -1378,13 +1378,7 @@ export function createCaptureRepositoryFromQuery(
       `update central_product_drafts
       set review_status = $1, reason = $2, reviewed_at = $3::timestamptz
       where store_id = $4 and draft_id = $5`,
-      [
-        nextReviewStatus,
-        input.request.reason ?? null,
-        reviewedAt,
-        input.storeId,
-        input.request.draftId,
-      ],
+      [nextReviewStatus, input.request.reason ?? null, reviewedAt, input.storeId, row.draft_id],
     );
 
     const product = mapCatalogProductRow({
@@ -1394,7 +1388,7 @@ export function createCaptureRepositoryFromQuery(
       updated_at: reviewedAt,
     });
     const draft = buildDraftStateFromProduct({
-      draftId: input.request.draftId,
+      draftId: row.draft_id,
       product,
       requestedByLabel: row.requested_by_label,
       requestedAt: toIso(row.created_at),
@@ -2517,7 +2511,9 @@ export function createInMemoryCaptureRepository(input?: {
     reviewProductDraft(reviewInput) {
       const draftIndex = productDrafts.findIndex(
         (draft) =>
-          draft.storeId === reviewInput.storeId && draft.draftId === reviewInput.request.draftId,
+          draft.storeId === reviewInput.storeId &&
+          (draft.draftId === reviewInput.request.draftId ||
+            draft.centralProductId === reviewInput.request.draftId),
       );
 
       if (draftIndex === -1) {

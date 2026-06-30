@@ -536,6 +536,64 @@ describe("database repositories", () => {
     expect(String(auditQuery?.[0])).toContain("true");
   });
 
+  it("reviews SQL product drafts by central product id and updates the real draft id", async () => {
+    const captured: unknown[][] = [];
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+        if (strings.includes("from central_product_drafts d")) {
+          return Promise.resolve([
+            {
+              ...centralProductRow(),
+              central_product_id: "product:store-1:cabotia-kg-ped",
+              display_name: "Cabotia KG PED FICTICIO",
+              normalized_key: "cabotia kg ped ficticio",
+              status: "draft",
+              state: "pending",
+              identifiers: [],
+              draft_id: "draft:store-1:cabotia-kg-ped",
+              requested_by_label: "Pessoa Piloto",
+              created_at: "2030-01-10T09:00:00.000Z",
+            },
+          ]);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    const response = await repository.reviewProductDraft({
+      requestId: "review-by-product-id-store-1",
+      storeId: "store-1",
+      storeName: "Loja Ficticia Piloto",
+      actorId: "subject-1",
+      actorDisplayName: "Pessoa Piloto",
+      actorRoleSnapshot: "lead",
+      request: {
+        draftId: "product:store-1:cabotia-kg-ped",
+        decision: "approve",
+        reviewedAt: "2030-01-10T09:05:00.000Z",
+      },
+    });
+    const selectQuery = captured.find(([query]) =>
+      String(query).includes("from central_product_drafts d"),
+    );
+    const draftUpdateQuery = captured.find(([query]) =>
+      String(query).includes("update central_product_drafts"),
+    );
+
+    expect(response).toMatchObject({
+      draft: {
+        draftId: "draft:store-1:cabotia-kg-ped",
+        centralProductId: "product:store-1:cabotia-kg-ped",
+        reviewStatus: "validated",
+      },
+    });
+    expect(String(selectQuery?.[0])).toContain("d.draft_id = $2 or d.central_product_id = $2");
+    expect(draftUpdateQuery?.[5]).toBe("draft:store-1:cabotia-kg-ped");
+  });
+
   it("rejects central lot writes for unknown or cross-store products", async () => {
     const repository = createInMemoryCaptureRepository({
       products: [centralProduct("store-2", "produto-cross-store")],
