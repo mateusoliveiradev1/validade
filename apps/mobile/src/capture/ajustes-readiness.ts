@@ -230,13 +230,24 @@ export function todayReadinessFactsFor(input: {
   deviceAuthorization?: "valid" | "invalid" | "unknown" | undefined;
 }): readonly TodayReadinessFact[] {
   const syncReadiness = syncReadinessFor(input.sync);
+  const syncFactKey = syncReadiness.centralRefreshRequired ? "central_read" : "sync_queue";
+  const syncFactLabel =
+    input.sync.prepareTurnSource === "local_cache"
+      ? "Local"
+      : syncFactKey === "central_read"
+        ? "Leitura central"
+        : "Sincronizacao";
+  const syncFactBody =
+    input.sync.prepareTurnSource === "local_cache"
+      ? `Leitura local em uso desde ${syncReadiness.lastCentralReadValue}. Nao declare area segura sem preparar a central.`
+      : syncReadiness.body;
   const facts: TodayReadinessFact[] = [
     {
-      key: syncReadiness.centralRefreshRequired ? "central_read" : "sync_queue",
+      key: syncFactKey,
       classification:
         syncReadiness.verdict === "Bloqueado" ? "blocking_for_today" : "compact",
-      label: syncReadiness.centralRefreshRequired ? "Leitura central" : "Sincronizacao",
-      body: syncReadiness.body,
+      label: syncFactLabel,
+      body: syncFactBody,
       ...(syncReadiness.centralRefreshRequired
         ? { actionLabel: ajustesSyncCopy.refreshCentralRead }
         : {}),

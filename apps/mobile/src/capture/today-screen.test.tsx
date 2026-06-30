@@ -334,6 +334,7 @@ async function renderTodayScreen(
     status: PrepareTurnCacheStatus;
     source: "central" | "local_cache";
   },
+  options: { onRequestCentralRefresh?: (() => void) | undefined } = {},
 ): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
 
@@ -346,6 +347,7 @@ async function renderTodayScreen(
         syncEngine={syncEngine}
         prepareTurnCacheStatus={prepareTurn?.status}
         prepareTurnSource={prepareTurn?.source}
+        onRequestCentralRefresh={options.onRequestCentralRefresh}
         now={() => new Date("2030-01-10T12:00:00.000Z")}
       />,
     );
@@ -395,6 +397,7 @@ describe("TodayScreen", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
+    expect(rendered).not.toContain("Alertas ajudam a cobrar");
     expect(rendered).not.toContain("Pronto para operar sem internet");
     expect(rendered).not.toContain("Tudo sincronizado neste aparelho");
   });
@@ -426,6 +429,34 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Leitura local em uso desde");
     expect(rendered).toContain("Nao declare area segura sem preparar a central.");
     expect(rendered).not.toContain("Area segura com leitura central");
+  });
+
+  it("renders stale central read as a Today blocker with a refresh action", async () => {
+    const requestCentralRefresh = vi.fn();
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const tree = await renderTodayScreen(
+      repository,
+      undefined,
+      {
+        status: readyPrepareTurnCacheStatus({
+          lastCentralReadAt: "2030-01-10T06:00:00.000Z",
+          staleAfterHours: 2,
+        }),
+        source: "central",
+      },
+      { onRequestCentralRefresh: requestCentralRefresh },
+    );
+    const rendered = JSON.stringify(tree.toJSON());
+
+    expect(rendered).toContain("Leitura central");
+    expect(rendered).toContain("Atualizar leitura central");
+
+    await act(async () => {
+      findButton(tree, "Atualizar leitura central").props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(requestCentralRefresh).toHaveBeenCalledOnce();
   });
 
   it("renders offline mode with cached tasks and keeps task paths available", async () => {

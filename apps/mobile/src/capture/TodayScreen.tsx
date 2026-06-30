@@ -42,7 +42,11 @@ import {
   todayCopy,
 } from "./today-copy";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
-import { operatorSafePushFeedback } from "./ajustes-readiness";
+import {
+  operatorSafePushFeedback,
+  todayReadinessFactsFor,
+  type TodayReadinessFact,
+} from "./ajustes-readiness";
 
 const ACTIVE_SECTION_ORDER = [
   "withdraw_now",
@@ -101,6 +105,7 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   onOpenShiftClose,
+  onRequestCentralRefresh,
   onRegisterPushDevice,
   canCloseShift = false,
   actorLabel = todayCopy.fallbackActor,
@@ -119,6 +124,7 @@ export function TodayScreen({
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
   onOpenShiftClose?: (() => void) | undefined;
+  onRequestCentralRefresh?: (() => void) | undefined;
   onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   canCloseShift?: boolean | undefined;
   actorLabel?: string | undefined;
@@ -444,6 +450,29 @@ export function TodayScreen({
 
   const salesAreaRiskCount = tasks.filter(isSalesAreaBlockingTask).length;
   const renderedAt = now();
+  const shouldClassifyReadiness =
+    prepareTurnCacheStatus !== undefined ||
+    prepareTurnSource !== undefined ||
+    (syncQueue?.totalCount ?? 0) > 0;
+  const todayReadinessFacts = shouldClassifyReadiness
+    ? todayReadinessFactsFor({
+        sync: {
+          prepareTurnCacheStatus,
+          prepareTurnSource,
+          offlineStatus,
+          queue: syncQueue,
+          now: renderedAt,
+        },
+        push: { channelState: alertChannelState },
+      })
+    : [];
+  const blockingReadinessFacts = todayReadinessFacts.filter(
+    (fact) => fact.classification === "blocking_for_today",
+  );
+  const compactReadinessFacts = todayReadinessFacts
+    .filter((fact) => fact.classification === "compact" && fact.key !== "push")
+    .slice(0, 2);
+  const hasReadinessBlocker = blockingReadinessFacts.length > 0;
   const overdueTasks = tasks.filter((task) => isOverdueTask(task, renderedAt));
   const currentTasks = tasks.filter((task) => !isOverdueTask(task, renderedAt));
   const firstPriorityTask = overdueTasks[0] ?? currentTasks[0];
@@ -451,13 +480,6 @@ export function TodayScreen({
   const centralPackageReady =
     prepareTurnSource === undefined ||
     (prepareTurnSource === "central" && prepareTurnCacheStatus?.state === "ready");
-  const centralNotice =
-    prepareTurnCacheStatus === undefined || prepareTurnCacheStatus === null
-      ? undefined
-      : prepareTurnNotice(prepareTurnCacheStatus, prepareTurnSource);
-  const showCentralNotice =
-    centralNotice !== undefined &&
-    (!centralPackageReady || (prepareTurnCacheStatus?.conflictCount ?? 0) > 0);
   const syncPendingCount = syncQueue?.totalCount ?? 0;
   const hasSyncWork = syncPendingCount > 0;
   const heroPrimaryLabel =
@@ -467,12 +489,12 @@ export function TodayScreen({
   const heroSecondaryLabel = canOpenPriorityTask ? todayCopy.registerLot : todayCopy.recentLots;
   const verdict = isInitialLoading
     ? "Carregando riscos da area de venda"
-    : !centralPackageReady
-      ? "Leitura central local ou pendente"
-      : refreshError !== undefined
+    : refreshError !== undefined
         ? "Riscos precisam ser atualizados"
         : salesAreaRiskCount > 0
           ? todayCopy.criticalHeader(salesAreaRiskCount)
+          : !centralPackageReady || hasReadinessBlocker
+            ? "Leitura central local ou pendente"
           : tasks.length > 0
             ? todayCopy.safeWithWorkHeader
             : todayCopy.safeHeader;
@@ -488,11 +510,22 @@ export function TodayScreen({
         <Text style={styles.heroKicker}>{todayCopy.title}</Text>
         <Text style={styles.safetyVerdict}>{verdict}</Text>
         <View style={styles.heroStatusStack}>
-          {centralNotice === undefined || !showCentralNotice ? null : (
-            <StatusNotice title={centralNotice.label} tone={centralNotice.tone}>
-              {centralNotice.body}
-            </StatusNotice>
-          )}
+          {blockingReadinessFacts.map((fact) => (
+            <TodayReadinessNotice
+              key={fact.key}
+              fact={fact}
+              onRequestCentralRefresh={onRequestCentralRefresh}
+            />
+          ))}
+          {blockingReadinessFacts.length === 0 && compactReadinessFacts.length > 0 ? (
+            <View style={styles.readinessCompact}>
+              {compactReadinessFacts.map((fact) => (
+                <Text key={fact.key} style={styles.readinessCompactText}>
+                  {fact.label}: {fact.body}
+                </Text>
+              ))}
+            </View>
+          ) : null}
           <OfflineStatusBand
             disabled={isSyncing || syncEngine === undefined}
             hideWhenReady
@@ -503,10 +536,10 @@ export function TodayScreen({
           <OfflineCacheNotice status={offlineStatus} />
         </View>
         <Text style={styles.safetyBody}>
-          {!centralPackageReady
-            ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
-            : salesAreaRiskCount > 0
+          {salesAreaRiskCount > 0
               ? "Comece pelo primeiro risco da area de venda."
+            : !centralPackageReady || hasReadinessBlocker
+              ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
               : isInitialLoading
                 ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
                 : refreshError !== undefined
@@ -582,12 +615,14 @@ export function TodayScreen({
       {acknowledgementFeedback === undefined ? null : (
         <StatusNotice tone="success">{acknowledgementFeedback}</StatusNotice>
       )}
-      <AlertChannelSurface
-        channelState={alertChannelState}
-        feedback={alertChannelFeedback}
-        isRequesting={isRequestingAlerts}
-        onActivate={() => void activateAlerts()}
-      />
+      {alertChannelFeedback === undefined && tasks.length === 0 ? null : (
+        <AlertChannelSurface
+          channelState={alertChannelState}
+          feedback={alertChannelFeedback}
+          isRequesting={isRequestingAlerts}
+          onActivate={() => void activateAlerts()}
+        />
+      )}
 
       {selectedConflict === undefined ? null : (
         <SyncConflictPanel
@@ -809,6 +844,30 @@ function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
       >
         {label}
       </Text>
+    </View>
+  );
+}
+
+function TodayReadinessNotice({
+  fact,
+  onRequestCentralRefresh,
+}: {
+  fact: TodayReadinessFact;
+  onRequestCentralRefresh?: (() => void) | undefined;
+}) {
+  const canRefreshCentral = fact.key === "central_read" && onRequestCentralRefresh !== undefined;
+
+  return (
+    <View style={styles.readinessBlocker}>
+      <StatusNotice title={fact.label} tone="critical">
+        {fact.body}
+      </StatusNotice>
+      {canRefreshCentral ? (
+        <SecondaryAction
+          label={fact.actionLabel ?? "Atualizar leitura central"}
+          onPress={onRequestCentralRefresh}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1087,6 +1146,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   heroStatusStack: {
+    gap: captureSpacing.small,
+  },
+  readinessCompact: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    gap: captureSpacing.xsmall,
+    padding: captureSpacing.small,
+  },
+  readinessCompactText: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  readinessBlocker: {
     gap: captureSpacing.small,
   },
   heroActions: {

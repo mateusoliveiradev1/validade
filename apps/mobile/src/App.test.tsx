@@ -515,7 +515,7 @@ describe("Validade Zero mobile smoke", () => {
 
     expect(rendered).toContain("Hoje");
     expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
-    expect(rendered).toContain("Ativar alertas do turno");
+    expect(rendered).not.toContain("Ativar alertas do turno");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");
   });
@@ -572,7 +572,10 @@ describe("Validade Zero mobile smoke", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");
-    expect(rendered).toContain("Area sem bloqueio critico, ainda ha tarefas do turno");
+    expect(rendered).toContain("Leitura central local ou pendente");
+    expect(rendered).toContain(
+      "Pendencia critica ainda nao confirmada pela central. Sincronize antes do fechamento seguro.",
+    );
     expect(rendered).toContain("Sem internet agora. Usando tarefas salvas neste aparelho.");
     expect(rendered).toContain("Atualizar tarefas");
     expect(rendered).toContain("Registrar lote");

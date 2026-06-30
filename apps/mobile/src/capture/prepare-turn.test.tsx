@@ -233,7 +233,7 @@ describe("prepare-turn gate", () => {
 
     await press(tree, "Entrar com leitura local");
 
-    expect(textContent(tree)).toContain("Leitura central local ou pendente");
+    expect(textContent(tree)).toContain("Local");
     expect(textContent(tree)).toContain("Nao declare area segura");
   });
 });

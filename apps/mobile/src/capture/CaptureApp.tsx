@@ -612,6 +612,7 @@ export function CaptureApp({
             setPushFallbackNotice(undefined);
             navigate({ name: "task-resolution", task });
           }}
+          onRequestCentralRefresh={requestCentralReprepare}
           canCloseShift={activeRole === "lead"}
           actorLabel={actorLabel}
           onOpenShiftClose={() => navigate({ name: "shift-close" })}
