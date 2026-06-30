@@ -701,6 +701,182 @@ describe("memory capture repository", () => {
     ]);
   });
 
+  it("replays a pending lot after central search finds a reusable product missing from local cache", async () => {
+    const alhoCategoryProfile = {
+      categoryId: "alho-inteiro-embalado-fornecedor",
+      mode: "formal_validity" as const,
+      windows: { radarDays: 90, markdownDays: 30, criticalDays: 7, expiredDays: 0 },
+    };
+    const searchCentralProducts = vi.fn(() =>
+      Promise.resolve({
+        requestId: "search-central-alho-ficticio",
+        normalizedQuery: "alho inteiro embalado ficticio",
+        resultState: "reuse_available" as const,
+        reusableProducts: [
+          {
+            centralProductId: "produto-central-alho-inteiro-001",
+            displayName: "Alho Inteiro Embalado FICTICIO",
+            normalizedKey: "alho inteiro embalado ficticio",
+            categoryId: "alho-inteiro-embalado-fornecedor",
+            categoryName: "Alho inteiro embalado pelo fornecedor",
+            categoryRuleProfile: alhoCategoryProfile,
+            source: "central" as const,
+            reviewStatus: "validated" as const,
+            syncState: "synchronized" as const,
+            updatedAt: "2030-01-10T09:06:00.000Z",
+            storePresentation: "supplier_packaged" as const,
+            matchKind: "reusable_central" as const,
+            matchReasons: ["exact_normalized_name" as const],
+          },
+        ],
+        similarCandidates: [],
+      }),
+    );
+    const createCentralLot = vi.fn((request) =>
+      Promise.resolve({
+        requestId: "write-alho-central-ficticio",
+        lot: {
+          centralLotId: "lote-central-alho-inteiro-001",
+          centralProductId: request.lot.productId,
+          productDisplayName: "Alho Inteiro Embalado FICTICIO",
+          lotIdentity: request.lot.identity,
+          mode: "formal_validity" as const,
+          expiresAt: request.lot.expiresAt,
+          receivedAt: request.lot.receivedAt,
+          approximateQuantity: request.lot.approximateQuantity,
+          initialLocation: request.lot.initialLocation,
+          currentObservation: {
+            centralObservationId: "observacao-central-alho-inteiro-001",
+            centralLotId: "lote-central-alho-inteiro-001",
+            status: "present" as const,
+            actorLabel: request.actorLabel,
+            occurredAt: request.occurredAt,
+            location: request.lot.initialLocation,
+            quantityState: "estimated" as const,
+            approximateQuantity: request.lot.approximateQuantity,
+            isCorrection: false,
+          },
+          lifecycleStatus: "active" as const,
+          state: "synchronized" as const,
+          source: "central" as const,
+          riskState: "radar" as const,
+          taskProjection: {
+            attention: "future_attention" as const,
+            riskState: "radar" as const,
+            observedAt: "2030-01-10T09:00:00.000Z",
+          },
+          createdAt: "2030-01-10T09:00:00.000Z",
+          updatedAt: "2030-01-10T09:00:00.000Z",
+        },
+        taskProjection: {
+          attention: "future_attention" as const,
+          riskState: "radar" as const,
+          observedAt: "2030-01-10T09:00:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-central-alho-inteiro-001",
+          centralLotId: "lote-central-alho-inteiro-001",
+          state: "synchronized" as const,
+          acknowledgedAt: "2030-01-10T09:00:00.000Z",
+          message: "Lote confirmado na central.",
+        },
+      }),
+    );
+    const identifiers = ["produto-alho-local", "lote-alho-local", "obs-alho-local"];
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "id-alho-extra",
+      createCentralLot,
+      searchCentralProducts,
+    });
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Alho Inteiro Embalado FICTICIO",
+      categoryId: "alho-inteiro-embalado-fornecedor",
+      categoryName: "Alho inteiro embalado pelo fornecedor",
+      categoryRuleProfile: alhoCategoryProfile,
+      storePresentation: "supplier_packaged",
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    const pendingLot = await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "printed", value: "LOTE-ALHO-FICTICIO-001" },
+        mode: "formal_validity",
+        expiresAt: "2030-04-10",
+        receivedAt: "2030-01-10",
+        approximateQuantity: 10,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaboradora local",
+    });
+
+    expect(pendingLot.centralSyncState).toBe("pending_central");
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-alho-sem-produto-cache",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "cache_ready",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 0,
+        lotCount: 0,
+        activeTaskCount: 0,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [],
+      lots: [],
+      activeTasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    await expect(repository.syncPendingCentralLots?.()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-alho-inteiro-001",
+        centralSyncState: "synchronized",
+        centralSource: "central",
+      }),
+    ]);
+    expect(searchCentralProducts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Alho Inteiro Embalado FICTICIO",
+        categoryId: "alho-inteiro-embalado-fornecedor",
+        includeDrafts: true,
+      }),
+    );
+    expect(createCentralLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lot: expect.objectContaining({ productId: "produto-central-alho-inteiro-001" }),
+      }),
+    );
+  });
+
   it("does not confirm central-cache lots locally when the central write fails", async () => {
     const createCentralLot = vi.fn(() => Promise.reject(new Error("network unavailable")));
     const repository = createMemoryCaptureRepository({

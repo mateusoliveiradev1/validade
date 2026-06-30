@@ -8,6 +8,7 @@ import {
   type ProductIdentifierInput,
   type ProductSearchCandidate,
   type ProductSearchRequest,
+  type ProductSearchResponse,
   type AlertDeliveryResult,
   type ActiveTaskSnippet,
   type AuditTimelineItem,
@@ -108,6 +109,8 @@ import {
   parsePrepareTurnResponse,
   parseProductDraftCreateRequest,
   parseProductSearchRequest,
+  productCatalogItemToLocalRecord,
+  productDraftToLocalRecord,
   parseSyncCommandRecord,
   parseSyncConflictRecord,
   parseSyncQueueSummary,
@@ -222,8 +225,31 @@ export function createMemoryCaptureRepository(
     return Promise.resolve(record);
   }
 
-  function searchCentralProducts(input: ProductSearchRequest) {
+  async function searchCentralProducts(input: ProductSearchRequest) {
     const request = parseProductSearchRequest(input);
+    if (dependencies.searchCentralProducts !== undefined) {
+      const response = ProductSearchResponseSchema.parse(
+        await dependencies.searchCentralProducts(request),
+      );
+
+      for (const product of response.reusableProducts) {
+        const record = productCatalogItemToLocalRecord(product);
+        products.set(record.id, record);
+      }
+
+      for (const product of response.similarCandidates) {
+        const record = productCatalogItemToLocalRecord(product);
+        products.set(record.id, record);
+      }
+
+      if (response.draft !== undefined) {
+        const record = productDraftToLocalRecord(response.draft);
+        products.set(record.id, record);
+      }
+
+      return response;
+    }
+
     const normalizedQuery =
       request.query === undefined ? undefined : normalizeProductLookup(request.query);
     const catalogProducts = [...products.values()].map(localProductToCatalogItem);
@@ -253,43 +279,41 @@ export function createMemoryCaptureRepository(
       .slice(0, 10)
       .map((product) => productSearchCandidate(product, "similar_candidate"));
 
-    return Promise.resolve(
-      ProductSearchResponseSchema.parse({
-        requestId: `mobile-search-${dependencies.clock()}`,
-        ...(normalizedQuery === undefined ? {} : { normalizedQuery }),
-        resultState:
-          reusableProducts.length > 0
-            ? "reuse_available"
-            : draft !== undefined
-              ? "draft_pending_review"
-              : similarCandidates.length > 0
-                ? "similar_requires_review"
-                : "no_safe_reuse",
-        reusableProducts,
-        similarCandidates,
-        ...(draft === undefined
-          ? {}
-          : {
-              draft: {
-                draftId: draft.centralProductId,
-                centralProductId: draft.centralProductId,
-                displayName: draft.displayName,
-                normalizedKey: draft.normalizedKey,
-                categoryId: draft.categoryId,
-                categoryName: draft.categoryName,
-                categoryRuleProfile: draft.categoryRuleProfile,
-                source: "draft_pending_review",
-                reviewStatus: "pending_review",
-                syncState: draft.syncState,
-                requestedByLabel: "Este aparelho",
-                requestedAt: draft.updatedAt,
-                similarCandidates: [],
-                ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
-                ...(draft.identifiers === undefined ? {} : { identifiers: draft.identifiers }),
-              },
-            }),
-      }),
-    );
+    return ProductSearchResponseSchema.parse({
+      requestId: `mobile-search-${dependencies.clock()}`,
+      ...(normalizedQuery === undefined ? {} : { normalizedQuery }),
+      resultState:
+        reusableProducts.length > 0
+          ? "reuse_available"
+          : draft !== undefined
+            ? "draft_pending_review"
+            : similarCandidates.length > 0
+              ? "similar_requires_review"
+              : "no_safe_reuse",
+      reusableProducts,
+      similarCandidates,
+      ...(draft === undefined
+        ? {}
+        : {
+            draft: {
+              draftId: draft.centralProductId,
+              centralProductId: draft.centralProductId,
+              displayName: draft.displayName,
+              normalizedKey: draft.normalizedKey,
+              categoryId: draft.categoryId,
+              categoryName: draft.categoryName,
+              categoryRuleProfile: draft.categoryRuleProfile,
+              source: "draft_pending_review",
+              reviewStatus: "pending_review",
+              syncState: draft.syncState,
+              requestedByLabel: "Este aparelho",
+              requestedAt: draft.updatedAt,
+              similarCandidates: [],
+              ...(draft.gtin === undefined ? {} : { gtin: draft.gtin }),
+              ...(draft.identifiers === undefined ? {} : { identifiers: draft.identifiers }),
+            },
+          }),
+    });
   }
 
   function createProductDraft(input: ProductDraftCreateRequest) {
@@ -642,7 +666,7 @@ export function createMemoryCaptureRepository(
 
       const localProduct = findProductForLot(localLot.productId);
       const product =
-        localProduct === undefined ? undefined : centralProductForPendingLot(localProduct);
+        localProduct === undefined ? undefined : await centralProductForPendingLot(localProduct);
 
       if (product === undefined || product.centralProductId === undefined) {
         continue;
@@ -1899,24 +1923,85 @@ export function createMemoryCaptureRepository(
     };
   }
 
-  function centralProductForPendingLot(
+  async function centralProductForPendingLot(
     product: CaptureProductRecord,
-  ): CaptureProductRecord | undefined {
-    if (!isPendingCentralProduct(product)) {
+  ): Promise<CaptureProductRecord | undefined> {
+    if (!isPendingCentralProduct(product) && product.centralProductId !== undefined) {
       return product;
     }
 
-    if (product.centralProductId === undefined) {
-      return undefined;
-    }
-
-    return [...products.values()].find(
+    const localCentralProduct = [...products.values()].find(
       (candidate) =>
         !isPendingCentralProduct(candidate) &&
+        candidate.centralProductId !== undefined &&
         (candidate.id === product.centralProductId ||
           candidate.centralProductId === product.centralProductId ||
           (candidate.normalizedName === product.normalizedName &&
             candidate.categoryId === product.categoryId)),
+    );
+
+    if (localCentralProduct !== undefined) {
+      return localCentralProduct;
+    }
+
+    const response = await searchCentralProducts(productSearchRequestForPendingLot(product));
+    const reusableProduct = reusableCentralProductForPendingLot(product, response);
+
+    return reusableProduct === undefined
+      ? undefined
+      : productCatalogItemToLocalRecord(reusableProduct);
+  }
+
+  function productSearchRequestForPendingLot(product: CaptureProductRecord): ProductSearchRequest {
+    const identifier = product.identifiers?.[0];
+
+    return parseProductSearchRequest({
+      query: product.displayName,
+      categoryId: product.categoryId,
+      requestedAt: dependencies.clock(),
+      includeDrafts: true,
+      ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      ...(identifier === undefined
+        ? {}
+        : { identifier: { type: identifier.type, value: identifier.value } }),
+    });
+  }
+
+  function reusableCentralProductForPendingLot(
+    product: CaptureProductRecord,
+    response: ProductSearchResponse,
+  ): ProductSearchCandidate | undefined {
+    const reusableProducts = response.reusableProducts.filter(
+      (candidate) =>
+        candidate.matchKind === "reusable_central" &&
+        candidate.source === "central" &&
+        candidate.reviewStatus === "validated" &&
+        candidate.syncState === "synchronized",
+    );
+
+    return (
+      reusableProducts.find((candidate) => candidateMatchesPendingProduct(product, candidate)) ??
+      reusableProducts[0]
+    );
+  }
+
+  function candidateMatchesPendingProduct(
+    product: CaptureProductRecord,
+    candidate: ProductSearchCandidate,
+  ): boolean {
+    const lookupIdentifiers = requestIdentifiers({
+      ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+      identifiers: product.identifiers?.map((identifier) => ({
+        type: identifier.type,
+        value: identifier.value,
+      })),
+    });
+
+    return (
+      candidate.centralProductId === product.centralProductId ||
+      productHasAnyIdentifier(candidate, lookupIdentifiers) ||
+      (candidate.normalizedKey === product.normalizedName &&
+        candidate.categoryId === product.categoryId)
     );
   }
 

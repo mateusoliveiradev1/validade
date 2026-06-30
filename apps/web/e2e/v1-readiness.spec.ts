@@ -23,7 +23,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   const pageText = await page.locator("body").innerText();
   expect(pageText).not.toContain("UAT Loja 18");
-  expect(pageText).not.toContain("uat15-sync-feedback-apk-134");
+  expect(pageText).not.toContain("uat15-lot-sync-apk-135");
   expect(pageText).not.toContain("Provider push sem prova atual");
   expect(pageText.indexOf("Lotes criticos")).toBeLessThan(pageText.indexOf("Tarefas atrasadas"));
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
@@ -47,7 +47,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   await navigation.getByRole("button", { name: "Atualizacoes", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Atualizacoes" })).toBeVisible();
-  await expect(page.getByText("uat15-sync-feedback-apk-134")).toBeVisible();
+  await expect(page.getByText("uat15-lot-sync-apk-135")).toBeVisible();
   await expect(page.getByRole("button", { name: "Ver instrucoes manuais" })).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
@@ -60,7 +60,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
   await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
   await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
   await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
-  await expect(page.getByText("uat15-sync-feedback-apk-134")).toHaveCount(0);
+  await expect(page.getByText("uat15-lot-sync-apk-135")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 });

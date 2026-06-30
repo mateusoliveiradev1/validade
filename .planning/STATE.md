@@ -112,6 +112,7 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 | 260630-cur | Fix manual sync for pending central lots and rebuild APK | 2026-06-30 | bbc80070 | Verified | [260630-cur-fix-manual-sync-for-pending-central-lots](./quick/260630-cur-fix-manual-sync-for-pending-central-lots/) |
 | 260630-d6v | Debug unchanged pending central lot sync after APK install | 2026-06-30 | local | Verified | [260630-d6v-debug-unchanged-pending-central-lot-sync](./quick/260630-d6v-debug-unchanged-pending-central-lot-sync/) |
 | 260630-dsq | Corrigir sincronizacao manual sem feedback quando lote central pendente nao vira comando | 2026-06-30 | local | Verified | [260630-dsq-corrigir-sincronizacao-manual-sem-feedba](./quick/260630-dsq-corrigir-sincronizacao-manual-sem-feedba/) |
+| 260630-euk | Corrigir sync de lote pendente e categoria para produto embalado do fornecedor | 2026-06-30 | pending | Verified | [260630-euk-corrigir-sync-de-lote-pendente-e-categor](./quick/260630-euk-corrigir-sync-de-lote-pendente-e-categor/) |
 
 ## Performance Metrics
 

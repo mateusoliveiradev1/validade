@@ -2952,9 +2952,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-sync-feedback-apk-134";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-lot-sync-apk-135";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "134";
+const DEFAULT_APPROVED_BUILD = "135";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;

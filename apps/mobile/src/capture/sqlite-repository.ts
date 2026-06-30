@@ -39,6 +39,7 @@ import {
   type ProductIdentifierInput,
   type ProductSearchCandidate,
   type ProductSearchRequest,
+  type ProductSearchResponse,
   type PushOpenIntent,
   type SyncCommandRecord,
   type SyncConflictRecord,
@@ -1122,7 +1123,7 @@ export function createSQLiteCaptureRepository(
         continue;
       }
 
-      const product = await centralProductForPendingLot(db, detail.product);
+      const product = await resolveCentralProductForPendingLot(db, detail.product);
 
       if (product?.centralProductId === undefined) {
         continue;
@@ -1167,6 +1168,28 @@ export function createSQLiteCaptureRepository(
     }
 
     return syncedLots;
+  }
+
+  async function resolveCentralProductForPendingLot(
+    db: SQLite.SQLiteDatabase,
+    product: CaptureProductRecord,
+  ): Promise<CaptureProductRecord | undefined> {
+    const cachedProduct = await centralProductForPendingLot(db, product);
+
+    if (cachedProduct?.centralProductId !== undefined) {
+      return cachedProduct;
+    }
+
+    if (dependencies.searchCentralProducts === undefined) {
+      return undefined;
+    }
+
+    const response = await searchCentralProducts(
+      productSearchRequestForPendingLot(product, dependencies.clock()),
+    );
+    const reusableProduct = reusableCentralProductForPendingLot(product, response);
+
+    return reusableProduct === undefined ? undefined : productCatalogItemToRecord(reusableProduct);
   }
 
   async function appendObservation(
@@ -4345,14 +4368,11 @@ async function centralProductForPendingLot(
   db: SQLite.SQLiteDatabase,
   product: CaptureProductRecord,
 ): Promise<CaptureProductRecord | undefined> {
-  if (!isPendingCentralProduct(product)) {
+  if (!isPendingCentralProduct(product) && product.centralProductId !== undefined) {
     return product;
   }
 
-  if (product.centralProductId === undefined) {
-    return undefined;
-  }
-
+  const centralProductId = product.centralProductId ?? product.id;
   const rows = await db.getAllAsync<ProductRow>(
     `SELECT * FROM capture_products
      WHERE id = ? OR central_product_id = ? OR (normalized_name = ? AND category_id = ?)
@@ -4363,13 +4383,74 @@ async function centralProductForPendingLot(
          ELSE 2
        END,
        created_at DESC`,
-    product.centralProductId,
-    product.centralProductId,
+    centralProductId,
+    centralProductId,
     product.normalizedName,
     product.categoryId,
   );
 
-  return rows.map(mapProduct).find((candidate) => !isPendingCentralProduct(candidate));
+  return rows
+    .map(mapProduct)
+    .find(
+      (candidate) =>
+        !isPendingCentralProduct(candidate) && candidate.centralProductId !== undefined,
+    );
+}
+
+function productSearchRequestForPendingLot(
+  product: CaptureProductRecord,
+  requestedAt: string,
+): ProductSearchRequest {
+  const identifier = product.identifiers?.[0];
+
+  return parseProductSearchRequest({
+    query: product.displayName,
+    categoryId: product.categoryId,
+    requestedAt,
+    includeDrafts: true,
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    ...(identifier === undefined
+      ? {}
+      : { identifier: { type: identifier.type, value: identifier.value } }),
+  });
+}
+
+function reusableCentralProductForPendingLot(
+  product: CaptureProductRecord,
+  response: ProductSearchResponse,
+): ProductSearchCandidate | undefined {
+  const reusableProducts = response.reusableProducts.filter(
+    (candidate) =>
+      candidate.matchKind === "reusable_central" &&
+      candidate.source === "central" &&
+      candidate.reviewStatus === "validated" &&
+      candidate.syncState === "synchronized",
+  );
+
+  return (
+    reusableProducts.find((candidate) => candidateMatchesPendingProduct(product, candidate)) ??
+    reusableProducts[0]
+  );
+}
+
+function candidateMatchesPendingProduct(
+  product: CaptureProductRecord,
+  candidate: ProductSearchCandidate,
+): boolean {
+  const lookupIdentifiers = requestIdentifierInputs({
+    ...(product.gtin === undefined ? {} : { gtin: product.gtin }),
+    identifiers: product.identifiers?.map((identifier) => ({
+      type: identifier.type,
+      value: identifier.value,
+    })),
+  });
+
+  return (
+    candidate.centralProductId === product.centralProductId ||
+    productHasAnyIdentifier(candidate, lookupIdentifiers) ||
+    (candidate.normalizedKey === product.normalizedName &&
+      candidate.categoryId === product.categoryId)
+  );
 }
 
 function mapCategory(row: ProductCategoryRow): CaptureProductCategory {

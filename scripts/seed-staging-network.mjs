@@ -99,6 +99,20 @@ const CATEGORY_CATALOG = [
     maxPhysicalConfirmationAgeHours: 48,
   },
   {
+    id: "alho-inteiro-embalado-fornecedor",
+    name: "Alho inteiro embalado pelo fornecedor",
+    mode: "formal_validity",
+    windows: { radarDays: 90, markdownDays: 30, criticalDays: 7, expiredDays: 0 },
+    maxPhysicalConfirmationAgeHours: 72,
+  },
+  {
+    id: "alho-processado-embalado-fornecedor",
+    name: "Alho processado embalado pelo fornecedor",
+    mode: "formal_validity",
+    windows: { radarDays: 30, markdownDays: 7, criticalDays: 2, expiredDays: 0 },
+    maxPhysicalConfirmationAgeHours: 24,
+  },
+  {
     id: "verduras-flor-caule",
     name: "Verduras de flor e caule",
     mode: "flv_inspection",
