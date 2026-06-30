@@ -25,4 +25,5 @@ export * from "./shift-close";
 export * from "./markdown";
 export * from "./sync";
 export * from "./tasks";
+export * from "./product-policy";
 export * from "./types";
