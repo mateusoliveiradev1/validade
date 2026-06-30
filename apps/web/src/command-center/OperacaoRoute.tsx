@@ -306,11 +306,7 @@ function CentralSnapshotPanel({
         />
         <CentralSnapshotMetric
           label="Fila local"
-          value={countLabel(
-            syncIssueCount,
-            "pendencia na fila local",
-            "pendencias na fila local",
-          )}
+          value={countLabel(syncIssueCount, "pendencia na fila local", "pendencias na fila local")}
           detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pela leitura central`}
         />
       </div>

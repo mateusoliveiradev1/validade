@@ -101,7 +101,7 @@ describe("shift close API seam", () => {
       replayed: false,
       closure: {
         verdict: "unsafe",
-        eligibility: "must_close_unsafe",
+        eligibility: "cannot_evaluate",
         continuityOwner: "Lideranca Ficticia Noturna",
       },
     });

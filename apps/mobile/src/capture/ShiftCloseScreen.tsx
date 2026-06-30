@@ -258,7 +258,9 @@ export function ShiftCloseScreen({
         <View style={styles.summaryGrid}>
           <SummaryRow
             label="Tarefas ativas"
-            value={summary === undefined ? "0 tarefas ativas" : taskCountLabel(summary.activeTaskCount)}
+            value={
+              summary === undefined ? "0 tarefas ativas" : taskCountLabel(summary.activeTaskCount)
+            }
           />
           <SummaryRow
             label="Fila local"
@@ -279,7 +281,9 @@ export function ShiftCloseScreen({
           />
           <SummaryRow
             label="Checklist fisico"
-            value={summary?.checklistProgress ?? `0/${SHIFT_CLOSE_CHECKLIST_KEYS.length} conferencias`}
+            value={
+              summary?.checklistProgress ?? `0/${SHIFT_CLOSE_CHECKLIST_KEYS.length} conferencias`
+            }
           />
         </View>
       </View>

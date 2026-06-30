@@ -202,9 +202,7 @@ function DeviceReadinessList({
                     </Badge>
                   </p>
                   <p>
-                    <span className="font-medium text-foreground">
-                      Autorizacao do aparelho:{" "}
-                    </span>
+                    <span className="font-medium text-foreground">Autorizacao do aparelho: </span>
                     {deviceAuthorizationLabel(device)}
                   </p>
                   <p>

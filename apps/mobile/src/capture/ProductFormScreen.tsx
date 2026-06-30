@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
-import {
-  resolveProductOperationalPolicy,
-  type StorePresentationKind,
-} from "@validade-zero/domain";
+import { resolveProductOperationalPolicy, type StorePresentationKind } from "@validade-zero/domain";
 import type { ProductIdentifierInput, ProductSearchCandidate } from "@validade-zero/contracts";
 import {
   productCatalogItemToLocalRecord,

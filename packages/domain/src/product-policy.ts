@@ -20,10 +20,7 @@ export type ProductPolicyRequiredLotField =
   | "qualityWindowDays"
   | "qualityInspectionDueAt";
 
-export type ProductPolicyTerminalAction =
-  | "withdraw_or_loss"
-  | "repack_or_loss"
-  | "check_presence";
+export type ProductPolicyTerminalAction = "withdraw_or_loss" | "repack_or_loss" | "check_presence";
 
 export type ProductPolicyKey =
   | "printed_validity"
@@ -124,9 +121,7 @@ export function resolveProductOperationalPolicy(
   const windows = resolvePolicyWindows(input.categoryRuleProfile, input.productRuleOverride);
   const allowMarkdown = defaults.allowMarkdown && mode === "formal_validity";
   const qualityWindowDays =
-    mode === "flv_inspection"
-      ? (windows.qualityWindowDays ?? DEFAULT_QUALITY_WINDOW_DAYS)
-      : null;
+    mode === "flv_inspection" ? (windows.qualityWindowDays ?? DEFAULT_QUALITY_WINDOW_DAYS) : null;
 
   return {
     mode,

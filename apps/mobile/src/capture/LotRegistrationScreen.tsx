@@ -28,10 +28,7 @@ import {
   productPolicyPreviewTerms,
   requiredFieldError,
 } from "./capture-copy";
-import {
-  resolveProductPolicyForProduct,
-  toDomainCategoryRuleProfile,
-} from "./product-policy-copy";
+import { resolveProductPolicyForProduct, toDomainCategoryRuleProfile } from "./product-policy-copy";
 import {
   DatePickerAction,
   Field,
@@ -487,10 +484,7 @@ function publicPolicyKeyForLegacyMode(mode: ProductMode): ProductPolicyKey {
   return "printed_validity";
 }
 
-function lotPolicySummary(
-  product: CaptureProductRecord,
-  policy: ProductOperationalPolicy,
-): string {
+function lotPolicySummary(product: CaptureProductRecord, policy: ProductOperationalPolicy): string {
   if (policy.publicPolicyKey === "conservative_review") {
     return "Politica conservadora: conferir com a lideranca. Sem rebaixa automatica.";
   }

@@ -606,9 +606,7 @@ function DeviceReadinessPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <p className="text-sm font-semibold text-primary">Aparelhos do piloto</p>
-          <h2 className="text-xl font-semibold leading-6">
-            Prontidao e autorizacao do aparelho
-          </h2>
+          <h2 className="text-xl font-semibold leading-6">Prontidao e autorizacao do aparelho</h2>
           <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
             Mostra ultima abertura, fila local, push, camera, build e leitura central. Isto nao e
             presenca ao vivo.
@@ -893,11 +891,7 @@ function CentralSnapshotPanel({
         />
         <CentralSnapshotMetric
           label="Fila local"
-          value={countLabel(
-            syncIssueCount,
-            "pendencia na fila local",
-            "pendencias na fila local",
-          )}
+          value={countLabel(syncIssueCount, "pendencia na fila local", "pendencias na fila local")}
           detail={`${countLabel(snapshot.pendingCommandCount, "comando local pendente", "comandos locais pendentes")} informado pela leitura central`}
         />
       </div>

@@ -32,13 +32,7 @@ export interface SyncReadiness {
 export type TodayReadinessClassification = "compact" | "blocking_for_today";
 
 export interface TodayReadinessFact {
-  key:
-    | "central_read"
-    | "sync_queue"
-    | "push"
-    | "camera"
-    | "build"
-    | "device_authorization";
+  key: "central_read" | "sync_queue" | "push" | "camera" | "build" | "device_authorization";
   classification: TodayReadinessClassification;
   label: string;
   body: string;
@@ -244,8 +238,7 @@ export function todayReadinessFactsFor(input: {
   const facts: TodayReadinessFact[] = [
     {
       key: syncFactKey,
-      classification:
-        syncReadiness.verdict === "Bloqueado" ? "blocking_for_today" : "compact",
+      classification: syncReadiness.verdict === "Bloqueado" ? "blocking_for_today" : "compact",
       label: syncFactLabel,
       body: syncFactBody,
       ...(syncReadiness.centralRefreshRequired
@@ -303,8 +296,7 @@ function buildReadinessFact(
   required: boolean | undefined,
 ): TodayReadinessFact {
   const blocked =
-    compatibility === "incompativel" ||
-    (required === true && compatibility !== "atual");
+    compatibility === "incompativel" || (required === true && compatibility !== "atual");
 
   return {
     key: "build",

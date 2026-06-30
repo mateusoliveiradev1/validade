@@ -86,7 +86,14 @@ describe("shift close policy", () => {
   });
 
   it("fails closed when the central capture read is missing, stale, or empty", () => {
-    const { central: _central, ...withoutCentral } = baseInput;
+    const withoutCentral = {
+      cacheState: baseInput.cacheState,
+      tasks: baseInput.tasks,
+      syncCommands: baseInput.syncCommands,
+      evidence: baseInput.evidence,
+      pendingUnsafeCloseCount: baseInput.pendingUnsafeCloseCount,
+      checklist: baseInput.checklist,
+    };
 
     expect(evaluateShiftClose(withoutCentral).eligibility).toBe("cannot_evaluate");
 
@@ -156,8 +163,6 @@ describe("shift close policy", () => {
     });
 
     expect(evaluation.eligibility).toBe("must_close_unsafe");
-    expect(evaluation.blockers.map((blocker) => blocker.code)).toContain(
-      "required_build_update",
-    );
+    expect(evaluation.blockers.map((blocker) => blocker.code)).toContain("required_build_update");
   });
 });

@@ -163,10 +163,7 @@ export function ProductDiscoveryScreen({
         <SecondaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />
       ) : null}
       {createGate === "similar_reviewed" ? (
-        <SecondaryAction
-          label="Continuar cadastro apos revisar"
-          onPress={openCreateProduct}
-        />
+        <SecondaryAction label="Continuar cadastro apos revisar" onPress={openCreateProduct} />
       ) : null}
       {message === undefined ? null : <StatusNotice>{message}</StatusNotice>}
       {categories.map((category) => (

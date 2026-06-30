@@ -66,39 +66,6 @@ const defaultPushDeviceIdentity: PushDeviceIdentity = {
   audienceRole: "shift_team",
 };
 
-function prepareTurnNotice(
-  status: PrepareTurnCacheStatus,
-  source: "central" | "local_cache" | undefined,
-): MobileStatusDescriptor {
-  const readAt = status.lastCentralReadAt ?? status.updatedAt;
-
-  if (status.conflictCount > 0) {
-    return {
-      ...mobileStatusDescriptorFor("conflict"),
-      body: `${status.conflictCount} conflito(s) na leitura central. Revise antes de declarar area segura.`,
-    };
-  }
-
-  if (source === "central" && status.state === "ready") {
-    return {
-      ...mobileStatusDescriptorFor("synced_transport"),
-      body: `Pronto para operar com a leitura central. Ultima leitura: ${readAt}. ${status.activeTaskCount} tarefas ativas.`,
-    };
-  }
-
-  if (source === "local_cache") {
-    return {
-      ...mobileStatusDescriptorFor("local_only"),
-      body: `Leitura local em uso desde ${readAt}. Nao declare area segura sem preparar a central.`,
-    };
-  }
-
-  return {
-    ...mobileStatusDescriptorFor("pending_central"),
-    body: `Leitura central pendente. Atualize antes de declarar area segura. Ultima leitura conhecida: ${readAt}.`,
-  };
-}
-
 export function TodayScreen({
   repository,
   onRegisterLot,
@@ -490,11 +457,11 @@ export function TodayScreen({
   const verdict = isInitialLoading
     ? "Carregando riscos da area de venda"
     : refreshError !== undefined
-        ? "Riscos precisam ser atualizados"
-        : salesAreaRiskCount > 0
-          ? todayCopy.criticalHeader(salesAreaRiskCount)
-          : !centralPackageReady || hasReadinessBlocker
-            ? "Leitura central local ou pendente"
+      ? "Riscos precisam ser atualizados"
+      : salesAreaRiskCount > 0
+        ? todayCopy.criticalHeader(salesAreaRiskCount)
+        : !centralPackageReady || hasReadinessBlocker
+          ? "Leitura central local ou pendente"
           : tasks.length > 0
             ? todayCopy.safeWithWorkHeader
             : todayCopy.safeHeader;
@@ -537,7 +504,7 @@ export function TodayScreen({
         </View>
         <Text style={styles.safetyBody}>
           {salesAreaRiskCount > 0
-              ? "Comece pelo primeiro risco da area de venda."
+            ? "Comece pelo primeiro risco da area de venda."
             : !centralPackageReady || hasReadinessBlocker
               ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
               : isInitialLoading

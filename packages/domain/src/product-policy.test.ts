@@ -18,13 +18,18 @@ const formalCategory: CategoryRuleProfile = {
   },
 };
 
+type ExhaustiveStorePresentation = StorePresentationKind;
+
 describe("product operational policy", () => {
   it.each(STORE_PRESENTATION_KINDS)("maps %s to one existing ProductMode", (storePresentation) => {
+    const storePresentationCoverage: readonly ExhaustiveStorePresentation[] =
+      STORE_PRESENTATION_KINDS;
     const policy = resolveProductOperationalPolicy({
       storePresentation,
       categoryRuleProfile: formalCategory,
     });
 
+    expect(storePresentationCoverage).toContain(storePresentation);
     expect(PRODUCT_MODES).toContain(policy.mode);
   });
 
@@ -141,7 +146,3 @@ function riskForPolicy(mode: ProductMode, expiresAt: string) {
     },
   });
 }
-
-type ExhaustiveStorePresentation = StorePresentationKind;
-
-const _storePresentationCoverage: readonly ExhaustiveStorePresentation[] = STORE_PRESENTATION_KINDS;
