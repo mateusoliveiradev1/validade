@@ -78,14 +78,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
 function buildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildInfo {
   return {
     appVersion: "0.12.0",
-    appBuild: "136",
+    appBuild: "137",
     environment: "staging",
     apiTarget: "https://api.ficticia.invalid",
     packageId: "com.validadezero.app",
-    approvedArtifactLabel: "uat15-sync-debug-apk-136",
+    approvedArtifactLabel: "uat15-sync-debug-apk-137",
     approvedAppVersion: "0.12.0",
-    approvedBuild: "136",
-    buildRef: "sync-debug-136",
+    approvedBuild: "137",
+    buildRef: "sync-debug-137",
     buildCompatibility: "atual",
     ...overrides,
   };
@@ -604,7 +604,7 @@ describe("AjustesScreen sync controls", () => {
     await press(tree, "Sincronizar pendencias");
 
     expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
-    expect(renderedText(tree)).toContain("A central recusou o envio do lote");
+    expect(renderedText(tree)).toContain("A central ainda nao confirmou o envio do lote");
   });
 
   it("sends an explicit reason when discarding an offline conflict", async () => {
@@ -658,9 +658,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
-    expect(text).toContain("uat15-sync-debug-apk-136");
+    expect(text).toContain("uat15-sync-debug-apk-137");
     expect(text).toContain("0.12.0");
-    expect(text).toContain("136");
+    expect(text).toContain("137");
     expect(text).toContain("API:");
     expect(text).toContain("Pacote:");
     expect(JSON.stringify(tree.toJSON())).not.toMatch(ajustesSensitiveDenylist);

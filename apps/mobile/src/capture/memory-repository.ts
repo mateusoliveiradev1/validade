@@ -86,6 +86,7 @@ import {
   nextGeneratedId,
   normalizeProductLookup,
   PendingCentralLotSyncError,
+  pendingCentralLotWriteBlocker,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
   parseMarkdownRequestCommand,
@@ -678,15 +679,14 @@ export function createMemoryCaptureRepository(
         continue;
       }
 
-      const centralLot = centralLotInputForReplay(localLot, product.centralProductId);
-      const request = parseCentralLotCreateRequest({
-        lot: centralLot,
-        actorLabel: localLot.currentObservation.actorLabel,
-        occurredAt: localLot.currentObservation.occurredAt,
-        idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
-      });
-
       try {
+        const centralLot = centralLotInputForReplay(localLot, product.centralProductId);
+        const request = parseCentralLotCreateRequest({
+          lot: centralLot,
+          actorLabel: localLot.currentObservation.actorLabel,
+          occurredAt: localLot.currentObservation.occurredAt,
+          idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
+        });
         const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
         const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
         const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
@@ -715,13 +715,10 @@ export function createMemoryCaptureRepository(
 
     if (syncedLots.length === 0) {
       if (writeFailure !== undefined) {
-        throw new PendingCentralLotSyncError(
-          "central_lot_write_failed",
-          "central_lot_write_failed",
-          {
-            cause: writeFailure,
-          },
-        );
+        const blocker = pendingCentralLotWriteBlocker(writeFailure);
+        throw new PendingCentralLotSyncError(blocker, blocker, {
+          cause: writeFailure,
+        });
       }
       if (blockedByProduct) {
         throw new PendingCentralLotSyncError("central_product_not_ready");

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryCaptureRepository } from "./memory-repository";
-import { PendingCentralLotSyncError, productDraftToLocalRecord } from "./repository";
+import {
+  PendingCentralLotSyncError,
+  pendingCentralLotWriteBlocker,
+  productDraftToLocalRecord,
+} from "./repository";
 
 const categoryRuleProfile = {
   categoryId: "categoria-ficticia-folhas",
@@ -30,6 +34,28 @@ function createDeterministicRepository() {
 }
 
 describe("memory capture repository", () => {
+  it("classifies pending central lot write failures without blaming every case on permission", () => {
+    const noPermission = Object.assign(new Error("no_permission"), { code: "no_permission" });
+    const sessionExpired = Object.assign(new Error("session_expired"), {
+      code: "session_expired",
+    });
+
+    expect(pendingCentralLotWriteBlocker(noPermission)).toBe("central_lot_auth_required");
+    expect(pendingCentralLotWriteBlocker(sessionExpired)).toBe("central_lot_auth_required");
+    expect(pendingCentralLotWriteBlocker(new Error("central_product_not_found"))).toBe(
+      "central_product_not_ready",
+    );
+    expect(pendingCentralLotWriteBlocker(new Error("invalid_central_lot_request"))).toBe(
+      "central_lot_local_replay_failed",
+    );
+    expect(pendingCentralLotWriteBlocker(new Error("network unavailable"))).toBe(
+      "central_lot_network_unavailable",
+    );
+    expect(pendingCentralLotWriteBlocker(new Error("central denied"))).toBe(
+      "central_lot_write_failed",
+    );
+  });
+
   it("ranks frequent products by registered lots with a stable name tie-breaker", async () => {
     let nextIdentifier = 1;
     const repository = createMemoryCaptureRepository({

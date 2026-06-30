@@ -183,6 +183,9 @@ export type PendingCentralLotSyncBlocker =
   | "central_read_required"
   | "central_write_unavailable"
   | "central_product_not_ready"
+  | "central_lot_auth_required"
+  | "central_lot_network_unavailable"
+  | "central_lot_local_replay_failed"
   | "central_lot_write_failed";
 
 export class PendingCentralLotSyncError extends Error {
@@ -203,6 +206,42 @@ export function isPendingCentralLotSyncError(error: unknown): error is PendingCe
       (error as { name?: unknown }).name === "PendingCentralLotSyncError" &&
       typeof (error as { blocker?: unknown }).blocker === "string")
   );
+}
+
+export function pendingCentralLotWriteBlocker(error: unknown): PendingCentralLotSyncBlocker {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (code === "session_expired" || code === "no_permission") {
+    return "central_lot_auth_required";
+  }
+
+  if (message === "central_product_not_found") {
+    return "central_product_not_ready";
+  }
+
+  if (
+    message === "invalid_central_lot_request" ||
+    message.includes("CentralLotCreateRequest") ||
+    message.includes("ZodError")
+  ) {
+    return "central_lot_local_replay_failed";
+  }
+
+  if (
+    code === "network" ||
+    message === "central_lot_unavailable" ||
+    /network|fetch/i.test(message)
+  ) {
+    return "central_lot_network_unavailable";
+  }
+
+  return "central_lot_write_failed";
 }
 
 export type CaptureLotDetail = CaptureLotSnapshot & {

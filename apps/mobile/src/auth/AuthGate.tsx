@@ -573,10 +573,17 @@ function toMobileAuthError(
   payload: unknown,
   response?: { path: string; status: number },
 ): MobileAuthError {
+  const apiError = apiErrorCode(payload);
+
   if (response?.path === "/auth/session" && response.status === 401)
     return new MobileAuthError("session_expired");
   if (response?.path === "/auth/login" && (response.status === 401 || response.status === 429))
     return new MobileAuthError("invalid_credentials");
+  if (response?.path === "/capture/lots") {
+    if (response.status === 401) return new MobileAuthError("session_expired", apiError);
+    if (response.status === 403) return new MobileAuthError("no_permission", apiError);
+    if (apiError !== undefined) return new MobileAuthError("network", apiError);
+  }
   const invite = InviteValidationResponseSchema.safeParse(payload);
   if (invite.success && invite.data.status !== "valid")
     return new MobileAuthError("invalid_invite");
@@ -587,6 +594,12 @@ function toMobileAuthError(
   const denial = AuthorizationContract.denial.safeParse(payload);
   if (denial.success) return new MobileAuthError("no_permission");
   return new MobileAuthError("network");
+}
+
+function apiErrorCode(payload: unknown): string | undefined {
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const error = (payload as { error?: unknown }).error;
+  return typeof error === "string" ? error : undefined;
 }
 
 function loginErrorMessage(code: MobileAuthErrorCode): string {

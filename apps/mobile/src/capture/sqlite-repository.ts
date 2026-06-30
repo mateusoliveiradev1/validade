@@ -93,6 +93,7 @@ import {
   nextGeneratedId,
   normalizeProductLookup,
   PendingCentralLotSyncError,
+  pendingCentralLotWriteBlocker,
   categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
@@ -1138,15 +1139,14 @@ export function createSQLiteCaptureRepository(
         continue;
       }
 
-      const centralLot = centralLotInputForReplay(detail, product.centralProductId);
-      const request = parseCentralLotCreateRequest({
-        lot: centralLot,
-        actorLabel: detail.currentObservation.actorLabel,
-        occurredAt: detail.currentObservation.occurredAt,
-        idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
-      });
-
       try {
+        const centralLot = centralLotInputForReplay(detail, product.centralProductId);
+        const request = parseCentralLotCreateRequest({
+          lot: centralLot,
+          actorLabel: detail.currentObservation.actorLabel,
+          occurredAt: detail.currentObservation.occurredAt,
+          idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
+        });
         const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
         const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
           [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
@@ -1179,13 +1179,10 @@ export function createSQLiteCaptureRepository(
 
     if (syncedLots.length === 0) {
       if (writeFailure !== undefined) {
-        throw new PendingCentralLotSyncError(
-          "central_lot_write_failed",
-          "central_lot_write_failed",
-          {
-            cause: writeFailure,
-          },
-        );
+        const blocker = pendingCentralLotWriteBlocker(writeFailure);
+        throw new PendingCentralLotSyncError(blocker, blocker, {
+          cause: writeFailure,
+        });
       }
       if (blockedByProduct) {
         throw new PendingCentralLotSyncError("central_product_not_ready");

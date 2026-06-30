@@ -15,5 +15,14 @@ function centralLotSyncBlockerFeedback(blocker: PendingCentralLotSyncBlocker): s
   if (blocker === "central_product_not_ready") {
     return "O lote ficou salvo neste aparelho porque o produto ainda nao apareceu como validado ou reutilizavel na central. Atualize a leitura central depois da validacao.";
   }
-  return "A central recusou o envio do lote. Entre de novo se a sessao venceu ou use uma conta operacional com permissao de turno.";
+  if (blocker === "central_lot_auth_required") {
+    return "A central recusou o envio do lote por sessao ou permissao. Entre de novo e confirme que a conta esta na loja correta.";
+  }
+  if (blocker === "central_lot_network_unavailable") {
+    return "Nao foi possivel falar com a central para enviar o lote. A pendencia continua salva neste aparelho; tente novamente com conexao estavel.";
+  }
+  if (blocker === "central_lot_local_replay_failed") {
+    return "Este lote ficou salvo com dados locais incompativeis para envio central. Abra Recentes, confira os campos do lote e cadastre novamente se necessario.";
+  }
+  return "A central ainda nao confirmou o envio do lote. A pendencia continua salva neste aparelho; atualize a leitura central e tente novamente.";
 }

@@ -785,7 +785,7 @@ describe("TodayScreen", () => {
     });
 
     expect(syncPendingCentralLots).toHaveBeenCalledTimes(1);
-    expect(renderedText(tree)).toContain("A central recusou o envio do lote");
+    expect(renderedText(tree)).toContain("A central ainda nao confirmou o envio do lote");
   });
 
   it("requires a reason before discarding an offline conflict", async () => {
