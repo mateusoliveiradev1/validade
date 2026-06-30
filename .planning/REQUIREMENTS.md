@@ -26,7 +26,7 @@
 
 - [x] **OPS-01**: Hoje shows sync, push, and build/update health compactly when healthy, and promotes those states to blocking cards only when they affect task execution, safe close, or validation.
 - [x] **OPS-02**: Preparar turno guides an empty real store from first central read into product creation/reuse and lot registration without making an expected empty catalog look like a fatal error.
-- [ ] **OPS-03**: Fechamento do turno summarizes active tasks, unresolved sync, stale central read, device/update blockers, and the physical checklist before any safe-close action can be accepted.
+- [x] **OPS-03**: Fechamento do turno summarizes active tasks, unresolved sync, stale central read, device/update blockers, and the physical checklist before any safe-close action can be accepted.
 - [x] **OPS-04**: Command Center, Hoje, and Ajustes use the same readiness vocabulary for central read, local cache, sync queue, push, camera, build, and device authorization.
 
 ### Loja 18 Validation
@@ -76,7 +76,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SET-05 | Phase 14 | Complete |
 | OPS-01 | Phase 15 | Complete |
 | OPS-02 | Phase 15 | Complete |
-| OPS-03 | Phase 15 | Pending |
+| OPS-03 | Phase 15 | Complete |
 | OPS-04 | Phase 15 | Complete |
 | VAL-01 | Phase 16 | Pending |
 | VAL-02 | Phase 16 | Pending |
