@@ -82,6 +82,8 @@ describe("manual product discovery", () => {
       );
     });
 
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Cadastrar produto novo");
+
     act(() => {
       getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText("OVOS");
     });
@@ -93,6 +95,7 @@ describe("manual product discovery", () => {
     });
 
     expect(JSON.stringify(tree!.toJSON())).toContain("Ovos Brancos Exemplo FICTICIA");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Cadastrar produto novo");
 
     act(() => {
       press(tree!, "Ovos Brancos Exemplo FICTICIA");
@@ -126,6 +129,8 @@ describe("manual product discovery", () => {
         />,
       );
     });
+
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Cadastrar produto novo");
 
     act(() => {
       getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText(
@@ -162,6 +167,59 @@ describe("manual product discovery", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Quantidade aproximada");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Data de validade");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Local inicial");
+  });
+
+  it("requires similar central candidates to be reviewed before continuing creation", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await repository.createProduct({
+      displayName: "Banana Prata Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    let openedCreation = false;
+    let tree: ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = create(
+        <ProductDiscoveryScreen
+          repository={repository}
+          onConfirmProduct={() => undefined}
+          onCreateProduct={() => {
+            openedCreation = true;
+          }}
+        />,
+      );
+    });
+
+    act(() => {
+      getInput(tree!, "Buscar produto por nome, codigo ou categoria").props.onChangeText(
+        "Banana Nanica Exemplo FICTICIA",
+      );
+    });
+
+    await act(async () => {
+      press(tree!, "Buscar manualmente");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Produtos parecidos encontrados");
+    expect(rendered).toContain("Banana Prata Exemplo FICTICIA");
+    expect(rendered).not.toContain("Cadastrar produto novo");
+    expect(rendered).toContain("Continuar cadastro apos revisar");
+    expect(openedCreation).toBe(false);
+
+    act(() => {
+      press(tree!, "Continuar cadastro apos revisar");
+    });
+
+    expect(openedCreation).toBe(true);
   });
 
   it("shows similar central products before creating an operational draft", async () => {

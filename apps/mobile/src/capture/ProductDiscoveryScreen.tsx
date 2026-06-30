@@ -44,6 +44,9 @@ export function ProductDiscoveryScreen({
   const [categories, setCategories] = useState<readonly CaptureProductCategory[]>([]);
   const [candidate, setCandidate] = useState<CaptureProductRecord | undefined>();
   const [message, setMessage] = useState<string | undefined>();
+  const [createGate, setCreateGate] = useState<"hidden" | "no_safe_reuse" | "similar_reviewed">(
+    "hidden",
+  );
 
   async function searchManually(): Promise<void> {
     const trimmedQuery = query.trim();
@@ -52,6 +55,7 @@ export function ProductDiscoveryScreen({
       setMatches([]);
       setCategories([]);
       setCandidate(undefined);
+      setCreateGate("hidden");
       setMessage(captureCopy.noMatch);
       return;
     }
@@ -70,6 +74,7 @@ export function ProductDiscoveryScreen({
       setMatches(results);
       setCategories([]);
       setCandidate(undefined);
+      setCreateGate(createGateForSearchState(response.resultState));
       setMessage(searchResultMessage(response.resultState));
       return;
     }
@@ -78,6 +83,7 @@ export function ProductDiscoveryScreen({
     setMatches(results);
     setCategories([]);
     setCandidate(undefined);
+    setCreateGate(results.length === 0 ? "no_safe_reuse" : "hidden");
     setMessage(
       results.length === 0
         ? captureCopy.noMatch
@@ -99,6 +105,7 @@ export function ProductDiscoveryScreen({
     setMatches(results);
     setCategories([]);
     setCandidate(undefined);
+    setCreateGate("hidden");
     setMessage(results.length === 0 ? captureCopy.frequentEmpty : captureCopy.frequentResults);
   }
 
@@ -112,6 +119,7 @@ export function ProductDiscoveryScreen({
     setCategories(nextCategories);
     setMatches([]);
     setCandidate(undefined);
+    setCreateGate("hidden");
     setMessage(
       nextCategories.length === 0 ? captureCopy.categoryEmpty : captureCopy.categoryPrompt,
     );
@@ -127,6 +135,7 @@ export function ProductDiscoveryScreen({
     setCategories([]);
     setMatches(results);
     setCandidate(undefined);
+    setCreateGate("hidden");
     setMessage(results.length === 0 ? captureCopy.noMatch : captureCopy.categoryResults);
   }
 
@@ -154,7 +163,15 @@ export function ProductDiscoveryScreen({
         <SecondaryAction label={captureCopy.frequent} onPress={() => void showFrequentProducts()} />
         <SecondaryAction label={captureCopy.byCategory} onPress={() => void chooseCategory()} />
       </View>
-      <SecondaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />
+      {createGate === "no_safe_reuse" ? (
+        <SecondaryAction label={captureCopy.createProduct} onPress={openCreateProduct} />
+      ) : null}
+      {createGate === "similar_reviewed" ? (
+        <SecondaryAction
+          label="Continuar cadastro apos revisar"
+          onPress={openCreateProduct}
+        />
+      ) : null}
       {message === undefined ? null : <StatusNotice>{message}</StatusNotice>}
       {categories.map((category) => (
         <SelectionRow
@@ -243,6 +260,20 @@ function searchResultMessage(
   }
 
   return captureCopy.noMatch;
+}
+
+function createGateForSearchState(
+  state: "reuse_available" | "similar_requires_review" | "draft_pending_review" | "no_safe_reuse",
+): "hidden" | "no_safe_reuse" | "similar_reviewed" {
+  if (state === "no_safe_reuse") {
+    return "no_safe_reuse";
+  }
+
+  if (state === "similar_requires_review") {
+    return "similar_reviewed";
+  }
+
+  return "hidden";
 }
 
 function productDetail(product: CaptureProductRecord): string {
