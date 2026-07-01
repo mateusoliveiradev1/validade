@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { CommandCenterProjection } from "@validade-zero/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandCenterClient } from "./command-center-client";
 import { CommandCenter } from "./CommandCenter";
@@ -135,13 +136,13 @@ const projection = {
       storeId: "loja-piloto",
       storeName: "Loja Ficticia Piloto",
       appVersion: "0.12.0",
-      appBuild: "138",
+      appBuild: "147",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "uat15-sync-debug-apk-138",
+      approvedArtifactLabel: "uat17-shift-close-alerts-apk-147",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "138",
+      approvedBuild: "147",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       lastCentralReadAt: "2030-01-10T11:56:00.000Z",
@@ -656,7 +657,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Atual",
             buildCompatibility: "atual",
             appVersion: "0.12.0",
-            appBuild: "138",
+            appBuild: "147",
             nextAction: "Aparelho ja esta na build aprovada.",
             updatedAt: "2030-01-10T12:04:00.000Z",
           },
@@ -697,9 +698,9 @@ describe("CommandCenter", () => {
     render(<CommandCenter activeRoute="atualizacoes" client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByRole("heading", { name: "Atualizacoes" })).toBeTruthy();
-    expect(screen.getByText("uat15-sync-debug-apk-138")).toBeTruthy();
+    expect(screen.getByText("uat17-shift-close-alerts-apk-147")).toBeTruthy();
     expect(screen.getAllByText("0.12.0").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("138").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("147").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Ver instrucoes manuais" })).toBeTruthy();
 
     const text = document.body.textContent ?? "";
@@ -740,46 +741,125 @@ describe("CommandCenter", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Validacao" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Atualizar prova da validacao" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "No-Go" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        /No-Go: Resolucao terminal registrada impede a validacao. Corrija em Operacao/,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getAllByText("Executar resolucao real e aguardar central.").length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("UAT Loja 18").length).toBeGreaterThan(0);
-    expect(screen.getByText("Produto real da Loja 18")).toBeTruthy();
+    expect(screen.getByText("Produto real usado no teste")).toBeTruthy();
     expect(screen.getAllByText(/Provider bloqueado externamente/).length).toBeGreaterThan(0);
     expect(screen.getByText("Provider push sem prova atual")).toBeTruthy();
     expect(screen.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeTruthy();
-    expect(screen.getByText("moto...001 - Lider FICTICIO")).toBeTruthy();
-    expect(
-      screen.getByText("Resolver push, camera ou autorizacao do aparelho em Aparelhos"),
-    ).toBeTruthy();
-    expect(screen.getByText("Resolver build em Atualizacoes")).toBeTruthy();
-    expect(
-      screen.getByText("Revisar fila local, revisao de produto ou fechamento em Operacao"),
-    ).toBeTruthy();
+    expect(screen.getByText("Aparelho Loja 18 #1")).toBeTruthy();
+    expect(screen.getByText("moto...001 - Lideranca Loja 18")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abrir Aparelhos" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abrir Atualizacoes" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abrir Operacao" })).toBeTruthy();
     expect(
       screen.getByText(/O status de validacao e calculado pela leitura central atual/),
     ).toBeTruthy();
 
+    const sequenceText =
+      screen.getByRole("region", { name: "Sequencia obrigatoria da UAT Loja 18" }).textContent ??
+      "";
+    expect(sequenceText.indexOf("Turno preparado")).toBeLessThan(
+      sequenceText.indexOf("Produto real usado no teste"),
+    );
+    expect(sequenceText.indexOf("Produto real usado no teste")).toBeLessThan(
+      sequenceText.indexOf("Lote real registrado"),
+    );
+    expect(sequenceText.indexOf("Lote real registrado")).toBeLessThan(
+      sequenceText.indexOf("Resolucao terminal registrada"),
+    );
+    expect(sequenceText.indexOf("Resolucao terminal registrada")).toBeLessThan(
+      sequenceText.indexOf("Segundo aparelho conferiu os mesmos fatos"),
+    );
+    expect(sequenceText.indexOf("Segundo aparelho conferiu os mesmos fatos")).toBeLessThan(
+      sequenceText.indexOf("Command Center consistente"),
+    );
+    expect(sequenceText.indexOf("Command Center consistente")).toBeLessThan(
+      sequenceText.indexOf("Push seguro recebido no aparelho aprovado"),
+    );
+    expect(sequenceText.indexOf("Push seguro recebido no aparelho aprovado")).toBeLessThan(
+      sequenceText.indexOf("Camera ou fallback operacional comprovado"),
+    );
+    expect(sequenceText.indexOf("Camera ou fallback operacional comprovado")).toBeLessThan(
+      sequenceText.indexOf("Fechamento seguro do turno"),
+    );
     const text = document.body.textContent ?? "";
     expect(text).toContain("Causa:");
     expect(text).toContain("Agora:");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Ver instrucoes manuais");
-    expect(text).not.toContain("uat15-sync-debug-apk-138");
-    expect(text).not.toMatch(/token|secret|password|ExpoPushToken|buildUrl|rawDeviceId/i);
+    expect(text).not.toContain("uat17-shift-close-alerts-apk-147");
+    expect(text).not.toMatch(
+      /token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|objectKey|photoUri|base64/i,
+    );
+    expect(text).not.toMatch(
+      /Marcar passou|Aprovar etapa|Registrar status da validacao|Passou manualmente/i,
+    );
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
-      }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Resolver build em Atualizacoes" }));
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Revisar fila local, revisao de produto ou fechamento em Operacao",
-      }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Aparelhos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Atualizacoes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Operacao" }));
     expect(onOpenAparelhos).toHaveBeenCalledTimes(1);
     expect(onOpenAtualizacoes).toHaveBeenCalledTimes(1);
     expect(onOpenOperacao).toHaveBeenCalledTimes(1);
+  });
+
+  it("derives Go, No-Go, and external proof verdicts from projection facts", () => {
+    const noGoVerdict = deriveValidationVerdict(projection);
+    expect(noGoVerdict.label).toBe("No-Go");
+    expect(noGoVerdict.detail).toContain(
+      "No-Go: Resolucao terminal registrada impede a validacao",
+    );
+    expect(noGoVerdict.detail).toContain("Corrija em Operacao antes de continuar");
+    expect(noGoVerdict.nextAction).toBe("Executar resolucao real e aguardar central.");
+
+    const externalVerdict = deriveValidationVerdict(
+      projectionForVerdict({
+        blockers: [pilotBlockers()[0]],
+        devices: [approvedDevice()],
+        steps: allRunbookStepsPassed().map((step) =>
+          step.stepId === "safe_push_test"
+            ? {
+                ...step,
+                state: "external_blocked" as const,
+                cause: "Provider Android real nao foi provado nesta execucao.",
+                nextAction: "Conectar aparelho aprovado e repetir teste seguro.",
+                evidenceReferenceLabel: "Provider bloqueado externamente",
+              }
+            : step,
+        ) as CommandCenterProjection["pilotUat"]["steps"],
+      }),
+    );
+    expect(externalVerdict.label).toBe("Aguardando prova externa");
+    expect(externalVerdict.detail).toContain(
+      "Ainda nao e Go porque falta prova Teste seguro de push",
+    );
+    expect(externalVerdict.detail).toContain("em Aparelhos");
+    expect(externalVerdict.nextAction).toBe("Conectar aparelho aprovado e repetir teste seguro.");
+
+    const goVerdict = deriveValidationVerdict(
+      projectionForVerdict({
+        blockers: [],
+        devices: [approvedDevice()],
+        steps: allRunbookStepsPassed(),
+      }),
+    );
+    expect(goVerdict.label).toBe("Go");
+    expect(goVerdict.detail).toBe(
+      "Go confirmado para Loja 18 com prova central completa e fechamento seguro.",
+    );
+    expect(goVerdict.nextAction).toBe(
+      "Mantenha a leitura central atualizada ate a decisao final da lideranca.",
+    );
   });
 
   it("sends a safe push test and appends the returned timeline", async () => {
@@ -859,6 +939,12 @@ describe("CommandCenter", () => {
       "Resolver push, camera ou autorizacao do aparelho em Aparelhos",
     );
     expect(validationReferenceForBlocker("build")).toBe("Resolver build em Atualizacoes");
+    expect(validationReferenceForBlocker("product_review")).toBe(
+      "Revisar fila local, revisao de produto ou fechamento em Operacao",
+    );
+    expect(validationReferenceForBlocker("sync")).toBe(
+      "Revisar fila local, revisao de produto ou fechamento em Operacao",
+    );
     expect(validationReferenceForBlocker("shift_close")).toBe(
       "Revisar fila local, revisao de produto ou fechamento em Operacao",
     );
@@ -902,4 +988,45 @@ describe("CommandCenter", () => {
 
 function neverDevice(): (typeof projection.devices)[number] {
   throw new Error("Expected a fixture device.");
+}
+
+function projectionForVerdict(input: {
+  blockers?: CommandCenterProjection["pilotBlockers"];
+  devices?: CommandCenterProjection["devices"];
+  steps?: CommandCenterProjection["pilotUat"]["steps"];
+}): CommandCenterProjection {
+  return {
+    ...projection,
+    ...(input.devices === undefined ? {} : { devices: input.devices }),
+    ...(input.blockers === undefined ? {} : { pilotBlockers: input.blockers }),
+    pilotUat: {
+      ...projection.pilotUat,
+      ...(input.steps === undefined ? {} : { steps: input.steps }),
+    },
+  } as unknown as CommandCenterProjection;
+}
+
+function allRunbookStepsPassed(): CommandCenterProjection["pilotUat"]["steps"] {
+  return projection.pilotUat.steps.map((step) => ({
+    ...step,
+    state: "passed" as const,
+    nextAction: "Prova concluida.",
+    evidenceReferenceLabel: step.evidenceReferenceLabel ?? "Prova sanitizada",
+    occurredAt: step.occurredAt ?? step.updatedAt,
+  })) as CommandCenterProjection["pilotUat"]["steps"];
+}
+
+function approvedDevice(): CommandCenterProjection["devices"][number] {
+  const device = projection.devices[0] ?? neverDevice();
+
+  return {
+    ...device,
+    verdict: "apto",
+    buildCompatibility: "atual",
+    pushPermission: "granted",
+    pushProviderState: "remote_ready",
+    cameraPermission: "granted",
+    blockers: [],
+    nextAction: "Aparelho apto para validacao.",
+  } as CommandCenterProjection["devices"][number];
 }

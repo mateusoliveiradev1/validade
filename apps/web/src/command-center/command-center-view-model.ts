@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-sync-debug-apk-138";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat17-shift-close-alerts-apk-147";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",
@@ -153,6 +153,7 @@ export type ValidationVerdictLabel = "Go" | "No-Go" | "Aguardando prova externa"
 export interface ValidationVerdict {
   detail: string;
   label: ValidationVerdictLabel;
+  nextAction: string;
   tone: "success" | "warning" | "critical";
 }
 
@@ -216,44 +217,138 @@ export function routeKicker(route: CommandCenterRoute): string {
 
 export function deriveValidationVerdict(projection: CommandCenterProjection): ValidationVerdict {
   const steps = projection.pilotUat.steps;
-  const hasBlockedStep = steps.some((step) => step.state === "blocked");
-  const hasCriticalBlocker = projection.pilotBlockers.some(
+  const blockedStep = steps.find((step) => step.state === "blocked");
+  const criticalBlocker = projection.pilotBlockers.find(
     (blocker) => blocker.severity === "critical",
   );
 
-  if (hasBlockedStep || hasCriticalBlocker) {
+  if (criticalBlocker !== undefined || blockedStep !== undefined) {
+    const blockerLabel =
+      criticalBlocker?.label ??
+      runbookProofLabel(blockedStep?.stepId) ??
+      blockedStep?.label ??
+      "Bloqueio critico";
+    const route = criticalBlocker?.category
+      ? routeActionForBlocker(criticalBlocker.category)
+      : routeActionForStep(blockedStep?.stepId);
+    const action =
+      criticalBlocker?.nextAction ??
+      blockedStep?.nextAction ??
+      blockedStep?.actionLabel ??
+      "Corrigir o bloqueio na rota dona da acao.";
+
     return {
-      detail:
-        "Ha bloqueio critico ou etapa UAT bloqueada. A Loja 18 ainda nao pode seguir para rollout.",
+      detail: `No-Go: ${blockerLabel} impede a validacao. Corrija em ${route} antes de continuar.`,
       label: "No-Go",
+      nextAction: action,
       tone: "critical",
     };
   }
 
-  const hasExternalProofGap =
-    steps.some((step) => step.state === "external_blocked") ||
-    projection.pilotBlockers.some((blocker) => blocker.severity === "external");
+  const externalStep = steps.find((step) => step.state === "external_blocked");
+  const externalBlocker = projection.pilotBlockers.find(
+    (blocker) => blocker.severity === "external",
+  );
+  const pendingStep = steps.find((step) => step.state === "pending");
   const hasPendingStep = steps.some((step) => step.state === "pending");
   const operationalDevices = getOperationalTurnDevices(projection.devices, projection.refreshedAt);
-  const hasDeviceGateGap = operationalDevices.some(
+  const deviceGateGap = operationalDevices.find(
     (device) => device.verdict !== "apto" || device.buildCompatibility !== "atual",
   );
   const allStepsPassed = steps.every((step) => step.state === "passed");
 
-  if (hasExternalProofGap || hasPendingStep || hasDeviceGateGap || !allStepsPassed) {
+  if (
+    externalStep !== undefined ||
+    externalBlocker !== undefined ||
+    hasPendingStep ||
+    deviceGateGap !== undefined ||
+    !allStepsPassed
+  ) {
+    const missingProofLabel =
+      externalBlocker?.affectedLabel ??
+      runbookProofLabel(externalStep?.stepId) ??
+      runbookProofLabel(pendingStep?.stepId) ??
+      externalStep?.label ??
+      pendingStep?.label ??
+      deviceGateGap?.deviceLabel ??
+      "prova central final";
+    const action =
+      externalBlocker?.nextAction ??
+      externalStep?.nextAction ??
+      pendingStep?.nextAction ??
+      pendingStep?.actionLabel ??
+      deviceGateGap?.nextAction ??
+      "Atualize a validacao depois da prova central.";
+    const route = externalBlocker?.category
+      ? routeActionForBlocker(externalBlocker.category)
+      : deviceGateGap !== undefined
+        ? routeActionForDeviceGateGap(deviceGateGap)
+        : routeActionForStep(externalStep?.stepId ?? pendingStep?.stepId);
+
     return {
-      detail:
-        "A operacao tem pendencias ou prova externa ausente. Mantenha o rollout aguardando evidencia.",
+      detail: `Ainda nao e Go porque falta prova ${missingProofLabel}. Faca ${action} em ${route}.`,
       label: "Aguardando prova externa",
+      nextAction: action,
       tone: "warning",
     };
   }
 
   return {
-    detail: "Checklist, aparelhos, build e bloqueios estao sem pendencia nesta leitura sanitizada.",
+    detail: "Go confirmado para Loja 18 com prova central completa e fechamento seguro.",
     label: "Go",
+    nextAction: "Mantenha a leitura central atualizada ate a decisao final da lideranca.",
     tone: "success",
   };
+}
+
+function routeActionForStep(
+  stepId: CommandCenterProjection["pilotUat"]["steps"][number]["stepId"] | undefined,
+): "Aparelhos" | "Atualizacoes" | "Operacao" {
+  if (
+    stepId === "safe_push_test" ||
+    stepId === "camera_evidence_or_fallback" ||
+    stepId === "second_device_convergence"
+  ) {
+    return "Aparelhos";
+  }
+
+  return "Operacao";
+}
+
+function routeActionForBlocker(
+  category: CommandCenterProjection["pilotBlockers"][number]["category"],
+): "Aparelhos" | "Atualizacoes" | "Operacao" {
+  if (category === "push" || category === "camera" || category === "device") {
+    return "Aparelhos";
+  }
+
+  if (category === "build") return "Atualizacoes";
+
+  return "Operacao";
+}
+
+function routeActionForDeviceGateGap(
+  device: CommandCenterProjection["devices"][number],
+): "Aparelhos" | "Atualizacoes" | "Operacao" {
+  if (device.buildCompatibility !== "atual") return "Atualizacoes";
+  return "Aparelhos";
+}
+
+function runbookProofLabel(
+  stepId: CommandCenterProjection["pilotUat"]["steps"][number]["stepId"] | undefined,
+): string | undefined {
+  if (stepId === "prepare_turn") return "Turno preparado";
+  if (stepId === "product_real_input") return "Produto real usado no teste";
+  if (stepId === "lot_registration") return "Lote real registrado";
+  if (stepId === "terminal_resolution") return "Resolucao terminal registrada";
+  if (stepId === "second_device_convergence") return "Segundo aparelho conferiu os mesmos fatos";
+  if (stepId === "command_center_consistency") return "Command Center consistente";
+  if (stepId === "safe_push_test") return "Push seguro recebido no aparelho aprovado";
+  if (stepId === "camera_evidence_or_fallback") {
+    return "Camera ou fallback operacional comprovado";
+  }
+  if (stepId === "shift_close") return "Fechamento seguro do turno";
+  return undefined;
 }
 
 export function validationReferenceForBlocker(

@@ -1,4 +1,4 @@
-import type { CommandCenterProjection } from "@validade-zero/contracts";
+import { PILOT_UAT_STEP_IDS, type CommandCenterProjection } from "@validade-zero/contracts";
 import { ClipboardCheck, RefreshCw, ShieldCheck } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -9,7 +9,6 @@ import {
   getDiagnosticDeviceRecords,
   getOperationalTurnDevices,
   validationReferenceForBlocker,
-  type ValidationRouteReferenceLabel,
 } from "./command-center-view-model";
 
 type ValidacaoStatus = "loading" | "ready" | "error";
@@ -42,12 +41,11 @@ export function ValidacaoRoute({
             Validacao
           </h1>
           <p className="max-w-[75ch] text-base leading-6 text-muted-foreground">
-            Consolide Go/No-Go, checklist UAT, bloqueios externos e evidencias sanitizadas sem
-            duplicar a operacao diaria.
+            Prove o Go/No-Go com fatos centrais, bloqueios atuais e evidencia publica segura.
           </p>
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {lastClientRefreshAt === undefined
-              ? "Sincronizando prova de validacao..."
+              ? "Atualizando prova da validacao..."
               : `Ultima leitura do painel: ${formatDateTime(lastClientRefreshAt.toISOString())}`}
           </p>
         </div>
@@ -58,7 +56,7 @@ export function ValidacaoRoute({
           onClick={onRefresh}
         >
           <RefreshCw className="size-4" aria-hidden="true" />
-          {status === "loading" ? "Atualizando..." : "Atualizar agora"}
+          {status === "loading" ? "Atualizando prova..." : "Atualizar prova da validacao"}
         </Button>
       </div>
 
@@ -74,11 +72,12 @@ export function ValidacaoRoute({
               Nao foi possivel atualizar a validacao.
             </p>
             <p className="text-sm leading-5 text-foreground">
-              Use a ultima leitura apenas como pendente. Go/No-Go exige prova central atual.
+              Use a ultima leitura apenas como pendente e tente atualizar novamente antes de decidir
+              Go/No-Go.
             </p>
           </div>
           <Button className="min-h-12 w-fit" onClick={onRefresh}>
-            Tentar atualizar agora
+            Tentar atualizar novamente
           </Button>
         </div>
       ) : null}
@@ -126,6 +125,10 @@ function ValidacaoContent({
             <p className="text-sm font-semibold text-primary">Go/No-Go</p>
             <h2 className="text-xl font-semibold leading-6">{verdict.label}</h2>
             <p className="max-w-[75ch] text-base leading-6">{verdict.detail}</p>
+            <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground">Agora: </span>
+              {verdict.nextAction}
+            </p>
           </div>
           <Badge tone={verdict.tone}>{verdict.label}</Badge>
         </div>
@@ -138,7 +141,7 @@ function ValidacaoContent({
 
       <section
         className="grid gap-4 rounded-lg border border-border bg-card p-4"
-        aria-label="Resumo da UAT Loja 18"
+        aria-label="Sequencia obrigatoria da UAT Loja 18"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid gap-1">
@@ -240,14 +243,16 @@ function ValidacaoContent({
 function ChecklistRows({ steps }: { steps: CommandCenterProjection["pilotUat"]["steps"] }) {
   return (
     <div className="grid">
-      {steps.map((step) => (
+      {orderedRunbookSteps(steps).map((step) => (
         <article
           key={step.stepId}
           className="grid gap-3 border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="grid min-w-0 gap-1">
-              <h3 className="text-lg font-semibold leading-6">{step.label}</h3>
+              <h3 className="text-lg font-semibold leading-6">
+                {runbookStepLabel(step.stepId)}
+              </h3>
               <p className="text-sm leading-5 text-muted-foreground">{step.ownerLabel}</p>
             </div>
             <Badge tone={uatStepTone(step.state)}>{uatStepStateLabel(step.state)}</Badge>
@@ -312,16 +317,18 @@ function DeviceEvidencePanel({
         </p>
       ) : (
         <div className="grid">
-          {devices.map((device) => (
+          {devices.map((device, index) => (
             <article
               key={device.deviceIdMasked}
               className="grid gap-3 border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="grid min-w-0 gap-1">
-                  <h3 className="text-lg font-semibold leading-6">{device.deviceLabel}</h3>
+                  <h3 className="text-lg font-semibold leading-6">
+                    Aparelho Loja 18 #{index + 1}
+                  </h3>
                   <p className="text-sm leading-5 text-muted-foreground">
-                    {device.deviceIdMasked} - {device.activeUserLabel}
+                    {device.deviceIdMasked} - {validationRoleLabel(device.activeUserLabel)}
                   </p>
                 </div>
                 <Badge tone={device.verdict === "apto" ? "success" : "warning"}>
@@ -380,19 +387,22 @@ function RouteReferencePanel({
           continuam sendo corrigidos nas telas onde a evidencia nasce.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <ReferenceButton
-          label="Resolver push, camera ou autorizacao do aparelho em Aparelhos"
+      <div className="grid">
+        <RouteReferenceRow
+          description="Push, camera, autorizacao do aparelho e segundo aparelho."
+          label="Abrir Aparelhos"
           icon="aparelhos"
           {...(onOpenAparelhos === undefined ? {} : { onClick: onOpenAparelhos })}
         />
-        <ReferenceButton
-          label="Resolver build em Atualizacoes"
+        <RouteReferenceRow
+          description="Build aprovado, versao instalada e caminho seguro de atualizacao."
+          label="Abrir Atualizacoes"
           icon="atualizacoes"
           {...(onOpenAtualizacoes === undefined ? {} : { onClick: onOpenAtualizacoes })}
         />
-        <ReferenceButton
-          label="Revisar fila local, revisao de produto ou fechamento em Operacao"
+        <RouteReferenceRow
+          description="Produto, lote, resolucao terminal, sync e fechamento seguro."
+          label="Abrir Operacao"
           icon="operacao"
           {...(onOpenOperacao === undefined ? {} : { onClick: onOpenOperacao })}
         />
@@ -405,13 +415,36 @@ function RouteReferencePanel({
   );
 }
 
+function RouteReferenceRow({
+  description,
+  icon,
+  label,
+  onClick,
+}: {
+  description: string;
+  icon: "aparelhos" | "atualizacoes" | "operacao";
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0">
+      <p className="max-w-[58ch] text-sm leading-5 text-muted-foreground">{description}</p>
+      <ReferenceButton
+        label={label}
+        icon={icon}
+        {...(onClick === undefined ? {} : { onClick })}
+      />
+    </div>
+  );
+}
+
 function ReferenceButton({
   icon,
   label,
   onClick,
 }: {
   icon: "aparelhos" | "atualizacoes" | "operacao";
-  label: ValidationRouteReferenceLabel;
+  label: string;
   onClick?: () => void;
 }) {
   const Icon =
@@ -428,6 +461,34 @@ function ReferenceButton({
       {label}
     </Button>
   );
+}
+
+const runbookStepOrder = new Map(PILOT_UAT_STEP_IDS.map((stepId, index) => [stepId, index]));
+
+function orderedRunbookSteps(
+  steps: CommandCenterProjection["pilotUat"]["steps"],
+): CommandCenterProjection["pilotUat"]["steps"] {
+  return [...steps].sort(
+    (left, right) =>
+      (runbookStepOrder.get(left.stepId) ?? Number.MAX_SAFE_INTEGER) -
+      (runbookStepOrder.get(right.stepId) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+function runbookStepLabel(
+  stepId: CommandCenterProjection["pilotUat"]["steps"][number]["stepId"],
+): string {
+  if (stepId === "prepare_turn") return "Turno preparado";
+  if (stepId === "product_real_input") return "Produto real usado no teste";
+  if (stepId === "lot_registration") return "Lote real registrado";
+  if (stepId === "terminal_resolution") return "Resolucao terminal registrada";
+  if (stepId === "second_device_convergence") return "Segundo aparelho conferiu os mesmos fatos";
+  if (stepId === "command_center_consistency") return "Command Center consistente";
+  if (stepId === "safe_push_test") return "Push seguro recebido no aparelho aprovado";
+  if (stepId === "camera_evidence_or_fallback") {
+    return "Camera ou fallback operacional comprovado";
+  }
+  return "Fechamento seguro do turno";
 }
 
 function verdictClassName(tone: "success" | "warning" | "critical"): string {
@@ -483,6 +544,11 @@ function buildCompatibilityLabel(
   if (state === "desatualizado") return "Build antigo";
   if (state === "incompativel") return "Build incompativel";
   return "Build desconhecido";
+}
+
+function validationRoleLabel(activeUserLabel: string): string {
+  if (/lider/i.test(activeUserLabel)) return "Lideranca Loja 18";
+  return "Operacao Loja 18";
 }
 
 function ValidacaoSkeleton() {

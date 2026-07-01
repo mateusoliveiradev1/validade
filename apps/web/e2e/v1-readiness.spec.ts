@@ -23,7 +23,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   const pageText = await page.locator("body").innerText();
   expect(pageText).not.toContain("UAT Loja 18");
-  expect(pageText).not.toContain("uat15-sync-debug-apk-138");
+  expect(pageText).not.toContain("uat17-shift-close-alerts-apk-147");
   expect(pageText).not.toContain("Provider push sem prova atual");
   expect(pageText.indexOf("Lotes criticos")).toBeLessThan(pageText.indexOf("Tarefas atrasadas"));
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
@@ -41,28 +41,70 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
   await expect(page.getByRole("heading", { name: "Aparelhos em uso no turno" })).toBeVisible();
   await expect(page.getByText("Moto G Lideranca Loja 18")).toBeVisible();
   await expect(page.getByText("Operador: Lideranca FICTICIA. ID seguro: moto...018")).toBeVisible();
-  await expect(page.getByText("APK aprovado", { exact: true })).toBeVisible();
+  await expect(page.getByText("Build aprovado").first()).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 
   await navigation.getByRole("button", { name: "Atualizacoes", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Atualizacoes" })).toBeVisible();
-  await expect(page.getByText("uat15-sync-debug-apk-138")).toBeVisible();
+  await expect(page.getByText("uat17-shift-close-alerts-apk-147")).toBeVisible();
   await expect(page.getByRole("button", { name: "Ver instrucoes manuais" })).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
 
   await navigation.getByRole("button", { name: "Validacao", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Validacao", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Atualizar prova da validacao" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "No-Go" })).toBeVisible();
+  await expect(page.getByText(/No-Go: Fechamento inseguro pendente/)).toBeVisible();
+  await expect(
+    page.getByText("Concluir etapas pendentes antes do fechamento seguro.").first(),
+  ).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(2);
   await expect(page.getByText("Provider push sem prova atual")).toBeVisible();
   await expect(page.getByText("Provider bloqueado externamente")).toHaveCount(2);
-  await expect(page.getByText("Produto real da Loja 18", { exact: true })).toBeVisible();
+  await expect(page.getByText("Produto real usado no teste", { exact: true })).toBeVisible();
   await expect(page.getByText("Produto ficticio ou seed nao passa esta etapa.")).toBeVisible();
-  await expect(page.getByText("uat15-sync-debug-apk-138")).toHaveCount(0);
+  await expect(page.getByText("Aparelho Loja 18 #1")).toBeVisible();
+  await expect(page.getByText("moto...018 - Lideranca Loja 18")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abrir Aparelhos" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abrir Atualizacoes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abrir Operacao" })).toBeVisible();
+  await expect(page.getByText("uat17-shift-close-alerts-apk-147")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
+
+  const sequenceText = await page
+    .getByRole("region", { name: "Sequencia obrigatoria da UAT Loja 18" })
+    .innerText();
+  expect(sequenceText.indexOf("Turno preparado")).toBeLessThan(
+    sequenceText.indexOf("Produto real usado no teste"),
+  );
+  expect(sequenceText.indexOf("Produto real usado no teste")).toBeLessThan(
+    sequenceText.indexOf("Lote real registrado"),
+  );
+  expect(sequenceText.indexOf("Lote real registrado")).toBeLessThan(
+    sequenceText.indexOf("Resolucao terminal registrada"),
+  );
+  expect(sequenceText.indexOf("Resolucao terminal registrada")).toBeLessThan(
+    sequenceText.indexOf("Segundo aparelho conferiu os mesmos fatos"),
+  );
+  expect(sequenceText.indexOf("Segundo aparelho conferiu os mesmos fatos")).toBeLessThan(
+    sequenceText.indexOf("Command Center consistente"),
+  );
+  expect(sequenceText.indexOf("Command Center consistente")).toBeLessThan(
+    sequenceText.indexOf("Push seguro recebido no aparelho aprovado"),
+  );
+  expect(sequenceText.indexOf("Push seguro recebido no aparelho aprovado")).toBeLessThan(
+    sequenceText.indexOf("Camera ou fallback operacional comprovado"),
+  );
+  expect(sequenceText.indexOf("Camera ou fallback operacional comprovado")).toBeLessThan(
+    sequenceText.indexOf("Fechamento seguro do turno"),
+  );
+  const validationText = await page.locator("body").innerText();
+  expect(validationText).not.toMatch(
+    /token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|objectKey|photoUri|base64/i,
+  );
 });
 
 test("role and store scope keep operational routes denied for admin-only access", async ({
