@@ -233,9 +233,10 @@ describe("Command Center contracts", () => {
     const parsed = PilotUatChecklistSchema.parse(pilotUatChecklist());
     const checklist = pilotUatChecklist();
     const firstStep = checklist.steps[0];
+    const secondStep = checklist.steps[1];
 
-    if (firstStep === undefined) {
-      throw new Error("Fixture should include a first UAT step.");
+    if (firstStep === undefined || secondStep === undefined) {
+      throw new Error("Fixture should include at least two UAT steps.");
     }
 
     expect(parsed.steps.map((step) => step.stepId)).toEqual([
@@ -249,10 +250,47 @@ describe("Command Center contracts", () => {
       "camera_evidence_or_fallback",
       "shift_close",
     ]);
+
     expect(() =>
       PilotUatChecklistSchema.parse({
         ...checklist,
         steps: [...checklist.steps.slice(0, -1), firstStep],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...checklist,
+        steps: checklist.steps.slice(0, -1),
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...checklist,
+        steps: [...checklist.steps, firstStep],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...checklist,
+        steps: [secondStep, firstStep, ...checklist.steps.slice(2)],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PilotUatChecklistSchema.parse({
+        ...checklist,
+        steps: [
+          {
+            ...firstStep,
+            manualPassed: true,
+            passedByUser: "lideranca",
+            manualOverride: true,
+          },
+          ...checklist.steps.slice(1),
+        ],
       }),
     ).toThrow();
   });
@@ -291,6 +329,74 @@ describe("Command Center contracts", () => {
     ).toThrow();
   });
 
+  it("rejects sensitive validation markers in UAT and operational blocker evidence text", () => {
+    const sensitiveMarkers = [
+      "https://private.invalid/prova",
+      "eas://build/privado",
+      "file://device/private/evidence.jpg",
+      "content://device/private/evidence.jpg",
+      "ph://asset/private",
+      "r2://bucket-private/object",
+      "s3://bucket-private/object",
+      "token",
+      "secret",
+      "password",
+      "ExpoPushToken",
+      "buildUrl",
+      "rawDeviceId",
+      "providerTicket",
+      "providerReceipt",
+      "photoUri",
+      "objectKey",
+      "base64",
+    ];
+    const publicEvidenceFields = ["cause", "nextAction", "evidenceReferenceLabel"] as const;
+
+    for (const marker of sensitiveMarkers) {
+      for (const field of publicEvidenceFields) {
+        expect(() =>
+          PilotUatChecklistSchema.parse(
+            uatWithStep("safe_push_test", {
+              [field]: `Texto publico com ${marker}`,
+            }),
+          ),
+        ).toThrow();
+
+        expect(() =>
+          PilotOperationalBlockerSchema.parse(
+            pilotBlocker({
+              [field]: `Texto publico com ${marker}`,
+            }),
+          ),
+        ).toThrow();
+      }
+    }
+  });
+
+  it("requires blocked UAT states to keep cause and next action together", () => {
+    for (const state of ["blocked", "external_blocked"] as const) {
+      expect(() =>
+        PilotUatChecklistSchema.parse(
+          uatWithStep("safe_push_test", {
+            state,
+            cause: undefined,
+            nextAction: "Repetir a etapa com prova publica segura.",
+          }),
+        ),
+      ).toThrow();
+
+      expect(() =>
+        PilotUatChecklistSchema.parse(
+          uatWithStep("safe_push_test", {
+            state,
+            cause: "A etapa ainda nao tem prova publica segura.",
+            nextAction: undefined,
+          }),
+        ),
+      ).toThrow();
+    }
+  });
+
   it("keeps operational pilot blockers causal, owned, and public-safe", () => {
     expect(PilotOperationalBlockerSchema.parse(pilotBlocker())).toMatchObject({
       category: "push",
@@ -298,12 +404,14 @@ describe("Command Center contracts", () => {
       ownership: "external",
     });
 
-    expect(() =>
-      PilotOperationalBlockerSchema.parse({
-        ...pilotBlocker(),
-        ownership: "operator",
-      }),
-    ).toThrow();
+    for (const ownership of ["operator", "repo"] as const) {
+      expect(() =>
+        PilotOperationalBlockerSchema.parse({
+          ...pilotBlocker(),
+          ownership,
+        }),
+      ).toThrow();
+    }
 
     expect(() =>
       PilotOperationalBlockerSchema.parse({
@@ -311,6 +419,26 @@ describe("Command Center contracts", () => {
         evidenceReferenceLabel: "https://expo.dev/build/secret-token",
       }),
     ).toThrow();
+
+    expect(
+      PilotOperationalBlockerSchema.parse(
+        pilotBlocker({
+          blockerId: "blocker-sync-critical",
+          category: "sync",
+          severity: "critical",
+          ownership: "operator",
+          label: "Conflito central critico",
+          cause: "Ha conflito critico impedindo prova central.",
+          nextAction: "Abrir Operacao e resolver conflito antes do Go.",
+          affectedLabel: "Sincronizacao central",
+          evidenceReferenceLabel: "Fila critica revisada",
+        }),
+      ),
+    ).toMatchObject({
+      category: "sync",
+      severity: "critical",
+      ownership: "operator",
+    });
   });
 });
 
@@ -446,6 +574,21 @@ function pilotUatChecklist(overrides: Partial<PilotUatChecklist> = {}): PilotUat
     ],
     ...overrides,
   });
+}
+
+function uatWithStep(stepId: string, patch: Record<string, unknown>): Record<string, unknown> {
+  const checklist = pilotUatChecklist();
+  return {
+    ...checklist,
+    steps: checklist.steps.map((step) =>
+      step.stepId === stepId
+        ? {
+            ...step,
+            ...patch,
+          }
+        : step,
+    ),
+  };
 }
 
 function pilotBlocker(overrides: Record<string, unknown> = {}): Record<string, unknown> {

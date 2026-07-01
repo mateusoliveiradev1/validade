@@ -6,9 +6,11 @@ const RequiredTextSchema = z.string().trim().min(1).max(240);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const ShortLabelSchema = z.string().trim().min(1).max(80);
 const UNKNOWN_BUILD_LABEL = "nao informado";
+const PUBLIC_EVIDENCE_DENYLIST =
+  /(https?:\/\/|eas:\/\/|file:\/\/|content:\/\/|ph:\/\/|r2:\/\/|s3:\/\/|token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|photoUri|objectKey|base64)/i;
 const PublicSafeTextSchema = RequiredTextSchema.refine(
-  (value) => !/(https?:\/\/|eas:\/\/|token|secret|password|ExpoPushToken|buildUrl)/i.test(value),
-  "Public evidence text cannot contain private URLs, tokens, or build links.",
+  (value) => !PUBLIC_EVIDENCE_DENYLIST.test(value),
+  "Public evidence text cannot contain private URLs, tokens, build links, device ids, provider receipts, photo references, object keys, or binary payload markers.",
 );
 
 export const PilotDeviceReadinessVerdictSchema = z.enum(["apto", "atencao", "bloqueado"]);
@@ -317,12 +319,20 @@ export const PilotUatChecklistSchema = z
   .superRefine((value, context) => {
     const seen = new Set(value.steps.map((step) => step.stepId));
 
-    for (const stepId of PILOT_UAT_STEP_IDS) {
+    for (const [index, stepId] of PILOT_UAT_STEP_IDS.entries()) {
       if (!seen.has(stepId)) {
         context.addIssue({
           code: "custom",
           path: ["steps"],
           message: `Missing required UAT step ${stepId}.`,
+        });
+      }
+
+      if (value.steps[index]?.stepId !== stepId) {
+        context.addIssue({
+          code: "custom",
+          path: ["steps", index, "stepId"],
+          message: "UAT checklist steps must follow the mandatory Loja 18 runbook order.",
         });
       }
     }
