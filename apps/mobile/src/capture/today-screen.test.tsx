@@ -9,6 +9,7 @@ import type {
   TaskAlertStateRecord,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
+import type { StoreOperatingHours } from "@validade-zero/domain";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
 import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
@@ -309,6 +310,8 @@ async function renderTodayScreen(
   options: {
     onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
     onRequestCentralRefresh?: (() => void) | undefined;
+    now?: (() => Date) | undefined;
+    storeOperatingHours?: StoreOperatingHours | undefined;
   } = {},
 ): Promise<ReactTestRenderer> {
   let tree: ReactTestRenderer | undefined;
@@ -324,7 +327,10 @@ async function renderTodayScreen(
         prepareTurnSource={prepareTurn?.source}
         onConfirmCentralDeviceState={options.onConfirmCentralDeviceState}
         onRequestCentralRefresh={options.onRequestCentralRefresh}
-        now={() => new Date("2030-01-10T12:00:00.000Z")}
+        now={options.now ?? (() => new Date("2030-01-10T12:00:00.000Z"))}
+        {...(options.storeOperatingHours === undefined
+          ? {}
+          : { storeOperatingHours: options.storeOperatingHours })}
       />,
     );
     await Promise.resolve();
@@ -389,6 +395,29 @@ describe("TodayScreen", () => {
     expect(text).toContain("Retirar agora");
     expect(text).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
     expect(text).not.toContain("Sair com pendencias visiveis");
+  });
+
+  it("keeps closed-hour push quiet while active blockers stay visible", async () => {
+    const refreshTaskAlertStates = vi.fn(() => Promise.resolve([]));
+    const repository = createRepository(
+      () => Promise.resolve(refreshWith({ tasks: [expiredTask()] })),
+      { refreshTaskAlertStates },
+    );
+    const tree = await renderTodayScreen(repository, undefined, undefined, {
+      now: () => new Date("2030-01-10T03:00:00.000Z"),
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Alertas comuns em silencio");
+    expect(text).toContain("push comum volta na pre-abertura");
+    expect(text).toContain("Ovos FICTICIOS - lote OVOS-FICTICIOS-001");
+    expect(refreshTaskAlertStates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceTime: "2030-01-10T03:00:00.000Z",
+        isWithinShift: false,
+        allowOffShiftCriticalAlerts: false,
+      }),
+    );
   });
 
   it("renders local-cache prepare state near the verdict without safe styling", async () => {

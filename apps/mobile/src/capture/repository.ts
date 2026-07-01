@@ -281,6 +281,7 @@ export interface TodayTaskRefreshResult {
 export interface RefreshTaskAlertStatesInput {
   referenceTime: string;
   isWithinShift?: boolean;
+  allowOffShiftCriticalAlerts?: boolean;
   overdueTaskIds?: readonly string[];
 }
 
@@ -897,6 +898,7 @@ export function deriveRefreshedTaskAlertState(input: {
   referenceTime: string;
   isWithinShift?: boolean;
   isOverdue?: boolean;
+  allowOffShiftCriticalAlerts?: boolean;
 }): TaskAlertStateRecord {
   const alertableTask = {
     id: input.task.id,
@@ -924,6 +926,9 @@ export function deriveRefreshedTaskAlertState(input: {
       : { escalatedAt: input.existing.escalatedAt }),
     escalationState: input.existing?.escalationState ?? "not_escalated",
     ...(input.isWithinShift === undefined ? {} : { isWithinShift: input.isWithinShift }),
+    ...(input.allowOffShiftCriticalAlerts === undefined
+      ? {}
+      : { allowOffShiftCriticalAlerts: input.allowOffShiftCriticalAlerts }),
     ...(input.isOverdue === undefined ? {} : { isOverdue: input.isOverdue }),
   });
   const escalatedAt = action.kind === "escalate" ? action.escalatedAt : input.existing?.escalatedAt;

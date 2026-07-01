@@ -60,7 +60,10 @@ export const todayCopy = {
     openTask: "Abrir tarefa",
     educationTitle: "Alertas ajudam a cobrar, mas Hoje continua sendo a fonte da verdade",
     educationBody:
-      "Ative alertas para receber lembretes de tarefas criticas. Nenhuma tarefa sera resolvida pela notificacao; a confirmacao fisica continua no app.",
+      "Ative alertas para receber lembretes de tarefas criticas. Fora do horario da loja, cobrancas comuns ficam em silencio e voltam na pre-abertura ou no plantao configurado.",
+    quietHoursTitle: "Alertas comuns em silencio",
+    quietHoursBody:
+      "A loja esta fora do horario configurado. Hoje mantem os bloqueios ativos; push comum volta na pre-abertura ou no plantao configurado.",
     active: "Alertas do turno ativos neste aparelho.",
     localOnly:
       "Lembretes locais do turno ativos neste aparelho. O push remoto ainda precisa do Firebase no APK.",

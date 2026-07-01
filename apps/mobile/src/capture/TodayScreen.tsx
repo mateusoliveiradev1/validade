@@ -12,7 +12,10 @@ import type {
 } from "@validade-zero/contracts";
 import {
   createPrivacySafeNotificationContent,
+  DEFAULT_STORE_OPERATING_HOURS,
+  operationalAlertWindowFor,
   type AlertChannelState,
+  type StoreOperatingHours,
 } from "@validade-zero/domain";
 import { formatLocation } from "./capture-copy";
 import { PrimaryAction, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -77,6 +80,7 @@ export function TodayScreen({
   prepareTurnSource,
   pushDeviceIdentity = defaultPushDeviceIdentity,
   refreshRequest,
+  storeOperatingHours = DEFAULT_STORE_OPERATING_HOURS,
   now = () => new Date(),
 }: {
   repository: CaptureRepository;
@@ -97,6 +101,7 @@ export function TodayScreen({
   prepareTurnSource?: "central" | "local_cache" | undefined;
   pushDeviceIdentity?: PushDeviceIdentity | undefined;
   refreshRequest?: { id: number; source: TodayTaskRefreshSource } | undefined;
+  storeOperatingHours?: StoreOperatingHours | undefined;
   now?: () => Date;
 }) {
   const [tasks, setTasks] = useState<readonly TodayTaskRecord[]>([]);
@@ -143,6 +148,7 @@ export function TodayScreen({
 
     try {
       const current = now();
+      const alertWindow = operationalAlertWindowFor(current, storeOperatingHours);
       const result = await repository.refreshTodayTasks({
         currentDate: current.toISOString().slice(0, 10),
         currentTimestamp: current.toISOString(),
@@ -154,7 +160,8 @@ export function TodayScreen({
       await refreshAlertChannelState();
       const refreshedAlertStates = await repository.refreshTaskAlertStates({
         referenceTime: current.toISOString(),
-        isWithinShift: true,
+        isWithinShift: alertWindow.isWithinAlertWindow,
+        allowOffShiftCriticalAlerts: alertWindow.allowAfterHoursCriticalAlerts,
         overdueTaskIds: result.tasks
           .filter((task) => isOverdueTask(task, current))
           .map((task) => task.id),
@@ -360,6 +367,11 @@ export function TodayScreen({
 
   const salesAreaRiskCount = tasks.filter(isSalesAreaBlockingTask).length;
   const renderedAt = now();
+  const alertWindow = operationalAlertWindowFor(renderedAt, storeOperatingHours);
+  const shouldShowQuietHoursNotice =
+    alertWindow.state === "closed" &&
+    alertWindow.allowAfterHoursCriticalAlerts !== true &&
+    tasks.some((task) => task.status === "active");
   const shouldClassifyReadiness =
     prepareTurnCacheStatus !== undefined ||
     prepareTurnSource !== undefined ||
@@ -435,6 +447,11 @@ export function TodayScreen({
                 </Text>
               ))}
             </View>
+          ) : null}
+          {shouldShowQuietHoursNotice ? (
+            <StatusNotice title={todayCopy.push.quietHoursTitle} tone="info">
+              {todayCopy.push.quietHoursBody}
+            </StatusNotice>
           ) : null}
           <OfflineStatusBand
             hideWhenReady

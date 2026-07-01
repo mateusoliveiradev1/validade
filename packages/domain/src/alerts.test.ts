@@ -4,6 +4,7 @@ import {
   createPrivacySafeNotificationContent,
   getNextAlertAction,
   isTaskEligibleForOffShiftAlert,
+  operationalAlertWindowFor,
   selectAlertAudience,
   type AlertableTaskSnapshot,
 } from "./alerts";
@@ -98,7 +99,7 @@ describe("alert cadence policy", () => {
     expect(ordinaryTask.status).toBe("active");
   });
 
-  it("allows overdue, critical, sales-area high, and recheck tasks to keep notifying off shift", () => {
+  it("classifies which tasks may use a configured plantao exception", () => {
     expect(isTaskEligibleForOffShiftAlert(task({ dueBucket: "today" }), { isOverdue: true })).toBe(
       true,
     );
@@ -118,6 +119,33 @@ describe("alert cadence policy", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  it("suppresses even critical work outside store hours unless plantao is explicitly configured", () => {
+    expect(
+      getNextAlertAction(task({ dueBucket: "now", severity: "critical" }), {
+        createdAt,
+        referenceTime: "2030-01-10T03:05:00.000Z",
+        isWithinShift: false,
+      }),
+    ).toEqual({
+      kind: "suppress_out_of_shift",
+      audience: "shift_team",
+      attemptState: "suppressed_out_of_shift",
+      escalationState: "not_escalated",
+    });
+
+    expect(
+      getNextAlertAction(task({ dueBucket: "now", severity: "critical" }), {
+        createdAt,
+        referenceTime: "2030-01-10T03:05:00.000Z",
+        isWithinShift: false,
+        allowOffShiftCriticalAlerts: true,
+      }),
+    ).toMatchObject({
+      kind: "send_initial",
+      attemptState: "pending",
+    });
   });
 
   it("starts recheck cadence immediately and escalates unresolved critical risk", () => {
@@ -168,6 +196,23 @@ describe("alert cadence policy", () => {
       escalationState: "leadership_acknowledged",
     });
     expect(acknowledgedTask.status).toBe("active");
+  });
+});
+
+describe("store operating alert windows", () => {
+  it("keeps midnight quiet, releases pre-opening charge, and treats opening hours as active", () => {
+    expect(operationalAlertWindowFor("2030-01-10T03:00:00.000Z")).toMatchObject({
+      state: "closed",
+      isWithinAlertWindow: false,
+    });
+    expect(operationalAlertWindowFor("2030-01-10T10:45:00.000Z")).toMatchObject({
+      state: "pre_open",
+      isWithinAlertWindow: true,
+    });
+    expect(operationalAlertWindowFor("2030-01-10T12:00:00.000Z")).toMatchObject({
+      state: "open",
+      isWithinAlertWindow: true,
+    });
   });
 });
 

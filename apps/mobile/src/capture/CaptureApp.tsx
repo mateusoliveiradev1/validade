@@ -33,7 +33,7 @@ import type {
   ShiftClosureSnapshot,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
-import type { ShiftCloseDeviceAuthorization } from "@validade-zero/domain";
+import type { ShiftCloseDeviceAuthorization, StoreOperatingHours } from "@validade-zero/domain";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
 import type { SyncEngine } from "./sync-engine";
 import { todayCopy } from "./today-copy";
@@ -88,6 +88,7 @@ export function CaptureApp({
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
   deviceId,
+  storeOperatingHours,
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
@@ -104,6 +105,7 @@ export function CaptureApp({
   actorLabel?: string | undefined;
   storeId?: string | undefined;
   deviceId?: string | undefined;
+  storeOperatingHours?: StoreOperatingHours | undefined;
 }) {
   const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(initialRouteStack);
   const [initializationError, setInitializationError] = useState<string | undefined>();
@@ -607,6 +609,7 @@ export function CaptureApp({
           prepareTurnSource={prepareTurnSource}
           pushDeviceIdentity={pushDeviceIdentity}
           refreshRequest={todayRefreshRequest}
+          storeOperatingHours={storeOperatingHours}
           {...(registerPushDeviceClient === undefined
             ? {}
             : { onRegisterPushDevice: registerPushDeviceClient })}

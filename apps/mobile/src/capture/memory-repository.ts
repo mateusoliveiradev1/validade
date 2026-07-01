@@ -1390,6 +1390,9 @@ export function createMemoryCaptureRepository(
         channelState,
         referenceTime: input.referenceTime,
         ...(input.isWithinShift === undefined ? {} : { isWithinShift: input.isWithinShift }),
+        ...(input.allowOffShiftCriticalAlerts === undefined
+          ? {}
+          : { allowOffShiftCriticalAlerts: input.allowOffShiftCriticalAlerts }),
         isOverdue: input.overdueTaskIds?.includes(task.id) === true,
       });
 
