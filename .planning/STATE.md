@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 16
 status: planning
-stopped_at: Phase 16 context gathered
-last_updated: "2026-07-01T10:27:08.276Z"
+stopped_at: Phase 16 UI-SPEC approved
+last_updated: "2026-07-01T10:54:49.508Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 4
@@ -186,9 +186,9 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 
 ## Session
 
-**Last session:** 2026-07-01T10:27:08.266Z
-**Stopped at:** Phase 16 context gathered
-**Resume file:** .planning/phases/16-loja-18-validation-runbook-and-go-no-go-proof/16-CONTEXT.md
+**Last session:** 2026-07-01T10:54:49.502Z
+**Stopped at:** Phase 16 UI-SPEC approved
+**Resume file:** .planning/phases/16-loja-18-validation-runbook-and-go-no-go-proof/16-UI-SPEC.md
 
 ## Decisions
 
