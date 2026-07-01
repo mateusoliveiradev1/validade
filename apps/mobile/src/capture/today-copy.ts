@@ -20,6 +20,24 @@ export const todayCopy = {
   recentLots: "Conferir lotes recentes",
   refreshError: "Nao foi possivel atualizar agora. Confira a conexao e tente novamente.",
   openTask: "Abrir tarefa",
+  shiftClose: {
+    safeTitle: "Turno encerrado com area segura",
+    safeBody:
+      "A central aceitou o fechamento. Para iniciar outro trabalho nesta loja, prepare a leitura central do proximo turno.",
+    unsafeTitle: "Passagem com pendencias registrada",
+    unsafeBody:
+      "A passagem nao resolve tarefas nem declara area segura. Hoje continua mostrando o trabalho que precisa seguir.",
+    closedEmptyHeading: "Turno encerrado, proximo turno ainda nao preparado",
+    closedEmptyBody:
+      "Esta leitura foi usada para fechar o turno. Prepare o proximo turno antes de registrar novas acoes operacionais.",
+    prepareNextTurn: "Preparar proximo turno",
+    reviewSafeClose: "Revisar fechamento do turno",
+    recordHandoff: "Registrar passagem com pendencias",
+    leadEntryBody: "Lideranca fecha area segura somente apos leitura central e checklist fisico.",
+    collaboratorEntryBody:
+      "Qualquer pessoa autorizada pode preparar o trabalho. Area segura exige lideranca; sem lideranca, registre passagem com pendencias.",
+    closedEntryBody: "Este turno ja foi encerrado com area segura pela central.",
+  },
   navigation: {
     alreadyHome: "Voce ja esta em Hoje. Use Sair para encerrar a sessao com seguranca.",
   },

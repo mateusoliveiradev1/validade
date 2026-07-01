@@ -6,6 +6,7 @@ import type {
   PrepareTurnCacheStatus,
   PrepareTurnResponse,
   SessionContextResponse,
+  ShiftClosureSnapshot,
   TodayTaskRecord,
   SyncCommandSummary,
   SyncQueueSummary,
@@ -307,6 +308,27 @@ function firstStorePrepareTurnCache(): PrepareTurnCacheStatus {
     activeTaskCount: 0,
     conflictCount: 0,
     resolvedHistoryCount: 0,
+  };
+}
+
+function safeShiftClosureSnapshot(): ShiftClosureSnapshot {
+  return {
+    closureId: "shift-close-release-safe",
+    idempotencyKey: "safe-shift-close:2030-01-10T18:00:00.000Z",
+    storeId: "loja-ficticia",
+    storeName: "Loja Ficticia Piloto",
+    verdict: "safe",
+    eligibility: "eligible_safe",
+    blockers: [],
+    checklist: ["sales_area_checked", "pending_work_explained", "handoff_ready"],
+    actor: {
+      actorId: "lideranca-ficticia",
+      displayName: "Lideranca FICTICIA",
+      roleSnapshot: "lead",
+    },
+    occurredAt: "2030-01-10T18:00:00.000Z",
+    receivedAt: "2030-01-10T18:00:01.000Z",
+    ruleVersion: "phase-10-central-v1",
   };
 }
 
@@ -824,6 +846,75 @@ describe("mobile release journeys", () => {
       expect.objectContaining({ source: "lot_change" }),
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Hoje");
+  });
+
+  it("returns from a safe shift close to Hoje as a closed turn, not an open empty turn", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    const closeShiftClient = vi.fn(() => Promise.resolve(safeShiftClosureSnapshot()));
+    const repository = createPilotJourneyRepository({
+      saveLot: () => undefined,
+      hydratePrepareTurn: () => undefined,
+      refreshTodayTasks: (request) =>
+        Promise.resolve({
+          metadata: {
+            refreshedAt: request.currentTimestamp,
+            activeTaskCount: 0,
+            futureAttentionCount: 0,
+            source: request.source,
+          },
+          tasks: [],
+          futureAttention: [],
+        }),
+    });
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={repository}
+          alertChannel={createFakePushAlertChannel()}
+          prepareTurnClient={() => Promise.resolve(pilotPrepareTurnResponse())}
+          closeShiftClient={closeShiftClient}
+          activeRole="lead"
+          actorLabel="Lideranca FICTICIA"
+          storeId="loja-ficticia"
+          buildInfo={{
+            appVersion: "0.12.0",
+            appBuild: "138",
+            environment: "staging",
+            apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
+            packageId: "com.validadezero.app",
+            approvedArtifactLabel: "uat15-sync-debug-apk-138",
+            approvedAppVersion: "0.12.0",
+            approvedBuild: "138",
+            buildRef: "sync-debug-138",
+            buildCompatibility: "atual",
+          }}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Safe close journey did not render.");
+
+    await press(tree, "Preparar turno");
+    await press(tree, "Revisar fechamento do turno");
+    await press(tree, "Conferi fisicamente");
+    await press(tree, "Expliquei as pendencias");
+    await press(tree, "A passagem esta pronta");
+    await press(tree, "Encerrar turno com area segura");
+
+    expect(closeShiftClient).toHaveBeenCalledOnce();
+    expect(renderedText(tree)).toContain("Turno aceito pela central com area segura");
+
+    await press(tree, "Ir para Hoje fechado");
+
+    const text = renderedText(tree);
+    expect(text).toContain("Turno encerrado com area segura");
+    expect(text).toContain("Turno encerrado, proximo turno ainda nao preparado");
+    expect(text).toContain("Preparar proximo turno");
+    expect(text).not.toContain("Nenhum bloqueio ativo na leitura central");
   });
 
   it("guides an empty first-store central read into first lot registration", async () => {

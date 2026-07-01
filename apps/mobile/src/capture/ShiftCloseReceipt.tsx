@@ -21,12 +21,12 @@ export function ShiftCloseReceipt({
     ? "Fechamento inseguro pendente de sincronizacao"
     : isSafe
       ? "Turno aceito pela central com area segura"
-      : "Turno encerrado com pendências";
+      : "Turno encerrado com pendencias";
   const body = isPending
     ? "A passagem foi salva localmente, ainda nao foi aceita pela central e nao resolve tarefas ou alertas."
     : isSafe
       ? "A validacao central reconsultou a captura do turno, confirmou o checklist e nao encontrou bloqueios."
-      : "A passagem foi registrada sem esconder as pendências operacionais.";
+      : "A passagem foi registrada sem esconder as pendencias operacionais.";
   const continuityOwner = pendingUnsafeClose?.request.continuityOwner ?? closure?.continuityOwner;
   const deadline = pendingUnsafeClose?.request.continuityDeadline ?? closure?.continuityDeadline;
 
@@ -46,7 +46,10 @@ export function ShiftCloseReceipt({
       {onAcknowledgeHandoff === undefined ? null : (
         <PrimaryAction label="Confirmar recebimento da passagem" onPress={onAcknowledgeHandoff} />
       )}
-      <SecondaryAction label="Voltar para Hoje" onPress={onBack} />
+      <SecondaryAction
+        label={isSafe ? "Ir para Hoje fechado" : "Voltar para Hoje"}
+        onPress={onBack}
+      />
     </View>
   );
 }

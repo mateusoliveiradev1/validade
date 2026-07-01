@@ -18,7 +18,11 @@ import { Field, PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } fro
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import type { CaptureRepository, ShiftCloseOutboxRecord } from "./repository";
 import { ShiftCloseReceipt } from "./ShiftCloseReceipt";
-import { createSafeShiftCloseRequest, createUnsafeShiftCloseRequest } from "./shift-close";
+import {
+  createSafeShiftCloseRequest,
+  createUnsafeShiftCloseRequest,
+  type ShiftCloseCompletion,
+} from "./shift-close";
 
 const checklistCopy: Record<ShiftCloseChecklistKey, string> = {
   sales_area_checked: "Conferi fisicamente a area de venda.",
@@ -42,6 +46,7 @@ export function ShiftCloseScreen({
   canCloseShift,
   onBack,
   onSafeClose,
+  onShiftCloseComplete,
   storeId = "loja-local",
   prepareTurnCacheStatus,
   prepareTurnSource,
@@ -53,6 +58,7 @@ export function ShiftCloseScreen({
   canCloseShift: boolean;
   onBack: () => void;
   onSafeClose?: ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>) | undefined;
+  onShiftCloseComplete?: ((completion: ShiftCloseCompletion) => void) | undefined;
   storeId?: string | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
@@ -133,19 +139,6 @@ export function ShiftCloseScreen({
     void refresh();
   }, [checklist]);
 
-  if (!canCloseShift) {
-    return (
-      <ScrollView contentContainerStyle={styles.screen}>
-        <ScreenHeader title="Fechamento do turno" />
-        <StatusNotice tone="info">
-          O fechamento exige lideranca autorizada nesta loja. Continue a execucao das tarefas do
-          turno.
-        </StatusNotice>
-        <SecondaryAction label="Voltar para Hoje" onPress={onBack} />
-      </ScrollView>
-    );
-  }
-
   if (safeClosure !== undefined || pendingUnsafeClose !== undefined) {
     return (
       <ScrollView contentContainerStyle={styles.screen}>
@@ -170,7 +163,13 @@ export function ShiftCloseScreen({
     note.trim().length > 0;
   const safeEvaluationReady =
     evaluation?.eligibility === "eligible_safe" && summary?.centralValidationAvailable === true;
-  const canRequestSafe = safeEvaluationReady && onSafeClose !== undefined;
+  const canRequestSafe = canCloseShift && safeEvaluationReady && onSafeClose !== undefined;
+  const statusTone = !canCloseShift ? "info" : safeEvaluationReady ? "success" : "error";
+  const statusBody = !canCloseShift
+    ? "Sem lideranca autorizada neste aparelho: registre uma passagem com pendencias para nao esconder o trabalho. Area segura exige lideranca e validacao central."
+    : safeEvaluationReady
+      ? "Pronto para validacao central de area segura."
+      : "Ha bloqueios ou dados sem validacao central. A passagem com pendencias continua disponivel.";
 
   async function queueUnsafeClose(): Promise<void> {
     const continuityDeadline = parseContinuityDeadline(deadline, now());
@@ -200,6 +199,13 @@ export function ShiftCloseScreen({
       request,
     });
     setPendingUnsafeClose(saved);
+    onShiftCloseComplete?.({
+      verdict: "unsafe",
+      occurredAt: timestamp,
+      continuityOwner: request.continuityOwner,
+      continuityDeadline: request.continuityDeadline,
+      pendingSync: true,
+    });
   }
 
   async function requestSafeClose(): Promise<void> {
@@ -218,6 +224,10 @@ export function ShiftCloseScreen({
         }),
       );
       setSafeClosure(closure);
+      onShiftCloseComplete?.({
+        verdict: "safe",
+        occurredAt: closure.occurredAt,
+      });
     } catch {
       const fallbackDeadline = defaultContinuityDeadline(now());
 
@@ -245,16 +255,18 @@ export function ShiftCloseScreen({
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
-        title="Fechamento do turno"
-        body="O horario de saida nao transforma pendencias em area segura."
+        title={canCloseShift ? "Fechamento do turno" : "Passagem do turno"}
+        body={
+          canCloseShift
+            ? "O horario de saida nao transforma pendencias em area segura."
+            : "Use quando nao houver lideranca disponivel no setor. A passagem nao declara a area segura."
+        }
       />
-      <StatusNotice tone={safeEvaluationReady ? "success" : "error"}>
-        {safeEvaluationReady
-          ? "Pronto para validacao central de area segura."
-          : "Ha bloqueios ou dados sem validacao central. A passagem com pendencias continua disponivel."}
-      </StatusNotice>
+      <StatusNotice tone={statusTone}>{statusBody}</StatusNotice>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Resumo antes do fechamento seguro</Text>
+        <Text style={styles.sectionTitle}>
+          {canCloseShift ? "Resumo antes do fechamento seguro" : "Resumo para passagem"}
+        </Text>
         <View style={styles.summaryGrid}>
           <SummaryRow
             label="Tarefas ativas"
@@ -321,21 +333,26 @@ export function ShiftCloseScreen({
           ))}
         </View>
       )}
-      <PrimaryAction
-        disabled={!canRequestSafe || isValidating}
-        label={isValidating ? "Validando com o sistema..." : "Encerrar turno com area segura"}
-        onPress={() => void requestSafeClose()}
-      />
-      {onSafeClose === undefined ? (
+      {canCloseShift ? (
+        <PrimaryAction
+          disabled={!canRequestSafe || isValidating}
+          label={isValidating ? "Validando com o sistema..." : "Encerrar turno com area segura"}
+          onPress={() => void requestSafeClose()}
+        />
+      ) : null}
+      {canCloseShift && onSafeClose === undefined ? (
         <Text style={styles.helper}>
           A confirmacao segura so aparece apos a API central validar o turno.
         </Text>
       ) : null}
       <View style={[styles.card, styles.unsafeCard]}>
-        <Text style={styles.sectionTitle}>Encerrar turno com pendencias</Text>
+        <Text style={styles.sectionTitle}>
+          {canCloseShift ? "Encerrar turno com pendencias" : "Registrar passagem com pendencias"}
+        </Text>
         <Text style={styles.helper}>
-          A area nao esta segura; o trabalho continua no proximo turno. Nao resolve tarefas nem
-          silencia alertas.
+          {canCloseShift
+            ? "A area nao esta segura; o trabalho continua no proximo turno. Nao resolve tarefas nem silencia alertas."
+            : "Sem lideranca no setor, deixe a continuidade registrada. O proximo turno ainda precisa resolver ou revalidar as tarefas."}
         </Text>
         <Field
           label="Motivo"
@@ -366,7 +383,7 @@ export function ShiftCloseScreen({
         />
         <PrimaryAction
           disabled={!canQueueUnsafe}
-          label="Encerrar turno com pendencias"
+          label={canCloseShift ? "Encerrar turno com pendencias" : "Registrar passagem"}
           onPress={() => void queueUnsafeClose()}
         />
       </View>

@@ -28,6 +28,7 @@ import {
   type CaptureRepository,
   type TodayTaskRefreshSource,
 } from "./repository";
+import type { ShiftCloseCompletion } from "./shift-close";
 import {
   dueLabel,
   formatAlertTime,
@@ -80,6 +81,7 @@ export function TodayScreen({
   prepareTurnSource,
   pushDeviceIdentity = defaultPushDeviceIdentity,
   refreshRequest,
+  shiftCloseCompletion,
   storeOperatingHours = DEFAULT_STORE_OPERATING_HOURS,
   now = () => new Date(),
 }: {
@@ -101,6 +103,7 @@ export function TodayScreen({
   prepareTurnSource?: "central" | "local_cache" | undefined;
   pushDeviceIdentity?: PushDeviceIdentity | undefined;
   refreshRequest?: { id: number; source: TodayTaskRefreshSource } | undefined;
+  shiftCloseCompletion?: ShiftCloseCompletion | undefined;
   storeOperatingHours?: StoreOperatingHours | undefined;
   now?: () => Date;
 }) {
@@ -404,22 +407,30 @@ export function TodayScreen({
     (prepareTurnSource === "central" && prepareTurnCacheStatus?.state === "ready");
   const syncPendingCount = syncQueue?.totalCount ?? 0;
   const hasSyncWork = syncPendingCount > 0;
-  const heroPrimaryLabel =
+  const hasSafeShiftClosed = shiftCloseCompletion?.verdict === "safe";
+  const canPrepareNextTurn = hasSafeShiftClosed && onRequestCentralRefresh !== undefined;
+  const defaultHeroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
       : todayActionLabel(firstPriorityTask);
-  const heroSecondaryLabel = canOpenPriorityTask ? todayCopy.registerLot : todayCopy.recentLots;
+  const heroPrimaryLabel = canPrepareNextTurn
+    ? todayCopy.shiftClose.prepareNextTurn
+    : defaultHeroPrimaryLabel;
+  const heroSecondaryLabel =
+    canPrepareNextTurn || !canOpenPriorityTask ? todayCopy.recentLots : todayCopy.registerLot;
   const verdict = isInitialLoading
     ? "Carregando riscos da area de venda"
     : refreshError !== undefined
       ? "Riscos precisam ser atualizados"
-      : salesAreaRiskCount > 0
-        ? todayCopy.criticalHeader(salesAreaRiskCount)
-        : !centralPackageReady || hasReadinessBlocker
-          ? "Leitura central local ou pendente"
-          : tasks.length > 0
-            ? todayCopy.safeWithWorkHeader
-            : todayCopy.safeHeader;
+      : hasSafeShiftClosed
+        ? todayCopy.shiftClose.safeTitle
+        : salesAreaRiskCount > 0
+          ? todayCopy.criticalHeader(salesAreaRiskCount)
+          : !centralPackageReady || hasReadinessBlocker
+            ? "Leitura central local ou pendente"
+            : tasks.length > 0
+              ? todayCopy.safeWithWorkHeader
+              : todayCopy.safeHeader;
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -448,6 +459,9 @@ export function TodayScreen({
               ))}
             </View>
           ) : null}
+          {shiftCloseCompletion === undefined ? null : (
+            <ShiftCloseCompletionNotice completion={shiftCloseCompletion} />
+          )}
           {shouldShowQuietHoursNotice ? (
             <StatusNotice title={todayCopy.push.quietHoursTitle} tone="info">
               {todayCopy.push.quietHoursBody}
@@ -462,15 +476,17 @@ export function TodayScreen({
           <OfflineCacheNotice status={offlineStatus} />
         </View>
         <Text style={styles.safetyBody}>
-          {salesAreaRiskCount > 0
-            ? "Comece pelo primeiro risco da area de venda."
-            : !centralPackageReady || hasReadinessBlocker
-              ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
-              : isInitialLoading
-                ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
-                : refreshError !== undefined
-                  ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
-                  : "Continue conferindo os lotes do turno sem esconder pendencias."}
+          {hasSafeShiftClosed
+            ? todayCopy.shiftClose.safeBody
+            : salesAreaRiskCount > 0
+              ? "Comece pelo primeiro risco da area de venda."
+              : !centralPackageReady || hasReadinessBlocker
+                ? "Continue o trabalho visivel, mas nao trate a area como segura sem uma leitura central preparada."
+                : isInitialLoading
+                  ? "Aguarde a leitura das tarefas antes de concluir que a area esta segura."
+                  : refreshError !== undefined
+                    ? "As tarefas anteriores permanecem visiveis quando existirem. Atualize antes de tomar uma decisao."
+                    : "Continue conferindo os lotes do turno sem esconder pendencias."}
         </Text>
         <View style={styles.heroMetrics}>
           <View style={styles.heroMetric}>
@@ -493,6 +509,10 @@ export function TodayScreen({
             <PrimaryAction
               label={heroPrimaryLabel}
               onPress={() => {
+                if (canPrepareNextTurn) {
+                  onRequestCentralRefresh?.();
+                  return;
+                }
                 if (firstPriorityTask !== undefined && onOpenTask !== undefined) {
                   onOpenTask(firstPriorityTask);
                   return;
@@ -505,7 +525,9 @@ export function TodayScreen({
             <SecondaryAction
               accessibilityLabel={heroSecondaryLabel}
               label={canOpenPriorityTask ? heroSecondaryLabel : "Recentes"}
-              onPress={canOpenPriorityTask ? onRegisterLot : onOpenRecentLots}
+              onPress={
+                canOpenPriorityTask && !canPrepareNextTurn ? onRegisterLot : onOpenRecentLots
+              }
             />
           </View>
         </View>
@@ -522,12 +544,26 @@ export function TodayScreen({
       <View style={styles.shiftCloseEntry}>
         <Text style={styles.shiftCloseTitle}>Fechamento do turno</Text>
         <Text style={styles.shiftCloseBody}>
-          {canCloseShift
-            ? "Revise riscos, sincronizacao e conferencia fisica antes de encerrar o turno."
-            : "O fechamento exige lideranca autorizada nesta loja."}
+          {hasSafeShiftClosed
+            ? todayCopy.shiftClose.closedEntryBody
+            : canCloseShift
+              ? todayCopy.shiftClose.leadEntryBody
+              : todayCopy.shiftClose.collaboratorEntryBody}
         </Text>
-        {canCloseShift && onOpenShiftClose !== undefined ? (
-          <SecondaryAction label="Revisar fechamento do turno" onPress={onOpenShiftClose} />
+        {hasSafeShiftClosed && onRequestCentralRefresh !== undefined ? (
+          <SecondaryAction
+            label={todayCopy.shiftClose.prepareNextTurn}
+            onPress={onRequestCentralRefresh}
+          />
+        ) : onOpenShiftClose !== undefined ? (
+          <SecondaryAction
+            label={
+              canCloseShift
+                ? todayCopy.shiftClose.reviewSafeClose
+                : todayCopy.shiftClose.recordHandoff
+            }
+            onPress={onOpenShiftClose}
+          />
         ) : null}
       </View>
 
@@ -554,9 +590,24 @@ export function TodayScreen({
         <TodayLoadingState />
       ) : tasks.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>{todayCopy.emptyHeading}</Text>
-          <Text style={styles.emptyBody}>{todayCopy.emptyBody}</Text>
-          <PrimaryAction label={todayCopy.registerLot} onPress={onRegisterLot} />
+          <Text style={styles.emptyTitle}>
+            {hasSafeShiftClosed ? todayCopy.shiftClose.closedEmptyHeading : todayCopy.emptyHeading}
+          </Text>
+          <Text style={styles.emptyBody}>
+            {hasSafeShiftClosed ? todayCopy.shiftClose.closedEmptyBody : todayCopy.emptyBody}
+          </Text>
+          <PrimaryAction
+            label={
+              canPrepareNextTurn ? todayCopy.shiftClose.prepareNextTurn : todayCopy.registerLot
+            }
+            onPress={() => {
+              if (canPrepareNextTurn) {
+                onRequestCentralRefresh?.();
+                return;
+              }
+              onRegisterLot();
+            }}
+          />
           <SecondaryAction label={todayCopy.recentLots} onPress={onOpenRecentLots} />
         </View>
       ) : (
@@ -755,6 +806,22 @@ function TaskSyncStatus({ task }: { task: TodayTaskRecord }) {
         {label}
       </Text>
     </View>
+  );
+}
+
+function ShiftCloseCompletionNotice({ completion }: { completion: ShiftCloseCompletion }) {
+  if (completion.verdict === "safe") {
+    return (
+      <StatusNotice title={todayCopy.shiftClose.safeTitle} tone="success">
+        {todayCopy.shiftClose.safeBody}
+      </StatusNotice>
+    );
+  }
+
+  return (
+    <StatusNotice title={todayCopy.shiftClose.unsafeTitle} tone="warning">
+      {todayCopy.shiftClose.unsafeBody}
+    </StatusNotice>
   );
 }
 

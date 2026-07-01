@@ -22,6 +22,7 @@ import { TodayScreen } from "./TodayScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import { AjustesScreen } from "./AjustesScreen";
+import type { ShiftCloseCompletion } from "./shift-close";
 import type {
   PrepareTurnCacheStatus,
   PrepareTurnRequest,
@@ -122,6 +123,9 @@ export function CaptureApp({
   const [todayRefreshRequest, setTodayRefreshRequest] = useState<
     { id: number; source: TodayTaskRefreshSource } | undefined
   >();
+  const [shiftCloseCompletion, setShiftCloseCompletion] = useState<
+    ShiftCloseCompletion | undefined
+  >();
   const autoPrepareTurnAttemptedRef = useRef(false);
   const autoSyncAttemptedRef = useRef(false);
   const resolvedAlertChannel = useMemo(
@@ -138,6 +142,13 @@ export function CaptureApp({
     [deviceId, resolvedBuildInfo.packageId, storeId],
   );
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+  const shiftCloseDeviceAuthorization = shiftCloseDeviceAuthorizationFor({
+    activeRole,
+    session,
+    storeId,
+  });
+  const canCloseShiftSafely =
+    session === undefined ? activeRole === "lead" : shiftCloseDeviceAuthorization === "valid";
 
   useEffect(() => {
     void refreshLocalPushRegistration(
@@ -326,6 +337,7 @@ export function CaptureApp({
         });
 
         await hydratePrepareTurn(repository, response);
+        setShiftCloseCompletion(undefined);
         setPrepareTurnCache(response.cache);
         setPrepareTurnSource("central");
 
@@ -447,6 +459,7 @@ export function CaptureApp({
 
   function startFirstStoreSetup(): void {
     setPrepareTurnError(undefined);
+    setShiftCloseCompletion(undefined);
     setPrepareTurnSource("central");
     setPrepareTurnState("ready");
     setRouteStack([{ name: "discovery" }]);
@@ -609,6 +622,7 @@ export function CaptureApp({
           prepareTurnSource={prepareTurnSource}
           pushDeviceIdentity={pushDeviceIdentity}
           refreshRequest={todayRefreshRequest}
+          shiftCloseCompletion={shiftCloseCompletion}
           storeOperatingHours={storeOperatingHours}
           {...(registerPushDeviceClient === undefined
             ? {}
@@ -621,7 +635,7 @@ export function CaptureApp({
           }}
           onConfirmCentralDeviceState={() => prepareTurn("silent")}
           onRequestCentralRefresh={requestCentralReprepare}
-          canCloseShift={activeRole === "lead"}
+          canCloseShift={canCloseShiftSafely}
           actorLabel={actorLabel}
           onOpenShiftClose={() => navigate({ name: "shift-close" })}
         />
@@ -652,17 +666,14 @@ export function CaptureApp({
     return withSessionBar(
       <ShiftCloseScreen
         repository={repository}
-        canCloseShift={activeRole === "lead"}
+        canCloseShift={canCloseShiftSafely}
         storeId={storeId}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
         buildInfo={resolvedBuildInfo}
-        deviceAuthorization={shiftCloseDeviceAuthorizationFor({
-          activeRole,
-          session,
-          storeId,
-        })}
+        deviceAuthorization={shiftCloseDeviceAuthorization}
         onSafeClose={closeShiftClient}
+        onShiftCloseComplete={setShiftCloseCompletion}
         onBack={goBack}
       />,
     );
@@ -1264,6 +1275,9 @@ function prepareTurnBodyFor(
   if (state === "cache_only") {
     return "Use a leitura local apenas para continuar o trabalho visivel. Ela nao declara area segura.";
   }
+  if (state === "needs_prepare") {
+    return "Qualquer pessoa autorizada pode preparar a leitura central para trabalhar. Isso nao declara a area segura.";
+  }
   if (state === "error") return "Conecte uma vez para preparar o turno neste aparelho.";
   return "Conecte uma vez para preparar o turno neste aparelho.";
 }
@@ -1278,7 +1292,7 @@ function prepareTurnDetailFor(
   }
 
   if (cache === null) {
-    return "Nenhuma leitura central esta salva neste aparelho. O cockpit do turno fica bloqueado ate a preparacao ou um fallback local claramente marcado.";
+    return "Nenhuma leitura central esta salva neste aparelho. Preparar turno abre o trabalho visivel; fechamento seguro continua exigindo lideranca, central atual e checklist fisico.";
   }
 
   const lastRead =

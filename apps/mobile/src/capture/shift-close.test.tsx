@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrepareTurnCacheStatus, ShiftClosureSnapshot } from "@validade-zero/contracts";
 import type { MobileBuildInfo } from "../build-info";
 import type { CaptureRepository } from "./repository";
@@ -159,6 +159,10 @@ function pilotBuildInfo(overrides: Partial<MobileBuildInfo> = {}): MobileBuildIn
 }
 
 describe("ShiftCloseScreen", () => {
+  beforeEach(() => {
+    queueUnsafeShiftClose.mockClear();
+  });
+
   it("keeps safe close blocked and saves a required unsafe handoff locally", async () => {
     let tree: ReactTestRenderer;
     await act(() => {
@@ -364,14 +368,55 @@ describe("ShiftCloseScreen", () => {
     expect(actionByLabel(tree!, "Encerrar turno com area segura").props.disabled).toBe(true);
   });
 
-  it("explains neutral permission denial to collaborators", () => {
+  it("lets collaborators register a handoff without offering safe close", async () => {
+    const onShiftCloseComplete = vi.fn();
     let tree: ReactTestRenderer;
-    act(() => {
+    await act(async () => {
       tree = create(
-        <ShiftCloseScreen repository={repository} canCloseShift={false} onBack={() => undefined} />,
+        <ShiftCloseScreen
+          repository={repository}
+          canCloseShift={false}
+          onBack={() => undefined}
+          onShiftCloseComplete={onShiftCloseComplete}
+          now={() => new Date("2030-01-10T18:00:00.000Z")}
+        />,
       );
+      await Promise.resolve();
     });
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("exige lideranca autorizada");
+    const initial = JSON.stringify(tree!.toJSON());
+    expect(initial).toContain("Passagem do turno");
+    expect(initial).toContain("Sem lideranca autorizada");
+    expect(initial).toContain("Registrar passagem com pendencias");
+    expect(initial).not.toContain("Encerrar turno com area segura");
+
+    await act(() => {
+      tree!.root
+        .findByProps({ accessibilityLabel: "Motivo" })
+        .props.onChangeText("Sem lideranca no setor para fechamento seguro.");
+      tree!.root
+        .findByProps({ accessibilityLabel: "Responsavel pela continuidade" })
+        .props.onChangeText("Lideranca Ficticia Seguinte");
+      tree!.root
+        .findByProps({ accessibilityLabel: "Prazo da passagem" })
+        .props.onChangeText("19:00");
+      tree!.root
+        .findByProps({ accessibilityLabel: "Nota para a passagem" })
+        .props.onChangeText("Retomar conferencia no proximo turno.");
+    });
+
+    await pressAction(tree!, "Registrar passagem");
+
+    expect(JSON.stringify(tree!.toJSON())).toContain(
+      "Fechamento inseguro pendente de sincronizacao",
+    );
+    expect(queueUnsafeShiftClose).toHaveBeenCalledTimes(1);
+    expect(onShiftCloseComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: "unsafe",
+        continuityOwner: "Lideranca Ficticia Seguinte",
+        pendingSync: true,
+      }),
+    );
   });
 });

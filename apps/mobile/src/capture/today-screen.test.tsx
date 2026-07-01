@@ -11,6 +11,7 @@ import type {
 } from "@validade-zero/contracts";
 import type { StoreOperatingHours } from "@validade-zero/domain";
 import type { CaptureRepository, TodayTaskRefreshResult } from "./repository";
+import type { ShiftCloseCompletion } from "./shift-close";
 import type { SyncEngine } from "./sync-engine";
 import { TodayScreen } from "./TodayScreen";
 import { createMemoryCaptureRepository } from "./memory-repository";
@@ -310,6 +311,9 @@ async function renderTodayScreen(
   options: {
     onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
     onRequestCentralRefresh?: (() => void) | undefined;
+    onOpenShiftClose?: (() => void) | undefined;
+    canCloseShift?: boolean | undefined;
+    shiftCloseCompletion?: ShiftCloseCompletion | undefined;
     now?: (() => Date) | undefined;
     storeOperatingHours?: StoreOperatingHours | undefined;
   } = {},
@@ -327,6 +331,9 @@ async function renderTodayScreen(
         prepareTurnSource={prepareTurn?.source}
         onConfirmCentralDeviceState={options.onConfirmCentralDeviceState}
         onRequestCentralRefresh={options.onRequestCentralRefresh}
+        onOpenShiftClose={options.onOpenShiftClose}
+        canCloseShift={options.canCloseShift}
+        shiftCloseCompletion={options.shiftCloseCompletion}
         now={options.now ?? (() => new Date("2030-01-10T12:00:00.000Z"))}
         {...(options.storeOperatingHours === undefined
           ? {}
@@ -418,6 +425,57 @@ describe("TodayScreen", () => {
         allowOffShiftCriticalAlerts: false,
       }),
     );
+  });
+
+  it("keeps Hoje visibly closed after a safe shift close and routes the next action to prepare turn", async () => {
+    const requestCentralRefresh = vi.fn();
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const tree = await renderTodayScreen(repository, undefined, undefined, {
+      onRequestCentralRefresh: requestCentralRefresh,
+      canCloseShift: true,
+      shiftCloseCompletion: {
+        verdict: "safe",
+        occurredAt: "2030-01-10T18:00:00.000Z",
+      },
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Turno encerrado com area segura");
+    expect(text).toContain("Turno encerrado, proximo turno ainda nao preparado");
+    expect(text).not.toContain("Nenhum bloqueio ativo na leitura central");
+
+    const prepareActions = tree.root.findAllByProps({
+      accessibilityLabel: "Preparar proximo turno",
+    });
+    expect(prepareActions.length).toBeGreaterThan(0);
+
+    await act(async () => {
+      prepareActions[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(requestCentralRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("offers the no-leader handoff path without promising a safe close", async () => {
+    const openShiftClose = vi.fn();
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const tree = await renderTodayScreen(repository, undefined, undefined, {
+      canCloseShift: false,
+      onOpenShiftClose: openShiftClose,
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Area segura exige lideranca");
+    expect(text).toContain("Registrar passagem com pendencias");
+    expect(text).not.toContain("Revisar fechamento do turno");
+
+    await act(async () => {
+      findButton(tree, "Registrar passagem com pendencias").props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(openShiftClose).toHaveBeenCalledOnce();
   });
 
   it("renders local-cache prepare state near the verdict without safe styling", async () => {
