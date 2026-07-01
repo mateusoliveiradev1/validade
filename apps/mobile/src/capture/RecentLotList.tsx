@@ -10,6 +10,7 @@ import {
 } from "./capture-copy";
 import { Field, PrimaryAction, ScreenHeader, SelectionRow, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
+import { dateKeyFromUtcMillis, dateOnlyUtcMillis, operationalDateKey } from "./operational-date";
 
 export function RecentLotList({
   repository,
@@ -277,34 +278,6 @@ function dateOnlyKey(value: string): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value);
 
   return dateOnly === null ? operationalDateKey(new Date(value)) : value;
-}
-
-function operationalDateKey(value = new Date()): string {
-  const parts = new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  }).formatToParts(value);
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
-
-  return `${year}-${month}-${day}`;
-}
-
-function dateOnlyUtcMillis(value: string): number {
-  const [year = "1970", month = "01", day = "01"] = value.split("-");
-
-  return Date.UTC(Number(year), Number(month) - 1, Number(day));
-}
-
-function dateKeyFromUtcMillis(value: number): string {
-  const date = new Date(value);
-
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    date.getUTCDate(),
-  ).padStart(2, "0")}`;
 }
 
 function formatQuantityNumber(value: number | undefined): string {

@@ -44,6 +44,7 @@ import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile
 import { readMobileBuildInfo, type MobileBuildInfo } from "../build-info";
 import type { AuthGateReadyControls } from "../auth/AuthGate";
 import { deviceIdForStore } from "./device-identity";
+import { operationalDateKey } from "./operational-date";
 
 type CaptureRoute =
   | { name: "today" }
@@ -479,7 +480,7 @@ export function CaptureApp({
     try {
       return await repository.loadMarkdownEntryState({
         lotId,
-        currentDate: currentTimestamp.slice(0, 10),
+        currentDate: operationalDateKey(current),
         currentTimestamp,
       });
     } catch {

@@ -60,12 +60,12 @@ describe("formal-validity risk windows", () => {
     },
   );
 
-  it("treats an expiry date equal to the current date as critical, not expired", () => {
+  it("treats an expiry date equal to the current date as expired", () => {
     const result = calculateLotRisk(formalValidityInput(currentDate));
 
-    expect(result.state).toBe("critical");
-    expect(result.command).toBe("monitor");
-    expect(result.reasons.map((reason) => reason.code)).toContain("expires_in_3_days");
+    expect(result.state).toBe("expired");
+    expect(result.command).toBe("withdraw_now");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expired");
   });
 });
 
@@ -189,6 +189,26 @@ describe("risk severity precedence and product overrides", () => {
     expect(markdownWindow.command).toBe("monitor");
     expect(expired.state).toBe("expired");
     expect(expired.command).toBe("repack_or_loss");
+  });
+
+  it("treats a processed item expiring today as repack or loss work", () => {
+    const result = calculateLotRisk({
+      currentDate,
+      categoryProfile: {
+        categoryId: "categoria-ficticia-processados",
+        mode: "processed_repack_loss",
+      },
+      lot: {
+        mode: "processed_repack_loss",
+        productId: "produto-ficticio-melancia-processada-001",
+        lotCode: "LOTE-FICTICIO-MELANCIA-001",
+        expiresAt: currentDate,
+      },
+    });
+
+    expect(result.state).toBe("expired");
+    expect(result.command).toBe("repack_or_loss");
+    expect(result.reasons.map((reason) => reason.code)).toContain("expired");
   });
 
   it("keeps expired dominating markdown_due and lower states", () => {

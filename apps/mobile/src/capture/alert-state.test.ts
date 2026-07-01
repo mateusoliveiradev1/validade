@@ -122,6 +122,50 @@ describe("task alert state repository", () => {
     ]);
   });
 
+  it("creates an alert state for lots expiring today", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await registerShiftDevice(repository);
+    await saveFormalLot({
+      repository,
+      displayName: "Melancia FICTICIA",
+      lotCode: "LOTE-MELANCIA-HOJE-FICTICIO",
+      expiresAt: currentDate,
+    });
+
+    const refresh = await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp: "2030-01-10T09:00:00.000Z",
+      source: "today_open",
+    });
+    const task = refresh.tasks[0];
+
+    expect(task).toMatchObject({
+      riskState: "expired",
+      dueBucket: "now",
+      requiredResolution: "withdraw_or_loss",
+      status: "active",
+    });
+
+    if (task === undefined) {
+      throw new Error("Expected expiring-today lot to create a Today task.");
+    }
+
+    await expect(
+      repository.refreshTaskAlertStates({
+        referenceTime: "2030-01-10T09:00:00.000Z",
+        isWithinShift: true,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        taskActiveKey: task.activeKey,
+        attemptState: "pending",
+        nextReminderAt: "2030-01-10T09:15:00.000Z",
+      }),
+    ]);
+  });
+
   it("persists off-shift suppression without removing ordinary active tasks", async () => {
     const repository = createRepository();
     await repository.initialize();

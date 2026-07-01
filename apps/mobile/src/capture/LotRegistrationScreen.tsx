@@ -42,6 +42,7 @@ import {
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import { mobileStatusDescriptorFor } from "./mobile-status";
 import { centralStateLabel } from "./RecentLotList";
+import { operationalDateKey } from "./operational-date";
 
 const LOCAL_ACTOR_LABEL = "Colaborador local";
 
@@ -88,7 +89,7 @@ export function LotRegistrationScreen({
     approximateQuantity !== undefined &&
     resolvedLocation !== undefined &&
     hasRequiredDates;
-  const currentDate = now().toISOString().slice(0, 10);
+  const currentDate = operationalDateKey(now());
   const riskAssessment = useMemo(
     () =>
       calculatePreview(

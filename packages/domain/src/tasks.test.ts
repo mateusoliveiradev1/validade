@@ -254,6 +254,29 @@ describe("Today task derivation", () => {
     });
   });
 
+  it("projects formal-validity lots expiring today into immediate withdrawal tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "formal_validity",
+          productId: "produto-central-ficticio-hoje-001",
+          lotCode: "LOTE-FORMAL-HOJE-FICTICIO-001",
+          expiresAt: "2030-01-10",
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        riskState: "expired",
+        dueBucket: "now",
+        requiredResolution: "withdraw_or_loss",
+        section: "withdraw_now",
+      },
+    });
+  });
+
   it("projects processed/repack-loss central lots into repack-or-loss tasks", () => {
     const projection = projectCentralLotTask(
       centralLotProjectionInput({
@@ -275,6 +298,34 @@ describe("Today task derivation", () => {
       attention: "active_task",
       task: {
         requiredResolution: "repack_or_loss",
+      },
+    });
+  });
+
+  it("projects processed lots expiring today into immediate repack-or-loss tasks", () => {
+    const projection = projectCentralLotTask(
+      centralLotProjectionInput({
+        lot: {
+          mode: "processed_repack_loss",
+          productId: "produto-central-ficticio-melancia-001",
+          lotCode: "LOTE-MELANCIA-HOJE-FICTICIO-001",
+          expiresAt: "2030-01-10",
+        },
+        categoryProfile: {
+          categoryId: "categoria-processados-ficticia",
+          mode: "processed_repack_loss",
+          windows: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
+        },
+      }),
+    );
+
+    expect(projection).toMatchObject({
+      attention: "active_task",
+      task: {
+        riskState: "expired",
+        dueBucket: "now",
+        requiredResolution: "repack_or_loss",
+        section: "withdraw_now",
       },
     });
   });

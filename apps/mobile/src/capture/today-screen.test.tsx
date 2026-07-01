@@ -427,6 +427,23 @@ describe("TodayScreen", () => {
     );
   });
 
+  it("uses the Sao Paulo operational date when opening Hoje", async () => {
+    const refreshTodayTasks = vi.fn(() => Promise.resolve(emptyRefresh()));
+    const repository = createRepository(refreshTodayTasks);
+
+    await renderTodayScreen(repository, undefined, undefined, {
+      now: () => new Date("2030-01-10T02:30:00.000Z"),
+    });
+
+    expect(refreshTodayTasks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentDate: "2030-01-09",
+        currentTimestamp: "2030-01-10T02:30:00.000Z",
+        source: "today_open",
+      }),
+    );
+  });
+
   it("keeps Hoje visibly closed after a safe shift close and routes the next action to prepare turn", async () => {
     const requestCentralRefresh = vi.fn();
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));

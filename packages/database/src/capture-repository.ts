@@ -2948,9 +2948,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat15-sync-debug-apk-138";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat17-shift-close-alerts-apk-147";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "138";
+const DEFAULT_APPROVED_BUILD = "147";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;

@@ -45,6 +45,7 @@ import {
   todayReadinessFactsFor,
   type TodayReadinessFact,
 } from "./ajustes-readiness";
+import { operationalDateKey } from "./operational-date";
 
 const ACTIVE_SECTION_ORDER = [
   "withdraw_now",
@@ -153,7 +154,7 @@ export function TodayScreen({
       const current = now();
       const alertWindow = operationalAlertWindowFor(current, storeOperatingHours);
       const result = await repository.refreshTodayTasks({
-        currentDate: current.toISOString().slice(0, 10),
+        currentDate: operationalDateKey(current),
         currentTimestamp: current.toISOString(),
         source,
       });

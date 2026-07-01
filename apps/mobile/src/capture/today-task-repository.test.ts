@@ -28,6 +28,18 @@ function formalProduct(displayName: string, maxPhysicalConfirmationAgeHours?: nu
   } satisfies CaptureProductInput;
 }
 
+function processedProduct(displayName: string) {
+  return {
+    displayName,
+    categoryId: `categoria-ficticia-${displayName.toLocaleLowerCase("pt-BR").replaceAll(" ", "-")}`,
+    categoryRuleProfile: {
+      categoryId: `categoria-ficticia-${displayName.toLocaleLowerCase("pt-BR").replaceAll(" ", "-")}`,
+      mode: "processed_repack_loss",
+      windows: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
+    },
+  } satisfies CaptureProductInput;
+}
+
 async function saveFormalLot(input: {
   repository: ReturnType<typeof createRepository>;
   product: Awaited<ReturnType<ReturnType<typeof createRepository>["createProduct"]>>;
@@ -45,6 +57,29 @@ async function saveFormalLot(input: {
       mode: "formal_validity",
       expiresAt: input.expiresAt,
       approximateQuantity: 8,
+      initialLocation: input.location ?? { kind: "area_de_venda" },
+    },
+    actorLabel: "Colaboradora FICTICIA",
+  });
+}
+
+async function saveProcessedLot(input: {
+  repository: ReturnType<typeof createRepository>;
+  product: Awaited<ReturnType<ReturnType<typeof createRepository>["createProduct"]>>;
+  lotCode: string;
+  expiresAt: string;
+  location?: { kind: "area_de_venda" | "estoque" };
+}) {
+  return input.repository.saveLot({
+    lot: {
+      productId: input.product.id,
+      identity: {
+        identitySource: "printed",
+        value: input.lotCode,
+      },
+      mode: "processed_repack_loss",
+      expiresAt: input.expiresAt,
+      approximateQuantity: 4,
       initialLocation: input.location ?? { kind: "area_de_venda" },
     },
     actorLabel: "Colaboradora FICTICIA",
@@ -142,6 +177,64 @@ describe("today task repository", () => {
     expect(secondRefresh.tasks.some((task) => task.productDisplayName === "Maca FICTICIA")).toBe(
       false,
     );
+  });
+
+  it("treats lots expiring today as immediate loss or withdrawal work", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    const product = await repository.createProduct(processedProduct("Melancia FICTICIA"));
+
+    await saveProcessedLot({
+      repository,
+      product,
+      lotCode: "LOTE-MELANCIA-HOJE-FICTICIO",
+      expiresAt: currentDate,
+    });
+
+    const refresh = await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp,
+      source: "today_open",
+    });
+    const task = refresh.tasks[0];
+
+    expect(task).toMatchObject({
+      productDisplayName: "Melancia FICTICIA",
+      riskState: "expired",
+      severity: "critical",
+      dueBucket: "now",
+      requiredResolution: "repack_or_loss",
+      section: "withdraw_now",
+      status: "active",
+    });
+
+    if (task === undefined) {
+      throw new Error("Expected expiring-today processed lot to create a task.");
+    }
+
+    await repository.resolveTodayTask({
+      taskId: task.id,
+      action: "record_loss",
+      actorLabel: "Ana FICTICIA",
+      occurredAt: "2030-01-10T12:10:00.000Z",
+      destination: { kind: "retirada_perda" },
+    });
+
+    await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
+      status: "resolved",
+      resolutionHistory: [
+        expect.objectContaining({
+          action: "record_loss",
+        }),
+      ],
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({
+        requiredResolution: "sales_area_recheck",
+        recheckParentId: task.id,
+        status: "active",
+      }),
+    ]);
   });
 
   it("preserves resolved task state and resolution history across refreshes", async () => {

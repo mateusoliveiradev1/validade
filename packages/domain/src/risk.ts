@@ -94,6 +94,7 @@ function calculateDateRisk(
 
     return calculateWindowRisk(input.currentDate, input.lot.expiresAt, "expiresAt", windows, {
       allowMarkdown: input.lot.mode === "formal_validity",
+      expireOnTargetDate: true,
       expiredCommand:
         input.lot.mode === "processed_repack_loss" ? "repack_or_loss" : "withdraw_now",
     });
@@ -196,14 +197,19 @@ function calculateWindowRisk(
   },
   options: {
     allowMarkdown?: boolean;
+    expireOnTargetDate?: boolean;
     expiredCommand?: RiskAssessment["command"];
   } = {},
 ): RiskAssessment {
   const daysUntilTarget = daysBetween(currentDate, targetDate);
   const allowMarkdown = options.allowMarkdown ?? true;
+  const isExpired =
+    options.expireOnTargetDate === true
+      ? daysUntilTarget <= windows.expiredDays
+      : daysUntilTarget < windows.expiredDays;
   const expiredCommand = options.expiredCommand ?? "withdraw_now";
 
-  if (daysUntilTarget < windows.expiredDays) {
+  if (isExpired) {
     return {
       state: "expired",
       command: expiredCommand,
