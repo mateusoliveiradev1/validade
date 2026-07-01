@@ -580,11 +580,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "149"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "150"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat19-first-turn-onboarding-apk-149"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat20-onboarding-shift-e2e-apk-150"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

@@ -401,6 +401,20 @@ describe("memory capture repository", () => {
         requiredResolution: "check_presence",
       }),
     ]);
+
+    const refreshed = await repository.refreshTodayTasks({
+      currentDate: "2030-01-10",
+      currentTimestamp: "2030-01-10T09:05:00.000Z",
+      source: "manual_refresh",
+    });
+
+    expect(refreshed.tasks).toHaveLength(1);
+    expect(refreshed.tasks[0]).toMatchObject({
+      id: "tarefa-central-alface-001",
+      lotId: "lote-central-alface-001",
+      productDisplayName: "Alface Central FICTICIA",
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toHaveLength(1);
   });
 
   it("reuses a hydrated central product by barcode and links a newly scanned code", async () => {

@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat19-first-turn-onboarding-apk-149";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat20-onboarding-shift-e2e-apk-150";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",

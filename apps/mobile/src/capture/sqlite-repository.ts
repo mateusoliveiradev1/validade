@@ -1511,6 +1511,29 @@ export function createSQLiteCaptureRepository(
         await upsertFutureAttention(db, future);
       }
 
+      const centralProjectedTask = centralProjectedTaskFromLot(detail);
+
+      if (centralProjectedTask !== null) {
+        const existingCentralTaskRow = await db.getFirstAsync<TodayTaskRow>(
+          "SELECT * FROM today_tasks WHERE id = ?",
+          centralProjectedTask.id,
+        );
+        const existingCentralTask =
+          existingCentralTaskRow === null ? undefined : mapTodayTask(existingCentralTaskRow);
+
+        await resolveActiveLotTasksExcept(db, centralProjectedTask, refreshedAt);
+        await upsertTodayTask(
+          db,
+          existingCentralTask?.resolutionHistory === undefined
+            ? centralProjectedTask
+            : {
+                ...centralProjectedTask,
+                resolutionHistory: existingCentralTask.resolutionHistory,
+              },
+        );
+        continue;
+      }
+
       const candidate = deriveTaskCandidateFromLot({
         lot: detail,
         currentDate: input.currentDate,
@@ -3645,6 +3668,22 @@ async function upsertTodayTask(db: SQLite.SQLiteDatabase, task: TodayTaskRecord)
   );
 }
 
+async function resolveActiveLotTasksExcept(
+  db: SQLite.SQLiteDatabase,
+  centralTask: TodayTaskRecord,
+  resolvedAt: string,
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE today_tasks
+     SET status = 'resolved', resolved_at = ?, updated_at = ?
+     WHERE status = 'active' AND lot_id = ? AND id <> ?`,
+    resolvedAt,
+    resolvedAt,
+    centralTask.lotId,
+    centralTask.id,
+  );
+}
+
 async function upsertFutureAttention(
   db: SQLite.SQLiteDatabase,
   record: FutureAttentionRecord,
@@ -5060,6 +5099,50 @@ function mapCentralActiveTask(
             state: "synced",
             savedAt: task.updatedAt,
             lastSyncedAt: task.updatedAt,
+          },
+        }
+      : {}),
+  });
+}
+
+function centralProjectedTaskFromLot(lot: CaptureLotSnapshot): TodayTaskRecord | null {
+  const projection = lot.taskProjection;
+
+  if (
+    lot.centralSource !== "central" ||
+    lot.centralLotId === undefined ||
+    projection?.attention !== "active_task"
+  ) {
+    return null;
+  }
+
+  return parseTodayTaskRecord({
+    id: projection.centralTaskId,
+    activeKey: projection.activeKey,
+    lotId: lot.centralLotId,
+    productDisplayName: lot.productDisplayName,
+    lotIdentity: lot.identity,
+    currentLocation: lot.currentObservation.location,
+    riskState: projection.riskState,
+    severity: projection.severity,
+    dueBucket: dueBucketForCentralRisk(projection.riskState),
+    requiredResolution: projection.requiredResolution,
+    section: sectionForCentralRisk(projection.riskState, lot.currentObservation.location),
+    ownerLabel: projection.ownerLabel,
+    status: "active",
+    sourceRisk: {
+      state: projection.riskState,
+      reasons: [{ code: reasonCodeForCentralRisk(projection.riskState), field: "central" }],
+    },
+    priority: priorityForCentralRisk(projection.riskState, lot.currentObservation.location),
+    createdAt: projection.updatedAt,
+    updatedAt: projection.updatedAt,
+    ...(lot.centralSyncState === "synchronized"
+      ? {
+          sync: {
+            state: "synced",
+            savedAt: projection.updatedAt,
+            lastSyncedAt: projection.updatedAt,
           },
         }
       : {}),

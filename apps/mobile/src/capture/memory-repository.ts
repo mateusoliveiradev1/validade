@@ -905,6 +905,23 @@ export function createMemoryCaptureRepository(
         futureAttention.set(future.id, future);
       }
 
+      const centralProjectedTask = centralProjectedTaskFromLot(detail);
+
+      if (centralProjectedTask !== null) {
+        resolveActiveLotTasksExcept(centralProjectedTask, refreshedAt);
+        const existingCentralTask = todayTasks.get(centralProjectedTask.id);
+        todayTasks.set(
+          centralProjectedTask.id,
+          existingCentralTask?.resolutionHistory === undefined
+            ? centralProjectedTask
+            : {
+                ...centralProjectedTask,
+                resolutionHistory: existingCentralTask.resolutionHistory,
+              },
+        );
+        continue;
+      }
+
       if (candidate === null) {
         continue;
       }
@@ -2624,6 +2641,72 @@ export function createMemoryCaptureRepository(
           }
         : {}),
     });
+  }
+
+  function centralProjectedTaskFromLot(lot: CaptureLotSnapshot): TodayTaskRecord | null {
+    const projection = lot.taskProjection;
+
+    if (
+      lot.centralSource !== "central" ||
+      lot.centralLotId === undefined ||
+      projection?.attention !== "active_task"
+    ) {
+      return null;
+    }
+
+    return parseTodayTaskRecord({
+      id: projection.centralTaskId,
+      activeKey: projection.activeKey,
+      lotId: lot.centralLotId,
+      productDisplayName: lot.productDisplayName,
+      lotIdentity: lot.identity,
+      currentLocation: lot.currentObservation.location,
+      riskState: projection.riskState,
+      severity: projection.severity,
+      dueBucket: dueBucketForCentralRisk(projection.riskState),
+      requiredResolution: projection.requiredResolution,
+      section: sectionForCentralRisk(projection.riskState, lot.currentObservation.location),
+      ownerLabel: projection.ownerLabel,
+      status: "active",
+      sourceRisk: {
+        state: projection.riskState,
+        reasons: [{ code: reasonCodeForCentralRisk(projection.riskState), field: "central" }],
+      },
+      priority: priorityForCentralRisk(projection.riskState, lot.currentObservation.location),
+      createdAt: projection.updatedAt,
+      updatedAt: projection.updatedAt,
+      ...(lot.centralSyncState === "synchronized"
+        ? {
+            sync: {
+              state: "synced",
+              savedAt: projection.updatedAt,
+              lastSyncedAt: projection.updatedAt,
+            },
+          }
+        : {}),
+    });
+  }
+
+  function resolveActiveLotTasksExcept(centralTask: TodayTaskRecord, resolvedAt: string): void {
+    for (const [taskId, task] of todayTasks) {
+      if (
+        task.status !== "active" ||
+        task.lotId !== centralTask.lotId ||
+        task.id === centralTask.id
+      ) {
+        continue;
+      }
+
+      todayTasks.set(
+        taskId,
+        parseTodayTaskRecord({
+          ...task,
+          status: "resolved",
+          resolvedAt,
+          updatedAt: resolvedAt,
+        }),
+      );
+    }
   }
 
   function dueBucketForCentralRisk(

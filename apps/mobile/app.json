@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat19-first-turn-onboarding-apk-149",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat20-onboarding-shift-e2e-apk-150",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "149",
-      "VALIDADE_ZERO_BUILD_REF": "first-turn-onboarding-149",
+      "VALIDADE_ZERO_APPROVED_BUILD": "150",
+      "VALIDADE_ZERO_BUILD_REF": "onboarding-shift-e2e-150",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -36,7 +36,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 149,
+      "versionCode": 150,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F9F8"

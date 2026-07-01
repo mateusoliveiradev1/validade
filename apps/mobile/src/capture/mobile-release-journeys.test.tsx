@@ -915,14 +915,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "149",
+            appBuild: "150",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat19-first-turn-onboarding-apk-149",
+            approvedArtifactLabel: "uat20-onboarding-shift-e2e-apk-150",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "149",
-            buildRef: "first-turn-onboarding-149",
+            approvedBuild: "150",
+            buildRef: "onboarding-shift-e2e-150",
             buildCompatibility: "atual",
           }}
         />,

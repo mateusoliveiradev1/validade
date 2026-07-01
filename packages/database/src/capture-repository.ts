@@ -3213,9 +3213,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat19-first-turn-onboarding-apk-149";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat20-onboarding-shift-e2e-apk-150";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "149";
+const DEFAULT_APPROVED_BUILD = "150";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;
