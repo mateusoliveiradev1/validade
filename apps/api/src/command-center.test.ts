@@ -132,7 +132,7 @@ const projection = {
       storeId: "loja-piloto",
       storeName: "Loja Ficticia Piloto",
       appVersion: "0.12.0",
-      appBuild: "138",
+      appBuild: "147",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       buildCompatibility: "atual",
@@ -480,6 +480,34 @@ describe("Command Center API", () => {
         },
       ],
     });
+    expect(uatStep(body, "product_real_input")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Produto real confirmado",
+    });
+    expect(uatStep(body, "lot_registration")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Lote real confirmado",
+    });
+    expect(uatStep(body, "terminal_resolution")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Resolucao terminal confirmada",
+    });
+    expect(uatStep(body, "command_center_consistency")).toMatchObject({
+      state: "blocked",
+      evidenceReferenceLabel: "Consistencia central pendente",
+    });
+    expect(uatStep(body, "shift_close")).toMatchObject({
+      state: "blocked",
+      evidenceReferenceLabel: "Fechamento bloqueado",
+    });
+    expect(projectedPilotBlockers(body)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "sync",
+          label: "Conflito de sincronizacao",
+        }),
+      ]),
+    );
     expect(JSON.stringify(body)).not.toMatch(/objectKey|signedUrl|base64|photoUri|imageBytes/i);
   });
 
@@ -492,7 +520,7 @@ describe("Command Center API", () => {
       deviceLabel: "Moto G Lideranca",
       activeUserLabel: "Lider FICTICIO",
       appVersion: "0.12.0",
-      appBuild: "138",
+      appBuild: "147",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       preparedAt: new Date("2030-01-10T11:40:00.000Z"),
@@ -532,7 +560,7 @@ describe("Command Center API", () => {
           activeUserLabel: "Lider FICTICIO",
           verdict: "apto",
           buildCompatibility: "atual",
-          approvedArtifactLabel: "uat15-sync-debug-apk-138",
+          approvedArtifactLabel: "uat17-shift-close-alerts-apk-147",
           lastCentralReadAt: "2030-01-10T11:44:00.000Z",
         },
       ],
@@ -690,7 +718,105 @@ describe("Command Center API", () => {
       },
     });
   });
+
+  it("keeps missing product and lot proof pending when no actionable central blocker exists", async () => {
+    const app = createCentralCaptureApp({
+      captureRepository: createInMemoryCaptureRepository({
+        resolvedHistory: [centralResolvedHistory()],
+      }),
+    });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(uatStep(body, "product_real_input")).toMatchObject({
+      state: "pending",
+      nextAction: "Usar produto real da Loja 18 e registrar status sanitizado.",
+    });
+    expect(uatStep(body, "lot_registration")).toMatchObject({
+      state: "pending",
+      nextAction: "Registrar lote real e confirmar que apareceu pela central.",
+    });
+    expect(uatStep(body, "terminal_resolution")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Resolucao terminal confirmada",
+    });
+    expect(JSON.stringify(body)).not.toMatch(/produto real secreto|lot-privado|rawDeviceId/i);
+  });
+
+  it("blocks terminal resolution when a critical central task is still active", async () => {
+    const app = createCentralCaptureApp({
+      captureRepository: createInMemoryCaptureRepository({
+        products: [centralProduct()],
+        lots: [centralLot()],
+        tasks: [centralTask()],
+      }),
+    });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(uatStep(body, "product_real_input")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "lot_registration")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "terminal_resolution")).toMatchObject({
+      state: "blocked",
+      cause: "Ha tarefa critica ativa sem resolucao terminal central.",
+      nextAction: "Abrir Operacao e resolver a pendencia fisica antes do Go.",
+    });
+    expect(JSON.stringify(body)).not.toMatch(/objectKey|photoUri|base64|token/i);
+  });
+
+  it("does not pass shift close from no active tasks alone", async () => {
+    const app = createCentralCaptureApp({
+      captureRepository: createInMemoryCaptureRepository({
+        products: [centralProduct()],
+        lots: [centralLot()],
+        resolvedHistory: [centralResolvedHistory()],
+      }),
+    });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(uatStep(body, "terminal_resolution")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "shift_close")).not.toMatchObject({ state: "passed" });
+    expect(uatStep(body, "shift_close")).toMatchObject({
+      cause: "Ainda ha etapas UAT ou bloqueios operacionais pendentes.",
+      nextAction: "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
+    });
+  });
 });
+
+interface UatStepProjection {
+  stepId?: string;
+  state?: string;
+  cause?: string;
+  nextAction?: string;
+  evidenceReferenceLabel?: string;
+}
+
+interface PilotBlockerProjection {
+  category?: string;
+  label?: string;
+}
+
+function uatStep(body: unknown, stepId: string): UatStepProjection {
+  const steps =
+    (body as { pilotUat?: { steps?: readonly UatStepProjection[] } }).pilotUat?.steps ?? [];
+  const step = steps.find((item) => item.stepId === stepId);
+  if (step === undefined) throw new Error(`Missing UAT step ${stepId}`);
+  return step;
+}
+
+function projectedPilotBlockers(body: unknown): readonly PilotBlockerProjection[] {
+  return (body as { pilotBlockers?: readonly PilotBlockerProjection[] }).pilotBlockers ?? [];
+}
 
 function createCentralCaptureApp(input?: {
   captureRepository?: ReturnType<typeof createInMemoryCaptureRepository>;
@@ -713,71 +839,10 @@ function createCentralCaptureApp(input?: {
 
 function createCentralCaptureRepository() {
   return createInMemoryCaptureRepository({
-    products: [
-      {
-        storeId: "loja-piloto",
-        centralProductId: "product-draft-central-001",
-        displayName: "Banana Nanica FICTICIA",
-        categoryId: "cat-flv",
-        categoryName: "FLV",
-        status: "draft",
-        state: "pending_central",
-        source: "pending_central",
-        updatedAt: "2030-01-10T11:00:00.000Z",
-        categoryRuleProfile: { categoryId: "cat-flv", mode: "formal_validity" },
-      },
-    ],
-    lots: [
-      {
-        storeId: "loja-piloto",
-        centralLotId: "lot-central-001",
-        centralProductId: "product-draft-central-001",
-        productDisplayName: "Folhas FICTICIAS",
-        lotIdentity: { identitySource: "printed", value: "FOL-CENTRAL-001" },
-        mode: "formal_validity",
-        currentLocation: { kind: "area_de_venda" },
-        state: "synchronized",
-        source: "central",
-        riskState: "expired",
-        expiresAt: "2030-01-09",
-        approximateQuantity: 7,
-        updatedAt: "2030-01-10T10:00:00.000Z",
-      },
-    ],
-    tasks: [
-      {
-        storeId: "loja-piloto",
-        centralTaskId: "task-central-001",
-        activeKey: "active-central-001",
-        centralLotId: "lot-central-001",
-        productDisplayName: "Folhas FICTICIAS",
-        currentLocation: { kind: "area_de_venda" },
-        riskState: "expired",
-        severity: "critical",
-        requiredResolution: "withdraw_or_loss",
-        state: "synchronized",
-        source: "central",
-        ownerLabel: "Equipe do turno",
-        dueAt: "2030-01-10T10:30:00.000Z",
-        updatedAt: "2030-01-10T10:00:00.000Z",
-      },
-    ],
-    resolvedHistory: [
-      {
-        storeId: "loja-piloto",
-        centralTaskId: "task-resolved-central-001",
-        centralLotId: "lot-resolved-central-001",
-        productDisplayName: "Manga FICTICIA",
-        lotIdentity: { identitySource: "printed", value: "MAN-CENTRAL-001" },
-        currentLocation: { kind: "retirada_perda" },
-        action: "withdraw",
-        actorLabel: "Lider FICTICIO",
-        reason: "Retirada conferida na area de venda.",
-        resolvedAt: "2030-01-10T11:35:00.000Z",
-        state: "resolved",
-        source: "central",
-      },
-    ],
+    products: [centralProduct()],
+    lots: [centralLot()],
+    tasks: [centralTask()],
+    resolvedHistory: [centralResolvedHistory()],
     conflicts: [
       {
         storeId: "loja-piloto",
@@ -805,4 +870,73 @@ function createCentralCaptureRepository() {
       },
     ],
   });
+}
+
+function centralProduct() {
+  return {
+    storeId: "loja-piloto",
+    centralProductId: "product-draft-central-001",
+    displayName: "Banana Nanica FICTICIA",
+    categoryId: "cat-flv",
+    categoryName: "FLV",
+    status: "draft" as const,
+    state: "pending_central" as const,
+    source: "pending_central" as const,
+    updatedAt: "2030-01-10T11:00:00.000Z",
+    categoryRuleProfile: { categoryId: "cat-flv", mode: "formal_validity" as const },
+  };
+}
+
+function centralLot() {
+  return {
+    storeId: "loja-piloto",
+    centralLotId: "lot-central-001",
+    centralProductId: "product-draft-central-001",
+    productDisplayName: "Folhas FICTICIAS",
+    lotIdentity: { identitySource: "printed" as const, value: "FOL-CENTRAL-001" },
+    mode: "formal_validity" as const,
+    currentLocation: { kind: "area_de_venda" as const },
+    state: "synchronized" as const,
+    source: "central" as const,
+    riskState: "expired" as const,
+    expiresAt: "2030-01-09",
+    approximateQuantity: 7,
+    updatedAt: "2030-01-10T10:00:00.000Z",
+  };
+}
+
+function centralTask() {
+  return {
+    storeId: "loja-piloto",
+    centralTaskId: "task-central-001",
+    activeKey: "active-central-001",
+    centralLotId: "lot-central-001",
+    productDisplayName: "Folhas FICTICIAS",
+    currentLocation: { kind: "area_de_venda" as const },
+    riskState: "expired" as const,
+    severity: "critical" as const,
+    requiredResolution: "withdraw_or_loss" as const,
+    state: "synchronized" as const,
+    source: "central" as const,
+    ownerLabel: "Equipe do turno",
+    dueAt: "2030-01-10T10:30:00.000Z",
+    updatedAt: "2030-01-10T10:00:00.000Z",
+  };
+}
+
+function centralResolvedHistory() {
+  return {
+    storeId: "loja-piloto",
+    centralTaskId: "task-resolved-central-001",
+    centralLotId: "lot-resolved-central-001",
+    productDisplayName: "Manga FICTICIA",
+    lotIdentity: { identitySource: "printed" as const, value: "MAN-CENTRAL-001" },
+    currentLocation: { kind: "retirada_perda" as const },
+    action: "withdraw" as const,
+    actorLabel: "Lider FICTICIO",
+    reason: "Retirada conferida na area de venda.",
+    resolvedAt: "2030-01-10T11:35:00.000Z",
+    state: "resolved" as const,
+    source: "central" as const,
+  };
 }

@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat15-sync-debug-apk-138",
+  artifactLabel: "uat17-shift-close-alerts-apk-147",
   appVersion: "0.12.0",
-  build: "138",
+  build: "147",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {
@@ -281,7 +281,7 @@ export function createAuditBackedCommandCenterService(input: {
       const refreshedAt = now().toISOString();
       const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
         centralReadReady: verdict.state !== "blocked",
-        hasOperationalFacts: syncEvents.length > 0,
+        hasCommandCenterConsistency: syncEvents.length > 0 && verdict.state !== "blocked",
         hasActiveBlockers: verdict.state !== "safe",
       });
       const syncConflicts = conflictEvents.map((event) => ({
@@ -470,14 +470,18 @@ function projectionFromCentralPrepareTurn(
     syncConflicts.length +
     discardedActions.length +
     prepared.store.blockers.length;
+  const runbookFacts = derivePilotRunbookFacts(prepared, {
+    discardedActions,
+    freshness,
+    syncConflicts,
+  });
   const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
-    centralReadReady: freshness === "current" && prepared.store.readiness === "prepared",
+    ...runbookFacts,
     hasAcceptedPushTest: devices.some((device) =>
       (device.pushTests ?? []).some((item) => ["provider_accepted", "opened"].includes(item.state)),
     ),
     hasActiveBlockers: blockerCount > 0,
     hasDevice: devices.length > 0,
-    hasOperationalFacts,
   });
   const pilotBlockers = buildPilotOperationalBlockers({
     updatedAt: refreshedAt,
@@ -525,6 +529,18 @@ function projectionFromCentralPrepareTurn(
 }
 
 type PilotUatStep = CommandCenterProjection["pilotUat"]["steps"][number];
+
+interface PilotRunbookFacts {
+  centralReadReady: boolean;
+  hasRealProductInput: boolean;
+  hasRealLotRegistration: boolean;
+  hasTerminalResolution: boolean;
+  hasCommandCenterConsistency: boolean;
+  hasOpenCentralBlockers: boolean;
+  hasCriticalActiveTask: boolean;
+  hasSyncConflict: boolean;
+  hasSafeShiftCloseProof: boolean;
+}
 
 type PilotUatStepTemplate = Pick<PilotUatStep, "stepId" | "label" | "ownerLabel" | "actionLabel"> &
   Partial<Pick<PilotUatStep, "nextAction" | "operatorNote" | "evidenceReferenceLabel">>;
@@ -605,13 +621,24 @@ function buildPilotUatChecklist(
     centralReadBlocked?: boolean;
     hasAcceptedPushTest?: boolean;
     hasActiveBlockers?: boolean;
+    hasCommandCenterConsistency?: boolean;
+    hasCriticalActiveTask?: boolean;
     hasDevice?: boolean;
-    hasOperationalFacts?: boolean;
+    hasOpenCentralBlockers?: boolean;
+    hasRealLotRegistration?: boolean;
+    hasRealProductInput?: boolean;
+    hasSafeShiftCloseProof?: boolean;
+    hasSyncConflict?: boolean;
+    hasTerminalResolution?: boolean;
   } = {},
 ): CommandCenterProjection["pilotUat"] {
   const overrides = new Map<PilotUatStep["stepId"], Partial<PilotUatStep>>();
   const hasDevice = input.hasDevice ?? false;
   const hasActiveBlockers = input.hasActiveBlockers ?? true;
+  const centralProofBlocked =
+    input.centralReadBlocked === true ||
+    input.hasOpenCentralBlockers === true ||
+    input.hasSyncConflict === true;
 
   if (input.centralReadReady === true) {
     overrides.set("prepare_turn", {
@@ -629,12 +656,70 @@ function buildPilotUatChecklist(
     });
   }
 
-  if (input.hasOperationalFacts === true && input.centralReadReady === true) {
+  if (input.hasRealProductInput === true) {
+    overrides.set("product_real_input", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Produto real confirmado",
+      nextAction: "Seguir para registro do lote real.",
+    });
+  } else if (centralProofBlocked) {
+    overrides.set("product_real_input", {
+      state: "blocked",
+      cause: "Leitura central ainda bloqueia a prova do produto real.",
+      nextAction: "Abrir Operacao, preparar turno e registrar produto real pela central.",
+      evidenceReferenceLabel: "Produto real pendente",
+    });
+  }
+
+  if (input.hasRealLotRegistration === true) {
+    overrides.set("lot_registration", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Lote real confirmado",
+      nextAction: "Executar resolucao terminal compativel no mobile.",
+    });
+  } else if (centralProofBlocked) {
+    overrides.set("lot_registration", {
+      state: "blocked",
+      cause: "Leitura central ainda bloqueia a prova do lote real.",
+      nextAction: "Abrir Operacao, registrar lote real e atualizar Validacao.",
+      evidenceReferenceLabel: "Lote real pendente",
+    });
+  }
+
+  if (input.hasTerminalResolution === true) {
+    overrides.set("terminal_resolution", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Resolucao terminal confirmada",
+      nextAction: "Conferir consistencia no Command Center.",
+    });
+  } else if (input.hasCriticalActiveTask === true || input.hasSyncConflict === true) {
+    overrides.set("terminal_resolution", {
+      state: "blocked",
+      cause:
+        input.hasSyncConflict === true
+          ? "Conflito central impede confirmar a resolucao terminal."
+          : "Ha tarefa critica ativa sem resolucao terminal central.",
+      nextAction: "Abrir Operacao e resolver a pendencia fisica antes do Go.",
+      evidenceReferenceLabel: "Resolucao terminal pendente",
+    });
+  }
+
+  if (input.hasCommandCenterConsistency === true && input.centralReadReady === true) {
     overrides.set("command_center_consistency", {
       state: "passed",
       occurredAt: updatedAt,
       evidenceReferenceLabel: "Painel atualizado com leitura central",
-      nextAction: "Conferir se produto/lote UAT real foi registrado antes de marcar as etapas.",
+      nextAction: "Prosseguir somente se nao houver conflito ou bloqueio central.",
+    });
+  } else if (centralProofBlocked) {
+    overrides.set("command_center_consistency", {
+      state: "blocked",
+      cause: "Command Center ainda mostra bloqueio, conflito ou leitura central incompleta.",
+      nextAction: "Abrir Operacao, resolver conflito ou preparar turno antes do Go.",
+      evidenceReferenceLabel: "Consistencia central pendente",
     });
   }
 
@@ -661,13 +746,27 @@ function buildPilotUatChecklist(
     evidenceReferenceLabel: "Camera bloqueada externamente",
   });
 
-  if (hasActiveBlockers) {
+  if (input.hasSafeShiftCloseProof === true && input.centralReadReady === true) {
+    overrides.set("shift_close", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Fechamento seguro confirmado",
+      nextAction: "Revisar criterios finais de Go/No-Go.",
+    });
+  } else if (hasActiveBlockers || unresolvedRunbookProofExists(overrides)) {
     overrides.set("shift_close", {
       state: "blocked",
       cause: "Ainda ha etapas UAT ou bloqueios operacionais pendentes.",
       nextAction:
         "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
       evidenceReferenceLabel: "Fechamento bloqueado",
+    });
+  } else {
+    overrides.set("shift_close", {
+      state: "external_blocked",
+      cause: "Fechamento seguro fisico ainda nao foi confirmado no mobile.",
+      nextAction: "Concluir fechamento seguro no mobile e atualizar Validacao.",
+      evidenceReferenceLabel: "Fechamento seguro pendente",
     });
   }
 
@@ -691,6 +790,68 @@ function buildPilotUatChecklist(
     updatedAt,
     steps,
   };
+}
+
+function derivePilotRunbookFacts(
+  prepared: PrepareTurnResponse,
+  input: {
+    discardedActions: readonly CommandCenterProjection["discardedActions"][number][];
+    freshness: CommandCenterProjection["freshness"];
+    syncConflicts: readonly CommandCenterProjection["syncConflicts"][number][];
+  },
+): PilotRunbookFacts {
+  const centralReadReady =
+    input.freshness === "current" &&
+    prepared.store.readiness === "prepared" &&
+    prepared.cache.state === "ready";
+  const hasCriticalActiveTask = prepared.activeTasks.some(
+    (task) => task.riskState === "expired" || task.riskState === "critical",
+  );
+  const hasSyncConflict = input.syncConflicts.length > 0;
+  const hasOpenCentralBlockers =
+    prepared.store.blockers.length > 0 ||
+    hasSyncConflict ||
+    input.discardedActions.length > 0 ||
+    hasCriticalActiveTask;
+  const hasRealProductInput = prepared.products.length > 0;
+  const hasRealLotRegistration = prepared.lots.length > 0;
+  const hasTerminalResolution = prepared.resolvedHistory.length > 0;
+  const hasCommandCenterConsistency =
+    centralReadReady &&
+    (hasRealProductInput ||
+      hasRealLotRegistration ||
+      hasTerminalResolution ||
+      prepared.activeTasks.length > 0 ||
+      prepared.conflicts.length > 0);
+
+  return {
+    centralReadReady,
+    hasRealProductInput,
+    hasRealLotRegistration,
+    hasTerminalResolution,
+    hasCommandCenterConsistency: hasCommandCenterConsistency && !hasSyncConflict,
+    hasOpenCentralBlockers,
+    hasCriticalActiveTask,
+    hasSyncConflict,
+    hasSafeShiftCloseProof: false,
+  };
+}
+
+function unresolvedRunbookProofExists(
+  overrides: ReadonlyMap<PilotUatStep["stepId"], Partial<PilotUatStep>>,
+): boolean {
+  const requiredBeforeClose: readonly PilotUatStep["stepId"][] = [
+    "prepare_turn",
+    "product_real_input",
+    "lot_registration",
+    "terminal_resolution",
+    "second_device_convergence",
+    "command_center_consistency",
+    "safe_push_test",
+    "camera_evidence_or_fallback",
+  ];
+
+  return requiredBeforeClose.some((stepId) => overrides.get(stepId)?.state !== "passed");
 }
 
 type PilotOperationalBlocker = CommandCenterProjection["pilotBlockers"][number];
