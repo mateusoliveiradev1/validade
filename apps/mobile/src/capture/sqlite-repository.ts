@@ -1553,6 +1553,12 @@ export function createSQLiteCaptureRepository(
       }
 
       if (shouldTrustPreparedCentralLotForRefresh(detail)) {
+        if (
+          detail.centralSyncState === "resolved" ||
+          !(await hasActiveSyncedTaskForLot(db, detail.id))
+        ) {
+          await resolveActiveTasksForLot(db, detail.id, refreshedAt);
+        }
         continue;
       }
 
@@ -3049,13 +3055,27 @@ export function createSQLiteCaptureRepository(
       return;
     }
 
+    const task = mapTodayTask(row);
     await upsertTodayTask(
       db,
-      resolvedTaskFromCentralHistory(
-        mapTodayTask(row),
-        result.centralResult.history,
-        result.syncedAt,
-      ),
+      resolvedTaskFromCentralHistory(task, result.centralResult.history, result.syncedAt),
+    );
+    await markLotResolvedFromCentralHistory(db, task.lotId, result.centralResult.history);
+  }
+
+  async function markLotResolvedFromCentralHistory(
+    db: SQLite.SQLiteDatabase,
+    lotId: string,
+    history: CentralResolvedTaskHistory,
+  ): Promise<void> {
+    await db.runAsync(
+      `UPDATE capture_lots
+       SET central_sync_state = 'resolved',
+           task_projection_json = NULL,
+           central_ack_message = ?
+       WHERE id = ?`,
+      `Resolvido na central por ${history.actorLabel}. O lote segue nos recentes como historico.`,
+      lotId,
     );
   }
 
@@ -3724,6 +3744,33 @@ async function resolveActiveLotTasksExcept(
     centralTask.lotId,
     centralTask.id,
   );
+}
+
+async function resolveActiveTasksForLot(
+  db: SQLite.SQLiteDatabase,
+  lotId: string,
+  resolvedAt: string,
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE today_tasks
+     SET status = 'resolved', resolved_at = ?, updated_at = ?
+     WHERE status = 'active' AND lot_id = ? AND recheck_parent_id IS NULL`,
+    resolvedAt,
+    resolvedAt,
+    lotId,
+  );
+}
+
+async function hasActiveSyncedTaskForLot(
+  db: SQLite.SQLiteDatabase,
+  lotId: string,
+): Promise<boolean> {
+  const rows = await db.getAllAsync<TodayTaskRow>(
+    "SELECT * FROM today_tasks WHERE status = 'active' AND lot_id = ?",
+    lotId,
+  );
+
+  return rows.some((row) => mapTodayTask(row).sync?.state === "synced");
 }
 
 async function upsertFutureAttention(
@@ -5190,6 +5237,7 @@ function centralProjectedTaskFromLot(lot: CaptureLotSnapshot): TodayTaskRecord |
   if (
     lot.centralSource !== "central" ||
     lot.centralLotId === undefined ||
+    lot.centralSyncState === "resolved" ||
     projection?.attention !== "active_task"
   ) {
     return null;
@@ -5229,7 +5277,10 @@ function centralProjectedTaskFromLot(lot: CaptureLotSnapshot): TodayTaskRecord |
 }
 
 function shouldTrustPreparedCentralLotForRefresh(lot: CaptureLotSnapshot): boolean {
-  return lot.centralSource === "central" && lot.centralSyncState === "synchronized";
+  return (
+    lot.centralSource === "central" &&
+    (lot.centralSyncState === "synchronized" || lot.centralSyncState === "resolved")
+  );
 }
 
 function dueBucketForCentralRisk(

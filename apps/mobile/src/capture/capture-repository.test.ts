@@ -348,7 +348,7 @@ describe("memory capture repository", () => {
     expect(productsByCategory).not.toContain(otherProduct);
   });
 
-  it("writes ready central-cache lots through the central API and keeps the projected task visible", async () => {
+  it("writes ready central-cache lots through the central API and clears projection after resolved ack", async () => {
     const createCentralLot = vi.fn((request) =>
       Promise.resolve({
         requestId: "write-lot-central-ficticio",
@@ -526,6 +526,58 @@ describe("memory capture repository", () => {
       productDisplayName: "Alface Central FICTICIA",
     });
     await expect(repository.listActiveTodayTasks()).resolves.toHaveLength(1);
+
+    const command = await repository.saveOfflineAction({
+      kind: "resolve_task",
+      payload: {
+        taskId: "tarefa-central-alface-001",
+        action: "confirm_presence",
+        actorLabel: "Colaboradora Central FICTICIA",
+        occurredAt: "2030-01-10T09:10:00.000Z",
+      },
+    });
+    await repository.applySyncTransportResult({
+      status: "ack",
+      commandId: command.id,
+      idempotencyKey: command.idempotencyKey,
+      syncedAt: "2030-01-10T09:11:00.000Z",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: "tarefa-central-alface-001",
+          activeKey: "lote-central-alface-001:critical:check_presence:root",
+          lotId: "lote-central-alface-001",
+          productDisplayName: "Alface Central FICTICIA",
+          lotIdentity: { identitySource: "printed", value: "LOTE-CENTRAL-FICTICIO-001" },
+          currentLocation: { kind: "area_de_venda" },
+          action: "confirm_presence",
+          actorLabel: "Colaboradora Central FICTICIA",
+          occurredAt: "2030-01-10T09:10:00.000Z",
+          resolutionState: "resolved",
+          source: "central",
+          updatedAt: "2030-01-10T09:11:00.000Z",
+        },
+      },
+    });
+
+    await expect(repository.loadTodayTask("tarefa-central-alface-001")).resolves.toMatchObject({
+      status: "resolved",
+      resolvedAt: "2030-01-10T09:10:00.000Z",
+    });
+
+    const afterResolvedRefresh = await repository.refreshTodayTasks({
+      currentDate: "2030-01-10",
+      currentTimestamp: "2030-01-10T09:12:00.000Z",
+      source: "manual_refresh",
+    });
+
+    expect(afterResolvedRefresh.tasks).toHaveLength(0);
+    const recentLots = await repository.listRecentLots();
+    expect(recentLots[0]).toMatchObject({
+      id: "lote-central-alface-001",
+      centralSyncState: "resolved",
+    });
+    expect(recentLots[0]?.taskProjection).toBeUndefined();
   });
 
   it("reuses a hydrated central product by barcode and links a newly scanned code", async () => {

@@ -878,7 +878,9 @@ export function createMemoryCaptureRepository(
 
   function resolveActiveTasksForLot(lotId: string, resolvedAt: string): void {
     for (const [taskId, task] of todayTasks.entries()) {
-      if (task.status !== "active" || task.lotId !== lotId) continue;
+      if (task.status !== "active" || task.lotId !== lotId || task.recheckParentId !== undefined) {
+        continue;
+      }
       todayTasks.set(taskId, resolvedTaskFromCentralHistory(task, undefined, resolvedAt));
     }
   }
@@ -959,6 +961,9 @@ export function createMemoryCaptureRepository(
       }
 
       if (shouldTrustPreparedCentralLotForRefresh(detail)) {
+        if (detail.centralSyncState === "resolved" || !hasActiveSyncedTaskForLot(detail.id)) {
+          resolveActiveTasksForLot(detail.id, refreshedAt);
+        }
         continue;
       }
 
@@ -2712,6 +2717,7 @@ export function createMemoryCaptureRepository(
     if (
       lot.centralSource !== "central" ||
       lot.centralLotId === undefined ||
+      lot.centralSyncState === "resolved" ||
       projection?.attention !== "active_task"
     ) {
       return null;
@@ -2755,7 +2761,13 @@ export function createMemoryCaptureRepository(
       prepareTurnCacheStatus?.state === "ready" &&
       prepareTurnCacheStatus.source === "central" &&
       lot.centralSource === "central" &&
-      lot.centralSyncState === "synchronized"
+      (lot.centralSyncState === "synchronized" || lot.centralSyncState === "resolved")
+    );
+  }
+
+  function hasActiveSyncedTaskForLot(lotId: string): boolean {
+    return [...todayTasks.values()].some(
+      (task) => task.status === "active" && task.lotId === lotId && task.sync?.state === "synced",
     );
   }
 
@@ -3129,6 +3141,25 @@ export function createMemoryCaptureRepository(
       task.id,
       resolvedTaskFromCentralHistory(task, result.centralResult.history, result.syncedAt),
     );
+    markLotResolvedFromCentralHistory(task.lotId, result.centralResult.history);
+  }
+
+  function markLotResolvedFromCentralHistory(
+    lotId: string,
+    history: CentralResolvedTaskHistory,
+  ): void {
+    const lot = lots.get(lotId);
+    if (lot === undefined) {
+      return;
+    }
+
+    const lotWithoutTaskProjection = { ...lot };
+    delete lotWithoutTaskProjection.taskProjection;
+    lots.set(lotId, {
+      ...lotWithoutTaskProjection,
+      centralSyncState: "resolved",
+      centralAcknowledgementMessage: `Resolvido na central por ${history.actorLabel}. O lote segue nos recentes como historico.`,
+    });
   }
 
   function resolvedTaskFromCentralHistory(
