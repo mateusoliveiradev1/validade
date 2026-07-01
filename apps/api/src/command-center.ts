@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat17-shift-close-alerts-apk-147",
+  artifactLabel: "uat18-guided-onboarding-apk-148",
   appVersion: "0.12.0",
-  build: "147",
+  build: "148",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

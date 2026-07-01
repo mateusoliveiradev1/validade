@@ -2948,9 +2948,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat17-shift-close-alerts-apk-147";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat18-guided-onboarding-apk-148";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "147";
+const DEFAULT_APPROVED_BUILD = "148";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;

@@ -76,6 +76,7 @@ export default tseslint.config(
             "apps/mobile/src/capture/markdown-workflow.test.ts",
             "apps/mobile/src/capture/offline-sync.test.ts",
             "apps/mobile/src/capture/offline-sync-ui.test.tsx",
+            "apps/mobile/src/capture/operational-onboarding-screen.test.tsx",
             "apps/mobile/src/capture/today-task-repository.test.ts",
             "apps/mobile/src/capture/today-screen.test.tsx",
             "apps/mobile/src/capture/today-task-fixtures.test.ts",

@@ -311,6 +311,8 @@ async function renderTodayScreen(
   options: {
     onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
     onRequestCentralRefresh?: (() => void) | undefined;
+    onOpenOnboarding?: (() => void) | undefined;
+    onRegisterLot?: (() => void) | undefined;
     onOpenShiftClose?: (() => void) | undefined;
     canCloseShift?: boolean | undefined;
     shiftCloseCompletion?: ShiftCloseCompletion | undefined;
@@ -324,8 +326,9 @@ async function renderTodayScreen(
     tree = create(
       <TodayScreen
         repository={repository}
-        onRegisterLot={() => undefined}
+        onRegisterLot={options.onRegisterLot ?? (() => undefined)}
         onOpenRecentLots={() => undefined}
+        onOpenOnboarding={options.onOpenOnboarding}
         syncEngine={syncEngine}
         prepareTurnCacheStatus={prepareTurn?.status}
         prepareTurnSource={prepareTurn?.source}
@@ -378,6 +381,34 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Nenhum bloqueio ativo na leitura central");
     expect(rendered).toContain("Registrar lote");
     expect(rendered).toContain("Conferir lotes recentes");
+  });
+
+  it("offers a guided onboarding entry in empty Hoje without replacing lot registration", async () => {
+    const repository = createRepository(() => Promise.resolve(emptyRefresh()));
+    const openOnboarding = vi.fn();
+    const registerLot = vi.fn();
+    const tree = await renderTodayScreen(repository, undefined, undefined, {
+      onOpenOnboarding: openOnboarding,
+      onRegisterLot: registerLot,
+    });
+    const text = renderedText(tree);
+
+    expect(text).toContain("Guia de primeiros passos");
+    expect(text).toContain("leitura central, lote fisico, tarefas visiveis e fechamento seguro");
+    expect(text).toContain("Registrar lote");
+
+    act(() => {
+      findButton(tree, "Abrir guia").props.onPress();
+    });
+    expect(openOnboarding).toHaveBeenCalledTimes(1);
+
+    const registerButtons = tree.root.findAllByProps({ accessibilityLabel: "Registrar lote" });
+    expect(registerButtons.length).toBeGreaterThan(0);
+
+    act(() => {
+      registerButtons[0]?.props.onPress();
+    });
+    expect(registerLot).toHaveBeenCalledTimes(1);
   });
 
   it("keeps healthy sync and offline diagnostics out of the default Hoje scan", async () => {

@@ -19,6 +19,7 @@ import { ObservationComposer } from "./ObservationComposer";
 import { BarcodeLookupAssistant } from "./BarcodeLookupAssistant";
 import type { CaptureLotDetail } from "./repository";
 import { TodayScreen } from "./TodayScreen";
+import { OperationalOnboardingScreen } from "./OperationalOnboardingScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import { AjustesScreen } from "./AjustesScreen";
@@ -48,6 +49,7 @@ import { operationalDateKey } from "./operational-date";
 
 type CaptureRoute =
   | { name: "today" }
+  | { name: "onboarding" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
       name: "product-form";
@@ -463,7 +465,11 @@ export function CaptureApp({
     setShiftCloseCompletion(undefined);
     setPrepareTurnSource("central");
     setPrepareTurnState("ready");
-    setRouteStack([{ name: "discovery" }]);
+    setRouteStack([{ name: "today" }, { name: "onboarding" }]);
+  }
+
+  function openGuidedLotRegistration(): void {
+    setRouteStack([{ name: "today" }, { name: "discovery" }]);
   }
 
   function requestCentralReprepare(): void {
@@ -629,6 +635,7 @@ export function CaptureApp({
             ? {}
             : { onRegisterPushDevice: registerPushDeviceClient })}
           onRegisterLot={() => navigate({ name: "discovery" })}
+          onOpenOnboarding={() => navigate({ name: "onboarding" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
             setPushFallbackNotice(undefined);
@@ -641,6 +648,18 @@ export function CaptureApp({
           onOpenShiftClose={() => navigate({ name: "shift-close" })}
         />
       </>,
+    );
+  }
+
+  if (currentRoute.name === "onboarding") {
+    return withSessionBar(
+      <OperationalOnboardingScreen
+        prepareTurnCacheStatus={prepareTurnCache}
+        prepareTurnSource={prepareTurnSource}
+        onBack={goBack}
+        onOpenToday={() => resetToToday()}
+        onRegisterLot={openGuidedLotRegistration}
+      />,
     );
   }
 

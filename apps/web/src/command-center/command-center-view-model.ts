@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat17-shift-close-alerts-apk-147";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat18-guided-onboarding-apk-148";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",

@@ -136,13 +136,13 @@ const projection = {
       storeId: "loja-piloto",
       storeName: "Loja Ficticia Piloto",
       appVersion: "0.12.0",
-      appBuild: "147",
+      appBuild: "148",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "uat17-shift-close-alerts-apk-147",
+      approvedArtifactLabel: "uat18-guided-onboarding-apk-148",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "147",
+      approvedBuild: "148",
       lastForegroundAt: "2030-01-10T11:58:00.000Z",
       lastSyncAt: "2030-01-10T11:57:00.000Z",
       lastCentralReadAt: "2030-01-10T11:56:00.000Z",
@@ -657,7 +657,7 @@ describe("CommandCenter", () => {
             deviceLabel: "Aparelho Atual",
             buildCompatibility: "atual",
             appVersion: "0.12.0",
-            appBuild: "147",
+            appBuild: "148",
             nextAction: "Aparelho ja esta na build aprovada.",
             updatedAt: "2030-01-10T12:04:00.000Z",
           },
@@ -698,9 +698,9 @@ describe("CommandCenter", () => {
     render(<CommandCenter activeRoute="atualizacoes" client={client} storeId="loja-piloto" />);
 
     expect(await screen.findByRole("heading", { name: "Atualizacoes" })).toBeTruthy();
-    expect(screen.getByText("uat17-shift-close-alerts-apk-147")).toBeTruthy();
+    expect(screen.getByText("uat18-guided-onboarding-apk-148")).toBeTruthy();
     expect(screen.getAllByText("0.12.0").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("147").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("148").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Ver instrucoes manuais" })).toBeTruthy();
 
     const text = document.body.textContent ?? "";
@@ -797,7 +797,7 @@ describe("CommandCenter", () => {
     expect(text).toContain("Agora:");
     expect(text).not.toContain("Enviar teste seguro");
     expect(text).not.toContain("Ver instrucoes manuais");
-    expect(text).not.toContain("uat17-shift-close-alerts-apk-147");
+    expect(text).not.toContain("uat18-guided-onboarding-apk-148");
     expect(text).not.toMatch(
       /token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|objectKey|photoUri|base64/i,
     );

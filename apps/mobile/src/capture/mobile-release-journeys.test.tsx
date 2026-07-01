@@ -912,14 +912,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "147",
+            appBuild: "148",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat17-shift-close-alerts-apk-147",
+            approvedArtifactLabel: "uat18-guided-onboarding-apk-148",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "147",
-            buildRef: "shift-close-alerts-147",
+            approvedBuild: "148",
+            buildRef: "guided-onboarding-148",
             buildCompatibility: "atual",
           }}
         />,
@@ -982,6 +982,11 @@ describe("mobile release journeys", () => {
     expect(initialText).toContain("zero tarefas nao comprova area segura");
 
     await press(tree, "Registrar lote");
+
+    expect(renderedText(tree)).toContain("Primeiros passos da loja");
+    expect(renderedText(tree)).toContain("Registrar um lote fisico");
+
+    await press(tree, "Registrar lote real");
 
     expect(renderedText(tree)).toContain("Produto do lote");
     expect(renderedText(tree)).toContain("Buscar produto por nome, codigo ou categoria");

@@ -202,6 +202,12 @@ describe("prepare-turn gate", () => {
 
     await press(tree, "Registrar lote");
 
+    expect(textContent(tree)).toContain("Primeiros passos da loja");
+    expect(textContent(tree)).toContain("Registrar um lote fisico");
+    expect(textContent(tree)).not.toContain("Area de venda segura");
+
+    await press(tree, "Registrar lote real");
+
     expect(textContent(tree)).toContain("Produto do lote");
     expect(textContent(tree)).not.toContain("Area de venda segura");
 
