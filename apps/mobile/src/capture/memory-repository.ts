@@ -169,17 +169,19 @@ export function createMemoryCaptureRepository(
     const prepared = parsePrepareTurnResponse(response);
     const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
     const activeCentralTaskIds = new Set(prepared.activeTasks.map((task) => task.centralTaskId));
+    const activeCentralLotIds = new Set(prepared.activeTasks.map((task) => task.centralLotId));
     const preparedCentralLotIds = new Set(prepared.lots.map((lot) => lot.centralLotId));
     const resolvedByTaskId = new Map(
       prepared.resolvedHistory.map((history) => [history.centralTaskId, history]),
     );
+    const resolvedByLotId = resolvedHistoryByLotId(prepared.resolvedHistory, activeCentralLotIds);
 
     for (const product of prepared.products) {
       products.set(product.centralProductId, centralProductToLocal(product));
     }
 
     for (const lot of prepared.lots) {
-      const snapshot = centralLotToLocal(lot);
+      const snapshot = centralLotToLocal(lot, resolvedByLotId.get(lot.centralLotId));
       lots.set(snapshot.id, snapshot);
       observations.set(snapshot.id, [snapshot.currentObservation]);
       deletePendingLocalDuplicateLotsForCentralLot(lot);
@@ -2391,7 +2393,10 @@ export function createMemoryCaptureRepository(
     };
   }
 
-  function centralLotToLocal(lot: CentralLotSnippet): CaptureLotSnapshot {
+  function centralLotToLocal(
+    lot: CentralLotSnippet,
+    resolvedHistory?: ResolvedTaskHistorySnippet,
+  ): CaptureLotSnapshot {
     const observation: CaptureObservationRecord = {
       id: centralObservationIdFor(lot.centralLotId),
       lotId: lot.centralLotId,
@@ -2404,6 +2409,7 @@ export function createMemoryCaptureRepository(
         ? { quantityState: "not_estimable" as const }
         : { quantityState: "estimated" as const, approximateQuantity: lot.approximateQuantity }),
     };
+    const centralSyncState = resolvedHistory === undefined ? lot.state : "resolved";
 
     return {
       ...centralLotInput(lot),
@@ -2411,13 +2417,35 @@ export function createMemoryCaptureRepository(
       productDisplayName: lot.productDisplayName,
       currentObservation: observation,
       centralLotId: lot.centralLotId,
-      centralSyncState: lot.state,
+      centralSyncState,
       centralSource: lot.source,
       centralAcknowledgementMessage:
-        lot.state === "synchronized"
-          ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
-          : "Leitura central armazenada neste aparelho.",
+        resolvedHistory !== undefined
+          ? `Resolvido na central por ${resolvedHistory.actorLabel}. O lote segue nos recentes como historico.`
+          : lot.state === "synchronized"
+            ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+            : "Leitura central armazenada neste aparelho.",
     };
+  }
+
+  function resolvedHistoryByLotId(
+    resolvedHistory: readonly ResolvedTaskHistorySnippet[],
+    activeCentralLotIds: ReadonlySet<string>,
+  ): Map<string, ResolvedTaskHistorySnippet> {
+    const resolvedByLotId = new Map<string, ResolvedTaskHistorySnippet>();
+
+    for (const history of resolvedHistory) {
+      if (activeCentralLotIds.has(history.centralLotId)) {
+        continue;
+      }
+
+      const previous = resolvedByLotId.get(history.centralLotId);
+      if (previous === undefined || history.resolvedAt > previous.resolvedAt) {
+        resolvedByLotId.set(history.centralLotId, history);
+      }
+    }
+
+    return resolvedByLotId;
   }
 
   function centralLotSnapshotToLocal(

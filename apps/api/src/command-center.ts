@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat23-sync-orphan-cleanup-apk-153",
+  artifactLabel: "uat24-recentes-resolved-apk-154",
   appVersion: "0.12.0",
-  build: "153",
+  build: "154",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

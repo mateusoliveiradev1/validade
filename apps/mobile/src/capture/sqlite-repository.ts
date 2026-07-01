@@ -545,10 +545,12 @@ export function createSQLiteCaptureRepository(
     const db = await getDatabase();
     const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
     const activeCentralTaskIds = new Set(prepared.activeTasks.map((task) => task.centralTaskId));
+    const activeCentralLotIds = new Set(prepared.activeTasks.map((task) => task.centralLotId));
     const preparedCentralLotIds = new Set(prepared.lots.map((lot) => lot.centralLotId));
     const resolvedByTaskId = new Map(
       prepared.resolvedHistory.map((history) => [history.centralTaskId, history]),
     );
+    const resolvedByLotId = resolvedHistoryByLotId(prepared.resolvedHistory, activeCentralLotIds);
 
     await db.withTransactionAsync(async () => {
       for (const product of prepared.products) {
@@ -556,7 +558,7 @@ export function createSQLiteCaptureRepository(
       }
 
       for (const lot of prepared.lots) {
-        await upsertCentralLot(db, lot);
+        await upsertCentralLot(db, lot, resolvedByLotId.get(lot.centralLotId));
         await deletePendingLocalDuplicateLotsForCentralLot(db, lot);
       }
 
@@ -3973,13 +3975,20 @@ function productDraftToRecord(draft: ProductDraftReviewState): CaptureProductRec
   };
 }
 
-async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippet): Promise<void> {
+async function upsertCentralLot(
+  db: SQLite.SQLiteDatabase,
+  lot: CentralLotSnippet,
+  resolvedHistory?: ResolvedTaskHistorySnippet,
+): Promise<void> {
   const observationId = centralObservationIdFor(lot.centralLotId);
   const occurredAt = lot.updatedAt;
+  const centralSyncState = resolvedHistory === undefined ? lot.state : "resolved";
   const acknowledgementMessage =
-    lot.state === "synchronized"
-      ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
-      : "Leitura central armazenada neste aparelho.";
+    resolvedHistory !== undefined
+      ? `Resolvido na central por ${resolvedHistory.actorLabel}. O lote segue nos recentes como historico.`
+      : lot.state === "synchronized"
+        ? "Sincronizado com a central. Outro aparelho ve este lote apos preparar turno."
+        : "Leitura central armazenada neste aparelho.";
 
   await db.runAsync(
     `INSERT INTO capture_lots (
@@ -4012,6 +4021,7 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
       central_lot_id = excluded.central_lot_id,
       central_sync_state = excluded.central_sync_state,
       central_source = excluded.central_source,
+      task_projection_json = excluded.task_projection_json,
       central_ack_message = excluded.central_ack_message`,
     lot.centralLotId,
     lot.centralProductId,
@@ -4031,7 +4041,7 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
     lot.centralLotId,
-    lot.state,
+    centralSyncState,
     lot.source,
     acknowledgementMessage,
   );
@@ -4055,6 +4065,26 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
   );
+}
+
+function resolvedHistoryByLotId(
+  resolvedHistory: readonly ResolvedTaskHistorySnippet[],
+  activeCentralLotIds: ReadonlySet<string>,
+): Map<string, ResolvedTaskHistorySnippet> {
+  const resolvedByLotId = new Map<string, ResolvedTaskHistorySnippet>();
+
+  for (const history of resolvedHistory) {
+    if (activeCentralLotIds.has(history.centralLotId)) {
+      continue;
+    }
+
+    const previous = resolvedByLotId.get(history.centralLotId);
+    if (previous === undefined || history.resolvedAt > previous.resolvedAt) {
+      resolvedByLotId.set(history.centralLotId, history);
+    }
+  }
+
+  return resolvedByLotId;
 }
 
 async function deletePendingLocalDuplicateLotsForCentralLot(

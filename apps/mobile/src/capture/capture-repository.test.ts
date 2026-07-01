@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { PrepareTurnResponse } from "@validade-zero/contracts";
 import { createMemoryCaptureRepository } from "./memory-repository";
 import {
   PendingCentralLotSyncError,
@@ -31,6 +32,116 @@ function createDeterministicRepository() {
     clock: () => "2030-01-10T09:00:00.000Z",
     createId: () => identifiers.shift() ?? "identificador-ficticio-extra",
   });
+}
+
+function preparedRecentLotResponse({
+  activeTask = false,
+  resolvedHistory = false,
+}: {
+  activeTask?: boolean;
+  resolvedHistory?: boolean;
+}): PrepareTurnResponse {
+  const centralLotId = "lote-central-recentes-001";
+  const centralProductId = "produto-central-recentes-001";
+  const generatedAt = "2030-01-10T09:05:00.000Z";
+  const product = {
+    centralProductId,
+    displayName: "Mamao Recentes FICTICIO",
+    categoryId: "categoria-ficticia-frutas",
+    categoryName: "Frutas",
+    categoryRuleProfile: {
+      categoryId: "categoria-ficticia-frutas",
+      mode: "formal_validity",
+      windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+    },
+    status: "validated",
+    state: "synchronized",
+    source: "central",
+    updatedAt: generatedAt,
+  } satisfies PrepareTurnResponse["products"][number];
+  const lot = {
+    centralLotId,
+    centralProductId,
+    productDisplayName: product.displayName,
+    lotIdentity: { identitySource: "printed", value: "LOTE-RECENTES-001" },
+    mode: "formal_validity",
+    currentLocation: { kind: "area_de_venda" },
+    state: "synchronized",
+    source: "central",
+    riskState: "critical",
+    expiresAt: "2030-01-10",
+    receivedAt: "2030-01-09",
+    approximateQuantity: 2,
+    updatedAt: generatedAt,
+  } satisfies PrepareTurnResponse["lots"][number];
+  const active = {
+    centralTaskId: "tarefa-central-recentes-ativa-001",
+    activeKey: `${centralLotId}:critical:check_presence:central`,
+    centralLotId,
+    productDisplayName: product.displayName,
+    currentLocation: { kind: "area_de_venda" },
+    riskState: "critical",
+    severity: "high",
+    requiredResolution: "check_presence",
+    state: "synchronized",
+    source: "central",
+    ownerLabel: "Equipe do turno",
+    updatedAt: generatedAt,
+  } satisfies PrepareTurnResponse["activeTasks"][number];
+  const resolved = {
+    centralTaskId: "tarefa-central-recentes-resolvida-001",
+    centralLotId,
+    productDisplayName: product.displayName,
+    lotIdentity: lot.lotIdentity,
+    currentLocation: lot.currentLocation,
+    action: "confirm_presence",
+    actorLabel: "Lideranca FICTICIA",
+    resolvedAt: "2030-01-10T09:10:00.000Z",
+    state: "resolved",
+    source: "central",
+  } satisfies PrepareTurnResponse["resolvedHistory"][number];
+
+  return {
+    requestId: `prepare-turn-recentes-${activeTask ? "ativo" : "sem-ativo"}-${
+      resolvedHistory ? "resolvido" : "sem-resolvido"
+    }`,
+    store: {
+      storeId: "loja-ficticia",
+      storeName: "Loja FICTICIA",
+      centralVersion: 1,
+      generatedAt,
+      centralReadAt: generatedAt,
+      source: "central",
+      readiness: "prepared",
+      blockers: [],
+    },
+    device: {
+      deviceId: "validade-zero-mobile:loja-ficticia",
+      preparedAt: generatedAt,
+      lastCentralReadAt: generatedAt,
+      lastHydratedAt: generatedAt,
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+    },
+    cache: {
+      state: "ready",
+      source: "central",
+      updatedAt: generatedAt,
+      lastCentralReadAt: generatedAt,
+      staleAfterHours: 4,
+      productCount: 1,
+      lotCount: 1,
+      activeTaskCount: activeTask ? 1 : 0,
+      conflictCount: 0,
+      resolvedHistoryCount: resolvedHistory ? 1 : 0,
+    },
+    products: [product],
+    lots: [lot],
+    activeTasks: activeTask ? [active] : [],
+    resolvedHistory: resolvedHistory ? [resolved] : [],
+    conflicts: [],
+  };
 }
 
 describe("memory capture repository", () => {
@@ -1018,6 +1129,50 @@ describe("memory capture repository", () => {
     });
     await expect(repository.listActiveTodayTasks()).resolves.toEqual([
       expect.objectContaining({ id: "tarefa-central-melancia-001" }),
+    ]);
+  });
+
+  it("keeps centrally resolved lots visible in recent history as resolved", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "id-nao-usado",
+    });
+
+    await repository.hydratePrepareTurn?.(
+      preparedRecentLotResponse({ resolvedHistory: true, activeTask: false }),
+    );
+
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-recentes-001",
+        centralSyncState: "resolved",
+        centralSource: "central",
+        centralAcknowledgementMessage: expect.stringContaining(
+          "Resolvido na central por Lideranca FICTICIA",
+        ),
+      }),
+    ]);
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
+  });
+
+  it("does not mark recent lots as resolved while central still sends an active task", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "id-nao-usado",
+    });
+
+    await repository.hydratePrepareTurn?.(
+      preparedRecentLotResponse({ resolvedHistory: true, activeTask: true }),
+    );
+
+    await expect(repository.listRecentLots()).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-recentes-001",
+        centralSyncState: "synchronized",
+      }),
+    ]);
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({ id: "tarefa-central-recentes-ativa-001" }),
     ]);
   });
 

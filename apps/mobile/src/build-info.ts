@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat23-sync-orphan-cleanup-apk-153",
+  artifactLabel: "uat24-recentes-resolved-apk-154",
   appVersion: "0.12.0",
-  build: "153",
+  build: "154",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,11 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(
-      extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "sync-orphan-cleanup-153",
-      24,
-    ),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "recentes-resolved-154", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,
