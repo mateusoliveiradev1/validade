@@ -670,6 +670,37 @@ describe("mobile release journeys", () => {
     expect(renderedText(tree)).toContain("Iogurte FICTICIO");
   });
 
+  it("keeps Loja 18 validation out of the mobile shell and renders no sensitive proof markers", async () => {
+    const { CaptureApp } = await import("./CaptureApp");
+    const { createFakePushAlertChannel } = await import("./alert-channel");
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <CaptureApp
+          repository={releaseOfflineRepository()}
+          alertChannel={createFakePushAlertChannel()}
+          session={activeSession()}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Phase 16 mobile boundary did not render.");
+
+    expect(renderedText(tree)).not.toMatch(/Validacao Loja 18|Go\/No-Go|Aguardando prova externa/);
+    expect(renderedText(tree)).not.toMatch(
+      /token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|objectKey|photoUri|base64/i,
+    );
+
+    await press(tree, "Abrir Ajustes do aparelho");
+
+    expect(renderedText(tree)).not.toMatch(/Validacao Loja 18|Go\/No-Go/);
+    expect(renderedText(tree)).not.toMatch(
+      /token|secret|password|ExpoPushToken|buildUrl|rawDeviceId|providerTicket|providerReceipt|objectKey|photoUri|base64/i,
+    );
+  });
+
   it("opens Ajustes after authenticated session without dropping session identity", async () => {
     const { CaptureApp } = await import("./CaptureApp");
     const { createFakePushAlertChannel } = await import("./alert-channel");
@@ -881,14 +912,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "138",
+            appBuild: "147",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat15-sync-debug-apk-138",
+            approvedArtifactLabel: "uat17-shift-close-alerts-apk-147",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "138",
-            buildRef: "sync-debug-138",
+            approvedBuild: "147",
+            buildRef: "shift-close-alerts-147",
             buildCompatibility: "atual",
           }}
         />,

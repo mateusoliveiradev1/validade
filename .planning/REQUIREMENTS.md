@@ -31,10 +31,10 @@
 
 ### Loja 18 Validation
 
-- [ ] **VAL-01**: A store lead can run a guided Loja 18 validation path covering first real product, real lot, task projection, task resolution, second-device visibility, update/build status, and shift close.
-- [ ] **VAL-02**: Validation records pass, blocked, and external-blocked outcomes public-safely, without storing real product names, photos, tokens, private URLs, or personal data in repository artifacts.
-- [ ] **VAL-03**: The app keeps APK install, provider push, camera/evidence, second-device proof, and physical Loja 18 UAT as explicit gates instead of treating repo tests or mocks as rollout proof.
-- [ ] **VAL-04**: The milestone produces a clear next-step runbook for store validation so the operator knows what to do in the aisle and leadership knows what evidence is still missing.
+- [x] **VAL-01**: A store lead can run a guided Loja 18 validation path covering first real product, real lot, task projection, task resolution, second-device visibility, update/build status, and shift close.
+- [x] **VAL-02**: Validation records pass, blocked, and external-blocked outcomes public-safely, without storing real product names, photos, tokens, private URLs, or personal data in repository artifacts.
+- [x] **VAL-03**: The app keeps APK install, provider push, camera/evidence, second-device proof, and physical Loja 18 UAT as explicit gates instead of treating repo tests or mocks as rollout proof.
+- [x] **VAL-04**: The milestone produces a clear next-step runbook for store validation so the operator knows what to do in the aisle and leadership knows what evidence is still missing.
 
 ## Future Requirements
 
@@ -78,10 +78,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPS-02 | Phase 15 | Complete |
 | OPS-03 | Phase 15 | Complete |
 | OPS-04 | Phase 15 | Complete |
-| VAL-01 | Phase 16 | Pending |
-| VAL-02 | Phase 16 | Pending |
-| VAL-03 | Phase 16 | Pending |
-| VAL-04 | Phase 16 | Pending |
+| VAL-01 | Phase 16 | Complete |
+| VAL-02 | Phase 16 | Complete |
+| VAL-03 | Phase 16 | Complete |
+| VAL-04 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 18 total

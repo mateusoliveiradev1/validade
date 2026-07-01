@@ -816,9 +816,7 @@ describe("CommandCenter", () => {
   it("derives Go, No-Go, and external proof verdicts from projection facts", () => {
     const noGoVerdict = deriveValidationVerdict(projection);
     expect(noGoVerdict.label).toBe("No-Go");
-    expect(noGoVerdict.detail).toContain(
-      "No-Go: Resolucao terminal registrada impede a validacao",
-    );
+    expect(noGoVerdict.detail).toContain("No-Go: Resolucao terminal registrada impede a validacao");
     expect(noGoVerdict.detail).toContain("Corrija em Operacao antes de continuar");
     expect(noGoVerdict.nextAction).toBe("Executar resolucao real e aguardar central.");
 
@@ -836,7 +834,7 @@ describe("CommandCenter", () => {
                 evidenceReferenceLabel: "Provider bloqueado externamente",
               }
             : step,
-        ) as CommandCenterProjection["pilotUat"]["steps"],
+        ),
       }),
     );
     expect(externalVerdict.label).toBe("Aguardando prova externa");

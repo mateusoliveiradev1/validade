@@ -799,7 +799,8 @@ describe("Command Center API", () => {
     expect(uatStep(body, "shift_close")).not.toMatchObject({ state: "passed" });
     expect(uatStep(body, "shift_close")).toMatchObject({
       cause: "Ainda ha etapas UAT ou bloqueios operacionais pendentes.",
-      nextAction: "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
+      nextAction:
+        "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
     });
   });
 
@@ -997,9 +998,7 @@ async function seedApprovedDevice(
   });
 }
 
-function safePushTimeline(
-  state: "local_only" | "provider_failed",
-): SafePushTestTimelineItem {
+function safePushTimeline(state: "local_only" | "provider_failed"): SafePushTestTimelineItem {
   return {
     eventId: `push-${state}`,
     deviceIdMasked: "andr...001",

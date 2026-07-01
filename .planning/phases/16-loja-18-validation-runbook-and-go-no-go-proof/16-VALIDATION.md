@@ -38,16 +38,16 @@ created: 2026-07-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 16-01-01 | 01 | 1 | VAL-01, VAL-02 | T-16-01 | Runbook contract keeps exact nine-step order and blocked states causal. | contract | `cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | pending |
-| 16-01-02 | 01 | 1 | VAL-02, VAL-03 | T-16-02 | Public-safe evidence labels reject private URLs, tokens, build links, raw ids, and photos. | contract/security | `cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | pending |
-| 16-02-01 | 02 | 2 | VAL-01, VAL-03 | T-16-03 | Product, lot, resolution, command-center consistency, and safe close pass only from central proof. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | pending |
-| 16-02-02 | 02 | 2 | VAL-01, VAL-04 | T-16-04 | Missing central facts fail closed to pending or blocked with route/action copy. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | pending |
-| 16-03-01 | 03 | 3 | VAL-03 | T-16-05 | APK install, push, camera/fallback, and second-device gates remain explicit external/critical blockers. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | pending |
-| 16-03-02 | 03 | 3 | VAL-02, VAL-03 | T-16-06 | Blockers preserve external ownership and sanitized affected/evidence labels. | api/contracts | `cmd /c pnpm.cmd --filter @validade-zero/api test && cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | pending |
-| 16-04-01 | 04 | 4 | VAL-01, VAL-04 | T-16-07 | Web Validacao renders the guided sequence, verdict reason, next action, and owner routes without manual pass UI. | web | `cmd /c pnpm.cmd --filter @validade-zero/web test` | yes | pending |
-| 16-04-02 | 04 | 4 | VAL-02 | T-16-08 | Web route and fixtures do not expose real/sensitive proof text. | web/e2e/security | `cmd /c pnpm.cmd --filter @validade-zero/web test && cmd /c pnpm.cmd test:e2e:web` | yes | pending |
-| 16-05-01 | 05 | 5 | VAL-04 | T-16-09 | Store runbook tells operator/leadership next actions and external proof boundaries. | docs/security | `cmd /c pnpm.cmd security:evidence` | yes | pending |
-| 16-05-02 | 05 | 5 | VAL-01..VAL-04 | T-16-10 | Final validation records repo evidence separately from physical/provider/device proof. | repo gate | `cmd /c pnpm.cmd check` | yes | pending |
+| 16-01-01 | 01 | 1 | VAL-01, VAL-02 | T-16-01 | Runbook contract keeps exact nine-step order and blocked states causal. | contract | `cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | passed |
+| 16-01-02 | 01 | 1 | VAL-02, VAL-03 | T-16-02 | Public-safe evidence labels reject private URLs, tokens, build links, raw ids, and photos. | contract/security | `cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | passed |
+| 16-02-01 | 02 | 2 | VAL-01, VAL-03 | T-16-03 | Product, lot, resolution, command-center consistency, and safe close pass only from central proof. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | passed |
+| 16-02-02 | 02 | 2 | VAL-01, VAL-04 | T-16-04 | Missing central facts fail closed to pending or blocked with route/action copy. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | passed |
+| 16-03-01 | 03 | 3 | VAL-03 | T-16-05 | APK install, push, camera/fallback, and second-device gates remain explicit external/critical blockers. | api | `cmd /c pnpm.cmd --filter @validade-zero/api test` | yes | passed |
+| 16-03-02 | 03 | 3 | VAL-02, VAL-03 | T-16-06 | Blockers preserve external ownership and sanitized affected/evidence labels. | api/contracts | `cmd /c pnpm.cmd --filter @validade-zero/api test && cmd /c pnpm.cmd --filter @validade-zero/contracts test` | yes | passed |
+| 16-04-01 | 04 | 4 | VAL-01, VAL-04 | T-16-07 | Web Validacao renders the guided sequence, verdict reason, next action, and owner routes without manual pass UI. | web | `cmd /c pnpm.cmd --filter @validade-zero/web test` | yes | passed |
+| 16-04-02 | 04 | 4 | VAL-02 | T-16-08 | Web route and fixtures do not expose real/sensitive proof text. | web/e2e/security | `cmd /c pnpm.cmd --filter @validade-zero/web test && cmd /c pnpm.cmd test:e2e:web` | yes | passed |
+| 16-05-01 | 05 | 5 | VAL-04 | T-16-09 | Store runbook tells operator/leadership next actions and external proof boundaries. | docs/security | `cmd /c pnpm.cmd security:evidence` | yes | passed |
+| 16-05-02 | 05 | 5 | VAL-01..VAL-04 | T-16-10 | Final validation records repo evidence separately from physical/provider/device proof. | repo gate | `cmd /c pnpm.cmd check` | yes | passed |
 
 ---
 
@@ -61,6 +61,39 @@ Existing infrastructure covers all phase requirements:
 - `apps/mobile/src/capture/task-resolution.test.tsx` already exercises evidence/no-photo metadata and central confirmation copy.
 - `apps/mobile/src/capture/shift-close.test.tsx` already exercises central safe-close validation.
 - `scripts/check-no-sensitive-evidence.mjs` already scans public evidence artifacts.
+
+---
+
+## Execution Evidence
+
+Captured 2026-07-01 during Phase 16 execution:
+
+- `cmd /c pnpm.cmd --filter @validade-zero/contracts test` - passed, 11 files / 103 tests.
+- `cmd /c pnpm.cmd --filter @validade-zero/api test` - passed, 12 files / 94 tests.
+- `cmd /c pnpm.cmd --filter @validade-zero/web test` - passed, 9 files / 40 tests.
+- `cmd /c pnpm.cmd --filter @validade-zero/mobile test` - passed, 37 files / 261 tests.
+- `cmd /c pnpm.cmd test:e2e:web` - passed, 6 Playwright tests. Vite logged expected local proxy misses for `/session/stores`; tested routes still passed with fixtures.
+- `cmd /c pnpm.cmd security:evidence` - passed, 459 tracked text files scanned.
+- `cmd /c pnpm.cmd check` - passed after formatting three files. Full gate covered typecheck, lint/boundaries, Prettier, 89-test all-project Vitest run, 58-test smoke run, build, security, and performance budgets.
+
+The web build emitted a non-failing chunk-size warning for the existing app bundle. Performance budgets still passed.
+
+## Final Repository Status
+
+- VAL-01 through VAL-04 are implemented and repository-verified.
+- `16-UAT.md` is the public-safe operator/leadership runbook.
+- Web `Validacao` is the Go/No-Go proof surface.
+- Mobile remains the real operational proof producer and does not add a validation-only mode.
+- Physical Loja 18 Go is not claimed by this repository evidence.
+
+Remaining external proof gates before physical Go:
+
+- Approved APK installed on real Loja 18 Android devices.
+- Remote provider push received/opened on an approved device.
+- Camera evidence or accepted no-photo fallback on the approved device path.
+- Second approved mobile device reading the same central facts.
+- Safe shift close after central revalidation and physical checklist.
+- Physical Loja 18 UAT in the aisle.
 
 ---
 
