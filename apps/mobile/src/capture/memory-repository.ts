@@ -87,6 +87,7 @@ import {
   deriveTaskCandidateFromLot,
   maxPhysicalConfirmationAgeHoursForLot,
   isPendingCentralProduct,
+  latestPendingCentralObservationForLot,
   localLotCentralSyncMetadata,
   matchesRecentLotLocation,
   nextGeneratedId,
@@ -187,8 +188,18 @@ export function createMemoryCaptureRepository(
 
     for (const lot of prepared.lots) {
       const snapshot = centralLotToLocal(lot, resolvedByLotId.get(lot.centralLotId));
-      lots.set(snapshot.id, snapshot);
-      observations.set(snapshot.id, [snapshot.currentObservation]);
+      const previousHistory = observations.get(snapshot.id) ?? [];
+      const pendingObservation = latestPendingCentralObservationForLot(snapshot, previousHistory);
+      lots.set(
+        snapshot.id,
+        pendingObservation === undefined
+          ? snapshot
+          : { ...snapshot, currentObservation: pendingObservation },
+      );
+      observations.set(
+        snapshot.id,
+        appendObservationHistory(previousHistory, snapshot.currentObservation),
+      );
       deletePendingLocalDuplicateLotsForCentralLot(lot);
     }
 
@@ -715,13 +726,13 @@ export function createMemoryCaptureRepository(
       ([, localLot]) =>
         localLot.centralSyncState === "pending_central" || localLot.centralSyncState === "local",
     );
+    const hasPendingCentralObservations = [...lots.values()].some(
+      (lot) =>
+        latestPendingCentralObservationForLot(lot, observations.get(lot.id) ?? []) !== undefined,
+    );
 
-    if (pendingLocalLots.length === 0) {
+    if (pendingLocalLots.length === 0 && !hasPendingCentralObservations) {
       return [];
-    }
-
-    if (dependencies.createCentralLot === undefined) {
-      throw new PendingCentralLotSyncError("central_write_unavailable");
     }
 
     if (prepareTurnCacheStatus?.state !== "ready" || prepareTurnCacheStatus.source !== "central") {
@@ -732,49 +743,59 @@ export function createMemoryCaptureRepository(
     let blockedByProduct = false;
     let writeFailure: unknown;
 
-    for (const [localLotId, localLot] of pendingLocalLots) {
-      const localProduct = findProductForLot(localLot.productId);
-      const product =
-        localProduct === undefined ? undefined : await centralProductForPendingLot(localProduct);
+    if (pendingLocalLots.length > 0) {
+      const createCentralLot = dependencies.createCentralLot;
 
-      if (product === undefined || product.centralProductId === undefined) {
-        blockedByProduct = true;
-        continue;
+      if (createCentralLot === undefined) {
+        throw new PendingCentralLotSyncError("central_write_unavailable");
       }
 
-      try {
-        const centralLot = centralLotInputForReplay(localLot, product.centralProductId);
-        const request = parseCentralLotCreateRequest({
-          lot: centralLot,
-          actorLabel: localLot.currentObservation.actorLabel,
-          occurredAt: localLot.currentObservation.occurredAt,
-          idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
-        });
-        const response = parseCentralLotWriteResponse(await dependencies.createCentralLot(request));
-        const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
-        const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
-          [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
-        ]);
+      for (const [localLotId, localLot] of pendingLocalLots) {
+        const localProduct = findProductForLot(localLot.productId);
+        const product =
+          localProduct === undefined ? undefined : await centralProductForPendingLot(localProduct);
 
-        lots.delete(localLotId);
-        observations.delete(localLotId);
-        lots.set(synced.id, synced);
-        observations.set(synced.id, [synced.currentObservation]);
-
-        if (response.taskProjection.attention === "active_task") {
-          const task = centralActiveTaskToLocal(
-            centralActiveTaskSnippetFromWriteResponse(response),
-            lotsById,
-          );
-          todayTasks.set(task.id, task);
+        if (product === undefined || product.centralProductId === undefined) {
+          blockedByProduct = true;
+          continue;
         }
 
-        syncedLots.push(synced);
-      } catch (error) {
-        writeFailure = error;
-        continue;
+        try {
+          const centralLot = centralLotInputForReplay(localLot, product.centralProductId);
+          const request = parseCentralLotCreateRequest({
+            lot: centralLot,
+            actorLabel: localLot.currentObservation.actorLabel,
+            occurredAt: localLot.currentObservation.occurredAt,
+            idempotencyKey: centralLotIdempotencyKey(product.centralProductId, centralLot),
+          });
+          const response = parseCentralLotWriteResponse(await createCentralLot(request));
+          const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+          const lotsById = new Map<CentralLotSnippet["centralLotId"], CentralLotSnippet>([
+            [response.lot.centralLotId, centralLotSnapshotToSnippet(response.lot)],
+          ]);
+
+          lots.delete(localLotId);
+          observations.delete(localLotId);
+          lots.set(synced.id, synced);
+          observations.set(synced.id, [synced.currentObservation]);
+
+          if (response.taskProjection.attention === "active_task") {
+            const task = centralActiveTaskToLocal(
+              centralActiveTaskSnippetFromWriteResponse(response),
+              lotsById,
+            );
+            todayTasks.set(task.id, task);
+          }
+
+          syncedLots.push(synced);
+        } catch (error) {
+          writeFailure = error;
+          continue;
+        }
       }
     }
+
+    syncedLots.push(...(await syncPendingCentralObservations()));
 
     if (syncedLots.length === 0) {
       if (writeFailure !== undefined) {
@@ -785,6 +806,33 @@ export function createMemoryCaptureRepository(
       }
       if (blockedByProduct) {
         throw new PendingCentralLotSyncError("central_product_not_ready");
+      }
+    }
+
+    return syncedLots;
+  }
+
+  async function syncPendingCentralObservations(): Promise<readonly CaptureLotSnapshot[]> {
+    if (dependencies.appendCentralObservation === undefined) {
+      return [];
+    }
+
+    const syncedLots: CaptureLotSnapshot[] = [];
+
+    for (const lot of [...lots.values()]) {
+      const pendingObservation = latestPendingCentralObservationForLot(
+        lot,
+        observations.get(lot.id) ?? [],
+      );
+
+      if (pendingObservation === undefined) {
+        continue;
+      }
+
+      const synced = await tryAppendObservationCentrally(lot, pendingObservation);
+
+      if (synced !== null) {
+        syncedLots.push(synced);
       }
     }
 
@@ -810,7 +858,7 @@ export function createMemoryCaptureRepository(
     const centralObservation = await tryAppendObservationCentrally(snapshot, observation);
 
     if (centralObservation !== null) {
-      return centralObservation;
+      return centralObservation.currentObservation;
     }
 
     const history = observations.get(validatedLotId) ?? [];
@@ -824,7 +872,7 @@ export function createMemoryCaptureRepository(
   async function tryAppendObservationCentrally(
     snapshot: CaptureLotSnapshot,
     observation: CaptureObservationRecord,
-  ): Promise<CaptureObservationRecord | null> {
+  ): Promise<CaptureLotSnapshot | null> {
     if (dependencies.appendCentralObservation === undefined) {
       return null;
     }
@@ -863,7 +911,7 @@ export function createMemoryCaptureRepository(
       );
       reconcileCentralLotTasks(synced, response.lot.updatedAt);
 
-      return synced.currentObservation;
+      return synced;
     } catch {
       return null;
     }

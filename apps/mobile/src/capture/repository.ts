@@ -693,6 +693,51 @@ export function physicalObservationInputFromRecord(
   };
 }
 
+export function latestPendingCentralObservationForLot(
+  lot: CaptureLotSnapshot,
+  observations: readonly CaptureObservationRecord[],
+): CaptureObservationRecord | undefined {
+  if (lot.centralSource !== "central") {
+    return undefined;
+  }
+
+  const pending = observations
+    .filter((observation) => shouldReplayObservationToCentral(lot, observation))
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+
+  return pending[0];
+}
+
+export function shouldReplayObservationToCentral(
+  lot: CaptureLotSnapshot,
+  observation: CaptureObservationRecord,
+): boolean {
+  if (lot.centralSource !== "central") {
+    return false;
+  }
+
+  if (lot.centralLotId === undefined && lot.id.trim().length === 0) {
+    return false;
+  }
+
+  if (isLikelyCentralObservationId(observation.id)) {
+    return false;
+  }
+
+  return (
+    observation.id === lot.currentObservation.id ||
+    observation.occurredAt > lot.currentObservation.occurredAt
+  );
+}
+
+export function isLikelyCentralObservationId(observationId: string): boolean {
+  return (
+    observationId.startsWith("obs:") ||
+    observationId.startsWith("central-observation:") ||
+    observationId.includes("observacao-central")
+  );
+}
+
 export function matchesRecentLotLocation(
   lot: CaptureLotSnapshot,
   location: OperationalLocation | undefined,

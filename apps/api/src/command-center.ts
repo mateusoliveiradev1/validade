@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat28-cloud-observacao-processado-apk-158",
+  artifactLabel: "uat29-cloud-replay-apk-159",
   appVersion: "0.12.0",
-  build: "158",
+  build: "159",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {
