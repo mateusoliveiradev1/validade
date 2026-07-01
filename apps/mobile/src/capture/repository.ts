@@ -3,6 +3,7 @@ import {
   CaptureLotInputSchema,
   CaptureProductInputSchema,
   CentralLotCreateRequestSchema,
+  CentralObservationAppendRequestSchema,
   CentralLotTaskProjectionSummarySchema,
   CentralLotWriteResponseSchema,
   DevicePushRegistrationCommandSchema,
@@ -33,6 +34,7 @@ import {
   type CentralCategoryCatalogItem,
   type CentralCategoryCatalogResponse,
   type CentralLotCreateRequest,
+  type CentralObservationAppendRequest,
   type CentralLotTaskProjectionSummary,
   type CentralLotWriteResponse,
   type CentralPackageSource,
@@ -104,6 +106,10 @@ export interface CaptureRepositoryDependencies {
   searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;
   createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createCentralLot?: (request: CentralLotCreateRequest) => Promise<CentralLotWriteResponse>;
+  appendCentralObservation?: (
+    centralLotId: string,
+    request: CentralObservationAppendRequest,
+  ) => Promise<CentralLotWriteResponse>;
 }
 
 export const MOBILE_FIRST_TURN_ONBOARDING = {
@@ -395,6 +401,12 @@ export type MarkdownEntryState =
       lotId: string;
     }
   | {
+      status: "markdown_unavailable";
+      label: "Produto processado da loja: rebaixa indisponivel";
+      lotId: string;
+      reason: "processed_in_store";
+    }
+  | {
       status: "presence_required";
       label: "Conferir presenca antes da rebaixa";
       lotId: string;
@@ -614,6 +626,12 @@ export function parseCentralLotCreateRequest(
   return CentralLotCreateRequestSchema.parse(input);
 }
 
+export function parseCentralObservationAppendRequest(
+  input: CentralObservationAppendRequest,
+): CentralObservationAppendRequest {
+  return CentralObservationAppendRequestSchema.parse(input);
+}
+
 export function parseCentralLotWriteResponse(input: unknown): CentralLotWriteResponse {
   return CentralLotWriteResponseSchema.parse(input);
 }
@@ -644,6 +662,34 @@ export function normalizeTerminalObservationLocation(
   return {
     ...parsed,
     location: { kind: "retirada_perda" },
+  };
+}
+
+export function physicalObservationInputFromRecord(
+  observation: CaptureObservationRecord,
+): PhysicalObservationInput {
+  const base = {
+    status: observation.status,
+    actorLabel: observation.actorLabel,
+    occurredAt: observation.occurredAt,
+    location: observation.location,
+    isCorrection: observation.isCorrection,
+    ...(observation.correctionReason === undefined
+      ? {}
+      : { correctionReason: observation.correctionReason }),
+  };
+
+  if (observation.quantityState === "estimated") {
+    return {
+      ...base,
+      quantityState: "estimated",
+      approximateQuantity: observation.approximateQuantity,
+    };
+  }
+
+  return {
+    ...base,
+    quantityState: "not_estimable",
   };
 }
 
@@ -1292,6 +1338,15 @@ export function deriveMarkdownEntryState(input: {
     };
   }
 
+  if (input.lot.mode === "processed_repack_loss") {
+    return {
+      status: "markdown_unavailable",
+      label: "Produto processado da loja: rebaixa indisponivel",
+      lotId: input.lot.id,
+      reason: "processed_in_store",
+    };
+  }
+
   if (input.activeWorkflow !== undefined) {
     return {
       status: "already_active",
@@ -1344,11 +1399,13 @@ export function assertMarkdownRequestAllowedForLot(
   lot: CaptureLotDetail,
   currentDate: string,
 ): void {
-  if (!isExpiredForMarkdownEntry(lot, currentDate)) {
-    return;
+  if (isExpiredForMarkdownEntry(lot, currentDate)) {
+    throw new Error("Lote vencendo hoje ou vencido exige retirada da area ou perda.");
   }
 
-  throw new Error("Lote vencendo hoje ou vencido exige retirada da area ou perda.");
+  if (lot.mode === "processed_repack_loss") {
+    throw new Error("Produto processado da loja nao permite rebaixa.");
+  }
 }
 
 function terminalMarkdownEntryState(lot: CaptureLotDetail): MarkdownEntryState | undefined {

@@ -250,6 +250,14 @@ function MarkdownEntry({
     );
   }
 
+  if (entryState.status === "markdown_unavailable") {
+    return (
+      <StatusNotice tone="neutral">
+        {entryState.label}. Acompanhe a validade e registre retirada ou perda quando necessario.
+      </StatusNotice>
+    );
+  }
+
   if (entryState.status === "eligible_rule_window") {
     return (
       <>

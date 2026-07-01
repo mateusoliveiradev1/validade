@@ -5,6 +5,7 @@ import {
   AuthorizationContract,
   CentralCategoryCatalogResponseSchema,
   CentralLotCreateRequestSchema,
+  CentralObservationAppendRequestSchema,
   CentralLotWriteResponseSchema,
   DevicePushRegistrationCommandSchema,
   FirstAccessActivationRequestSchema,
@@ -31,6 +32,7 @@ import {
   type PrepareTurnResponse,
   type CentralCategoryCatalogResponse,
   type CentralLotCreateRequest,
+  type CentralObservationAppendRequest,
   type CentralLotWriteResponse,
   type ProductDraftCreateRequest,
   type ProductDraftCreateResponse,
@@ -100,6 +102,10 @@ export interface MobileAuthClient {
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateRequest): Promise<ProductDraftCreateResponse>;
   createCentralLot(input: CentralLotCreateRequest): Promise<CentralLotWriteResponse>;
+  appendCentralObservation(
+    centralLotId: string,
+    input: CentralObservationAppendRequest,
+  ): Promise<CentralLotWriteResponse>;
   closeShift(input: ShiftCloseSafeRequest): Promise<ShiftClosureSnapshot>;
   logout(): Promise<void>;
 }
@@ -241,6 +247,15 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       const body = CentralLotCreateRequestSchema.parse(input);
       return CentralLotWriteResponseSchema.parse(
         await request("/capture/lots", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+    async appendCentralObservation(centralLotId, input) {
+      const body = CentralObservationAppendRequestSchema.parse(input);
+      return CentralLotWriteResponseSchema.parse(
+        await request(`/capture/lots/${encodeURIComponent(centralLotId)}/observations`, {
           method: "POST",
           body: JSON.stringify(body),
         }),
@@ -604,7 +619,7 @@ function toMobileAuthError(payload: unknown, response?: { path: string; status: 
     return new MobileAuthError("session_expired");
   if (response?.path === "/auth/login" && (response.status === 401 || response.status === 429))
     return new MobileAuthError("invalid_credentials");
-  if (response?.path === "/capture/lots") {
+  if (response?.path === "/capture/lots" || response?.path.startsWith("/capture/lots/") === true) {
     if (response.status === 401) return new MobileAuthError("session_expired", apiError);
     if (response.status === 403) return new MobileAuthError("no_permission", apiError);
     if (apiError !== undefined) return new Error(apiError);

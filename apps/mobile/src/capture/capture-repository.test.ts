@@ -1228,6 +1228,100 @@ describe("memory capture repository", () => {
     ]);
   });
 
+  it("appends observations directly to central lots and reconciles resolved tasks", async () => {
+    const appendCentralObservation = vi.fn((centralLotId, request) =>
+      Promise.resolve({
+        requestId: "append-observation-central-recentes-001",
+        lot: {
+          centralLotId,
+          centralProductId: "produto-central-recentes-001",
+          productDisplayName: "Mamao Recentes FICTICIO",
+          lotIdentity: { identitySource: "printed" as const, value: "LOTE-RECENTES-001" },
+          mode: "formal_validity" as const,
+          expiresAt: "2030-01-10",
+          receivedAt: "2030-01-09",
+          approximateQuantity: 2,
+          initialLocation: { kind: "area_de_venda" as const },
+          currentObservation: {
+            centralObservationId: "observacao-central-recentes-perda-001",
+            centralLotId,
+            ...request.observation,
+          },
+          lifecycleStatus: "resolved" as const,
+          state: "resolved" as const,
+          source: "central" as const,
+          taskProjection: {
+            attention: "none" as const,
+            riskState: "safe" as const,
+            observedAt: "2030-01-10T09:12:00.000Z",
+          },
+          createdAt: "2030-01-10T09:05:00.000Z",
+          updatedAt: "2030-01-10T09:12:00.000Z",
+        },
+        taskProjection: {
+          attention: "none" as const,
+          riskState: "safe" as const,
+          observedAt: "2030-01-10T09:12:00.000Z",
+        },
+        acknowledgement: {
+          acknowledgementId: "ack-observacao-central-recentes-perda-001",
+          centralLotId,
+          state: "resolved" as const,
+          acknowledgedAt: "2030-01-10T09:12:00.000Z",
+          message: "Observacao salva na central.",
+        },
+      }),
+    );
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "observacao-local-recentes-perda-001",
+      appendCentralObservation,
+    });
+
+    await repository.hydratePrepareTurn?.(
+      preparedRecentLotResponse({ resolvedHistory: false, activeTask: true }),
+    );
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({ id: "tarefa-central-recentes-ativa-001" }),
+    ]);
+
+    const observation = await repository.appendObservation("lote-central-recentes-001", {
+      status: "loss",
+      actorLabel: "Colaboradora FICTICIA",
+      occurredAt: "2030-01-10T09:12:00.000Z",
+      location: { kind: "area_de_venda" },
+      quantityState: "estimated",
+      approximateQuantity: 2,
+      isCorrection: false,
+    });
+
+    expect(appendCentralObservation).toHaveBeenCalledWith(
+      "lote-central-recentes-001",
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining("mobile-observation:lote-central-recentes-001"),
+        observation: expect.objectContaining({
+          status: "loss",
+          location: { kind: "retirada_perda" },
+        }),
+      }),
+    );
+    expect(observation).toMatchObject({
+      id: "observacao-central-recentes-perda-001",
+      status: "loss",
+      location: { kind: "retirada_perda" },
+    });
+    await expect(repository.loadLotDetail("lote-central-recentes-001")).resolves.toMatchObject({
+      centralSyncState: "resolved",
+      centralAcknowledgementMessage: "Observacao salva na central.",
+      currentObservation: {
+        id: "observacao-central-recentes-perda-001",
+        status: "loss",
+        location: { kind: "retirada_perda" },
+      },
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
+  });
+
   it("replays a pending lot after central search finds a reusable product missing from local cache", async () => {
     const alhoCategoryProfile = {
       categoryId: "alho-inteiro-embalado-fornecedor",

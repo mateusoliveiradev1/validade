@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat27-vencimento-detalhe-apk-157",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat28-cloud-observacao-processado-apk-158",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "157",
-      "VALIDADE_ZERO_BUILD_REF": "vencimento-detalhe-157",
+      "VALIDADE_ZERO_APPROVED_BUILD": "158",
+      "VALIDADE_ZERO_BUILD_REF": "cloud-processado-158",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -36,7 +36,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 157,
+      "versionCode": 158,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F9F8"

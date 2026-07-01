@@ -672,6 +672,7 @@ export function CaptureApp({
         ? {}
         : { earlyJustification: request.earlyJustification }),
     });
+    await syncPendingCommandsAutomatically().catch(() => undefined);
     resetToToday();
   }
 

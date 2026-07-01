@@ -98,6 +98,7 @@ import {
   nextGeneratedId,
   normalizeTerminalObservationLocation,
   normalizeProductLookup,
+  physicalObservationInputFromRecord,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
   categoryCatalogItemToLocalCategory,
@@ -114,6 +115,7 @@ import {
   parseLotId,
   parseLotInput,
   parseCentralLotCreateRequest,
+  parseCentralObservationAppendRequest,
   parseCentralLotTaskProjectionSummary,
   parseCentralLotWriteResponse,
   parseProductCategoryId,
@@ -1377,6 +1379,11 @@ export function createSQLiteCaptureRepository(
       lotId: validatedLotId,
     };
     const db = await getDatabase();
+    const centralObservation = await tryAppendObservationCentrally(db, validatedLotId, observation);
+
+    if (centralObservation !== null) {
+      return centralObservation;
+    }
 
     await db.withTransactionAsync(async () => {
       const existing = await db.getFirstAsync<{ id: string }>(
@@ -1411,6 +1418,65 @@ export function createSQLiteCaptureRepository(
     });
 
     return observation;
+  }
+
+  async function tryAppendObservationCentrally(
+    db: SQLite.SQLiteDatabase,
+    lotId: string,
+    observation: CaptureObservationRecord,
+  ): Promise<CaptureObservationRecord | null> {
+    if (dependencies.appendCentralObservation === undefined) {
+      return null;
+    }
+
+    const cache = await loadPrepareTurnCacheStatus().catch(() => null);
+
+    if (cache?.state !== "ready" || cache.source !== "central") {
+      return null;
+    }
+
+    const detail = await loadLotDetail(lotId);
+
+    if (detail === null) {
+      return null;
+    }
+
+    const centralLotId =
+      detail.centralLotId ?? (detail.centralSource === "central" ? detail.id : undefined);
+
+    if (centralLotId === undefined || detail.centralSource !== "central") {
+      return null;
+    }
+
+    try {
+      const request = parseCentralObservationAppendRequest({
+        observation: physicalObservationInputFromRecord(observation),
+        idempotencyKey: centralObservationAppendIdempotencyKey(centralLotId, observation),
+      });
+      const response = parseCentralLotWriteResponse(
+        await dependencies.appendCentralObservation(centralLotId, request),
+      );
+      const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+
+      await db.withTransactionAsync(async () => {
+        if (detail.id !== synced.id) {
+          await db.runAsync("DELETE FROM capture_observations WHERE lot_id = ?", detail.id);
+          await db.runAsync("DELETE FROM capture_lots WHERE id = ?", detail.id);
+        }
+
+        await upsertCentralLotSnapshot(
+          db,
+          response.lot,
+          response.taskProjection,
+          response.acknowledgement.message,
+        );
+        await reconcileCentralLotTasks(db, synced, response.lot.updatedAt);
+      });
+
+      return synced.currentObservation;
+    } catch {
+      return null;
+    }
   }
 
   async function listRecentLots(query?: RecentLotsQuery): Promise<readonly CaptureLotSnapshot[]> {
@@ -3782,6 +3848,50 @@ async function resolveActiveTasksForLot(
   );
 }
 
+async function reconcileCentralLotTasks(
+  db: SQLite.SQLiteDatabase,
+  lot: CaptureLotSnapshot,
+  updatedAt: string,
+): Promise<void> {
+  const centralProjectedTask = centralProjectedTaskFromLot(lot);
+
+  if (centralProjectedTask !== null) {
+    const existingCentralTask = await loadTodayTaskById(db, centralProjectedTask.id);
+    if (shouldPreserveLocalResolutionProjection(existingCentralTask)) {
+      return;
+    }
+    await resolveActiveLotTasksExcept(db, centralProjectedTask, updatedAt);
+    await upsertTodayTask(
+      db,
+      existingCentralTask?.resolutionHistory === undefined
+        ? centralProjectedTask
+        : {
+            ...centralProjectedTask,
+            resolutionHistory: existingCentralTask.resolutionHistory,
+          },
+    );
+    return;
+  }
+
+  if (shouldTrustPreparedCentralLotForRefresh(lot)) {
+    if (lot.centralSyncState === "resolved" || !(await hasActiveSyncedTaskForLot(db, lot.id))) {
+      await resolveActiveTasksForLot(db, lot.id, updatedAt);
+    }
+  }
+}
+
+async function loadTodayTaskById(
+  db: SQLite.SQLiteDatabase,
+  taskId: string,
+): Promise<TodayTaskRecord | undefined> {
+  const row = await db.getFirstAsync<TodayTaskRow>(
+    "SELECT * FROM today_tasks WHERE id = ?",
+    taskId,
+  );
+
+  return row === null ? undefined : mapTodayTask(row);
+}
+
 async function hasActiveSyncedTaskForLot(
   db: SQLite.SQLiteDatabase,
   lotId: string,
@@ -5369,6 +5479,30 @@ function centralLotIdempotencyKey(productId: string, lot: CaptureLotInput): stri
     safeLocalIdentifier(lot.identity.value, 30),
     lot.mode,
     lot.initialLocation.kind,
+    stableIdentifierHash(readable),
+  ].join(":");
+}
+
+function centralObservationAppendIdempotencyKey(
+  centralLotId: string,
+  observation: CaptureObservationRecord,
+): string {
+  const readable = [
+    "mobile-observation",
+    safeLocalIdentifier(centralLotId, 48),
+    observation.status,
+    safeLocalIdentifier(observation.occurredAt, 32),
+    safeLocalIdentifier(observation.actorLabel, 24),
+  ].join(":");
+
+  if (readable.length <= 120) {
+    return readable;
+  }
+
+  return [
+    "mobile-observation",
+    safeLocalIdentifier(centralLotId, 30),
+    observation.status,
     stableIdentifierHash(readable),
   ].join(":");
 }

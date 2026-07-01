@@ -97,6 +97,7 @@ function AuthenticatedCaptureApp({
           : { listCentralCategories: authClient.listCentralCategories.bind(authClient) }),
         createProductDraft: authClient.createProductDraft.bind(authClient),
         createCentralLot: authClient.createCentralLot.bind(authClient),
+        appendCentralObservation: authClient.appendCentralObservation.bind(authClient),
       }),
     [authClient],
   );

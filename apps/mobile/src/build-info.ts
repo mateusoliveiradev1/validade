@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat27-vencimento-detalhe-apk-157",
+  artifactLabel: "uat28-cloud-observacao-processado-apk-158",
   appVersion: "0.12.0",
-  build: "157",
+  build: "158",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,11 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(
-      extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "vencimento-detalhe-157",
-      24,
-    ),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "cloud-processado-158", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,

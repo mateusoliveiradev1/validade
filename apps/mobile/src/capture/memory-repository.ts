@@ -92,6 +92,7 @@ import {
   nextGeneratedId,
   normalizeTerminalObservationLocation,
   normalizeProductLookup,
+  physicalObservationInputFromRecord,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
   parseMarkdownApplicationCommand,
@@ -103,6 +104,7 @@ import {
   parseAlertDeviceRegistration,
   categoryCatalogItemToLocalCategory,
   parseCentralLotCreateRequest,
+  parseCentralObservationAppendRequest,
   parseCentralLotWriteResponse,
   parseLotId,
   parseLotInput,
@@ -789,7 +791,7 @@ export function createMemoryCaptureRepository(
     return syncedLots;
   }
 
-  function appendObservation(
+  async function appendObservation(
     lotId: string,
     input: PhysicalObservationInput,
   ): Promise<CaptureObservationRecord> {
@@ -805,12 +807,105 @@ export function createMemoryCaptureRepository(
       id: nextGeneratedId(dependencies),
       lotId: validatedLotId,
     };
+    const centralObservation = await tryAppendObservationCentrally(snapshot, observation);
+
+    if (centralObservation !== null) {
+      return centralObservation;
+    }
+
     const history = observations.get(validatedLotId) ?? [];
 
     observations.set(validatedLotId, [...history, observation]);
     lots.set(validatedLotId, { ...snapshot, currentObservation: observation });
 
-    return Promise.resolve(observation);
+    return observation;
+  }
+
+  async function tryAppendObservationCentrally(
+    snapshot: CaptureLotSnapshot,
+    observation: CaptureObservationRecord,
+  ): Promise<CaptureObservationRecord | null> {
+    if (dependencies.appendCentralObservation === undefined) {
+      return null;
+    }
+
+    if (prepareTurnCacheStatus?.state !== "ready" || prepareTurnCacheStatus.source !== "central") {
+      return null;
+    }
+
+    const centralLotId =
+      snapshot.centralLotId ?? (snapshot.centralSource === "central" ? snapshot.id : undefined);
+
+    if (centralLotId === undefined || snapshot.centralSource !== "central") {
+      return null;
+    }
+
+    try {
+      const request = parseCentralObservationAppendRequest({
+        observation: physicalObservationInputFromRecord(observation),
+        idempotencyKey: centralObservationAppendIdempotencyKey(centralLotId, observation),
+      });
+      const response = parseCentralLotWriteResponse(
+        await dependencies.appendCentralObservation(centralLotId, request),
+      );
+      const synced = centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
+      const previousHistory = observations.get(snapshot.id) ?? [];
+
+      if (snapshot.id !== synced.id) {
+        lots.delete(snapshot.id);
+        observations.delete(snapshot.id);
+      }
+
+      lots.set(synced.id, synced);
+      observations.set(
+        synced.id,
+        appendObservationHistory(previousHistory, synced.currentObservation),
+      );
+      reconcileCentralLotTasks(synced, response.lot.updatedAt);
+
+      return synced.currentObservation;
+    } catch {
+      return null;
+    }
+  }
+
+  function appendObservationHistory(
+    history: readonly CaptureObservationRecord[],
+    observation: CaptureObservationRecord,
+  ): CaptureObservationRecord[] {
+    if (history.some((candidate) => candidate.id === observation.id)) {
+      return [...history];
+    }
+
+    return [...history, observation];
+  }
+
+  function reconcileCentralLotTasks(lot: CaptureLotSnapshot, updatedAt: string): void {
+    const centralProjectedTask = centralProjectedTaskFromLot(lot);
+
+    if (centralProjectedTask !== null) {
+      const existingCentralTask = todayTasks.get(centralProjectedTask.id);
+      if (shouldPreserveLocalResolutionProjection(existingCentralTask)) {
+        return;
+      }
+      resolveActiveLotTasksExcept(centralProjectedTask, updatedAt);
+      todayTasks.set(
+        centralProjectedTask.id,
+        existingCentralTask?.resolutionHistory === undefined
+          ? centralProjectedTask
+          : {
+              ...centralProjectedTask,
+              resolutionHistory: existingCentralTask.resolutionHistory,
+            },
+      );
+      return;
+    }
+
+    if (shouldTrustPreparedCentralLotForRefresh(lot)) {
+      if (lot.centralSyncState === "resolved" || !hasActiveSyncedTaskForLot(lot.id)) {
+        resolveActiveTasksForLot(lot.id, updatedAt);
+      }
+    }
   }
 
   function listRecentLots(query?: RecentLotsQuery): Promise<readonly CaptureLotSnapshot[]> {
@@ -2862,6 +2957,30 @@ export function createMemoryCaptureRepository(
       safeLocalIdentifier(lot.identity.value, 30),
       lot.mode,
       lot.initialLocation.kind,
+      stableIdentifierHash(readable),
+    ].join(":");
+  }
+
+  function centralObservationAppendIdempotencyKey(
+    centralLotId: string,
+    observation: CaptureObservationRecord,
+  ): string {
+    const readable = [
+      "mobile-observation",
+      safeLocalIdentifier(centralLotId, 48),
+      observation.status,
+      safeLocalIdentifier(observation.occurredAt, 32),
+      safeLocalIdentifier(observation.actorLabel, 24),
+    ].join(":");
+
+    if (readable.length <= 120) {
+      return readable;
+    }
+
+    return [
+      "mobile-observation",
+      safeLocalIdentifier(centralLotId, 30),
+      observation.status,
       stableIdentifierHash(readable),
     ].join(":");
   }

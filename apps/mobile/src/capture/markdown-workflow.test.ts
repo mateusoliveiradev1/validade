@@ -56,6 +56,41 @@ async function saveFormalLot(input: {
   });
 }
 
+async function saveProcessedLot(input: {
+  repository: ReturnType<typeof createRepository>;
+  displayName: string;
+  lotCode: string;
+  expiresAt: string;
+}) {
+  const categoryId = `categoria-ficticia-processado-${input.displayName
+    .toLocaleLowerCase("pt-BR")
+    .replaceAll(" ", "-")}`;
+  const product = await input.repository.createProduct({
+    displayName: input.displayName,
+    categoryId,
+    categoryRuleProfile: {
+      categoryId,
+      mode: "processed_repack_loss",
+      windows: { radarDays: 7, markdownDays: 0, criticalDays: 1, expiredDays: 0 },
+    },
+  });
+
+  return input.repository.saveLot({
+    lot: {
+      productId: product.id,
+      identity: {
+        identitySource: "printed",
+        value: input.lotCode,
+      },
+      mode: "processed_repack_loss",
+      expiresAt: input.expiresAt,
+      approximateQuantity: 12,
+      initialLocation: { kind: "area_de_venda" },
+    },
+    actorLabel: "Colaboradora FICTICIA",
+  });
+}
+
 async function createMarkdownDueLot() {
   const repository = createRepository();
   await repository.initialize();
@@ -379,6 +414,38 @@ describe("markdown workflow repository", () => {
       status: "terminal_finalized",
       label: "Finalizado: perda registrada",
     });
+  });
+
+  it("blocks markdown and early exceptions for processed in-store lots", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    const lot = await saveProcessedLot({
+      repository,
+      displayName: "Melancia Processada FICTICIA",
+      lotCode: "LOTE-MELANCIA-PROCESSADA-FICTICIO",
+      expiresAt: "2030-01-12",
+    });
+
+    await expect(
+      repository.loadMarkdownEntryState({
+        lotId: lot.id,
+        currentDate,
+        currentTimestamp,
+      }),
+    ).resolves.toMatchObject({
+      status: "markdown_unavailable",
+      label: "Produto processado da loja: rebaixa indisponivel",
+      reason: "processed_in_store",
+    });
+    await expect(
+      repository.requestMarkdown({
+        lotId: lot.id,
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: currentTimestamp,
+        reason: "operational_guidance",
+        earlyJustification: "Equipe tentou excecao antecipada",
+      }),
+    ).rejects.toThrow("processado da loja nao permite rebaixa");
   });
 
   it("keeps delayed markdown stage tasks alertable and acknowledgement-only", async () => {

@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat27-vencimento-detalhe-apk-157",
+  artifactLabel: "uat28-cloud-observacao-processado-apk-158",
   appVersion: "0.12.0",
-  build: "157",
+  build: "158",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

@@ -116,6 +116,7 @@ function authClient(overrides: Partial<MobileAuthClient> = {}): MobileAuthClient
     searchCentralProducts: () => Promise.reject(new Error("not used")),
     createProductDraft: () => Promise.reject(new Error("not used")),
     createCentralLot: () => Promise.reject(new Error("not used")),
+    appendCentralObservation: () => Promise.reject(new Error("not used")),
     closeShift: () => Promise.reject(new Error("not used")),
     logout: () => Promise.resolve(),
     ...overrides,
