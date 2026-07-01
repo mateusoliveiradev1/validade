@@ -89,8 +89,11 @@ function isNamedRejectionFixture(relative, line) {
   if (relative === "scripts/check-no-sensitive-evidence.mjs") return true;
   const namedFixtures = [
     "file:///private/foto-ficticia.jpg",
+    "file://device/private/evidence.jpg",
     "file:///device/private/evidence-001.jpg",
     "file:///device/private",
+    "content://device/private/evidence.jpg",
+    "ph://asset/private",
   ];
   return (
     /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(relative) &&
