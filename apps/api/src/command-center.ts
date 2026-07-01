@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat25-resolved-projection-apk-155",
+  artifactLabel: "uat26-recentes-finalizados-apk-156",
   appVersion: "0.12.0",
-  build: "155",
+  build: "156",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

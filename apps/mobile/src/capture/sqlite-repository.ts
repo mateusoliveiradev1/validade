@@ -95,6 +95,7 @@ import {
   isPendingCentralProduct,
   localLotCentralSyncMetadata,
   nextGeneratedId,
+  normalizeTerminalObservationLocation,
   normalizeProductLookup,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
@@ -114,7 +115,6 @@ import {
   parseCentralLotCreateRequest,
   parseCentralLotTaskProjectionSummary,
   parseCentralLotWriteResponse,
-  parseObservationInput,
   parseProductCategoryId,
   parseProductInput,
   parseProductSearchRequest,
@@ -1370,7 +1370,7 @@ export function createSQLiteCaptureRepository(
     await initialize();
     const validatedLotId = parseLotId(lotId);
     const observation: CaptureObservationRecord = {
-      ...parseObservationInput(input),
+      ...normalizeTerminalObservationLocation(input),
       id: nextGeneratedId(dependencies),
       lotId: validatedLotId,
     };
@@ -1427,12 +1427,19 @@ export function createSQLiteCaptureRepository(
       rows = await db.getAllAsync<LotRow>(
         `${LOT_SELECT}
          WHERE (p.normalized_name LIKE ? OR p.gtin LIKE ? OR l.identity_value LIKE ?)
-           AND l.current_location_kind = ?
-           AND (l.current_location_kind <> 'other' OR l.current_location_custom_name = ?)
-         ORDER BY l.current_occurred_at DESC LIMIT ?`,
+           AND (
+             (? = 'retirada_perda' AND l.current_status IN ('withdrawn', 'loss'))
+             OR (
+               l.current_status NOT IN ('withdrawn', 'loss')
+               AND l.current_location_kind = ?
+               AND (l.current_location_kind <> 'other' OR l.current_location_custom_name = ?)
+             )
+           )
+          ORDER BY l.current_occurred_at DESC LIMIT ?`,
         normalizedQuery,
         normalizedQuery,
         normalizedQuery,
+        location.kind,
         location.kind,
         location.kind === "other" ? location.customName : null,
         limit,
@@ -1450,9 +1457,16 @@ export function createSQLiteCaptureRepository(
     } else if (location !== undefined) {
       rows = await db.getAllAsync<LotRow>(
         `${LOT_SELECT}
-         WHERE l.current_location_kind = ?
-           AND (l.current_location_kind <> 'other' OR l.current_location_custom_name = ?)
+         WHERE (
+           (? = 'retirada_perda' AND l.current_status IN ('withdrawn', 'loss'))
+           OR (
+             l.current_status NOT IN ('withdrawn', 'loss')
+             AND l.current_location_kind = ?
+             AND (l.current_location_kind <> 'other' OR l.current_location_custom_name = ?)
+           )
+         )
          ORDER BY l.current_occurred_at DESC LIMIT ?`,
+        location.kind,
         location.kind,
         location.kind === "other" ? location.customName : null,
         limit,

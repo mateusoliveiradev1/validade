@@ -23,7 +23,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   const pageText = await page.locator("body").innerText();
   expect(pageText).not.toContain("UAT Loja 18");
-  expect(pageText).not.toContain("uat25-resolved-projection-apk-155");
+  expect(pageText).not.toContain("uat26-recentes-finalizados-apk-156");
   expect(pageText).not.toContain("Provider push sem prova atual");
   expect(pageText.indexOf("Lotes criticos")).toBeLessThan(pageText.indexOf("Tarefas atrasadas"));
   expect(pageText.indexOf("Tarefas atrasadas")).toBeLessThan(
@@ -47,7 +47,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
 
   await navigation.getByRole("button", { name: "Atualizacoes", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Atualizacoes" })).toBeVisible();
-  await expect(page.getByText("uat25-resolved-projection-apk-155")).toBeVisible();
+  await expect(page.getByText("uat26-recentes-finalizados-apk-156")).toBeVisible();
   await expect(page.getByRole("button", { name: "Ver instrucoes manuais" })).toBeVisible();
   await expect(page.getByText("UAT Loja 18")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
@@ -70,7 +70,7 @@ test("operational readiness routes keep each truth in its own room", async ({ pa
   await expect(page.getByRole("button", { name: "Abrir Aparelhos" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir Atualizacoes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir Operacao" })).toBeVisible();
-  await expect(page.getByText("uat25-resolved-projection-apk-155")).toHaveCount(0);
+  await expect(page.getByText("uat26-recentes-finalizados-apk-156")).toHaveCount(0);
   await expect(page.getByText("Enviar teste seguro")).toHaveCount(0);
   await expect(page.getByText("Ver instrucoes manuais")).toHaveCount(0);
 

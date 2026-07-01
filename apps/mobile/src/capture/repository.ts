@@ -618,6 +618,45 @@ export function parseObservationInput(input: PhysicalObservationInput): Physical
   return PhysicalObservationInputSchema.parse(input);
 }
 
+export function isTerminalObservationStatus(status: PhysicalObservationInput["status"]): boolean {
+  return status === "withdrawn" || status === "loss";
+}
+
+export function normalizeTerminalObservationLocation(
+  input: PhysicalObservationInput,
+): PhysicalObservationInput {
+  const parsed = parseObservationInput(input);
+
+  if (!isTerminalObservationStatus(parsed.status)) {
+    return parsed;
+  }
+
+  return {
+    ...parsed,
+    location: { kind: "retirada_perda" },
+  };
+}
+
+export function matchesRecentLotLocation(
+  lot: CaptureLotSnapshot,
+  location: OperationalLocation | undefined,
+): boolean {
+  if (location === undefined) {
+    return true;
+  }
+
+  if (isTerminalObservationStatus(lot.currentObservation.status)) {
+    return location.kind === "retirada_perda";
+  }
+
+  return (
+    lot.currentObservation.location.kind === location.kind &&
+    (lot.currentObservation.location.kind !== "other" ||
+      location.kind !== "other" ||
+      lot.currentObservation.location.customName === location.customName)
+  );
+}
+
 export function parseTodayTaskRecord(input: unknown): TodayTaskRecord {
   return TodayTaskRecordSchema.parse(input);
 }

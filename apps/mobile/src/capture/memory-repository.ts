@@ -87,7 +87,9 @@ import {
   maxPhysicalConfirmationAgeHoursForLot,
   isPendingCentralProduct,
   localLotCentralSyncMetadata,
+  matchesRecentLotLocation,
   nextGeneratedId,
+  normalizeTerminalObservationLocation,
   normalizeProductLookup,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
@@ -103,7 +105,6 @@ import {
   parseCentralLotWriteResponse,
   parseLotId,
   parseLotInput,
-  parseObservationInput,
   parseProductCategoryId,
   parseProductInput,
   parseRecentLotsQuery,
@@ -798,7 +799,7 @@ export function createMemoryCaptureRepository(
     }
 
     const observation: CaptureObservationRecord = {
-      ...parseObservationInput(input),
+      ...normalizeTerminalObservationLocation(input),
       id: nextGeneratedId(dependencies),
       lotId: validatedLotId,
     };
@@ -825,10 +826,7 @@ export function createMemoryCaptureRepository(
             lot.identity.value.toLocaleLowerCase("pt-BR").includes(normalizedQuery);
           const matchesLocation =
             parsedQuery.location === undefined ||
-            (lot.currentObservation.location.kind === parsedQuery.location.kind &&
-              (lot.currentObservation.location.kind !== "other" ||
-                parsedQuery.location.kind !== "other" ||
-                lot.currentObservation.location.customName === parsedQuery.location.customName));
+            matchesRecentLotLocation(lot, parsedQuery.location);
 
           return matchesQuery && matchesLocation;
         })

@@ -76,11 +76,12 @@ export function RecentLotList({
 function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () => void }) {
   const primaryDate = lotPrimaryDate(lot);
   const attentionLabel = attention(lot);
+  const location = effectiveObservationLocation(lot);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${lot.productDisplayName}, ${primaryDate.label} ${primaryDate.value}, ${actionLabel(lot.currentObservation.status)} em ${formatLocation(lot.currentObservation.location)}`}
+      accessibilityLabel={`${lot.productDisplayName}, ${primaryDate.label} ${primaryDate.value}, ${actionLabel(lot.currentObservation.status)} em ${formatLocation(location)}`}
       onPress={onOpen}
       style={({ pressed }) => [styles.lotCard, pressed ? styles.lotCardPressed : undefined]}
     >
@@ -102,6 +103,7 @@ function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () =>
             style={[
               styles.dateBadge,
               primaryDate.tone === "critical" ? styles.dateBadgeCritical : undefined,
+              primaryDate.tone === "neutral" ? styles.dateBadgeNeutral : undefined,
             ]}
           >
             {primaryDate.badge}
@@ -111,8 +113,7 @@ function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () =>
 
       <View style={styles.factGroup}>
         <Text style={styles.factPrimary}>
-          {actionLabel(lot.currentObservation.status)} em{" "}
-          {formatLocation(lot.currentObservation.location)}
+          {actionLabel(lot.currentObservation.status)} em {formatLocation(location)}
         </Text>
         <Text style={styles.factSecondary}>
           {formatQuantity(lot)} -{" "}
@@ -147,6 +148,16 @@ export function formatQuantity(lot: CaptureLotSnapshot): string {
 }
 
 export function attention(lot: CaptureLotSnapshot): string | undefined {
+  const terminal = terminalLotStatus(lot);
+
+  if (terminal === "loss") {
+    return "Finalizado: perda registrada";
+  }
+
+  if (terminal === "withdrawn") {
+    return "Finalizado: retirado da area";
+  }
+
   return lot.currentObservation.status === "not_found" ||
     lot.currentObservation.status === "probably_sold_out"
     ? "Presença incerta"
@@ -154,16 +165,14 @@ export function attention(lot: CaptureLotSnapshot): string | undefined {
 }
 
 export function centralStateLabel(lot: CaptureLotSnapshot): string {
-  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
-    return "Sincronizado com a central";
+  const terminal = terminalLotStatus(lot);
+
+  if (terminal === "loss") {
+    return "Finalizado: perda registrada";
   }
 
-  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
-    return "Pendente de central";
-  }
-
-  if (lot.centralSyncState === "conflict") {
-    return "Conflito de sincronizacao";
+  if (terminal === "withdrawn") {
+    return "Finalizado: retirado da area";
   }
 
   if (lot.centralSyncState === "resolved") {
@@ -172,6 +181,18 @@ export function centralStateLabel(lot: CaptureLotSnapshot): string {
 
   if (lot.centralSyncState === "discarded") {
     return "Descartado na central";
+  }
+
+  if (lot.centralSyncState === "conflict") {
+    return "Conflito de sincronizacao";
+  }
+
+  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
+    return "Pendente de central";
+  }
+
+  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
+    return "Sincronizado com a central";
   }
 
   return "Local neste aparelho";
@@ -184,7 +205,18 @@ type RecentLotPrimaryDate = {
   tone?: "critical" | "warning" | "neutral" | undefined;
 };
 
-function lotPrimaryDate(lot: CaptureLotSnapshot): RecentLotPrimaryDate {
+export function lotPrimaryDate(lot: CaptureLotSnapshot): RecentLotPrimaryDate {
+  const terminal = terminalLotStatus(lot);
+
+  if (terminal !== undefined) {
+    return {
+      label: "Status",
+      value: terminal === "loss" ? "Perda" : "Retirado",
+      badge: "finalizado",
+      tone: "neutral",
+    };
+  }
+
   if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
     if (lot.expiresAt === undefined) {
       return { label: "Validade", value: "Não informada", badge: "sem data", tone: "warning" };
@@ -288,17 +320,29 @@ function formatQuantityNumber(value: number | undefined): string {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
 }
 
-function centralStateShortLabel(lot: CaptureLotSnapshot): string {
-  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
-    return "Central";
+export function terminalLotStatus(lot: CaptureLotSnapshot): "loss" | "withdrawn" | undefined {
+  if (lot.currentObservation.status === "loss" || lot.currentObservation.status === "withdrawn") {
+    return lot.currentObservation.status;
   }
 
-  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
-    return "Pendente";
+  return undefined;
+}
+
+export function effectiveObservationLocation(lot: CaptureLotSnapshot): OperationalLocation {
+  return terminalLotStatus(lot) === undefined
+    ? lot.currentObservation.location
+    : { kind: "retirada_perda" };
+}
+
+export function centralStateShortLabel(lot: CaptureLotSnapshot): string {
+  const terminal = terminalLotStatus(lot);
+
+  if (terminal === "loss") {
+    return "Perda";
   }
 
-  if (lot.centralSyncState === "conflict") {
-    return "Conflito";
+  if (terminal === "withdrawn") {
+    return "Retirado";
   }
 
   if (lot.centralSyncState === "resolved") {
@@ -307,6 +351,18 @@ function centralStateShortLabel(lot: CaptureLotSnapshot): string {
 
   if (lot.centralSyncState === "discarded") {
     return "Descartado";
+  }
+
+  if (lot.centralSyncState === "conflict") {
+    return "Conflito";
+  }
+
+  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
+    return "Pendente";
+  }
+
+  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
+    return "Central";
   }
 
   return "Local";
@@ -401,6 +457,11 @@ const styles = StyleSheet.create({
     backgroundColor: captureColors.criticalTag,
     borderColor: captureColors.criticalBorder,
     color: captureColors.critical,
+  },
+  dateBadgeNeutral: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    color: captureColors.mutedInk,
   },
   factGroup: {
     gap: captureSpacing.xsmall,

@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat25-resolved-projection-apk-155";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat26-recentes-finalizados-apk-156";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",
