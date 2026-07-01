@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat22-cloud-first-sync-apk-152",
+  artifactLabel: "uat23-sync-orphan-cleanup-apk-153",
   appVersion: "0.12.0",
-  build: "152",
+  build: "153",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

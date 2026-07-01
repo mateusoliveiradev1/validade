@@ -545,6 +545,7 @@ export function createSQLiteCaptureRepository(
     const db = await getDatabase();
     const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
     const activeCentralTaskIds = new Set(prepared.activeTasks.map((task) => task.centralTaskId));
+    const preparedCentralLotIds = new Set(prepared.lots.map((lot) => lot.centralLotId));
     const resolvedByTaskId = new Map(
       prepared.resolvedHistory.map((history) => [history.centralTaskId, history]),
     );
@@ -575,6 +576,7 @@ export function createSQLiteCaptureRepository(
       await reconcilePreparedCentralTasks(
         db,
         activeCentralTaskIds,
+        preparedCentralLotIds,
         resolvedByTaskId,
         prepared.store.generatedAt,
       );
@@ -1545,6 +1547,10 @@ export function createSQLiteCaptureRepository(
                 resolutionHistory: existingCentralTask.resolutionHistory,
               },
         );
+        continue;
+      }
+
+      if (shouldTrustPreparedCentralLotForRefresh(detail)) {
         continue;
       }
 
@@ -2972,16 +2978,39 @@ export function createSQLiteCaptureRepository(
   async function reconcilePreparedCentralTasks(
     db: SQLite.SQLiteDatabase,
     activeCentralTaskIds: ReadonlySet<string>,
+    preparedCentralLotIds: ReadonlySet<string>,
     resolvedByTaskId: ReadonlyMap<string, ResolvedTaskHistorySnippet>,
     reconciledAt: string,
   ): Promise<void> {
     const rows = await db.getAllAsync<TodayTaskRow>(
-      "SELECT * FROM today_tasks WHERE sync_json IS NOT NULL",
+      "SELECT * FROM today_tasks WHERE status = 'active'",
     );
 
     for (const row of rows) {
       const task = mapTodayTask(row);
-      if (task.sync?.state !== "synced" || activeCentralTaskIds.has(task.id)) {
+      if (activeCentralTaskIds.has(task.id)) {
+        continue;
+      }
+
+      if (task.recheckParentId !== undefined) {
+        const parentRow = await db.getFirstAsync<TodayTaskRow>(
+          "SELECT * FROM today_tasks WHERE id = ?",
+          task.recheckParentId,
+        );
+        const parentTask = parentRow === null ? undefined : mapTodayTask(parentRow);
+        if (shouldPreserveLocalResolutionProjection(parentTask)) {
+          continue;
+        }
+      }
+
+      const lotRow = await db.getFirstAsync<{ id: string }>(
+        "SELECT id FROM capture_lots WHERE id = ? LIMIT 1",
+        task.lotId,
+      );
+      const shouldResolveStaleTask =
+        task.sync?.state === "synced" || preparedCentralLotIds.has(task.lotId) || lotRow === null;
+
+      if (!shouldResolveStaleTask) {
         continue;
       }
 
@@ -4067,6 +4096,15 @@ async function deletePendingLocalDuplicateLotsForCentralLot(
     lot.centralProductId,
   ];
 
+  await db.runAsync(
+    `UPDATE today_tasks
+     SET status = 'resolved', resolved_at = ?, updated_at = ?
+     WHERE status = 'active'
+       AND lot_id IN (SELECT pending.id ${duplicateWhere})`,
+    lot.updatedAt,
+    lot.updatedAt,
+    ...duplicateArgs,
+  );
   await db.runAsync(
     `DELETE FROM capture_observations
      WHERE lot_id IN (SELECT pending.id ${duplicateWhere})`,
@@ -5158,6 +5196,10 @@ function centralProjectedTaskFromLot(lot: CaptureLotSnapshot): TodayTaskRecord |
         }
       : {}),
   });
+}
+
+function shouldTrustPreparedCentralLotForRefresh(lot: CaptureLotSnapshot): boolean {
+  return lot.centralSource === "central" && lot.centralSyncState === "synchronized";
 }
 
 function dueBucketForCentralRisk(

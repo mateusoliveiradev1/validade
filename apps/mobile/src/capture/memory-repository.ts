@@ -169,6 +169,7 @@ export function createMemoryCaptureRepository(
     const prepared = parsePrepareTurnResponse(response);
     const lotsById = new Map(prepared.lots.map((lot) => [lot.centralLotId, lot]));
     const activeCentralTaskIds = new Set(prepared.activeTasks.map((task) => task.centralTaskId));
+    const preparedCentralLotIds = new Set(prepared.lots.map((lot) => lot.centralLotId));
     const resolvedByTaskId = new Map(
       prepared.resolvedHistory.map((history) => [history.centralTaskId, history]),
     );
@@ -194,6 +195,7 @@ export function createMemoryCaptureRepository(
 
     reconcilePreparedCentralTasks(
       activeCentralTaskIds,
+      preparedCentralLotIds,
       resolvedByTaskId,
       prepared.store.generatedAt,
     );
@@ -236,11 +238,27 @@ export function createMemoryCaptureRepository(
 
   function reconcilePreparedCentralTasks(
     activeCentralTaskIds: ReadonlySet<string>,
+    preparedCentralLotIds: ReadonlySet<string>,
     resolvedByTaskId: ReadonlyMap<string, ResolvedTaskHistorySnippet>,
     reconciledAt: string,
   ): void {
     for (const [taskId, task] of todayTasks.entries()) {
-      if (task.sync?.state !== "synced" || activeCentralTaskIds.has(taskId)) {
+      if (activeCentralTaskIds.has(taskId)) {
+        continue;
+      }
+
+      const parentTask =
+        task.recheckParentId === undefined ? undefined : todayTasks.get(task.recheckParentId);
+      if (shouldPreserveLocalResolutionProjection(parentTask)) {
+        continue;
+      }
+
+      const shouldResolveStaleTask =
+        task.sync?.state === "synced" ||
+        preparedCentralLotIds.has(task.lotId) ||
+        !lots.has(task.lotId);
+
+      if (!shouldResolveStaleTask) {
         continue;
       }
 
@@ -850,8 +868,16 @@ export function createMemoryCaptureRepository(
   function deletePendingLocalDuplicateLotsForCentralLot(lot: CentralLotSnippet): void {
     for (const [localLotId, localLot] of lots.entries()) {
       if (!isPendingLocalDuplicateLot(localLotId, localLot, lot)) continue;
+      resolveActiveTasksForLot(localLotId, lot.updatedAt);
       lots.delete(localLotId);
       observations.delete(localLotId);
+    }
+  }
+
+  function resolveActiveTasksForLot(lotId: string, resolvedAt: string): void {
+    for (const [taskId, task] of todayTasks.entries()) {
+      if (task.status !== "active" || task.lotId !== lotId) continue;
+      todayTasks.set(taskId, resolvedTaskFromCentralHistory(task, undefined, resolvedAt));
     }
   }
 
@@ -927,6 +953,10 @@ export function createMemoryCaptureRepository(
                 resolutionHistory: existingCentralTask.resolutionHistory,
               },
         );
+        continue;
+      }
+
+      if (shouldTrustPreparedCentralLotForRefresh(detail)) {
         continue;
       }
 
@@ -2690,6 +2720,15 @@ export function createMemoryCaptureRepository(
           }
         : {}),
     });
+  }
+
+  function shouldTrustPreparedCentralLotForRefresh(lot: CaptureLotSnapshot): boolean {
+    return (
+      prepareTurnCacheStatus?.state === "ready" &&
+      prepareTurnCacheStatus.source === "central" &&
+      lot.centralSource === "central" &&
+      lot.centralSyncState === "synchronized"
+    );
   }
 
   function resolveActiveLotTasksExcept(centralTask: TodayTaskRecord, resolvedAt: string): void {

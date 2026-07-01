@@ -871,6 +871,156 @@ describe("memory capture repository", () => {
     ]);
   });
 
+  it("removes stale local tasks when prepare-turn replaces a pending local lot with central truth", async () => {
+    const identifiers = [
+      "produto-melancia-local",
+      "lote-melancia-local",
+      "obs-melancia-local",
+      "tarefa-melancia-local",
+    ];
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => identifiers.shift() ?? "id-melancia-extra",
+    });
+    const categoryProfile = {
+      categoryId: "reembalados-fracionados-loja",
+      mode: "processed_repack_loss" as const,
+      windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+    };
+    const draftResponse = await repository.createProductDraft?.({
+      displayName: "Melancia KG PED",
+      categoryId: "reembalados-fracionados-loja",
+      categoryName: "Reembalados fracionados loja",
+      categoryRuleProfile: categoryProfile,
+      storePresentation: "store_fractioned_repacked",
+      requestedAt: "2030-01-10T09:00:00.000Z",
+    });
+
+    if (draftResponse?.draft === undefined) {
+      throw new Error("Expected draft product.");
+    }
+
+    await repository.saveLot({
+      lot: {
+        productId: draftResponse.draft.centralProductId,
+        identity: { identitySource: "generated_internal", value: "INTERNO-LOCAL-MELANCIA" },
+        mode: "processed_repack_loss",
+        expiresAt: "2030-01-10",
+        receivedAt: "2030-01-09",
+        approximateQuantity: 1,
+        initialLocation: { kind: "area_de_venda" },
+      },
+      actorLabel: "Colaborador local",
+    });
+
+    const localRefresh = await repository.refreshTodayTasks({
+      currentDate: "2030-01-10",
+      currentTimestamp: "2030-01-10T09:00:00.000Z",
+      source: "today_open",
+    });
+    expect(localRefresh.tasks).toHaveLength(1);
+    expect(localRefresh.tasks[0]?.id).toBe("tarefa-melancia-local");
+
+    await repository.hydratePrepareTurn?.({
+      requestId: "prepare-turn-melancia-central-substitui-local",
+      store: {
+        storeId: "loja-ficticia",
+        storeName: "Loja FICTICIA",
+        centralVersion: 1,
+        generatedAt: "2030-01-10T09:05:00.000Z",
+        centralReadAt: "2030-01-10T09:05:00.000Z",
+        source: "central",
+        readiness: "prepared",
+        blockers: [],
+      },
+      device: {
+        deviceId: "validade-zero-mobile:loja-ficticia",
+        preparedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        lastHydratedAt: "2030-01-10T09:05:00.000Z",
+        pendingCommandCount: 0,
+        conflictCount: 0,
+        source: "central",
+      },
+      cache: {
+        state: "ready",
+        source: "central",
+        updatedAt: "2030-01-10T09:05:00.000Z",
+        lastCentralReadAt: "2030-01-10T09:05:00.000Z",
+        staleAfterHours: 4,
+        productCount: 1,
+        lotCount: 1,
+        activeTaskCount: 1,
+        conflictCount: 0,
+        resolvedHistoryCount: 0,
+      },
+      products: [
+        {
+          centralProductId: "product:loja-ficticia:melancia-kg-ped",
+          displayName: "Melancia KG PED",
+          categoryId: "reembalados-fracionados-loja",
+          categoryName: "Reembalados fracionados loja",
+          categoryRuleProfile: categoryProfile,
+          status: "validated",
+          state: "synchronized",
+          source: "central",
+          updatedAt: "2030-01-10T09:05:00.000Z",
+        },
+      ],
+      lots: [
+        {
+          centralLotId: "lote-central-melancia-001",
+          centralProductId: "product:loja-ficticia:melancia-kg-ped",
+          productDisplayName: "Melancia KG PED",
+          lotIdentity: { identitySource: "generated_internal", value: "INTERNO-LOCAL-MELANCIA" },
+          mode: "processed_repack_loss",
+          currentLocation: { kind: "area_de_venda" },
+          state: "synchronized",
+          source: "central",
+          riskState: "critical",
+          expiresAt: "2030-01-10",
+          receivedAt: "2030-01-09",
+          approximateQuantity: 1,
+          updatedAt: "2030-01-10T09:05:00.000Z",
+        },
+      ],
+      activeTasks: [
+        {
+          centralTaskId: "tarefa-central-melancia-001",
+          activeKey: "lote-central-melancia-001:critical:check_presence:central",
+          centralLotId: "lote-central-melancia-001",
+          productDisplayName: "Melancia KG PED",
+          currentLocation: { kind: "area_de_venda" },
+          riskState: "critical",
+          severity: "high",
+          requiredResolution: "check_presence",
+          state: "synchronized",
+          source: "central",
+          ownerLabel: "Equipe do turno",
+          updatedAt: "2030-01-10T09:05:00.000Z",
+        },
+      ],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+
+    const centralRefresh = await repository.refreshTodayTasks({
+      currentDate: "2030-01-10",
+      currentTimestamp: "2030-01-10T09:06:00.000Z",
+      source: "today_open",
+    });
+
+    expect(centralRefresh.tasks).toHaveLength(1);
+    expect(centralRefresh.tasks[0]).toMatchObject({
+      id: "tarefa-central-melancia-001",
+      lotId: "lote-central-melancia-001",
+      sync: expect.objectContaining({ state: "synced" }),
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({ id: "tarefa-central-melancia-001" }),
+    ]);
+  });
+
   it("replays a pending lot after central search finds a reusable product missing from local cache", async () => {
     const alhoCategoryProfile = {
       categoryId: "alho-inteiro-embalado-fornecedor",
