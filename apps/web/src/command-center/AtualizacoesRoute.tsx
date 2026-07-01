@@ -90,7 +90,7 @@ function AtualizacoesContent({ projection }: { projection: CommandCenterProjecti
   const approvedArtifactLabel =
     firstDevice?.approvedArtifactLabel ?? DEFAULT_APPROVED_ARTIFACT_LABEL;
   const approvedAppVersion = firstDevice?.approvedAppVersion ?? "0.12.0";
-  const approvedBuild = firstDevice?.approvedBuild ?? "148";
+  const approvedBuild = firstDevice?.approvedBuild ?? "149";
   const updatePath = resolveUpdatePathState();
   const operationalDevices = getOperationalTurnDevices(projection.devices, projection.refreshedAt);
   const diagnosticDevices = getDiagnosticDeviceRecords(projection.devices, operationalDevices);

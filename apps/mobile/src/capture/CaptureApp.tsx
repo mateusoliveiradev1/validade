@@ -5,8 +5,10 @@ import type {
   CaptureProductRecord,
   CaptureRepository,
   MarkdownEntryState,
+  OnboardingProgressKey,
   TodayTaskRefreshSource,
 } from "./repository";
+import { MOBILE_FIRST_TURN_ONBOARDING } from "./repository";
 import { captureCopy } from "./capture-copy";
 import { productPolicyPreviewForProduct } from "./product-policy-copy";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
@@ -30,6 +32,9 @@ import type {
   PrepareTurnResponse,
   DevicePushRegistrationCommand,
   ProductIdentifierInput,
+  OnboardingProgressMutationRequest,
+  OnboardingProgressQuery,
+  OnboardingProgressResponse,
   SessionContextResponse,
   ShiftCloseSafeRequest,
   ShiftClosureSnapshot,
@@ -49,7 +54,7 @@ import { operationalDateKey } from "./operational-date";
 
 type CaptureRoute =
   | { name: "today" }
-  | { name: "onboarding" }
+  | { name: "onboarding"; mode?: "review" | "first_turn" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
       name: "product-form";
@@ -73,6 +78,13 @@ type CaptureRoute =
 const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
 type PrepareTurnMode = "manual" | "silent";
 type RegisterPushDeviceClient = (request: DevicePushRegistrationCommand) => Promise<void>;
+type OnboardingProgressClient = {
+  loadOnboardingProgress(input: OnboardingProgressQuery): Promise<OnboardingProgressResponse>;
+  saveOnboardingProgress(
+    input: OnboardingProgressMutationRequest,
+  ): Promise<OnboardingProgressResponse>;
+};
+type FirstTurnOnboardingDecision = "checking" | "show" | "hidden";
 type PushDeviceIdentity = Pick<
   DevicePushRegistrationCommand,
   "deviceId" | "deviceLabel" | "audienceRole"
@@ -83,6 +95,7 @@ export function CaptureApp({
   alertChannel,
   syncEngine,
   prepareTurnClient,
+  onboardingClient,
   registerPushDeviceClient,
   closeShiftClient,
   buildInfo,
@@ -98,6 +111,7 @@ export function CaptureApp({
   alertChannel?: PushAlertChannel;
   syncEngine?: SyncEngine | undefined;
   prepareTurnClient?: ((request: PrepareTurnRequest) => Promise<PrepareTurnResponse>) | undefined;
+  onboardingClient?: OnboardingProgressClient | undefined;
   registerPushDeviceClient?: RegisterPushDeviceClient | undefined;
   closeShiftClient?:
     | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
@@ -122,6 +136,9 @@ export function CaptureApp({
     prepareTurnClient === undefined ? undefined : "local_cache",
   );
   const [pushFallbackNotice, setPushFallbackNotice] = useState<string | undefined>();
+  const [onboardingDecision, setOnboardingDecision] =
+    useState<FirstTurnOnboardingDecision>("checking");
+  const [firstTurnAssistActive, setFirstTurnAssistActive] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>();
   const [todayRefreshRequest, setTodayRefreshRequest] = useState<
     { id: number; source: TodayTaskRefreshSource } | undefined
@@ -143,6 +160,14 @@ export function CaptureApp({
       audienceRole: "shift_team",
     }),
     [deviceId, resolvedBuildInfo.packageId, storeId],
+  );
+  const firstTurnOnboardingKey = useMemo(
+    (): OnboardingProgressKey => ({
+      subjectId: session?.actor.subjectId ?? `local:${actorLabel}`,
+      storeId: session?.store.storeId ?? storeId,
+      ...MOBILE_FIRST_TURN_ONBOARDING,
+    }),
+    [actorLabel, session?.actor.subjectId, session?.store.storeId, storeId],
   );
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
   const shiftCloseDeviceAuthorization = shiftCloseDeviceAuthorizationFor({
@@ -201,6 +226,50 @@ export function CaptureApp({
     setRouteStack((current) => current.slice(0, -1));
   }, [routeStack.length]);
 
+  const rememberFirstTurnOnboarding = useCallback(
+    async (status: OnboardingProgressMutationRequest["status"]): Promise<void> => {
+      const occurredAt = new Date().toISOString();
+      await repository
+        .saveOnboardingProgress?.({
+          ...firstTurnOnboardingKey,
+          status,
+          occurredAt,
+        })
+        .catch(() => undefined);
+      await onboardingClient
+        ?.saveOnboardingProgress({
+          flowId: firstTurnOnboardingKey.flowId,
+          version: firstTurnOnboardingKey.version,
+          status,
+          occurredAt,
+          deviceId: pushDeviceIdentity.deviceId,
+        })
+        .catch(() => undefined);
+      setOnboardingDecision("hidden");
+    },
+    [firstTurnOnboardingKey, onboardingClient, pushDeviceIdentity.deviceId, repository],
+  );
+
+  const skipFirstTurnOnboarding = useCallback(async (): Promise<void> => {
+    setFirstTurnAssistActive(false);
+    await rememberFirstTurnOnboarding("skipped");
+    resetToToday();
+  }, [rememberFirstTurnOnboarding, resetToToday]);
+
+  const completeFirstTurnOnboarding = useCallback(
+    async (notice?: string): Promise<void> => {
+      setFirstTurnAssistActive(false);
+      await rememberFirstTurnOnboarding("completed");
+      resetToToday({
+        notice:
+          notice ??
+          "Primeiro lote registrado. Hoje agora mostra tarefas, radar futuro ou historico do turno.",
+        refreshSource: "lot_change",
+      });
+    },
+    [rememberFirstTurnOnboarding, resetToToday],
+  );
+
   useEffect(() => {
     let current = true;
     void repository
@@ -232,6 +301,38 @@ export function CaptureApp({
       current = false;
     };
   }, [prepareTurnClient, repository]);
+
+  useEffect(() => {
+    let current = true;
+
+    if (prepareTurnState !== "ready") {
+      setOnboardingDecision("checking");
+      return () => {
+        current = false;
+      };
+    }
+
+    setOnboardingDecision("checking");
+    void resolveFirstTurnOnboardingDecision({
+      repository,
+      onboardingClient,
+      key: firstTurnOnboardingKey,
+    })
+      .then((decision) => {
+        if (current) {
+          setOnboardingDecision(decision);
+        }
+      })
+      .catch(() => {
+        if (current) {
+          setOnboardingDecision("show");
+        }
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [firstTurnOnboardingKey, onboardingClient, prepareTurnState, repository]);
 
   useEffect(() => {
     const subscription = addHardwareBackPressListener(() => {
@@ -460,16 +561,34 @@ export function CaptureApp({
     setPrepareTurnState("ready");
   }
 
-  function startFirstStoreSetup(): void {
+  async function startFirstStoreSetup(): Promise<void> {
     setPrepareTurnError(undefined);
     setShiftCloseCompletion(undefined);
     setPrepareTurnSource("central");
     setPrepareTurnState("ready");
-    setRouteStack([{ name: "today" }, { name: "onboarding" }]);
+    const decision = await resolveFirstTurnOnboardingDecision({
+      repository,
+      onboardingClient,
+      key: firstTurnOnboardingKey,
+    }).catch((): FirstTurnOnboardingDecision => "show");
+    setOnboardingDecision(decision);
+    setRouteStack(
+      decision === "hidden" ? [{ name: "today" }, { name: "discovery" }] : [{ name: "today" }],
+    );
   }
 
-  function openGuidedLotRegistration(): void {
+  function openGuidedLotRegistration(input?: { firstTurnAssist?: boolean | undefined }): void {
+    setFirstTurnAssistActive(input?.firstTurnAssist === true);
     setRouteStack([{ name: "today" }, { name: "discovery" }]);
+  }
+
+  async function completeLotRegistration(): Promise<void> {
+    if (firstTurnAssistActive) {
+      await completeFirstTurnOnboarding();
+      return;
+    }
+
+    resetToToday({ refreshSource: "lot_change" });
   }
 
   function requestCentralReprepare(): void {
@@ -590,6 +709,7 @@ export function CaptureApp({
         repository={repository}
         session={session}
         syncEngine={syncEngine}
+        onOpenOnboarding={() => navigate({ name: "onboarding", mode: "review" })}
         onConfirmCentralDeviceState={() => prepareTurn("silent")}
         {...(registerPushDeviceClient === undefined
           ? {}
@@ -606,7 +726,7 @@ export function CaptureApp({
         state={prepareTurnState}
         onPrepare={() => void prepareTurn("manual")}
         onStartFirstSetup={
-          isFirstStoreSetupState(prepareTurnCache) ? startFirstStoreSetup : undefined
+          isFirstStoreSetupState(prepareTurnCache) ? () => void startFirstStoreSetup() : undefined
         }
         onUseCache={prepareTurnCache?.state === "ready" ? enterWithLocalCache : undefined}
       />,
@@ -614,6 +734,25 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "today") {
+    if (onboardingDecision === "checking") {
+      return withSessionBar(<FirstTurnOnboardingLoadingScreen />);
+    }
+
+    if (onboardingDecision === "show") {
+      return withSessionBar(
+        <OperationalOnboardingScreen
+          mode="first_turn"
+          prepareTurnCacheStatus={prepareTurnCache}
+          prepareTurnSource={prepareTurnSource}
+          storeName={session?.store.storeName ?? storeId}
+          onBack={() => void skipFirstTurnOnboarding()}
+          onOpenToday={() => void skipFirstTurnOnboarding()}
+          onRegisterLot={() => openGuidedLotRegistration({ firstTurnAssist: true })}
+          onSkip={() => void skipFirstTurnOnboarding()}
+        />,
+      );
+    }
+
     return withSessionBar(
       <>
         {initializationError === undefined ? null : (
@@ -635,7 +774,6 @@ export function CaptureApp({
             ? {}
             : { onRegisterPushDevice: registerPushDeviceClient })}
           onRegisterLot={() => navigate({ name: "discovery" })}
-          onOpenOnboarding={() => navigate({ name: "onboarding" })}
           onOpenRecentLots={() => navigate({ name: "recent" })}
           onOpenTask={(task) => {
             setPushFallbackNotice(undefined);
@@ -654,11 +792,15 @@ export function CaptureApp({
   if (currentRoute.name === "onboarding") {
     return withSessionBar(
       <OperationalOnboardingScreen
+        mode={currentRoute.mode ?? "review"}
         prepareTurnCacheStatus={prepareTurnCache}
         prepareTurnSource={prepareTurnSource}
+        storeName={session?.store.storeName ?? storeId}
         onBack={goBack}
         onOpenToday={() => resetToToday()}
-        onRegisterLot={openGuidedLotRegistration}
+        onRegisterLot={() =>
+          openGuidedLotRegistration({ firstTurnAssist: currentRoute.mode === "first_turn" })
+        }
       />,
     );
   }
@@ -764,7 +906,7 @@ export function CaptureApp({
         repository={repository}
         product={currentRoute.product}
         onBack={goBack}
-        onDone={() => resetToToday({ refreshSource: "lot_change" })}
+        onDone={() => void completeLotRegistration()}
       />,
     );
   }
@@ -889,6 +1031,61 @@ function roleLabel(role: "collaborator" | "lead" | "admin"): string {
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
   return "Operacao";
+}
+
+function FirstTurnOnboardingLoadingScreen() {
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <ScreenHeader
+        title="Abrindo turno"
+        body="Conferindo se este usuario ja concluiu os primeiros passos nesta loja."
+      />
+      <StatusNotice title="Verificacao rapida">
+        Se o app nao conseguir confirmar online agora, o guia aparece com opcao de pular e abrir
+        Hoje.
+      </StatusNotice>
+    </ScrollView>
+  );
+}
+
+async function resolveFirstTurnOnboardingDecision(input: {
+  repository: CaptureRepository;
+  onboardingClient?: OnboardingProgressClient | undefined;
+  key: OnboardingProgressKey;
+}): Promise<FirstTurnOnboardingDecision> {
+  const localProgress = await input.repository
+    .loadOnboardingProgress?.(input.key)
+    .catch(() => null);
+
+  if (localProgress !== null && localProgress !== undefined) {
+    return "hidden";
+  }
+
+  if (await hasLocalOnboardingActivationSignal(input.repository)) {
+    return "hidden";
+  }
+
+  const centralProgress = await input.onboardingClient
+    ?.loadOnboardingProgress({
+      flowId: input.key.flowId,
+      version: input.key.version,
+    })
+    .catch(() => undefined);
+
+  if (centralProgress !== undefined && !centralProgress.shouldShow) {
+    return "hidden";
+  }
+
+  return "show";
+}
+
+async function hasLocalOnboardingActivationSignal(repository: CaptureRepository): Promise<boolean> {
+  const [lots, activeTasks] = await Promise.all([
+    repository.listRecentLots({ limit: 1 }).catch(() => []),
+    repository.listActiveTodayTasks().catch(() => []),
+  ]);
+
+  return lots.length > 0 || activeTasks.length > 0;
 }
 
 async function loadPrepareTurnCache(

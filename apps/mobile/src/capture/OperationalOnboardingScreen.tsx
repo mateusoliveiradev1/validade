@@ -3,144 +3,157 @@ import type { PrepareTurnCacheStatus } from "@validade-zero/contracts";
 import { PrimaryAction, ScreenHeader, SecondaryAction, StatusNotice } from "./capture-ui";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
-type OnboardingStepStatus = "done" | "current" | "next";
+type OnboardingMode = "first_turn" | "review";
 
 type OnboardingStep = {
   id: string;
-  number: string;
+  eyebrow: string;
   title: string;
   body: string;
-  status: OnboardingStepStatus;
-  actionLabel?: string | undefined;
-  onAction?: (() => void) | undefined;
+  state: "done" | "current" | "next";
 };
 
 export function OperationalOnboardingScreen({
+  mode = "review",
   prepareTurnCacheStatus,
   prepareTurnSource,
+  storeName,
   onBack,
   onRegisterLot,
   onOpenToday,
+  onSkip,
 }: {
+  mode?: OnboardingMode | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
   prepareTurnSource?: "central" | "local_cache" | undefined;
-  onBack: () => void;
+  storeName?: string | undefined;
+  onBack?: (() => void) | undefined;
   onRegisterLot: () => void;
   onOpenToday: () => void;
+  onSkip?: (() => void) | undefined;
 }) {
   const hasCentralRead =
     prepareTurnSource === "central" &&
     (prepareTurnCacheStatus?.state === "ready" ||
       prepareTurnCacheStatus?.state === "needs_first_central_read");
-  const isFirstStoreSetup =
-    prepareTurnCacheStatus?.productCount === 0 &&
-    prepareTurnCacheStatus.lotCount === 0 &&
-    prepareTurnCacheStatus.activeTaskCount === 0;
-  const activeTaskCount = prepareTurnCacheStatus?.activeTaskCount ?? 0;
   const lotCount = prepareTurnCacheStatus?.lotCount ?? 0;
-
-  const steps: readonly OnboardingStep[] = [
-    {
-      id: "invite",
-      number: "1",
-      title: "Entrar com convite ativo",
-      body: "Voce ja esta autenticado na loja autorizada para este aparelho.",
-      status: "done",
-    },
-    {
-      id: "central-read",
-      number: "2",
-      title: "Preparar a leitura central",
-      body: hasCentralRead
-        ? isFirstStoreSetup
-          ? "A central voltou vazia para a primeira execucao. Isso libera o cadastro do primeiro lote real, mas ainda nao declara area segura."
-          : "A base da loja foi baixada para o turno. Hoje deve continuar mostrando pendencias enquanto existirem."
-        : "Use Preparar turno quando a central estiver disponivel. Leitura local ajuda a continuar, mas nao fecha area segura.",
-      status: hasCentralRead ? "done" : "current",
-    },
-    {
-      id: "register-lot",
-      number: "3",
-      title: "Registrar um lote fisico",
-      body:
-        lotCount > 0
-          ? "Ja existe lote registrado neste aparelho. Continue usando lote real, validade, quantidade e local observado."
-          : "Escolha um produto encontrado na loja e registre validade, quantidade e local. Esse e o primeiro valor real do piloto.",
-      status: lotCount > 0 ? "done" : "current",
-      actionLabel: "Registrar lote real",
-      onAction: onRegisterLot,
-    },
-    {
-      id: "today",
-      number: "4",
-      title: "Conferir Hoje",
-      body:
-        activeTaskCount > 0
-          ? "Abra Hoje e trate as tarefas ativas antes de qualquer conclusao de area segura."
-          : "Depois do registro, volte para Hoje para confirmar se o lote gerou tarefa, radar futuro ou apenas historico.",
-      status: activeTaskCount > 0 ? "current" : "next",
-      actionLabel: "Abrir Hoje",
-      onAction: onOpenToday,
-    },
-    {
-      id: "safe-close",
-      number: "5",
-      title: "Fechar turno com seguranca",
-      body: "Fechamento seguro depende de leitura central, sincronizacao, pendencias resolvidas e checklist fisico da lideranca.",
-      status: "next",
-    },
-  ];
+  const activeTaskCount = prepareTurnCacheStatus?.activeTaskCount ?? 0;
+  const isFirstTurn = mode === "first_turn";
+  const steps = buildSteps({ hasCentralRead, lotCount, activeTaskCount });
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
-        title="Primeiros passos da loja"
-        body="Siga o caminho operacional ate o primeiro lote real ficar visivel no trabalho do turno."
+        title={isFirstTurn ? "Primeiro turno assistido" : "Primeiros passos"}
+        body={
+          isFirstTurn
+            ? `${storeName ?? "Esta loja"} ainda nao tem uso confirmado neste guia. Comece por um lote real ou pule para Hoje.`
+            : "Reveja o caminho operacional quando precisar treinar alguem ou conferir o fluxo."
+        }
       />
-      <StatusNotice title="Objetivo do guia" tone="info">
-        Registrar um lote fisico e conferir o resultado em Hoje. Zero tarefas nao significa area de
-        venda segura sem conferencia fisica.
+
+      <StatusNotice title={isFirstTurn ? "Antes de abrir Hoje" : "Caminho recomendado"} tone="info">
+        O valor do guia e fazer a primeira acao real: registrar lote fisico e voltar para Hoje. Zero
+        tarefas nunca substitui conferencia fisica da area de venda.
       </StatusNotice>
+
+      <View style={styles.summaryRow}>
+        <Metric label="Leitura" value={hasCentralRead ? "central" : "local"} />
+        <Metric label="Lotes" value={String(lotCount)} />
+        <Metric label="Tarefas" value={String(activeTaskCount)} />
+      </View>
+
       <View style={styles.steps}>
         {steps.map((step) => (
-          <OnboardingStepCard key={step.id} step={step} />
+          <View
+            key={step.id}
+            style={[styles.stepCard, step.state === "current" ? styles.stepCardCurrent : null]}
+          >
+            <View style={styles.stepTopline}>
+              <Text style={styles.stepEyebrow}>{step.eyebrow}</Text>
+              <Text style={[styles.stepState, stepStateStyleFor(step.state)]}>
+                {stepStateLabelFor(step.state)}
+              </Text>
+            </View>
+            <Text style={styles.stepTitle}>{step.title}</Text>
+            <Text style={styles.stepBody}>{step.body}</Text>
+          </View>
         ))}
       </View>
-      <SecondaryAction label="Voltar para operacao" onPress={onBack} />
+
+      <PrimaryAction
+        label={isFirstTurn ? "Registrar primeiro lote" : "Registrar lote real"}
+        onPress={onRegisterLot}
+      />
+      {isFirstTurn ? (
+        <SecondaryAction label="Pular e abrir Hoje" onPress={onSkip ?? onOpenToday} />
+      ) : (
+        <SecondaryAction label="Abrir Hoje" onPress={onOpenToday} />
+      )}
+      {onBack === undefined || isFirstTurn ? null : (
+        <SecondaryAction label="Voltar para Ajustes" onPress={onBack} />
+      )}
     </ScrollView>
   );
 }
 
-function OnboardingStepCard({ step }: { step: OnboardingStep }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.stepCard, step.status === "current" ? styles.stepCardCurrent : undefined]}>
-      <View style={styles.stepHeader}>
-        <Text style={styles.stepNumber}>{step.number}</Text>
-        <View style={styles.stepTitleGroup}>
-          <Text style={styles.stepTitle}>{step.title}</Text>
-          <Text style={[styles.stepStatus, stepStatusStyleFor(step.status)]}>
-            {statusLabelFor(step.status)}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.stepBody}>{step.body}</Text>
-      {step.actionLabel === undefined || step.onAction === undefined ? null : (
-        <PrimaryAction label={step.actionLabel} onPress={step.onAction} />
-      )}
+    <View style={styles.metric}>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
 }
 
-function statusLabelFor(status: OnboardingStepStatus): string {
-  if (status === "done") return "feito";
-  if (status === "current") return "agora";
+function buildSteps(input: {
+  hasCentralRead: boolean;
+  lotCount: number;
+  activeTaskCount: number;
+}): readonly OnboardingStep[] {
+  return [
+    {
+      id: "read",
+      eyebrow: "1",
+      title: "Confirmar a base do turno",
+      body: input.hasCentralRead
+        ? "A leitura central foi carregada para esta loja. Se ela veio vazia, isso so significa inicio limpo, nao area segura."
+        : "Se estiver offline, continue com cuidado e atualize a central antes de fechar turno seguro.",
+      state: input.hasCentralRead ? "done" : "current",
+    },
+    {
+      id: "lot",
+      eyebrow: "2",
+      title: "Registrar o lote fisico encontrado",
+      body:
+        input.lotCount > 0
+          ? "Ja existe lote registrado. O proximo passo e conferir o impacto em Hoje."
+          : "Use validade, quantidade e local observado. Esse e o primeiro momento de valor do app.",
+      state: input.lotCount > 0 ? "done" : "current",
+    },
+    {
+      id: "today",
+      eyebrow: "3",
+      title: "Voltar para Hoje",
+      body:
+        input.activeTaskCount > 0
+          ? "Hoje ja tem tarefa ativa. Trate a pendencia antes de qualquer conclusao de area segura."
+          : "Depois do registro, Hoje mostra se virou tarefa, radar futuro ou historico sem bloqueio.",
+      state: input.lotCount > 0 || input.activeTaskCount > 0 ? "current" : "next",
+    },
+  ];
+}
+
+function stepStateLabelFor(state: OnboardingStep["state"]): string {
+  if (state === "done") return "feito";
+  if (state === "current") return "agora";
   return "depois";
 }
 
-function stepStatusStyleFor(status: OnboardingStepStatus) {
-  if (status === "done") return styles.stepStatusDone;
-  if (status === "current") return styles.stepStatusCurrent;
-  return styles.stepStatusNext;
+function stepStateStyleFor(state: OnboardingStep["state"]) {
+  if (state === "done") return styles.stepStateDone;
+  if (state === "current") return styles.stepStateCurrent;
+  return styles.stepStateNext;
 }
 
 const styles = StyleSheet.create({
@@ -151,6 +164,31 @@ const styles = StyleSheet.create({
     padding: captureSpacing.large,
     paddingBottom: captureSpacing.xxlarge,
   },
+  summaryRow: {
+    flexDirection: "row",
+    gap: captureSpacing.small,
+  },
+  metric: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 68,
+    paddingHorizontal: captureSpacing.medium,
+    paddingVertical: captureSpacing.small,
+  },
+  metricValue: {
+    color: captureColors.ink,
+    fontSize: 17,
+    fontWeight: "700",
+    lineHeight: 23,
+  },
+  metricLabel: {
+    color: captureColors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   steps: {
     gap: captureSpacing.medium,
   },
@@ -159,43 +197,31 @@ const styles = StyleSheet.create({
     borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: captureSpacing.medium,
+    gap: captureSpacing.small,
     padding: captureSpacing.large,
   },
   stepCardCurrent: {
     borderColor: captureColors.accent,
   },
-  stepHeader: {
-    alignItems: "flex-start",
+  stepTopline: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: captureSpacing.medium,
+    justifyContent: "space-between",
   },
-  stepNumber: {
+  stepEyebrow: {
     backgroundColor: captureColors.accentSoft,
-    borderColor: captureColors.border,
     borderRadius: captureRadii.small,
-    borderWidth: 1,
     color: captureColors.accent,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-    minWidth: 32,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    minWidth: 28,
+    overflow: "hidden",
     paddingHorizontal: captureSpacing.small,
-    paddingVertical: captureSpacing.xsmall,
+    paddingVertical: 3,
     textAlign: "center",
   },
-  stepTitleGroup: {
-    flex: 1,
-    gap: captureSpacing.xsmall,
-  },
-  stepTitle: {
-    color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 24,
-  },
-  stepStatus: {
-    alignSelf: "flex-start",
+  stepState: {
     borderRadius: captureRadii.small,
     fontSize: 12,
     fontWeight: "700",
@@ -204,17 +230,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: captureSpacing.small,
     paddingVertical: 2,
   },
-  stepStatusDone: {
+  stepStateDone: {
     backgroundColor: captureColors.accentSoft,
     color: captureColors.accent,
   },
-  stepStatusCurrent: {
+  stepStateCurrent: {
     backgroundColor: captureColors.warningSurface,
     color: captureColors.warningInk,
   },
-  stepStatusNext: {
+  stepStateNext: {
     backgroundColor: captureColors.surfaceMuted,
     color: captureColors.mutedInk,
+  },
+  stepTitle: {
+    color: captureColors.ink,
+    fontSize: 17,
+    fontWeight: "700",
+    lineHeight: 23,
   },
   stepBody: {
     color: captureColors.mutedInk,

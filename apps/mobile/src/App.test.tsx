@@ -511,6 +511,9 @@ describe("Validade Zero mobile smoke", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Preparar turno");
 
     await press(tree, "Preparar turno");
+    expect(JSON.stringify(tree.toJSON())).toContain("Primeiro turno assistido");
+
+    await press(tree, "Pular e abrir Hoje");
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain("Hoje");

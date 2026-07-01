@@ -27,6 +27,9 @@ import {
   HealthContract,
   MembershipListResponseSchema,
   MembershipMutationResponseSchema,
+  OnboardingProgressMutationRequestSchema,
+  OnboardingProgressQuerySchema,
+  OnboardingProgressResponseSchema,
   ProductDraftCreateRequestSchema,
   ProductDraftCreateResponseSchema,
   ProductDraftReviewRequestSchema,
@@ -51,6 +54,8 @@ import {
   type ActiveTaskSnippet,
   type AlertDeliveryResult,
   type AlertDispatchCommand,
+  type OnboardingActivationSignal,
+  type OnboardingProgressResponse,
   type CentralAlertAudienceRegistration,
   CommandCenterProjectionSchema,
   type DevicePushRegistrationCommand,
@@ -546,6 +551,119 @@ export function createApiApp(input?: {
       return context.json(PrepareTurnResponseSchema.parse(response));
     } catch {
       return context.json({ error: "prepare_turn_unavailable" }, 503);
+    }
+  });
+
+  api.get("/onboarding/progress", async (context) => {
+    const parsed = OnboardingProgressQuerySchema.safeParse({
+      flowId: context.req.query("flowId"),
+      version: context.req.query("version"),
+    });
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_onboarding_progress_query" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "onboarding_progress",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      return context.json(
+        await readOnboardingProgressForActor({
+          captureRepository,
+          subjectId: resolved.decision.context.identity.subjectId,
+          storeId: resolved.decision.context.membership.storeId,
+          flowId: parsed.data.flowId,
+          version: parsed.data.version,
+        }),
+      );
+    } catch {
+      return context.json({ error: "onboarding_progress_unavailable" }, 503);
+    }
+  });
+
+  api.post("/onboarding/progress", async (context) => {
+    const rawPayload = await parseJsonBody(context);
+    const parsed = OnboardingProgressMutationRequestSchema.safeParse(rawPayload);
+    const requestedStoreId = normalizeOptionalQueryValue(context.req.query("storeId"));
+
+    if (!parsed.success) {
+      return context.json({ error: "invalid_onboarding_progress_request" }, 400);
+    }
+
+    const resolved = await resolvePrepareTurnScope({
+      request: context.req.raw,
+      requestedStoreId,
+      authProvider,
+      authorizationService,
+      membershipRepository,
+      capability: "task.act",
+    });
+
+    if (!resolved.allowed) {
+      const storeId = resolved.storeId ?? requestedStoreId ?? "loja-nao-autorizada";
+      const denial = await recordDeniedAccess({
+        recorder: accessDeniedAuditRecorder,
+        identity: resolved.identity,
+        decision: resolved.decision,
+        capability: "task.act",
+        reason: resolved.reason,
+        targetType: "onboarding_progress",
+        storeScope: storeId,
+      });
+
+      return context.json(AuthorizationContract.denial.parse(denial), 403);
+    }
+
+    try {
+      const actorContext = resolved.decision.context;
+      const progress = await captureRepository.saveOnboardingProgress({
+        subjectId: actorContext.identity.subjectId,
+        storeId: actorContext.membership.storeId,
+        flowId: parsed.data.flowId,
+        version: parsed.data.version,
+        status: parsed.data.status,
+        occurredAt: new Date(parsed.data.occurredAt),
+        ...(parsed.data.deviceId === undefined ? {} : { deviceId: parsed.data.deviceId }),
+      });
+
+      return context.json(
+        OnboardingProgressResponseSchema.parse({
+          flowId: progress.flowId,
+          version: progress.version,
+          status: progress.status,
+          shouldShow: false,
+          source: "central",
+          activationSignals: ["central_progress"],
+          ...(progress.completedAt === undefined ? {} : { completedAt: progress.completedAt }),
+          ...(progress.skippedAt === undefined ? {} : { skippedAt: progress.skippedAt }),
+          updatedAt: progress.updatedAt,
+        }),
+      );
+    } catch {
+      return context.json({ error: "onboarding_progress_unavailable" }, 503);
     }
   });
 
@@ -2941,6 +3059,61 @@ async function resolvePrepareTurnScope(input: {
       (requestedMembership ?? targetMembership)?.storeName ??
       normalizeStoreName(undefined, targetStoreId),
   };
+}
+
+async function readOnboardingProgressForActor(input: {
+  captureRepository: CaptureRepository;
+  subjectId: string;
+  storeId: string;
+  flowId: Parameters<CaptureRepository["loadOnboardingProgress"]>[0]["flowId"];
+  version: Parameters<CaptureRepository["loadOnboardingProgress"]>[0]["version"];
+}): Promise<OnboardingProgressResponse> {
+  const progress = await input.captureRepository.loadOnboardingProgress({
+    subjectId: input.subjectId,
+    storeId: input.storeId,
+    flowId: input.flowId,
+    version: input.version,
+  });
+
+  if (progress !== null) {
+    return OnboardingProgressResponseSchema.parse({
+      flowId: input.flowId,
+      version: input.version,
+      status: progress.status,
+      shouldShow: false,
+      source: "central",
+      activationSignals: ["central_progress"] satisfies readonly OnboardingActivationSignal[],
+      ...(progress.completedAt === undefined ? {} : { completedAt: progress.completedAt }),
+      ...(progress.skippedAt === undefined ? {} : { skippedAt: progress.skippedAt }),
+      updatedAt: progress.updatedAt,
+    });
+  }
+
+  const hasActivationSignal = await input.captureRepository.hasOnboardingActivationSignal({
+    storeId: input.storeId,
+  });
+
+  if (hasActivationSignal) {
+    return OnboardingProgressResponseSchema.parse({
+      flowId: input.flowId,
+      version: input.version,
+      status: "not_started",
+      shouldShow: false,
+      source: "derived",
+      activationSignals: [
+        "central_operational_fact",
+      ] satisfies readonly OnboardingActivationSignal[],
+    });
+  }
+
+  return OnboardingProgressResponseSchema.parse({
+    flowId: input.flowId,
+    version: input.version,
+    status: "not_started",
+    shouldShow: true,
+    source: "none",
+    activationSignals: [],
+  });
 }
 
 async function readSessionStoreId(

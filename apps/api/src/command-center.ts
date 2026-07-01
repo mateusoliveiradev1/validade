@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat18-guided-onboarding-apk-148",
+  artifactLabel: "uat19-first-turn-onboarding-apk-149",
   appVersion: "0.12.0",
-  build: "148",
+  build: "149",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

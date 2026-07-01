@@ -29,38 +29,43 @@ describe("OperationalOnboardingScreen", () => {
     const registerLot = vi.fn();
     const openToday = vi.fn();
     const back = vi.fn();
+    const skip = vi.fn();
     const tree = renderOnboarding({
+      mode: "first_turn",
       prepareTurnCacheStatus: firstStoreCache(),
       prepareTurnSource: "central",
       onRegisterLot: registerLot,
       onOpenToday: openToday,
       onBack: back,
+      onSkip: skip,
     });
     const text = renderedText(tree);
 
-    expect(text).toContain("Primeiros passos da loja");
-    expect(text).toContain("A central voltou vazia para a primeira execucao");
-    expect(text).toContain("Registrar um lote fisico");
-    expect(text).toContain("Zero tarefas nao significa area de venda segura");
+    expect(text).toContain("Primeiro turno assistido");
+    expect(text).toContain("A leitura central foi carregada");
+    expect(text).toContain("Registrar o lote fisico encontrado");
+    expect(text).toContain("Zero tarefas nunca substitui conferencia fisica");
 
     act(() => {
-      press(tree, "Registrar lote real");
+      press(tree, "Registrar primeiro lote");
     });
     expect(registerLot).toHaveBeenCalledTimes(1);
 
     act(() => {
-      press(tree, "Abrir Hoje");
+      press(tree, "Pular e abrir Hoje");
     });
-    expect(openToday).toHaveBeenCalledTimes(1);
+    expect(skip).toHaveBeenCalledTimes(1);
   });
 });
 
 function renderOnboarding(input: {
+  mode?: "first_turn" | "review";
   prepareTurnCacheStatus: PrepareTurnCacheStatus;
   prepareTurnSource: "central" | "local_cache";
   onRegisterLot: () => void;
   onOpenToday: () => void;
   onBack: () => void;
+  onSkip?: () => void;
 }): ReactTestRenderer {
   let tree: ReactTestRenderer | undefined;
 

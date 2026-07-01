@@ -12,6 +12,9 @@ import {
   InviteValidationResponseSchema,
   LoginRequestSchema,
   LogoutResponseSchema,
+  OnboardingProgressMutationRequestSchema,
+  OnboardingProgressQuerySchema,
+  OnboardingProgressResponseSchema,
   PrivacyRequestResponseSchema,
   PrepareTurnRequestSchema,
   PrepareTurnResponseSchema,
@@ -39,6 +42,9 @@ import {
   type ShiftClosureSnapshot,
   type PrivacyTopicId,
   type DevicePushRegistrationCommand,
+  type OnboardingProgressMutationRequest,
+  type OnboardingProgressQuery,
+  type OnboardingProgressResponse,
 } from "@validade-zero/contracts";
 import { Image, ScrollView, StyleSheet, View } from "react-native";
 import brandSymbol from "../../assets/brand-symbol.png";
@@ -83,6 +89,12 @@ export interface MobileAuthClient {
   requestRecovery(identifier: string): Promise<void>;
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
+  loadOnboardingProgress?:
+    | ((input: OnboardingProgressQuery) => Promise<OnboardingProgressResponse>)
+    | undefined;
+  saveOnboardingProgress?:
+    | ((input: OnboardingProgressMutationRequest) => Promise<OnboardingProgressResponse>)
+    | undefined;
   registerPushDevice?: ((input: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   listCentralCategories?: (() => Promise<CentralCategoryCatalogResponse>) | undefined;
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;
@@ -176,6 +188,22 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
       const body = PrepareTurnRequestSchema.parse(input);
       return PrepareTurnResponseSchema.parse(
         await request("/capture/prepare-turn", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+    async loadOnboardingProgress(input) {
+      const query = OnboardingProgressQuerySchema.parse(input);
+      const params = new URLSearchParams({ flowId: query.flowId, version: query.version });
+      return OnboardingProgressResponseSchema.parse(
+        await request(`/onboarding/progress?${params.toString()}`),
+      );
+    },
+    async saveOnboardingProgress(input) {
+      const body = OnboardingProgressMutationRequestSchema.parse(input);
+      return OnboardingProgressResponseSchema.parse(
+        await request("/onboarding/progress", {
           method: "POST",
           body: JSON.stringify(body),
         }),

@@ -12,6 +12,7 @@ import {
   MarkdownShelfConfirmationCommandSchema,
   MarkdownWorkflowRecordSchema,
   OfflineActionCommandSchema,
+  OnboardingProgressMutationRequestSchema,
   OfflineCacheStatusSchema,
   PhysicalObservationInputSchema,
   PrepareTurnCacheStatusSchema,
@@ -48,6 +49,10 @@ import {
   type MarkdownShelfConfirmationCommand,
   type MarkdownWorkflowRecord,
   type OfflineActionCommand,
+  type OnboardingFlowId,
+  type OnboardingProgressMutationRequest,
+  type OnboardingProgressMutationStatus,
+  type OnboardingVersion,
   type OfflineCacheStatus,
   type OperationalLocation,
   type PhysicalObservationInput,
@@ -100,6 +105,14 @@ export interface CaptureRepositoryDependencies {
   createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createCentralLot?: (request: CentralLotCreateRequest) => Promise<CentralLotWriteResponse>;
 }
+
+export const MOBILE_FIRST_TURN_ONBOARDING = {
+  flowId: "mobile_first_turn",
+  version: "first_turn_assist_v1",
+} as const satisfies {
+  flowId: OnboardingFlowId;
+  version: OnboardingVersion;
+};
 
 export type CaptureProductRecord = CaptureProductInput & {
   id: string;
@@ -401,11 +414,34 @@ export interface LoadMarkdownEntryStateInput {
   currentTimestamp: string;
 }
 
+export interface OnboardingProgressKey {
+  subjectId: string;
+  storeId: string;
+  flowId: OnboardingFlowId;
+  version: OnboardingVersion;
+}
+
+export interface LocalOnboardingProgressRecord extends OnboardingProgressKey {
+  status: OnboardingProgressMutationStatus;
+  completedAt?: string | undefined;
+  skippedAt?: string | undefined;
+  updatedAt: string;
+}
+
+export type SaveLocalOnboardingProgressInput = OnboardingProgressKey &
+  Pick<OnboardingProgressMutationRequest, "status" | "occurredAt">;
+
 export interface CaptureRepository {
   initialize(): Promise<void>;
   getOrCreateDeviceInstallId?: () => Promise<string>;
   hydratePrepareTurn?: (response: PrepareTurnResponse) => Promise<void>;
   loadPrepareTurnCacheStatus?: () => Promise<PrepareTurnCacheStatus | null>;
+  loadOnboardingProgress?: (
+    key: OnboardingProgressKey,
+  ) => Promise<LocalOnboardingProgressRecord | null>;
+  saveOnboardingProgress?: (
+    input: SaveLocalOnboardingProgressInput,
+  ) => Promise<LocalOnboardingProgressRecord>;
   searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;
   createProductDraft?: (request: ProductDraftCreateRequest) => Promise<ProductDraftCreateResponse>;
   createProduct(input: CaptureProductInput): Promise<CaptureProductRecord>;
@@ -634,6 +670,28 @@ export function parseOfflineCacheStatus(input: unknown): OfflineCacheStatus {
 
 export function parsePrepareTurnResponse(input: unknown): PrepareTurnResponse {
   return PrepareTurnResponseSchema.parse(input);
+}
+
+export function parseLocalOnboardingProgressRecord(
+  input: LocalOnboardingProgressRecord,
+): LocalOnboardingProgressRecord {
+  const parsed = OnboardingProgressMutationRequestSchema.parse({
+    flowId: input.flowId,
+    version: input.version,
+    status: input.status,
+    occurredAt: input.updatedAt,
+  });
+
+  return {
+    subjectId: input.subjectId.trim(),
+    storeId: input.storeId.trim(),
+    flowId: parsed.flowId,
+    version: parsed.version,
+    status: parsed.status,
+    ...(input.completedAt === undefined ? {} : { completedAt: input.completedAt }),
+    ...(input.skippedAt === undefined ? {} : { skippedAt: input.skippedAt }),
+    updatedAt: parsed.occurredAt,
+  };
 }
 
 export function parsePrepareTurnCacheStatus(input: unknown): PrepareTurnCacheStatus {

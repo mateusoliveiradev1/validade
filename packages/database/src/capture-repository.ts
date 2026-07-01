@@ -4,6 +4,7 @@ import {
   PilotDeviceBlockerSchema,
   PilotDeviceReadinessSchema,
   CentralLotWriteResponseSchema,
+  OnboardingProgressMutationStatusSchema,
   CentralCategoryCatalogItemSchema,
   CentralProductAcknowledgementSchema,
   PrepareTurnResponseSchema,
@@ -30,6 +31,9 @@ import {
   type CentralProductSnippet,
   type CentralResolvedTaskHistory,
   type OperationalLocation,
+  type OnboardingFlowId,
+  type OnboardingProgressMutationStatus,
+  type OnboardingVersion,
   type PrepareTurnRequest,
   type PrepareTurnResponse,
   type PhysicalObservationInput,
@@ -144,6 +148,27 @@ export interface DevicePushTarget {
   updatedAt: Date;
 }
 
+export interface OnboardingProgressLookupInput {
+  subjectId: string;
+  storeId: string;
+  flowId: OnboardingFlowId;
+  version: OnboardingVersion;
+}
+
+export interface OnboardingProgressSaveInput extends OnboardingProgressLookupInput {
+  status: OnboardingProgressMutationStatus;
+  occurredAt: Date;
+  deviceId?: string | undefined;
+}
+
+export interface OnboardingProgressPersistenceRecord extends OnboardingProgressLookupInput {
+  status: OnboardingProgressMutationStatus;
+  completedAt?: string | undefined;
+  skippedAt?: string | undefined;
+  deviceId?: string | undefined;
+  updatedAt: string;
+}
+
 export interface ListDeviceReadinessInput {
   storeId: string;
   storeName: string;
@@ -216,6 +241,13 @@ export interface CentralSyncCommandApplyInput {
 
 export interface CaptureRepository {
   prepareTurn(input: PrepareTurnInput): Promise<PrepareTurnResponse>;
+  loadOnboardingProgress(
+    input: OnboardingProgressLookupInput,
+  ): Promise<OnboardingProgressPersistenceRecord | null>;
+  saveOnboardingProgress(
+    input: OnboardingProgressSaveInput,
+  ): Promise<OnboardingProgressPersistenceRecord>;
+  hasOnboardingActivationSignal(input: { storeId: string }): Promise<boolean>;
   listCategories(): Promise<readonly CentralCategoryCatalogItem[]>;
   searchProducts(input: ProductSearchInput): Promise<ProductSearchResponse>;
   createProductDraft(input: ProductDraftCreateInput): Promise<ProductDraftCreateResponse>;
@@ -360,6 +392,18 @@ interface DeviceSnapshotRow {
 interface LegacyDevicePushChannelRow {
   device_id: string;
   payload: unknown;
+  updated_at: string | Date;
+}
+
+interface OnboardingProgressRow {
+  subject_id: string;
+  store_id: string;
+  flow_id: string;
+  version: string;
+  status: string;
+  completed_at: string | Date | null;
+  skipped_at: string | Date | null;
+  device_id: string | null;
   updated_at: string | Date;
 }
 
@@ -643,6 +687,79 @@ export function createCaptureRepositoryFromQuery(
     return rows
       .map((row) => buildPilotDeviceReadiness(deviceSnapshotFromRow(row), input))
       .sort(comparePilotDeviceReadiness);
+  }
+
+  async function loadOnboardingProgress(
+    input: OnboardingProgressLookupInput,
+  ): Promise<OnboardingProgressPersistenceRecord | null> {
+    const rows = (await sql.query(
+      `select subject_id, store_id, flow_id, version, status, completed_at, skipped_at,
+        device_id, updated_at
+      from user_onboarding_progress
+      where subject_id = $1
+        and store_id = $2
+        and flow_id = $3
+        and version = $4
+      limit 1`,
+      [input.subjectId, input.storeId, input.flowId, input.version],
+    )) as OnboardingProgressRow[];
+
+    return rows[0] === undefined ? null : onboardingProgressFromRow(rows[0]);
+  }
+
+  async function saveOnboardingProgress(
+    input: OnboardingProgressSaveInput,
+  ): Promise<OnboardingProgressPersistenceRecord> {
+    const completedAt = input.status === "completed" ? input.occurredAt.toISOString() : null;
+    const skippedAt = input.status === "skipped" ? input.occurredAt.toISOString() : null;
+    const rows = (await sql.query(
+      `insert into user_onboarding_progress (
+        subject_id, store_id, flow_id, version, status, completed_at, skipped_at, device_id,
+        updated_at
+      ) values (
+        $1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $8, $9::timestamptz
+      )
+      on conflict (subject_id, store_id, flow_id, version) do update set
+        status = excluded.status,
+        completed_at = excluded.completed_at,
+        skipped_at = excluded.skipped_at,
+        device_id = coalesce(excluded.device_id, user_onboarding_progress.device_id),
+        updated_at = excluded.updated_at
+      returning subject_id, store_id, flow_id, version, status, completed_at, skipped_at,
+        device_id, updated_at`,
+      [
+        input.subjectId,
+        input.storeId,
+        input.flowId,
+        input.version,
+        input.status,
+        completedAt,
+        skippedAt,
+        input.deviceId ?? null,
+        input.occurredAt.toISOString(),
+      ],
+    )) as OnboardingProgressRow[];
+
+    if (rows[0] === undefined) {
+      throw new Error("onboarding_progress_not_saved");
+    }
+
+    return onboardingProgressFromRow(rows[0]);
+  }
+
+  async function hasOnboardingActivationSignal(input: { storeId: string }): Promise<boolean> {
+    const rows = (await sql.query(
+      `select exists (
+        select 1 from central_lots
+        where store_id = $1 and state <> 'discarded'
+        union all
+        select 1 from central_projected_tasks
+        where store_id = $1 and status in ('active', 'resolved')
+      ) as has_signal`,
+      [input.storeId],
+    )) as Array<{ has_signal: boolean | string | number }>;
+
+    return booleanFromSql(rows[0]?.has_signal);
   }
 
   async function appendPrepareTurnAudit(input: PrepareTurnInput, response: PrepareTurnResponse) {
@@ -2062,6 +2179,9 @@ export function createCaptureRepositoryFromQuery(
 
       return response;
     },
+    loadOnboardingProgress,
+    saveOnboardingProgress,
+    hasOnboardingActivationSignal,
     listCategories,
     searchProducts,
     createProductDraft,
@@ -2100,6 +2220,9 @@ export function createInMemoryCaptureRepository(input?: {
   const auditEvents: Record<string, unknown>[] = [];
   const syncResultsByIdempotencyKey = new Map<string, SyncTransportResult>();
   const deviceSnapshots = new Map<string, DeviceSnapshotInput>();
+  const onboardingProgress = new Map<string, OnboardingProgressPersistenceRecord>();
+  const onboardingProgressKey = (input: OnboardingProgressLookupInput): string =>
+    `${input.subjectId}:${input.storeId}:${input.flowId}:${input.version}`;
   const upsertDeviceSnapshot = (snapshot: DeviceSnapshotInput): Promise<void> => {
     const key = `${snapshot.storeId}:${snapshot.deviceId}`;
     const existing = deviceSnapshots.get(key);
@@ -2159,6 +2282,36 @@ export function createInMemoryCaptureRepository(input?: {
 
     return Promise.resolve(match === undefined ? null : devicePushTargetFromSnapshot(match));
   };
+  const loadOnboardingProgress = (
+    input: OnboardingProgressLookupInput,
+  ): Promise<OnboardingProgressPersistenceRecord | null> =>
+    Promise.resolve(onboardingProgress.get(onboardingProgressKey(input)) ?? null);
+  const saveOnboardingProgress = (
+    input: OnboardingProgressSaveInput,
+  ): Promise<OnboardingProgressPersistenceRecord> => {
+    const record: OnboardingProgressPersistenceRecord = {
+      subjectId: input.subjectId,
+      storeId: input.storeId,
+      flowId: input.flowId,
+      version: input.version,
+      status: input.status,
+      ...(input.status === "completed" ? { completedAt: input.occurredAt.toISOString() } : {}),
+      ...(input.status === "skipped" ? { skippedAt: input.occurredAt.toISOString() } : {}),
+      ...(input.deviceId === undefined ? {} : { deviceId: input.deviceId }),
+      updatedAt: input.occurredAt.toISOString(),
+    };
+    onboardingProgress.set(onboardingProgressKey(input), record);
+    return Promise.resolve(record);
+  };
+  const hasOnboardingActivationSignal = (input: { storeId: string }): Promise<boolean> =>
+    Promise.resolve(
+      lots.some((lot) => lot.storeId === input.storeId && lot.state !== "discarded") ||
+        tasks.some(
+          (task) =>
+            task.storeId === input.storeId &&
+            ((task.taskStatus ?? "active") === "active" || task.taskStatus === "resolved"),
+        ),
+    );
   const productForLot = (
     storeId: string,
     centralProductId: string,
@@ -2344,6 +2497,9 @@ export function createInMemoryCaptureRepository(input?: {
 
       return response;
     },
+    loadOnboardingProgress,
+    saveOnboardingProgress,
+    hasOnboardingActivationSignal,
     listCategories() {
       return Promise.resolve(currentCategories());
     },
@@ -2948,9 +3104,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat18-guided-onboarding-apk-148";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat19-first-turn-onboarding-apk-149";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "148";
+const DEFAULT_APPROVED_BUILD = "149";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;
@@ -4886,6 +5042,32 @@ function sanitizeProductAuditMetadata(metadata: Record<string, unknown>): Record
 
 function parseJson<T>(value: T | string): T {
   return typeof value === "string" ? (JSON.parse(value) as T) : value;
+}
+
+function onboardingProgressFromRow(
+  row: OnboardingProgressRow,
+): OnboardingProgressPersistenceRecord {
+  const completedAt = row.completed_at === null ? undefined : toIso(row.completed_at);
+  const skippedAt = row.skipped_at === null ? undefined : toIso(row.skipped_at);
+  const deviceId = row.device_id === null ? undefined : row.device_id;
+
+  return {
+    subjectId: row.subject_id,
+    storeId: row.store_id,
+    flowId: row.flow_id as OnboardingFlowId,
+    version: row.version as OnboardingVersion,
+    status: OnboardingProgressMutationStatusSchema.parse(row.status),
+    ...(completedAt === undefined ? {} : { completedAt }),
+    ...(skippedAt === undefined ? {} : { skippedAt }),
+    ...(deviceId === undefined ? {} : { deviceId }),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function booleanFromSql(value: boolean | string | number | undefined): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  return value === "true" || value === "t" || value === "1";
 }
 
 function toIso(value: string | Date): string {

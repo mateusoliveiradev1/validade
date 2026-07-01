@@ -27,6 +27,7 @@ import {
   shiftHandoffs,
   stores,
   storeMemberships,
+  userOnboardingProgress,
 } from "./schema";
 
 const migrationSql = readFileSync(
@@ -71,6 +72,10 @@ const productIdentifiersMigrationSql = readFileSync(
 );
 const decimalLotQuantitiesMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0015_phase_15_decimal_lot_quantities.sql"),
+  "utf8",
+);
+const firstTurnOnboardingMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0016_phase_16_first_turn_onboarding.sql"),
   "utf8",
 );
 
@@ -282,6 +287,24 @@ describe("phase 08 database schema", () => {
       "ALTER COLUMN approximate_quantity TYPE double precision",
     );
     expect(decimalLotQuantitiesMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+  });
+
+  it("tracks first-turn onboarding progress by user, store, flow, and version", () => {
+    expect(userOnboardingProgress.subjectId.name).toBe("subject_id");
+    expect(userOnboardingProgress.storeId.name).toBe("store_id");
+    expect(userOnboardingProgress.flowId.name).toBe("flow_id");
+    expect(userOnboardingProgress.version.name).toBe("version");
+    expect(userOnboardingProgress.status.name).toBe("status");
+    expect(firstTurnOnboardingMigrationSql).toContain(
+      "CREATE TABLE IF NOT EXISTS user_onboarding_progress",
+    );
+    expect(firstTurnOnboardingMigrationSql).toContain(
+      "PRIMARY KEY (subject_id, store_id, flow_id, version)",
+    );
+    expect(firstTurnOnboardingMigrationSql).toContain("user_onboarding_progress_store_status_idx");
+    expect(firstTurnOnboardingMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
   });

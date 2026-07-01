@@ -840,6 +840,9 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Preparar turno");
     expect(hydratedCaches).toHaveLength(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Primeiro turno assistido");
+
+    await press(tree, "Pular e abrir Hoje");
     expect(JSON.stringify(tree.toJSON())).toContain("Nenhum bloqueio ativo na leitura central");
 
     await press(tree, "Registrar lote");
@@ -912,14 +915,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "148",
+            appBuild: "149",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat18-guided-onboarding-apk-148",
+            approvedArtifactLabel: "uat19-first-turn-onboarding-apk-149",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "148",
-            buildRef: "guided-onboarding-148",
+            approvedBuild: "149",
+            buildRef: "first-turn-onboarding-149",
             buildCompatibility: "atual",
           }}
         />,
@@ -930,6 +933,7 @@ describe("mobile release journeys", () => {
     if (tree === undefined) throw new Error("Safe close journey did not render.");
 
     await press(tree, "Preparar turno");
+    await press(tree, "Pular e abrir Hoje");
     await press(tree, "Revisar fechamento do turno");
     await press(tree, "Conferi fisicamente");
     await press(tree, "Expliquei as pendencias");
@@ -983,10 +987,10 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Registrar lote");
 
-    expect(renderedText(tree)).toContain("Primeiros passos da loja");
-    expect(renderedText(tree)).toContain("Registrar um lote fisico");
+    expect(renderedText(tree)).toContain("Primeiro turno assistido");
+    expect(renderedText(tree)).toContain("Registrar o lote fisico encontrado");
 
-    await press(tree, "Registrar lote real");
+    await press(tree, "Registrar primeiro lote");
 
     expect(renderedText(tree)).toContain("Produto do lote");
     expect(renderedText(tree)).toContain("Buscar produto por nome, codigo ou categoria");

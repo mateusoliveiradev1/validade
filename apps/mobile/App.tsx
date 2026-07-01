@@ -173,6 +173,17 @@ function AuthenticatedCaptureApp({
     session.store.storeName,
   ]);
   const prepareTurnClient = useMemo(() => authClient.prepareTurn.bind(authClient), [authClient]);
+  const onboardingClient = useMemo(
+    () =>
+      authClient.loadOnboardingProgress === undefined ||
+      authClient.saveOnboardingProgress === undefined
+        ? undefined
+        : {
+            loadOnboardingProgress: authClient.loadOnboardingProgress.bind(authClient),
+            saveOnboardingProgress: authClient.saveOnboardingProgress.bind(authClient),
+          },
+    [authClient],
+  );
   const closeShiftClient = useMemo(() => authClient.closeShift.bind(authClient), [authClient]);
   const registerPushDeviceClient = useMemo(
     () =>
@@ -202,6 +213,7 @@ function AuthenticatedCaptureApp({
       buildInfo={buildInfo}
       syncEngine={syncEngine}
       prepareTurnClient={prepareTurnClient}
+      {...(onboardingClient === undefined ? {} : { onboardingClient })}
       closeShiftClient={closeShiftClient}
       {...(registerPushDeviceClient === undefined ? {} : { registerPushDeviceClient })}
       {...(alertChannel === undefined ? {} : { alertChannel })}

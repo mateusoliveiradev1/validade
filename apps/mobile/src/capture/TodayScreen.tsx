@@ -70,7 +70,6 @@ export function TodayScreen({
   onRegisterLot,
   onOpenRecentLots,
   onOpenTask,
-  onOpenOnboarding,
   onOpenShiftClose,
   onRequestCentralRefresh,
   onRegisterPushDevice,
@@ -91,7 +90,6 @@ export function TodayScreen({
   onRegisterLot: () => void;
   onOpenRecentLots: () => void;
   onOpenTask?: (task: TodayTaskRecord) => void;
-  onOpenOnboarding?: (() => void) | undefined;
   onOpenShiftClose?: (() => void) | undefined;
   onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
@@ -412,16 +410,6 @@ export function TodayScreen({
   const hasSyncWork = syncPendingCount > 0;
   const hasSafeShiftClosed = shiftCloseCompletion?.verdict === "safe";
   const canPrepareNextTurn = hasSafeShiftClosed && onRequestCentralRefresh !== undefined;
-  const shouldShowOnboardingPrompt =
-    !isInitialLoading &&
-    !hasSafeShiftClosed &&
-    refreshError === undefined &&
-    tasks.length === 0 &&
-    onOpenOnboarding !== undefined;
-  const isFirstStoreSetup =
-    prepareTurnSource === "central" &&
-    prepareTurnCacheStatus?.productCount === 0 &&
-    prepareTurnCacheStatus.lotCount === 0;
   const defaultHeroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
@@ -579,23 +567,6 @@ export function TodayScreen({
           />
         ) : null}
       </View>
-
-      {shouldShowOnboardingPrompt ? (
-        <View style={styles.onboardingPrompt}>
-          <View style={styles.onboardingPromptText}>
-            <Text style={styles.onboardingPromptTitle}>Guia de primeiros passos</Text>
-            <Text style={styles.onboardingPromptBody}>
-              {isFirstStoreSetup
-                ? "A central voltou vazia. O proximo passo e registrar um lote real e conferir o resultado em Hoje."
-                : "Use o guia para revisar o caminho: leitura central, lote fisico, tarefas visiveis e fechamento seguro."}
-            </Text>
-          </View>
-          <View style={styles.onboardingPromptActions}>
-            <SecondaryAction label="Abrir guia" onPress={() => onOpenOnboarding?.()} />
-            <SecondaryAction label={todayCopy.registerLot} onPress={onRegisterLot} />
-          </View>
-        </View>
-      ) : null}
 
       {refreshError === undefined ? null : <StatusNotice tone="error">{refreshError}</StatusNotice>}
       {refreshFeedback === undefined ? null : (
@@ -1202,33 +1173,6 @@ const styles = StyleSheet.create({
     color: captureColors.mutedInk,
     fontSize: 16,
     lineHeight: 24,
-  },
-  onboardingPrompt: {
-    backgroundColor: captureColors.surface,
-    borderColor: captureColors.border,
-    borderRadius: captureRadii.medium,
-    borderWidth: 1,
-    gap: captureSpacing.medium,
-    padding: captureSpacing.large,
-  },
-  onboardingPromptText: {
-    gap: captureSpacing.xsmall,
-  },
-  onboardingPromptTitle: {
-    color: captureColors.ink,
-    fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 24,
-  },
-  onboardingPromptBody: {
-    color: captureColors.mutedInk,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  onboardingPromptActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: captureSpacing.small,
   },
   buildInfoCard: {
     backgroundColor: captureColors.surface,

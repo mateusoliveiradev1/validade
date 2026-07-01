@@ -49,6 +49,7 @@ export function AjustesScreen({
   buildInfo,
   onBack,
   onConfirmCentralDeviceState,
+  onOpenOnboarding,
   onRequestCentralRefresh,
   onRegisterPushDevice,
   now = () => new Date(),
@@ -65,6 +66,7 @@ export function AjustesScreen({
   now?: (() => Date) | undefined;
   onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
   onBack: () => void;
+  onOpenOnboarding?: (() => void) | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
   onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   prepareTurnCacheStatus?: PrepareTurnCacheStatus | null | undefined;
@@ -497,6 +499,22 @@ export function AjustesScreen({
         />
       </View>
 
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Primeiros passos</Text>
+          <ReadinessBadge status="Apto" />
+        </View>
+        <Text style={styles.body}>
+          Reabra o primeiro turno assistido para treinar a equipe ou revisar o caminho de lote, Hoje
+          e fechamento seguro.
+        </Text>
+        <SecondaryAction
+          disabled={onOpenOnboarding === undefined}
+          label="Rever primeiros passos"
+          onPress={() => onOpenOnboarding?.()}
+        />
+      </View>
+
       <View style={[styles.card, styles.signOutCard]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Sair com pendencias visiveis</Text>
@@ -562,11 +580,11 @@ function BuildUpdateCard({
       <View style={styles.metricGrid}>
         <ReadinessRow
           label="Aprovado"
-          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "148"})`}
+          value={`${buildInfo?.approvedAppVersion ?? "0.12.0"} (${buildInfo?.approvedBuild ?? "149"})`}
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat18-guided-onboarding-apk-148"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat19-first-turn-onboarding-apk-149"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

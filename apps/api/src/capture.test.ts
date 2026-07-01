@@ -191,6 +191,89 @@ describe("capture prepare-turn API", () => {
   });
 });
 
+describe("onboarding progress API", () => {
+  it("shows first-turn onboarding only when no progress or operational activity exists", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository: createInMemoryCaptureRepository(),
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request(onboardingProgressPath(), {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as { shouldShow?: boolean; status?: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ shouldShow: true, status: "not_started" });
+  });
+
+  it("persists skipped first-turn onboarding for the same authenticated store", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository: createInMemoryCaptureRepository(),
+      now: () => new Date(NOW),
+    });
+
+    const saved = await app.request("/onboarding/progress", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        flowId: "mobile_first_turn",
+        version: "first_turn_assist_v1",
+        status: "skipped",
+        occurredAt: NOW,
+        deviceId: "device-pilot-001",
+      }),
+    });
+    const read = await app.request(onboardingProgressPath(), {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await read.json()) as {
+      shouldShow?: boolean;
+      status?: string;
+      skippedAt?: string;
+    };
+
+    expect(saved.status).toBe(200);
+    expect(read.status).toBe(200);
+    expect(body).toMatchObject({ shouldShow: false, status: "skipped", skippedAt: NOW });
+  });
+
+  it("hides first-turn onboarding when central operational facts already exist", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository: createInMemoryCaptureRepository({
+        products: [centralProduct("loja-piloto")],
+        lots: [centralLot("loja-piloto")],
+      }),
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request(onboardingProgressPath(), {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as {
+      shouldShow?: boolean;
+      source?: string;
+      activationSignals?: string[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      shouldShow: false,
+      source: "derived",
+      activationSignals: ["central_operational_fact"],
+    });
+  });
+});
+
 describe("capture product catalog API", () => {
   it("serves the shared category catalog without store-scoped category copies", async () => {
     const captureRepository = createInMemoryCaptureRepository({
@@ -741,6 +824,10 @@ function prepareTurnRequest(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+}
+
+function onboardingProgressPath(): string {
+  return "/onboarding/progress?flowId=mobile_first_turn&version=first_turn_assist_v1";
 }
 
 function productSearchRequest(query: string) {

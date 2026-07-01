@@ -331,6 +331,29 @@ export const privacyRequests = pgTable(
   ],
 );
 
+export const userOnboardingProgress = pgTable(
+  "user_onboarding_progress",
+  {
+    subjectId: text("subject_id").notNull(),
+    storeId: text("store_id").notNull(),
+    flowId: text("flow_id").notNull(),
+    version: text("version").notNull(),
+    status: text("status").notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    skippedAt: timestamp("skipped_at", { withTimezone: true, mode: "date" }),
+    deviceId: text("device_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.subjectId, table.storeId, table.flowId, table.version] }),
+    index("user_onboarding_progress_store_status_idx").on(
+      table.storeId,
+      table.status,
+      table.updatedAt,
+    ),
+  ],
+);
+
 export const auditEvents = pgTable(
   "audit_events",
   {
@@ -744,6 +767,8 @@ export type AuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferSele
 export type NewAuthLoginAttemptDatabaseRecord = typeof authLoginAttempts.$inferInsert;
 export type PrivacyRequestDatabaseRecord = typeof privacyRequests.$inferSelect;
 export type NewPrivacyRequestDatabaseRecord = typeof privacyRequests.$inferInsert;
+export type UserOnboardingProgressRecord = typeof userOnboardingProgress.$inferSelect;
+export type NewUserOnboardingProgressRecord = typeof userOnboardingProgress.$inferInsert;
 export type CentralCategoryRecord = typeof centralCategories.$inferSelect;
 export type NewCentralCategoryRecord = typeof centralCategories.$inferInsert;
 export type AuditEventRecord = typeof auditEvents.$inferSelect;

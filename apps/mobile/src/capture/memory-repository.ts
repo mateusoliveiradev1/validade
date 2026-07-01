@@ -60,11 +60,14 @@ import type {
   RefreshTodayTasksInput,
   TodayTaskRefreshResult,
   LoadMarkdownEntryStateInput,
+  LocalOnboardingProgressRecord,
   MarkdownEntryState,
+  OnboardingProgressKey,
   EvidenceUploadQueueRecord,
   QueueUnsafeShiftCloseInput,
   ShiftCloseOutboxRecord,
   QueueEvidenceUploadInput,
+  SaveLocalOnboardingProgressInput,
   SaveLotInput,
 } from "./repository";
 import {
@@ -107,6 +110,7 @@ import {
   parsePushOpenIntent,
   parseOfflineActionCommand,
   parseOfflineCacheStatus,
+  parseLocalOnboardingProgressRecord,
   parsePrepareTurnCacheStatus,
   parsePrepareTurnResponse,
   parseProductDraftCreateRequest,
@@ -143,6 +147,7 @@ export function createMemoryCaptureRepository(
   const evidenceUploads = new Map<string, EvidenceUploadQueueRecord>();
   const syncConflicts = new Map<string, SyncConflictRecord>();
   const localAuditEvents = new Map<string, AuditTimelineItem & { idempotencyKey: string }>();
+  const onboardingProgress = new Map<string, LocalOnboardingProgressRecord>();
   const alertAttempts: RecordAlertAttemptInput[] = [];
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
   let offlineCacheStatus: OfflineCacheStatus | undefined;
@@ -194,6 +199,34 @@ export function createMemoryCaptureRepository(
 
   function loadPrepareTurnCacheStatus(): Promise<PrepareTurnCacheStatus | null> {
     return Promise.resolve(prepareTurnCacheStatus ?? null);
+  }
+
+  function onboardingProgressKey(input: OnboardingProgressKey): string {
+    return `${input.subjectId}:${input.storeId}:${input.flowId}:${input.version}`;
+  }
+
+  function loadOnboardingProgress(
+    key: OnboardingProgressKey,
+  ): Promise<LocalOnboardingProgressRecord | null> {
+    return Promise.resolve(onboardingProgress.get(onboardingProgressKey(key)) ?? null);
+  }
+
+  function saveOnboardingProgress(
+    input: SaveLocalOnboardingProgressInput,
+  ): Promise<LocalOnboardingProgressRecord> {
+    const record = parseLocalOnboardingProgressRecord({
+      subjectId: input.subjectId,
+      storeId: input.storeId,
+      flowId: input.flowId,
+      version: input.version,
+      status: input.status,
+      ...(input.status === "completed" ? { completedAt: input.occurredAt } : {}),
+      ...(input.status === "skipped" ? { skippedAt: input.occurredAt } : {}),
+      updatedAt: input.occurredAt,
+    });
+    onboardingProgress.set(onboardingProgressKey(record), record);
+
+    return Promise.resolve(record);
   }
 
   function reconcilePreparedCentralTasks(
@@ -1907,6 +1940,8 @@ export function createMemoryCaptureRepository(
     getOrCreateDeviceInstallId,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
+    loadOnboardingProgress,
+    saveOnboardingProgress,
     searchCentralProducts,
     createProductDraft,
     createProduct,

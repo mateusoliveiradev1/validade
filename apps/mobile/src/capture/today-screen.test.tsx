@@ -311,7 +311,6 @@ async function renderTodayScreen(
   options: {
     onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
     onRequestCentralRefresh?: (() => void) | undefined;
-    onOpenOnboarding?: (() => void) | undefined;
     onRegisterLot?: (() => void) | undefined;
     onOpenShiftClose?: (() => void) | undefined;
     canCloseShift?: boolean | undefined;
@@ -328,7 +327,6 @@ async function renderTodayScreen(
         repository={repository}
         onRegisterLot={options.onRegisterLot ?? (() => undefined)}
         onOpenRecentLots={() => undefined}
-        onOpenOnboarding={options.onOpenOnboarding}
         syncEngine={syncEngine}
         prepareTurnCacheStatus={prepareTurn?.status}
         prepareTurnSource={prepareTurn?.source}
@@ -383,24 +381,16 @@ describe("TodayScreen", () => {
     expect(rendered).toContain("Conferir lotes recentes");
   });
 
-  it("offers a guided onboarding entry in empty Hoje without replacing lot registration", async () => {
+  it("keeps guided onboarding out of empty Hoje without replacing lot registration", async () => {
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));
-    const openOnboarding = vi.fn();
     const registerLot = vi.fn();
     const tree = await renderTodayScreen(repository, undefined, undefined, {
-      onOpenOnboarding: openOnboarding,
       onRegisterLot: registerLot,
     });
     const text = renderedText(tree);
 
-    expect(text).toContain("Guia de primeiros passos");
-    expect(text).toContain("leitura central, lote fisico, tarefas visiveis e fechamento seguro");
+    expect(text).not.toContain("Guia de primeiros passos");
     expect(text).toContain("Registrar lote");
-
-    act(() => {
-      findButton(tree, "Abrir guia").props.onPress();
-    });
-    expect(openOnboarding).toHaveBeenCalledTimes(1);
 
     const registerButtons = tree.root.findAllByProps({ accessibilityLabel: "Registrar lote" });
     expect(registerButtons.length).toBeGreaterThan(0);

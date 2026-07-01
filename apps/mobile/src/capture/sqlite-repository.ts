@@ -70,7 +70,10 @@ import type {
   ResolvePushOpenIntentInput,
   ResolveSyncConflictInput,
   RefreshTodayTasksInput,
+  LocalOnboardingProgressRecord,
+  OnboardingProgressKey,
   SaveLotInput,
+  SaveLocalOnboardingProgressInput,
   TodayTaskRefreshResult,
   ShiftCloseOutboxRecord,
 } from "./repository";
@@ -101,6 +104,7 @@ import {
   parseMarkdownShelfConfirmationCommand,
   parseOfflineActionCommand,
   parseOfflineCacheStatus,
+  parseLocalOnboardingProgressRecord,
   parsePrepareTurnCacheStatus,
   parsePrepareTurnResponse,
   parseProductDraftCreateRequest,
@@ -340,6 +344,17 @@ interface PrepareTurnCacheStatusRow {
   resolved_history_count: number;
 }
 
+interface OnboardingProgressRow {
+  subject_id: string;
+  store_id: string;
+  flow_id: string;
+  version: string;
+  status: string;
+  completed_at: string | null;
+  skipped_at: string | null;
+  updated_at: string;
+}
+
 interface EvidenceUploadRow {
   local_evidence_id: string;
   task_id: string;
@@ -564,6 +579,62 @@ export function createSQLiteCaptureRepository(
     );
 
     return row === null ? null : mapPrepareTurnCacheStatus(row);
+  }
+
+  async function loadOnboardingProgress(
+    key: OnboardingProgressKey,
+  ): Promise<LocalOnboardingProgressRecord | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<OnboardingProgressRow>(
+      `SELECT * FROM onboarding_progress
+       WHERE subject_id = ? AND store_id = ? AND flow_id = ? AND version = ?
+       LIMIT 1`,
+      key.subjectId,
+      key.storeId,
+      key.flowId,
+      key.version,
+    );
+
+    return row === null ? null : mapOnboardingProgress(row);
+  }
+
+  async function saveOnboardingProgress(
+    input: SaveLocalOnboardingProgressInput,
+  ): Promise<LocalOnboardingProgressRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const completedAt = input.status === "completed" ? input.occurredAt : null;
+    const skippedAt = input.status === "skipped" ? input.occurredAt : null;
+    await db.runAsync(
+      `INSERT INTO onboarding_progress (
+        subject_id, store_id, flow_id, version, status, completed_at, skipped_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(subject_id, store_id, flow_id, version) DO UPDATE SET
+        status = excluded.status,
+        completed_at = excluded.completed_at,
+        skipped_at = excluded.skipped_at,
+        updated_at = excluded.updated_at`,
+      input.subjectId,
+      input.storeId,
+      input.flowId,
+      input.version,
+      input.status,
+      completedAt,
+      skippedAt,
+      input.occurredAt,
+    );
+
+    return parseLocalOnboardingProgressRecord({
+      subjectId: input.subjectId,
+      storeId: input.storeId,
+      flowId: input.flowId,
+      version: input.version,
+      status: input.status,
+      ...(completedAt === null ? {} : { completedAt }),
+      ...(skippedAt === null ? {} : { skippedAt }),
+      updatedAt: input.occurredAt,
+    });
   }
 
   async function createProduct(input: CaptureProductInput): Promise<CaptureProductRecord> {
@@ -3019,6 +3090,8 @@ export function createSQLiteCaptureRepository(
     getOrCreateDeviceInstallId,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
+    loadOnboardingProgress,
+    saveOnboardingProgress,
     searchCentralProducts,
     createProductDraft,
     createProduct,
@@ -3203,6 +3276,17 @@ async function initializeDatabase(
       active_task_count INTEGER NOT NULL,
       conflict_count INTEGER NOT NULL,
       resolved_history_count INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS onboarding_progress (
+      subject_id TEXT NOT NULL,
+      store_id TEXT NOT NULL,
+      flow_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      status TEXT NOT NULL,
+      completed_at TEXT,
+      skipped_at TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (subject_id, store_id, flow_id, version)
     );
     CREATE TABLE IF NOT EXISTS evidence_uploads (
       local_evidence_id TEXT PRIMARY KEY NOT NULL,
@@ -3396,6 +3480,8 @@ async function initializeDatabase(
     CREATE INDEX IF NOT EXISTS offline_cache_status_state_idx ON offline_cache_status(state);
     CREATE INDEX IF NOT EXISTS prepare_turn_cache_status_state_idx
       ON prepare_turn_cache_status(state);
+    CREATE INDEX IF NOT EXISTS onboarding_progress_store_status_idx
+      ON onboarding_progress(store_id, status, updated_at);
     CREATE INDEX IF NOT EXISTS evidence_uploads_state_created_idx
       ON evidence_uploads(state, created_at);
     CREATE INDEX IF NOT EXISTS evidence_uploads_task_state_idx
@@ -5492,6 +5578,19 @@ function mapPrepareTurnCacheStatus(row: PrepareTurnCacheStatusRow): PrepareTurnC
     activeTaskCount: row.active_task_count,
     conflictCount: row.conflict_count,
     resolvedHistoryCount: row.resolved_history_count,
+  });
+}
+
+function mapOnboardingProgress(row: OnboardingProgressRow): LocalOnboardingProgressRecord {
+  return parseLocalOnboardingProgressRecord({
+    subjectId: row.subject_id,
+    storeId: row.store_id,
+    flowId: row.flow_id as LocalOnboardingProgressRecord["flowId"],
+    version: row.version as LocalOnboardingProgressRecord["version"],
+    status: row.status as LocalOnboardingProgressRecord["status"],
+    ...(row.completed_at === null ? {} : { completedAt: row.completed_at }),
+    ...(row.skipped_at === null ? {} : { skippedAt: row.skipped_at }),
+    updatedAt: row.updated_at,
   });
 }
 

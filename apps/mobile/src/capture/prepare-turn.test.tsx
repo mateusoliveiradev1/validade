@@ -202,11 +202,11 @@ describe("prepare-turn gate", () => {
 
     await press(tree, "Registrar lote");
 
-    expect(textContent(tree)).toContain("Primeiros passos da loja");
-    expect(textContent(tree)).toContain("Registrar um lote fisico");
+    expect(textContent(tree)).toContain("Primeiro turno assistido");
+    expect(textContent(tree)).toContain("Registrar o lote fisico encontrado");
     expect(textContent(tree)).not.toContain("Area de venda segura");
 
-    await press(tree, "Registrar lote real");
+    await press(tree, "Registrar primeiro lote");
 
     expect(textContent(tree)).toContain("Produto do lote");
     expect(textContent(tree)).not.toContain("Area de venda segura");
@@ -227,6 +227,36 @@ describe("prepare-turn gate", () => {
 
     expect(textContent(tree)).toContain("Preparar turno");
     expect(textContent(tree)).not.toContain("Area de venda segura");
+  });
+
+  it("does not repeat first-turn onboarding after the operator skips it locally", async () => {
+    const repository = createRepository();
+    const firstStorePrepare = vi.fn(() =>
+      Promise.resolve(
+        preparedTurnResponse({
+          readiness: "needs_review",
+          products: [],
+          lots: [],
+          activeTasks: [],
+          cacheState: "needs_first_central_read",
+        }),
+      ),
+    );
+    const firstTree = await renderApp(repository, firstStorePrepare);
+
+    await press(firstTree, "Preparar turno");
+    await press(firstTree, "Registrar lote");
+    expect(textContent(firstTree)).toContain("Primeiro turno assistido");
+
+    await press(firstTree, "Pular e abrir Hoje");
+    expect(textContent(firstTree)).toContain("Hoje");
+    expect(textContent(firstTree)).not.toContain("Primeiro turno assistido");
+
+    const secondTree = await renderApp(repository, firstStorePrepare);
+    await press(secondTree, "Registrar lote");
+
+    expect(textContent(secondTree)).toContain("Produto do lote");
+    expect(textContent(secondTree)).not.toContain("Primeiro turno assistido");
   });
 
   it("labels local-cache fallback as not safe when central is unavailable", async () => {
