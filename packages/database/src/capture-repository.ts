@@ -1054,7 +1054,8 @@ export function createCaptureRepositoryFromQuery(
           resolution_reason = null,
           actor_label = null,
           version = central_projected_tasks.version + 1,
-          updated_at = excluded.updated_at`,
+          updated_at = excluded.updated_at
+        where central_projected_tasks.status <> 'resolved'`,
         [
           result.activeTask.centralTaskId,
           result.activeTask.activeKey,
@@ -2517,7 +2518,7 @@ export function createInMemoryCaptureRepository(input?: {
 
       if (taskIndex === -1) {
         tasks.push(storedTask);
-      } else {
+      } else if ((tasks[taskIndex]?.taskStatus ?? "active") !== "resolved") {
         tasks[taskIndex] = storedTask;
       }
     }

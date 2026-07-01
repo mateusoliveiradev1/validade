@@ -872,6 +872,50 @@ describe("database repositories", () => {
     );
   });
 
+  it("does not re-open a resolved projected task with the same active key on prepare-turn", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [centralProduct("store-1", "produto-store-1")],
+      lots: [centralLot("store-1", "lot-store-1")],
+    });
+    const initial = await repository.prepareTurn(prepareTurnInput("store-1"));
+    const task = initial.activeTasks[0];
+
+    if (task === undefined) {
+      throw new Error("Expected projected central task.");
+    }
+
+    const command = syncCommandForTask({
+      taskId: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      action: "confirm_presence",
+      requiredResolution: task.requiredResolution,
+      riskState: task.riskState,
+      idempotencyKey: "sync-central-presence-001",
+    });
+
+    const result = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(result).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: task.centralTaskId,
+          action: "confirm_presence",
+        },
+      },
+    });
+    expect(prepared.activeTasks).toEqual([]);
+    expect(prepared.resolvedHistory).toEqual([
+      expect.objectContaining({
+        centralTaskId: task.centralTaskId,
+        action: "confirm_presence",
+      }),
+    ]);
+  });
+
   it("reconciles stale central sync conflicts when the task was already resolved by the same action", async () => {
     const task = {
       ...centralTask("store-1", "task-stale-conflict-001"),
