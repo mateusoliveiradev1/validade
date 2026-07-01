@@ -501,6 +501,7 @@ describe("push notification routing", () => {
           alertChannel={channel}
           registerPushDeviceClient={registerPushDeviceClient}
           storeId="loja-18"
+          deviceId="validade-zero-mobile:loja-18:install-ficticio"
         />,
       );
       await Promise.resolve();
@@ -509,7 +510,7 @@ describe("push notification routing", () => {
 
     expect(registerPushDeviceClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        deviceId: "validade-zero-mobile:loja-18",
+        deviceId: "validade-zero-mobile:loja-18:install-ficticio",
         deviceLabel: expect.stringContaining("Android piloto"),
         permissionStatus: "granted",
         expoPushToken: "ExpoPushToken-FICTICIO-001",

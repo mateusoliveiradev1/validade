@@ -12,6 +12,7 @@ import {
   authSessions,
   centralCategoryCatalog,
   centralCategories,
+  centralLots,
   centralProductIdentifiers,
   evidenceAssets,
   evidenceAssetStateEnum,
@@ -66,6 +67,10 @@ const globalCategoryCatalogMigrationSql = readFileSync(
 );
 const productIdentifiersMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0012_phase_10_product_identifiers.sql"),
+  "utf8",
+);
+const decimalLotQuantitiesMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0015_phase_15_decimal_lot_quantities.sql"),
   "utf8",
 );
 
@@ -269,6 +274,16 @@ describe("phase 08 database schema", () => {
     expect(productIdentifiersMigrationSql).toContain("central_product_identifiers_active_uidx");
     expect(productIdentifiersMigrationSql).toContain("WHERE status = 'active'");
     expect(productIdentifiersMigrationSql).toContain("INSERT INTO central_product_identifiers");
+  });
+
+  it("allows decimal central lot quantities for real hortifruti weights", () => {
+    expect(centralLots.approximateQuantity.name).toBe("approximate_quantity");
+    expect(decimalLotQuantitiesMigrationSql).toContain(
+      "ALTER COLUMN approximate_quantity TYPE double precision",
+    );
+    expect(decimalLotQuantitiesMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
   });
 
   it("anchors store tenancy in an explicit store catalog", () => {

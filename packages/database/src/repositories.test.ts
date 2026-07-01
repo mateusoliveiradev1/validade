@@ -667,6 +667,58 @@ describe("database repositories", () => {
     );
   });
 
+  it("keeps central projected task active keys within the public contract for mobile lot ids", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [centralProduct("store-1", "produto-store-1")],
+    });
+    const mobileIdempotencyKey =
+      "mobile-lot:produto-store-1:generated_internal:INTERNO-LOCAL-MR11XPQA:processed_repack_loss:a";
+
+    const first = await repository.createLot(
+      centralLotCreateInput("store-1", {
+        request: {
+          ...centralLotCreateRequest(),
+          idempotencyKey: mobileIdempotencyKey,
+          lot: {
+            ...centralLotCreateRequest().lot,
+            identity: {
+              identitySource: "generated_internal",
+              value: "INTERNO-LOCAL-MR11XPQA",
+            },
+            mode: "processed_repack_loss",
+          },
+        },
+      }),
+    );
+    const replay = await repository.createLot(
+      centralLotCreateInput("store-1", {
+        request: {
+          ...centralLotCreateRequest(),
+          idempotencyKey: mobileIdempotencyKey,
+          lot: {
+            ...centralLotCreateRequest().lot,
+            identity: {
+              identitySource: "generated_internal",
+              value: "INTERNO-LOCAL-MR11XPQA",
+            },
+            mode: "processed_repack_loss",
+          },
+        },
+      }),
+    );
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(`${first.lot.centralLotId}:expired:withdraw_or_loss:root`.length).toBeGreaterThan(120);
+    expect(first.taskProjection.attention).toBe("active_task");
+    expect(first.acknowledgement.acknowledgementId.length).toBeLessThanOrEqual(120);
+    expect(replay.taskProjection).toEqual(first.taskProjection);
+    if (first.taskProjection.attention === "active_task") {
+      expect(first.taskProjection.activeKey).toMatch(/^task-key:store-1:/);
+      expect(first.taskProjection.activeKey.length).toBeLessThanOrEqual(120);
+      expect(prepared.activeTasks[0]?.activeKey).toBe(first.taskProjection.activeKey);
+    }
+  });
+
   it("applies accepted sync commands to central active tasks idempotently", async () => {
     const task = {
       ...centralTask("store-1", "task-sync-001"),
@@ -802,6 +854,36 @@ describe("database repositories", () => {
     expect(String(auditQuery?.[0])).toContain("'lot'");
     expect(String(auditQuery?.[0])).toContain("sanitized");
     expect(String(auditQuery?.[0])).toContain("true");
+  });
+
+  it("preserves decimal central lot quantities in SQL writes", async () => {
+    const captured: unknown[][] = [];
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+        if (
+          strings.includes("from central_products") &&
+          !strings.includes("join central_products")
+        ) {
+          return Promise.resolve([centralProductRow()]);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    await repository.createLot(
+      centralLotCreateInput("store-1", {
+        lot: { ...centralLotCreateRequest().lot, approximateQuantity: 1.5 },
+      }),
+    );
+
+    const centralLotWrite = captured.find(([query]) =>
+      String(query).includes("insert into central_lots"),
+    );
+
+    expect(centralLotWrite).toContain(1.5);
   });
 
   it("deduplicates pilot invites and rejects expired invite tokens", async () => {

@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { OperationalLocation } from "@validade-zero/contracts";
 import type { CaptureLotSnapshot, CaptureRepository } from "./repository";
 import {
   captureCopy,
   formatLocation,
-  formatObservationTimestamp,
+  formatOperationalTime,
   operationalLocations,
 } from "./capture-copy";
 import { Field, PrimaryAction, ScreenHeader, SelectionRow, StatusNotice } from "./capture-ui";
+import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 
 export function RecentLotList({
   repository,
@@ -64,17 +65,62 @@ export function RecentLotList({
           <Text>Registre o primeiro lote para acompanhar sua presença física por local.</Text>
         </StatusNotice>
       ) : (
-        lots.map((lot) => (
-          <SelectionRow
-            key={lot.id}
-            label={`${lot.productDisplayName} — ${lot.identity.value}`}
-            detail={`${actionLabel(lot.currentObservation.status)} · ${formatLocation(lot.currentObservation.location)} · ${formatQuantity(lot)} · ${formatObservationTimestamp(lot.currentObservation.occurredAt)}${attention(lot) === undefined ? "" : ` · ${attention(lot)}`}`}
-            onPress={() => onOpen(lot)}
-          />
-        ))
+        lots.map((lot) => <RecentLotCard key={lot.id} lot={lot} onOpen={() => onOpen(lot)} />)
       )}
       <PrimaryAction label={captureCopy.registerLot} onPress={onRegister} />
     </ScrollView>
+  );
+}
+
+function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () => void }) {
+  const primaryDate = lotPrimaryDate(lot);
+  const attentionLabel = attention(lot);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${lot.productDisplayName}, ${primaryDate.label} ${primaryDate.value}, ${actionLabel(lot.currentObservation.status)} em ${formatLocation(lot.currentObservation.location)}`}
+      onPress={onOpen}
+      style={({ pressed }) => [styles.lotCard, pressed ? styles.lotCardPressed : undefined]}
+    >
+      <View style={styles.lotHeader}>
+        <View style={styles.lotTitleGroup}>
+          <Text style={styles.productName}>{lot.productDisplayName}</Text>
+          <Text style={styles.lotIdentity}>{lot.identity.value}</Text>
+        </View>
+        <View style={styles.syncBadge}>
+          <Text style={styles.syncBadgeText}>{centralStateShortLabel(lot)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.datePanel}>
+        <Text style={styles.dateLabel}>{primaryDate.label}</Text>
+        <Text style={styles.dateValue}>{primaryDate.value}</Text>
+        {primaryDate.badge === undefined ? null : (
+          <Text
+            style={[
+              styles.dateBadge,
+              primaryDate.tone === "critical" ? styles.dateBadgeCritical : undefined,
+            ]}
+          >
+            {primaryDate.badge}
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.factGroup}>
+        <Text style={styles.factPrimary}>
+          {actionLabel(lot.currentObservation.status)} em{" "}
+          {formatLocation(lot.currentObservation.location)}
+        </Text>
+        <Text style={styles.factSecondary}>
+          {formatQuantity(lot)} -{" "}
+          {formatRecentObservationTimestamp(lot.currentObservation.occurredAt)}
+        </Text>
+      </View>
+
+      {attentionLabel === undefined ? null : <Text style={styles.attention}>{attentionLabel}</Text>}
+    </Pressable>
   );
 }
 
@@ -95,8 +141,8 @@ export function actionLabel(status: string): string {
 
 export function formatQuantity(lot: CaptureLotSnapshot): string {
   return lot.currentObservation.quantityState === "not_estimable"
-    ? "Não foi possível estimar"
-    : `${lot.currentObservation.approximateQuantity} unidades`;
+    ? "Quantidade não estimada"
+    : `Qtd. aprox. ${formatQuantityNumber(lot.currentObservation.approximateQuantity)}`;
 }
 
 export function attention(lot: CaptureLotSnapshot): string | undefined {
@@ -130,7 +176,277 @@ export function centralStateLabel(lot: CaptureLotSnapshot): string {
   return "Local neste aparelho";
 }
 
+type RecentLotPrimaryDate = {
+  label: string;
+  value: string;
+  badge?: string | undefined;
+  tone?: "critical" | "warning" | "neutral" | undefined;
+};
+
+function lotPrimaryDate(lot: CaptureLotSnapshot): RecentLotPrimaryDate {
+  if (lot.mode === "formal_validity" || lot.mode === "processed_repack_loss") {
+    if (lot.expiresAt === undefined) {
+      return { label: "Validade", value: "Não informada", badge: "sem data", tone: "warning" };
+    }
+
+    return {
+      label: "Validade",
+      value: formatOperationalDate(lot.expiresAt),
+      ...expiryBadge(lot.expiresAt),
+    };
+  }
+
+  if (lot.mode === "flv_inspection") {
+    const dueAt = lot.qualityInspectionDueAt ?? lot.receivedAt;
+
+    return {
+      label: "Conferir qualidade",
+      value: formatOperationalDate(dueAt),
+      ...qualityBadge(dueAt),
+    };
+  }
+
+  return {
+    label: "Recebido",
+    value: formatOperationalDate(lot.receivedAt),
+  };
+}
+
+function expiryBadge(value: string): Pick<RecentLotPrimaryDate, "badge" | "tone"> {
+  const days = daysFromToday(value);
+
+  if (days < 0) return { badge: "vencido", tone: "critical" };
+  if (days === 0) return { badge: "vence hoje", tone: "critical" };
+  if (days === 1) return { badge: "vence amanhã", tone: "warning" };
+  if (days <= 3) return { badge: `vence em ${days} dias`, tone: "warning" };
+
+  return {};
+}
+
+function qualityBadge(value: string): Pick<RecentLotPrimaryDate, "badge" | "tone"> {
+  const days = daysFromToday(value);
+
+  if (days < 0) return { badge: "atrasado", tone: "warning" };
+  if (days === 0) return { badge: "conferir hoje", tone: "warning" };
+  if (days === 1) return { badge: "conferir amanhã", tone: "neutral" };
+  if (days <= 3) return { badge: `conferir em ${days} dias`, tone: "neutral" };
+
+  return {};
+}
+
+export function formatRecentObservationTimestamp(value: string, now = new Date()): string {
+  const observedDate = operationalDateKey(new Date(value));
+  const today = operationalDateKey(now);
+  const yesterday = dateKeyFromUtcMillis(dateOnlyUtcMillis(today) - 24 * 60 * 60 * 1000);
+  const time = formatOperationalTime(value);
+
+  if (observedDate === today) {
+    return `Hoje ${time}`;
+  }
+
+  if (observedDate === yesterday) {
+    return `Ontem ${time}`;
+  }
+
+  const dateLabel = formatOperationalDate(value);
+
+  return observedDate.slice(0, 4) === today.slice(0, 4)
+    ? `${dateLabel.slice(0, 5)} ${time}`
+    : `${dateLabel} ${time}`;
+}
+
+function formatOperationalDate(value: string): string {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (dateOnly !== null) {
+    return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+  }
+
+  const parts = operationalDateKey(new Date(value)).split("-");
+
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function daysFromToday(value: string): number {
+  return Math.round(
+    (dateOnlyUtcMillis(dateOnlyKey(value)) - dateOnlyUtcMillis(operationalDateKey())) / 86400000,
+  );
+}
+
+function dateOnlyKey(value: string): string {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value);
+
+  return dateOnly === null ? operationalDateKey(new Date(value)) : value;
+}
+
+function operationalDateKey(value = new Date()): string {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  }).formatToParts(value);
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+
+  return `${year}-${month}-${day}`;
+}
+
+function dateOnlyUtcMillis(value: string): number {
+  const [year = "1970", month = "01", day = "01"] = value.split("-");
+
+  return Date.UTC(Number(year), Number(month) - 1, Number(day));
+}
+
+function dateKeyFromUtcMillis(value: number): string {
+  const date = new Date(value);
+
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    date.getUTCDate(),
+  ).padStart(2, "0")}`;
+}
+
+function formatQuantityNumber(value: number | undefined): string {
+  if (value === undefined) {
+    return "não informada";
+  }
+
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
+}
+
+function centralStateShortLabel(lot: CaptureLotSnapshot): string {
+  if (lot.centralSyncState === "synchronized" || lot.centralSource === "central") {
+    return "Central";
+  }
+
+  if (lot.centralSyncState === "pending_central" || lot.centralSource === "pending_central") {
+    return "Pendente";
+  }
+
+  if (lot.centralSyncState === "conflict") {
+    return "Conflito";
+  }
+
+  if (lot.centralSyncState === "resolved") {
+    return "Resolvido";
+  }
+
+  if (lot.centralSyncState === "discarded") {
+    return "Descartado";
+  }
+
+  return "Local";
+}
+
 const styles = StyleSheet.create({
-  screen: { backgroundColor: "#F5F7EF", gap: 16, padding: 16 },
-  filters: { gap: 8 },
+  screen: {
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
+  },
+  filters: { gap: captureSpacing.small },
+  lotCard: {
+    backgroundColor: captureColors.surface,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    gap: captureSpacing.medium,
+    padding: captureSpacing.medium,
+  },
+  lotCardPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  lotHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: captureSpacing.medium,
+    justifyContent: "space-between",
+  },
+  lotTitleGroup: {
+    flex: 1,
+    gap: captureSpacing.xsmall,
+  },
+  productName: {
+    color: captureColors.ink,
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 22,
+  },
+  lotIdentity: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  syncBadge: {
+    backgroundColor: captureColors.surfaceMuted,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.xsmall,
+  },
+  syncBadgeText: {
+    color: captureColors.mutedInk,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  datePanel: {
+    alignItems: "center",
+    backgroundColor: captureColors.accentSoft,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: captureSpacing.small,
+    padding: captureSpacing.small,
+  },
+  dateLabel: {
+    color: captureColors.mutedInk,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  dateValue: {
+    color: captureColors.ink,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  dateBadge: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    color: captureColors.warningInk,
+    fontSize: 12,
+    fontWeight: "700",
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.xsmall,
+  },
+  dateBadgeCritical: {
+    backgroundColor: captureColors.criticalTag,
+    borderColor: captureColors.criticalBorder,
+    color: captureColors.critical,
+  },
+  factGroup: {
+    gap: captureSpacing.xsmall,
+  },
+  factPrimary: {
+    color: captureColors.ink,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  factSecondary: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  attention: {
+    color: captureColors.mutedInk,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
 });

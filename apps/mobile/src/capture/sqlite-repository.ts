@@ -131,6 +131,7 @@ import {
   deriveOfflineCacheState,
   sortSyncQueueItems,
 } from "@validade-zero/domain";
+import { createDeviceInstallId } from "./device-identity";
 import {
   ensureCaptureLotCentralColumns,
   ensureProductCatalogColumns,
@@ -277,6 +278,13 @@ interface FutureAttentionRow {
   current_location_custom_name: string | null;
   source_risk_reasons_json: string;
   observed_at: string;
+}
+
+interface DeviceInstallationRow {
+  scope: string;
+  install_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AlertDeviceRow {
@@ -483,6 +491,37 @@ export function createSQLiteCaptureRepository(
     return initialization;
   }
 
+  async function getOrCreateDeviceInstallId(): Promise<string> {
+    await initialize();
+    const db = await getDatabase();
+    const scope = "app";
+    const existing = await db.getFirstAsync<DeviceInstallationRow>(
+      "SELECT * FROM device_installations WHERE scope = ?",
+      scope,
+    );
+
+    if (existing !== null) {
+      return existing.install_id;
+    }
+
+    const timestamp = dependencies.clock();
+    const installId = createDeviceInstallId(dependencies.createId);
+    await db.runAsync(
+      `INSERT OR IGNORE INTO device_installations (scope, install_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      scope,
+      installId,
+      timestamp,
+      timestamp,
+    );
+    const saved = await db.getFirstAsync<DeviceInstallationRow>(
+      "SELECT * FROM device_installations WHERE scope = ?",
+      scope,
+    );
+
+    return saved?.install_id ?? installId;
+  }
+
   async function hydratePrepareTurn(response: PrepareTurnResponse): Promise<void> {
     await initialize();
     const prepared = parsePrepareTurnResponse(response);
@@ -500,6 +539,7 @@ export function createSQLiteCaptureRepository(
 
       for (const lot of prepared.lots) {
         await upsertCentralLot(db, lot);
+        await deletePendingLocalDuplicateLotsForCentralLot(db, lot);
       }
 
       for (const task of prepared.activeTasks) {
@@ -2973,6 +3013,7 @@ export function createSQLiteCaptureRepository(
 
   return {
     initialize,
+    getOrCreateDeviceInstallId,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
     searchCentralProducts,
@@ -3056,6 +3097,12 @@ async function initializeDatabase(
       category_id TEXT PRIMARY KEY NOT NULL,
       category_name TEXT NOT NULL,
       category_profile_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS device_installations (
+      scope TEXT PRIMARY KEY NOT NULL,
+      install_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS capture_lots (
@@ -3839,6 +3886,56 @@ async function upsertCentralLot(db: SQLite.SQLiteDatabase, lot: CentralLotSnippe
     lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
+  );
+}
+
+async function deletePendingLocalDuplicateLotsForCentralLot(
+  db: SQLite.SQLiteDatabase,
+  lot: CentralLotSnippet,
+): Promise<void> {
+  const duplicateWhere = `
+    FROM capture_lots AS pending
+    INNER JOIN capture_products AS pending_product ON pending_product.id = pending.product_id
+    INNER JOIN capture_products AS central_product
+      ON central_product.id = ? OR central_product.central_product_id = ?
+    WHERE pending.id <> ?
+      AND pending.central_sync_state IN ('pending_central', 'local')
+      AND (
+        pending.central_lot_id = ?
+        OR (
+          pending.identity_source = ?
+          AND pending.identity_value = ?
+          AND pending.mode = ?
+          AND (
+            pending.product_id = ?
+            OR pending_product.central_product_id = ?
+            OR (
+              pending_product.normalized_name = central_product.normalized_name
+              AND pending_product.category_id = central_product.category_id
+            )
+          )
+        )
+      )`;
+  const duplicateArgs = [
+    lot.centralProductId,
+    lot.centralProductId,
+    lot.centralLotId,
+    lot.centralLotId,
+    lot.lotIdentity.identitySource,
+    lot.lotIdentity.value,
+    lot.mode,
+    lot.centralProductId,
+    lot.centralProductId,
+  ];
+
+  await db.runAsync(
+    `DELETE FROM capture_observations
+     WHERE lot_id IN (SELECT pending.id ${duplicateWhere})`,
+    ...duplicateArgs,
+  );
+  await db.runAsync(
+    `DELETE FROM capture_lots WHERE id IN (SELECT pending.id ${duplicateWhere})`,
+    ...duplicateArgs,
   );
 }
 

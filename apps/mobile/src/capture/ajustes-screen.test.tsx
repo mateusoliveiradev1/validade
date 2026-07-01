@@ -189,7 +189,7 @@ function createAjustesRepository(
   input: {
     channel?: DevicePushRegistrationCommand | null;
     offlineStatus?: OfflineCacheStatus | undefined;
-    queue?: SyncQueueSummary | undefined;
+    queue?: SyncQueueSummary | (() => SyncQueueSummary) | undefined;
     conflict?: SyncConflictRecord | null | undefined;
     syncPendingCentralLots?: CaptureRepository["syncPendingCentralLots"] | undefined;
   } = {},
@@ -216,7 +216,10 @@ function createAjustesRepository(
     registerAlertDevice,
     resolveTodayTask,
     loadOfflineCacheStatus: () => Promise.resolve(input.offlineStatus ?? offlineReadyStatus()),
-    listSyncQueue: () => Promise.resolve(input.queue ?? emptySyncQueue()),
+    listSyncQueue: () =>
+      Promise.resolve(
+        typeof input.queue === "function" ? input.queue() : (input.queue ?? emptySyncQueue()),
+      ),
     loadSyncConflict: () => Promise.resolve(input.conflict ?? null),
     resolveSyncConflict,
     ...(input.syncPendingCentralLots === undefined
@@ -249,7 +252,7 @@ async function renderAjustes(input: {
   prepareTurnSource?: "central" | "local_cache" | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
   onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
-  queue?: SyncQueueSummary | undefined;
+  queue?: SyncQueueSummary | (() => SyncQueueSummary) | undefined;
   session?: SessionContextResponse | undefined;
   syncEngine?: SyncEngine | undefined;
   syncPendingCentralLots?: CaptureRepository["syncPendingCentralLots"] | undefined;
@@ -597,6 +600,33 @@ describe("AjustesScreen sync controls", () => {
     await press(tree, "Sincronizar pendencias");
 
     expect(syncPendingCommands).toHaveBeenCalledWith({ manual: true });
+  });
+
+  it("skips pending lot replay when central refresh already reconciled the queue", async () => {
+    let queue = emptySyncQueue({
+      state: "has_pending",
+      totalCount: 1,
+      mediumCount: 1,
+      commands: [],
+    });
+    const onConfirmCentralDeviceState = vi.fn().mockImplementation(() => {
+      queue = emptySyncQueue();
+      return Promise.resolve();
+    });
+    const syncPendingCentralLots = vi.fn().mockResolvedValue([]);
+    const { tree } = await renderAjustes({
+      queue: () => queue,
+      onConfirmCentralDeviceState,
+      syncPendingCentralLots,
+    });
+
+    await press(tree, "Sincronizar pendencias");
+
+    expect(onConfirmCentralDeviceState).toHaveBeenCalledTimes(1);
+    expect(syncPendingCentralLots).not.toHaveBeenCalled();
+    expect(renderedText(tree)).toContain(
+      "Leitura central conferida. A fila local foi reconciliada.",
+    );
   });
 
   it("syncs pending central lots from Ajustes even when command queue is empty", async () => {

@@ -163,6 +163,36 @@ function markdownRequestTask(): TodayTaskRecord {
   };
 }
 
+function centralPresenceTask(): TodayTaskRecord {
+  return {
+    ...expiredTask(),
+    id: "task:loja-18:task-key:loja-18:aa8671ae904313d3:critical:check_presence",
+    activeKey: "task-key:loja-18:aa8671ae904313d3:critical:check_presence",
+    lotId:
+      "lot:loja-18:mobile-lot:product:loja-18:melancia-kg-ped:generated_internal:INTERNO-LOCAL-MR11WSMT:processed_repack_loss:a",
+    productDisplayName: "Melancia KG PED",
+    lotIdentity: {
+      identitySource: "generated_internal",
+      value: "INTERNO-LOCAL-MR11WSMT",
+    },
+    riskState: "critical",
+    severity: "high",
+    dueBucket: "shift",
+    requiredResolution: "check_presence",
+    section: "check_sales_area",
+    sourceRisk: {
+      state: "critical",
+      reasons: [{ code: "expires_in_3_days", field: "central" }],
+    },
+    priority: 1,
+    sync: {
+      state: "synced",
+      savedAt: "2030-01-10T09:00:00.000Z",
+      lastSyncedAt: "2030-01-10T09:00:00.000Z",
+    },
+  };
+}
+
 function createRepository(overrides: Partial<CaptureRepository> = {}): CaptureRepository {
   const resolveTodayTask = overrides.resolveTodayTask ?? vi.fn();
 
@@ -427,6 +457,57 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Pendente central. Ainda nao use como confirmacao da loja.",
     );
+  });
+
+  it("queues central presence confirmation for sync instead of resolving only on the device", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({});
+    const resolveTodayTask = vi.fn();
+    const onLocalSave = vi.fn();
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository({ saveOfflineAction, resolveTodayTask })}
+          task={centralPresenceTask()}
+          actorLabel="Mateus Oliveira"
+          onDone={() => undefined}
+          onBack={() => undefined}
+          onLocalSave={onLocalSave}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    const presence = tree.root.findByProps({ accessibilityLabel: "Conferir presenca" });
+
+    await act(async () => {
+      presence.props.onPress();
+      await Promise.resolve();
+    });
+
+    const confirm = findEnabledButton(tree, "Confirmar presenca");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "resolve_task",
+      payload: expect.objectContaining({
+        taskId: centralPresenceTask().id,
+        action: "confirm_presence",
+        actorLabel: "Mateus Oliveira",
+      }),
+    });
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(onLocalSave).toHaveBeenCalledOnce();
   });
 
   it("keeps the recheck evidence gate before saving an offline action", async () => {

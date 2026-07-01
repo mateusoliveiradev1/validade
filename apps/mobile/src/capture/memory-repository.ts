@@ -122,6 +122,7 @@ import {
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
+import { createDeviceInstallId } from "./device-identity";
 
 const OFFLINE_CACHE_STALE_AFTER_HOURS = 4;
 
@@ -146,9 +147,15 @@ export function createMemoryCaptureRepository(
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
   let offlineCacheStatus: OfflineCacheStatus | undefined;
   let prepareTurnCacheStatus: PrepareTurnCacheStatus | undefined;
+  let deviceInstallId: string | undefined;
 
   async function initialize(): Promise<void> {
     return Promise.resolve();
+  }
+
+  function getOrCreateDeviceInstallId(): Promise<string> {
+    deviceInstallId ??= createDeviceInstallId(dependencies.createId);
+    return Promise.resolve(deviceInstallId);
   }
 
   function hydratePrepareTurn(response: PrepareTurnResponse): Promise<void> {
@@ -167,6 +174,7 @@ export function createMemoryCaptureRepository(
       const snapshot = centralLotToLocal(lot);
       lots.set(snapshot.id, snapshot);
       observations.set(snapshot.id, [snapshot.currentObservation]);
+      deletePendingLocalDuplicateLotsForCentralLot(lot);
     }
 
     for (const task of prepared.activeTasks) {
@@ -798,6 +806,41 @@ export function createMemoryCaptureRepository(
     return (
       products.get(productId) ??
       [...products.values()].find((product) => product.centralProductId === productId)
+    );
+  }
+
+  function deletePendingLocalDuplicateLotsForCentralLot(lot: CentralLotSnippet): void {
+    for (const [localLotId, localLot] of lots.entries()) {
+      if (!isPendingLocalDuplicateLot(localLotId, localLot, lot)) continue;
+      lots.delete(localLotId);
+      observations.delete(localLotId);
+    }
+  }
+
+  function isPendingLocalDuplicateLot(
+    localLotId: string,
+    localLot: CaptureLotSnapshot,
+    centralLot: CentralLotSnippet,
+  ): boolean {
+    if (localLotId === centralLot.centralLotId) return false;
+    if (localLot.centralSyncState !== "pending_central" && localLot.centralSyncState !== "local") {
+      return false;
+    }
+    if (localLot.centralLotId === centralLot.centralLotId) return true;
+    if (localLot.identity.identitySource !== centralLot.lotIdentity.identitySource) return false;
+    if (localLot.identity.value !== centralLot.lotIdentity.value) return false;
+    if (localLot.mode !== centralLot.mode) return false;
+
+    const localProduct = findProductForLot(localLot.productId);
+    const centralProduct = findProductForLot(centralLot.centralProductId);
+
+    if (localLot.productId === centralLot.centralProductId) return true;
+    if (localProduct?.centralProductId === centralLot.centralProductId) return true;
+    if (localProduct === undefined || centralProduct === undefined) return false;
+
+    return (
+      localProduct.normalizedName === centralProduct.normalizedName &&
+      localProduct.categoryId === centralProduct.categoryId
     );
   }
 
@@ -1858,6 +1901,7 @@ export function createMemoryCaptureRepository(
 
   return {
     initialize,
+    getOrCreateDeviceInstallId,
     hydratePrepareTurn,
     loadPrepareTurnCacheStatus,
     searchCentralProducts,

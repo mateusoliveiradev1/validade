@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -573,7 +574,7 @@ export const centralLots = pgTable(
     expiresAt: text("expires_at"),
     receivedAt: text("received_at"),
     qualityInspectionDueAt: text("quality_inspection_due_at"),
-    approximateQuantity: integer("approximate_quantity"),
+    approximateQuantity: doublePrecision("approximate_quantity"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),

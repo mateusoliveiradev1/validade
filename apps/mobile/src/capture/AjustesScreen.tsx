@@ -147,7 +147,16 @@ export function AjustesScreen({
     setSyncFeedback(undefined);
 
     try {
+      const hadPendingBeforeCentralRefresh =
+        syncReadiness.pendingCount > 0 || (syncQueue?.totalCount ?? 0) > 0;
       await onConfirmCentralDeviceState?.().catch(() => undefined);
+      const queueAfterCentralRefresh = await refreshSyncState();
+
+      if (hadPendingBeforeCentralRefresh && queueAfterCentralRefresh.totalCount === 0) {
+        setSyncFeedback("Leitura central conferida. A fila local foi reconciliada.");
+        return;
+      }
+
       const [syncedLots, result] = await Promise.all([
         repository.syncPendingCentralLots === undefined
           ? Promise.resolve([])
@@ -190,6 +199,11 @@ export function AjustesScreen({
         pendingCentralLotSyncFeedback(error) ??
           "Nao foi possivel sincronizar agora. As acoes continuam salvas neste aparelho.",
       );
+      await onConfirmCentralDeviceState?.().catch(() => undefined);
+      const queueAfterFailedSync = await refreshSyncState();
+      if (queueAfterFailedSync.totalCount === 0) {
+        setSyncFeedback("Leitura central conferida. A fila local foi reconciliada.");
+      }
     } finally {
       setIsSyncing(false);
     }

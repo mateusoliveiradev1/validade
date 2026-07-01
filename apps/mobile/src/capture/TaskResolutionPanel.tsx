@@ -315,7 +315,7 @@ export function TaskResolutionPanel({
       ...(task.recheckParentId === undefined ? {} : { recheckParentId: task.recheckParentId }),
     } satisfies OfflineActionCommand["payload"];
 
-    if (await shouldSaveOffline()) {
+    if (shouldSaveResolutionThroughSync(task) || (await shouldSaveOffline())) {
       await repository.saveOfflineAction({ kind: "resolve_task", payload: command });
       setSubmitting(false);
       setConfirming(false);
@@ -751,6 +751,10 @@ function createsSalesAreaRecheck(task: TodayTaskRecord, action: TaskResolutionAc
     (task.riskState === "expired" || task.riskState === "critical") &&
     (action === "withdraw" || action === "repack" || action === "record_loss")
   );
+}
+
+function shouldSaveResolutionThroughSync(task: TodayTaskRecord): boolean {
+  return task.sync?.state === "synced";
 }
 
 function confirmationSummary(

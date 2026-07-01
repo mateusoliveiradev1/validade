@@ -3936,12 +3936,21 @@ function buildCentralLotProjectionResult(input: {
   });
   const activeTask =
     projected.attention === "active_task"
-      ? activeTaskSnippetFromProjection({
-          centralTaskId: createStableId("task", input.context.storeId, projected.task.activeKey),
-          context: input.context,
-          task: projected.task,
-          updatedAt: input.updatedAt,
-        })
+      ? (() => {
+          const activeKey = createCentralProjectedTaskActiveKey({
+            storeId: input.context.storeId,
+            projectedActiveKey: projected.task.activeKey,
+            riskState: projected.task.riskState,
+            requiredResolution: projected.task.requiredResolution,
+          });
+
+          return activeTaskSnippetFromProjection({
+            centralTaskId: createStableId("task", input.context.storeId, activeKey),
+            context: input.context,
+            task: { ...projected.task, activeKey },
+            updatedAt: input.updatedAt,
+          });
+        })()
       : undefined;
   const taskProjection = taskProjectionSummaryFromProjection({
     projected,
@@ -3960,7 +3969,7 @@ function buildCentralLotProjectionResult(input: {
       lot,
       taskProjection,
       acknowledgement: {
-        acknowledgementId: `${input.requestId}:ack`,
+        acknowledgementId: createStableId("ack", input.context.storeId, input.requestId),
         centralLotId: input.context.centralLotId,
         state: "synchronized",
         acknowledgedAt: input.updatedAt,
@@ -4793,6 +4802,36 @@ function createStableId(prefix: string, storeId: string, value: string): string 
     .replace(/[^a-zA-Z0-9:_-]+/g, "-")
     .replace(/-+/g, "-")
     .slice(0, 120);
+}
+
+function createCentralProjectedTaskActiveKey(input: {
+  storeId: string;
+  projectedActiveKey: string;
+  riskState: ActiveTaskSnippet["riskState"];
+  requiredResolution: ActiveTaskSnippet["requiredResolution"];
+}): string {
+  return createStableId(
+    "task-key",
+    input.storeId,
+    `${stableShortHash(input.projectedActiveKey)}:${input.riskState}:${input.requiredResolution}`,
+  );
+}
+
+function stableShortHash(value: string): string {
+  let first = 0x811c9dc5;
+  let second = 0x811c9dc5 ^ 0x9e3779b9;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    first ^= code;
+    first = Math.imul(first, 0x01000193);
+    second ^= code + index;
+    second = Math.imul(second, 0x01000193);
+  }
+
+  return `${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0)
+    .toString(16)
+    .padStart(8, "0")}`;
 }
 
 function productAuditEvent(

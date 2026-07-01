@@ -1,5 +1,6 @@
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { describe, expect, it } from "vitest";
+import { createInMemoryAuditRepository } from "./audit";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import { createApiApp } from "./index";
 
@@ -570,6 +571,93 @@ describe("capture central lot API", () => {
         riskState: "expired",
       }),
     ]);
+  });
+
+  it("accepts decimal central lot quantities from mobile replay", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto")],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        centralLotCreateRequest({
+          idempotencyKey: "lot-api-decimal-quantity-001",
+          lot: { approximateQuantity: 1.5 },
+        }),
+      ),
+    });
+    const body = (await response.json()) as {
+      lot?: { approximateQuantity?: number; currentObservation?: { approximateQuantity?: number } };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.lot?.approximateQuantity).toBe(1.5);
+    expect(body.lot?.currentObservation?.approximateQuantity).toBe(1.5);
+  });
+
+  it("records a safe audit event when central lot writes fail", async () => {
+    const error = Object.assign(new Error("violates central lots check"), { code: "23514" });
+    const auditRepository = createInMemoryAuditRepository();
+    const baseCaptureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto")],
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      auditRepository,
+      captureRepository: {
+        ...baseCaptureRepository,
+        createLot: () => Promise.reject(error),
+      },
+      now: () => new Date(NOW),
+    });
+
+    const response = await app.request("/capture/lots", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(centralLotCreateRequest({ idempotencyKey: "lot-api-failure-001" })),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "central_lot_unavailable" });
+    expect(auditRepository.readEvents()).toContainEqual(
+      expect.objectContaining({
+        type: "sync.changed",
+        store: { storeId: "loja-piloto", storeName: "Loja Piloto" },
+        actor: expect.objectContaining({
+          actorId: "lead-local",
+          roleSnapshot: "lead",
+        }),
+        target: {
+          type: "lot",
+          id: "product-loja-piloto",
+          label: "Envio de lote central",
+        },
+        summary: "Falha segura ao criar lote central.",
+        reason: "violates central lots check",
+        status: "pending_ack",
+        metadata: expect.objectContaining({
+          action: "central_lot.write_failed",
+          productId: "product-loja-piloto",
+          errorCode: "23514",
+          errorMessage: "violates central lots check",
+        }),
+      }),
+    );
   });
 
   it("does not accept cross-store product or lot ids on central lot writes", async () => {

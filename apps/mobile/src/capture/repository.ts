@@ -233,12 +233,12 @@ export function pendingCentralLotWriteBlocker(error: unknown): PendingCentralLot
     return "central_lot_local_replay_failed";
   }
 
-  if (
-    code === "network" ||
-    message === "central_lot_unavailable" ||
-    /network|fetch/i.test(message)
-  ) {
+  if (code === "network" || /network|fetch/i.test(message)) {
     return "central_lot_network_unavailable";
+  }
+
+  if (message === "central_lot_unavailable") {
+    return "central_lot_write_failed";
   }
 
   return "central_lot_write_failed";
@@ -402,6 +402,7 @@ export interface LoadMarkdownEntryStateInput {
 
 export interface CaptureRepository {
   initialize(): Promise<void>;
+  getOrCreateDeviceInstallId?: () => Promise<string>;
   hydratePrepareTurn?: (response: PrepareTurnResponse) => Promise<void>;
   loadPrepareTurnCacheStatus?: () => Promise<PrepareTurnCacheStatus | null>;
   searchCentralProducts?: (request: ProductSearchRequest) => Promise<ProductSearchResponse>;

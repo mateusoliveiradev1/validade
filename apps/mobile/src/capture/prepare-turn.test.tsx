@@ -73,7 +73,7 @@ describe("prepare-turn gate", () => {
 
     expect(prepareTurnClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        deviceId: "validade-zero-mobile:loja-piloto",
+        deviceId: "validade-zero-mobile:loja-piloto:install-ficticio",
         deviceLabel: "Android piloto - com.validadezero.app",
         appVersion: "0.12.0",
         appBuild: "138",
@@ -159,7 +159,7 @@ describe("prepare-turn gate", () => {
     });
 
     expect(syncPendingCommands).toHaveBeenCalledWith({
-      deviceId: "validade-zero-mobile:loja-piloto",
+      deviceId: "validade-zero-mobile:loja-piloto:install-ficticio",
     });
     expect(prepareTurnClient).toHaveBeenCalledTimes(2);
   });
@@ -285,6 +285,7 @@ async function renderApp(
         repository={repository}
         syncEngine={input.syncEngine}
         storeId="loja-piloto"
+        deviceId="validade-zero-mobile:loja-piloto:install-ficticio"
       />,
     );
     await flush();

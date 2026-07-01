@@ -844,8 +844,9 @@ export function createApiApp(input?: {
       return context.json(AuthorizationContract.denial.parse(denial), 403);
     }
 
+    const actorContext = resolved.decision.context;
+
     try {
-      const actorContext = resolved.decision.context;
       const response = await captureRepository.createLot({
         requestId,
         storeId: actorContext.membership.storeId,
@@ -861,6 +862,31 @@ export function createApiApp(input?: {
       if (error instanceof Error && error.message === "central_product_not_found") {
         return context.json({ error: "central_product_not_found" }, 404);
       }
+
+      console.error(
+        JSON.stringify({
+          event: "central_lot_create_failed",
+          requestId,
+          productId: parsed.data.lot.productId,
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorCode:
+            typeof error === "object" &&
+            error !== null &&
+            typeof (error as { code?: unknown }).code === "string"
+              ? (error as { code: string }).code
+              : undefined,
+        }),
+      );
+
+      await recordCentralLotWriteFailureAudit({
+        auditRepository,
+        actorContext,
+        requestId,
+        productId: parsed.data.lot.productId,
+        error,
+        now,
+      });
 
       return context.json({ error: "central_lot_unavailable" }, 503);
     }
@@ -1836,6 +1862,54 @@ async function recordSyncAuditEvents(input: {
   }
 }
 
+async function recordCentralLotWriteFailureAudit(input: {
+  auditRepository: AuditEventRepository;
+  actorContext: AuthorizedActorContext;
+  requestId: string;
+  productId: string;
+  error: unknown;
+  now: () => Date;
+}): Promise<void> {
+  const occurredAt = input.now().toISOString();
+  const publicReason = publicErrorReason(input.error);
+
+  await input.auditRepository.append(
+    AuditEventRecordSchema.parse({
+      eventId: safeAuditIdentifier(`audit:central-lot-write-failed:${input.requestId}`),
+      idempotencyKey: safeAuditIdentifier(`central-lot-write-failed:${input.requestId}`),
+      type: "sync.changed",
+      store: {
+        storeId: input.actorContext.membership.storeId,
+        storeName: input.actorContext.membership.storeName,
+      },
+      actor: {
+        actorId: safeAuditIdentifier(input.actorContext.identity.subjectId),
+        displayName:
+          input.actorContext.identity.displayName ?? input.actorContext.membership.subjectId,
+        roleSnapshot: roleSnapshotForAudit(input.actorContext.membership.role),
+      },
+      target: {
+        type: "lot",
+        id: safeAuditIdentifier(input.productId),
+        label: "Envio de lote central",
+      },
+      occurredAt,
+      receivedAt: occurredAt,
+      summary: "Falha segura ao criar lote central.",
+      reason: publicReason,
+      status: "pending_ack",
+      metadata: compactMetadata({
+        action: "central_lot.write_failed",
+        requestId: input.requestId,
+        productId: input.productId,
+        errorName: input.error instanceof Error ? input.error.name : typeof input.error,
+        errorCode: errorCode(input.error),
+        errorMessage: publicReason,
+      }),
+    }),
+  );
+}
+
 export function createInMemorySyncCommandService(input?: {
   now?: () => string;
   retryIdempotencyKeys?: readonly string[];
@@ -2259,6 +2333,32 @@ function compactMetadata(
       )
       .map(([key, item]) => [key, typeof item === "string" ? item.slice(0, 240) : item]),
   );
+}
+
+function publicErrorReason(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string" ||
+          typeof error === "number" ||
+          typeof error === "boolean" ||
+          typeof error === "bigint"
+        ? String(error)
+        : "erro_desconhecido";
+  const sanitized = raw
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[redacted]")
+    .replace(/https?:\/\/\S+/gi, "[redacted]")
+    .replace(/\b(authorization|password|secret|token)\b/gi, "[redacted]")
+    .trim();
+
+  return (sanitized.length > 0 ? sanitized : "erro_desconhecido").slice(0, 240);
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const code = (error as { code?: unknown }).code;
+
+  return typeof code === "string" ? code : undefined;
 }
 
 function buildSyncResult(

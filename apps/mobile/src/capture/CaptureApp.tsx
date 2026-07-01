@@ -42,6 +42,7 @@ import { addHardwareBackPressListener } from "../system/hardware-back";
 import { mobileStatusDescriptorFor, type MobileStatusDescriptor } from "./mobile-status";
 import { readMobileBuildInfo, type MobileBuildInfo } from "../build-info";
 import type { AuthGateReadyControls } from "../auth/AuthGate";
+import { deviceIdForStore } from "./device-identity";
 
 type CaptureRoute =
   | { name: "today" }
@@ -86,6 +87,7 @@ export function CaptureApp({
   activeRole = "lead",
   actorLabel = todayCopy.fallbackActor,
   storeId = "loja-local",
+  deviceId,
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
@@ -101,6 +103,7 @@ export function CaptureApp({
   activeRole?: "collaborator" | "lead" | "admin" | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
+  deviceId?: string | undefined;
 }) {
   const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(initialRouteStack);
   const [initializationError, setInitializationError] = useState<string | undefined>();
@@ -126,11 +129,11 @@ export function CaptureApp({
   const resolvedBuildInfo = useMemo(() => buildInfo ?? readMobileBuildInfo(), [buildInfo]);
   const pushDeviceIdentity = useMemo(
     (): PushDeviceIdentity => ({
-      deviceId: `validade-zero-mobile:${storeId}`,
+      deviceId: deviceId ?? deviceIdForStore(storeId, "local-preview"),
       deviceLabel: deviceLabelFor(resolvedBuildInfo.packageId),
       audienceRole: "shift_team",
     }),
-    [resolvedBuildInfo.packageId, storeId],
+    [deviceId, resolvedBuildInfo.packageId, storeId],
   );
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
 
@@ -636,6 +639,7 @@ export function CaptureApp({
             notice: todayCopy.sync.localSaved,
             highlightedTaskId: currentRoute.task.id,
           });
+          void syncPendingCommandsAutomatically().catch(() => undefined);
         }}
       />,
     );
