@@ -475,13 +475,21 @@ function projectionFromCentralPrepareTurn(
     freshness,
     syncConflicts,
   });
+  const approvedValidationDevices = approvedValidationDevicesFor(devices, refreshedAt);
+  const safePushProof = deriveSafePushProof(approvedValidationDevices);
+  const cameraProof = deriveCameraProof(approvedValidationDevices);
   const pilotUat = buildPilotUatChecklist(scope, refreshedAt, {
     ...runbookFacts,
-    hasAcceptedPushTest: devices.some((device) =>
-      (device.pushTests ?? []).some((item) => ["provider_accepted", "opened"].includes(item.state)),
-    ),
+    cameraProof,
+    confirmedDeviceCount: approvedValidationDevices.length,
     hasActiveBlockers: blockerCount > 0,
-    hasDevice: devices.length > 0,
+    hasDevice: approvedValidationDevices.length > 0,
+    hasSecondDeviceConvergence:
+      approvedValidationDevices.length >= 2 &&
+      runbookFacts.hasRealProductInput &&
+      runbookFacts.hasRealLotRegistration &&
+      runbookFacts.hasTerminalResolution,
+    safePushProof,
   });
   const pilotBlockers = buildPilotOperationalBlockers({
     updatedAt: refreshedAt,
@@ -540,6 +548,16 @@ interface PilotRunbookFacts {
   hasCriticalActiveTask: boolean;
   hasSyncConflict: boolean;
   hasSafeShiftCloseProof: boolean;
+}
+
+type PilotProofGateState = "passed" | "blocked" | "external_blocked";
+
+interface PilotProofGate {
+  state: PilotProofGateState;
+  cause?: string;
+  nextAction: string;
+  evidenceReferenceLabel: string;
+  occurredAt?: string;
 }
 
 type PilotUatStepTemplate = Pick<PilotUatStep, "stepId" | "label" | "ownerLabel" | "actionLabel"> &
@@ -619,17 +637,20 @@ function buildPilotUatChecklist(
   input: {
     centralReadReady?: boolean;
     centralReadBlocked?: boolean;
-    hasAcceptedPushTest?: boolean;
+    cameraProof?: PilotProofGate;
     hasActiveBlockers?: boolean;
     hasCommandCenterConsistency?: boolean;
+    confirmedDeviceCount?: number;
     hasCriticalActiveTask?: boolean;
     hasDevice?: boolean;
     hasOpenCentralBlockers?: boolean;
     hasRealLotRegistration?: boolean;
     hasRealProductInput?: boolean;
     hasSafeShiftCloseProof?: boolean;
+    hasSecondDeviceConvergence?: boolean;
     hasSyncConflict?: boolean;
     hasTerminalResolution?: boolean;
+    safePushProof?: PilotProofGate;
   } = {},
 ): CommandCenterProjection["pilotUat"] {
   const overrides = new Map<PilotUatStep["stepId"], Partial<PilotUatStep>>();
@@ -723,6 +744,22 @@ function buildPilotUatChecklist(
     });
   }
 
+  if (input.hasSecondDeviceConvergence === true) {
+    overrides.set("second_device_convergence", {
+      state: "passed",
+      occurredAt: updatedAt,
+      evidenceReferenceLabel: "Aparelho Loja 18 #2",
+      nextAction: "Conferir push, camera e fechamento seguro.",
+    });
+  } else if ((input.confirmedDeviceCount ?? 0) < 2) {
+    overrides.set("second_device_convergence", {
+      state: "external_blocked",
+      cause: "Ainda falta segundo aparelho mobile aprovado lendo os mesmos fatos centrais.",
+      nextAction: "Preparar turno em outro aparelho aprovado da Loja 18 e atualizar Validacao.",
+      evidenceReferenceLabel: "Aparelho Loja 18 #2 pendente",
+    });
+  }
+
   if (!hasDevice) {
     overrides.set("safe_push_test", {
       state: "external_blocked",
@@ -730,20 +767,30 @@ function buildPilotUatChecklist(
       nextAction: "Entrar no APK aprovado, preparar turno e repetir o teste seguro.",
       evidenceReferenceLabel: "Sem aparelho aprovado",
     });
-  } else if (input.hasAcceptedPushTest === true) {
+  } else if (input.safePushProof !== undefined) {
     overrides.set("safe_push_test", {
-      state: "passed",
-      occurredAt: updatedAt,
-      evidenceReferenceLabel: "Timeline de push seguro aceita",
-      nextAction: "Registrar abertura/recebimento no controle UAT quando houver aparelho real.",
+      state: input.safePushProof.state,
+      ...(input.safePushProof.cause === undefined ? {} : { cause: input.safePushProof.cause }),
+      nextAction: input.safePushProof.nextAction,
+      evidenceReferenceLabel: input.safePushProof.evidenceReferenceLabel,
+      ...(input.safePushProof.occurredAt === undefined
+        ? {}
+        : { occurredAt: input.safePushProof.occurredAt }),
     });
   }
 
-  overrides.set("camera_evidence_or_fallback", {
-    state: "external_blocked",
+  const cameraProof = input.cameraProof ?? {
+    state: "external_blocked" as const,
     cause: "Sem prova publica de Android aprovado com camera nesta execucao.",
     nextAction: "Executar no aparelho aprovado e registrar somente status sanitizado.",
     evidenceReferenceLabel: "Camera bloqueada externamente",
+  };
+  overrides.set("camera_evidence_or_fallback", {
+    state: cameraProof.state,
+    ...(cameraProof.cause === undefined ? {} : { cause: cameraProof.cause }),
+    nextAction: cameraProof.nextAction,
+    evidenceReferenceLabel: cameraProof.evidenceReferenceLabel,
+    ...(cameraProof.occurredAt === undefined ? {} : { occurredAt: cameraProof.occurredAt }),
   });
 
   if (input.hasSafeShiftCloseProof === true && input.centralReadReady === true) {
@@ -789,6 +836,92 @@ function buildPilotUatChecklist(
       "Checklist guia o UAT real; produto e lote ficticios nao contam como prova da Loja 18.",
     updatedAt,
     steps,
+  };
+}
+
+function approvedValidationDevicesFor(
+  devices: readonly CommandCenterProjection["devices"][number][],
+  referenceAt: string,
+): CommandCenterProjection["devices"] {
+  return devices.filter(
+    (device) =>
+      device.verdict === "apto" &&
+      device.buildCompatibility === "atual" &&
+      device.deviceIdMasked.trim().length > 0 &&
+      !device.blockers.some((blocker) => blocker.code === "invalid_store_or_user") &&
+      device.lastCentralReadAt !== undefined &&
+      device.lastCentralReadAt.slice(0, 10) === referenceAt.slice(0, 10),
+  );
+}
+
+function deriveSafePushProof(
+  devices: readonly CommandCenterProjection["devices"][number][],
+): PilotProofGate {
+  for (const device of devices) {
+    const accepted = (device.pushTests ?? []).find((item) =>
+      ["provider_accepted", "opened"].includes(item.state),
+    );
+    if (accepted !== undefined) {
+      return {
+        state: "passed",
+        occurredAt: accepted.occurredAt,
+        evidenceReferenceLabel: "Timeline de teste seguro",
+        nextAction: "Manter push como diagnostico; isso nao resolve tarefa nem fechamento.",
+      };
+    }
+  }
+
+  for (const device of devices) {
+    const failed = (device.pushTests ?? []).find((item) =>
+      ["provider_failed", "token_invalid", "permission_denied"].includes(item.state),
+    );
+    if (failed !== undefined) {
+      return {
+        state: "blocked",
+        cause: failed.detail,
+        nextAction: failed.nextAction,
+        evidenceReferenceLabel: "Timeline de teste seguro",
+      };
+    }
+  }
+
+  for (const device of devices) {
+    const localOnly = (device.pushTests ?? []).find((item) => item.state === "local_only");
+    if (localOnly !== undefined) {
+      return {
+        state: "external_blocked",
+        cause: localOnly.detail,
+        nextAction: localOnly.nextAction,
+        evidenceReferenceLabel: "Timeline de teste seguro",
+      };
+    }
+  }
+
+  return {
+    state: "external_blocked",
+    cause: "Sem timeline de push remoto em aparelho aprovado.",
+    nextAction: "Enviar teste seguro em Aparelhos e atualizar Validacao.",
+    evidenceReferenceLabel: "Push remoto pendente",
+  };
+}
+
+function deriveCameraProof(
+  devices: readonly CommandCenterProjection["devices"][number][],
+): PilotProofGate {
+  if (devices.some((device) => device.cameraPermission === "denied")) {
+    return {
+      state: "blocked",
+      cause: "Permissao de camera negada no aparelho aprovado.",
+      nextAction: "Abrir Aparelhos, corrigir permissao de camera ou registrar fallback seguro.",
+      evidenceReferenceLabel: "Camera bloqueada no aparelho",
+    };
+  }
+
+  return {
+    state: "external_blocked",
+    cause: "Camera ou fallback ainda nao tem prova central publica segura.",
+    nextAction: "Executar evidencia ou motivo sem foto no aparelho aprovado.",
+    evidenceReferenceLabel: "Camera ou fallback pendente",
   };
 }
 
@@ -883,6 +1016,11 @@ function buildPilotOperationalBlockers(input: {
   }
 
   for (const [deviceIndex, device] of input.devices.entries()) {
+    const buildBlocker = buildCompatibilityBlockerForDevice(device, input.updatedAt, deviceIndex);
+    if (buildBlocker !== undefined) {
+      blockers.push(buildBlocker);
+    }
+
     for (const [blockerIndex, blocker] of device.blockers.entries()) {
       blockers.push({
         blockerId: `device:${deviceIndex}:${blocker.code}:${blockerIndex}`,
@@ -1013,6 +1151,35 @@ function buildPilotOperationalBlockers(input: {
   }
 
   return blockers.sort(comparePilotOperationalBlockers).slice(0, 32);
+}
+
+function buildCompatibilityBlockerForDevice(
+  device: CommandCenterProjection["devices"][number],
+  updatedAt: string,
+  deviceIndex: number,
+): PilotOperationalBlocker | undefined {
+  if (device.buildCompatibility === "atual") return undefined;
+
+  const isUnknown = device.buildCompatibility === "desconhecido";
+  const label =
+    device.buildCompatibility === "incompativel"
+      ? "APK incompativel com a validacao"
+      : device.buildCompatibility === "desatualizado"
+        ? "APK aprovado ainda nao instalado"
+        : "Instalacao do APK aprovado sem prova";
+
+  return {
+    blockerId: `build-compat:${deviceIndex}:${device.buildCompatibility}`,
+    category: "build",
+    severity: isUnknown ? "external" : "critical",
+    ownership: isUnknown ? "external" : "operator",
+    label,
+    cause: `${device.deviceLabel} reportou build ${device.appBuild} para aprovado ${device.approvedBuild}.`,
+    nextAction: "Abrir Atualizacoes e instalar o APK aprovado antes do Go.",
+    affectedLabel: `${device.deviceLabel} - ${device.deviceIdMasked}`,
+    evidenceReferenceLabel: device.approvedArtifactLabel,
+    updatedAt,
+  };
 }
 
 function comparePilotOperationalBlockers(

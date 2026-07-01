@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { SafePushTestTimelineItem } from "@validade-zero/contracts";
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import {
   createAuditBackedCommandCenterService,
+  createCaptureBackedCommandCenterService,
   createInMemoryCommandCenterService,
 } from "./command-center";
 import { createApiApp } from "./index";
@@ -579,7 +581,7 @@ describe("Command Center API", () => {
       deviceLabel: "Moto G Lideranca",
       activeUserLabel: "Lider FICTICIO",
       appVersion: "0.12.0",
-      appBuild: "120",
+      appBuild: "147",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       preparedAt: new Date("2030-01-10T11:40:00.000Z"),
@@ -640,6 +642,15 @@ describe("Command Center API", () => {
         },
       ],
     });
+    expect(uatStep(body, "safe_push_test")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Timeline de teste seguro",
+    });
+    expect(uatStep(body, "camera_evidence_or_fallback")).toMatchObject({
+      state: "external_blocked",
+      evidenceReferenceLabel: "Camera ou fallback pendente",
+    });
+    expect(uatStep(body, "shift_close")).not.toMatchObject({ state: "passed" });
     expect(JSON.stringify(body)).not.toMatch(
       /android-loja-piloto-001|ExponentPushToken|providerTicket|rawProvider/i,
     );
@@ -791,6 +802,141 @@ describe("Command Center API", () => {
       nextAction: "Concluir produto, lote, resolucao, convergencia e bloqueios antes do fechamento.",
     });
   });
+
+  it("keeps second-device convergence external with only one approved mobile device", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct()],
+      lots: [centralLot()],
+      resolvedHistory: [centralResolvedHistory()],
+    });
+    await seedApprovedDevice(captureRepository, {
+      deviceId: "android-loja-piloto-001",
+      deviceLabel: "Aparelho Loja 18 #1",
+    });
+    const app = createCentralCaptureApp({ captureRepository });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(uatStep(body, "second_device_convergence")).toMatchObject({
+      state: "external_blocked",
+      evidenceReferenceLabel: "Aparelho Loja 18 #2 pendente",
+    });
+  });
+
+  it("passes second-device convergence only with two approved devices and central facts", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct()],
+      lots: [centralLot()],
+      resolvedHistory: [centralResolvedHistory()],
+    });
+    await seedApprovedDevice(captureRepository, {
+      deviceId: "android-loja-piloto-001",
+      deviceLabel: "Aparelho Loja 18 #1",
+    });
+    await seedApprovedDevice(captureRepository, {
+      deviceId: "android-loja-piloto-002",
+      deviceLabel: "Aparelho Loja 18 #2",
+    });
+    const app = createCentralCaptureApp({ captureRepository });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(uatStep(body, "product_real_input")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "lot_registration")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "terminal_resolution")).toMatchObject({ state: "passed" });
+    expect(uatStep(body, "second_device_convergence")).toMatchObject({
+      state: "passed",
+      evidenceReferenceLabel: "Aparelho Loja 18 #2",
+    });
+  });
+
+  it("emits build blockers from installed-vs-approved compatibility", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct()],
+      lots: [centralLot()],
+      resolvedHistory: [centralResolvedHistory()],
+    });
+    await seedApprovedDevice(captureRepository, {
+      appBuild: "146",
+      deviceId: "android-loja-piloto-001",
+      deviceLabel: "Aparelho Loja 18 #1",
+    });
+    const app = createCentralCaptureApp({ captureRepository });
+    const response = await app.request("/command-center?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:lead-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(projectedPilotBlockers(body)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "build",
+          label: "APK aprovado ainda nao instalado",
+        }),
+      ]),
+    );
+    expect(JSON.stringify(body)).not.toMatch(/buildUrl|eas:\/\/|token|secret/i);
+  });
+
+  it("keeps local-only push external and provider failures actionable", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct()],
+      lots: [centralLot()],
+      resolvedHistory: [centralResolvedHistory()],
+    });
+    await seedApprovedDevice(captureRepository, {
+      deviceId: "android-loja-piloto-001",
+      deviceLabel: "Aparelho Loja 18 #1",
+    });
+    const localOnlyService = createCaptureBackedCommandCenterService({
+      captureRepository,
+      now: () => new Date("2030-01-10T12:00:00.000Z"),
+      readPushTests: () => [safePushTimeline("local_only")],
+    });
+    const providerFailedService = createCaptureBackedCommandCenterService({
+      captureRepository,
+      now: () => new Date("2030-01-10T12:00:00.000Z"),
+      readPushTests: () => [safePushTimeline("provider_failed")],
+    });
+
+    const localOnly = await localOnlyService.read({
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+    });
+    const providerFailed = await providerFailedService.read({
+      storeId: "loja-piloto",
+      storeName: "Loja Ficticia Piloto",
+    });
+
+    expect(uatStep(localOnly, "safe_push_test")).toMatchObject({
+      state: "external_blocked",
+      evidenceReferenceLabel: "Timeline de teste seguro",
+    });
+    expect(projectedPilotBlockers(localOnly)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ category: "push", label: "Push remoto ainda nao provado" }),
+      ]),
+    );
+    expect(uatStep(providerFailed, "safe_push_test")).toMatchObject({
+      state: "blocked",
+      evidenceReferenceLabel: "Timeline de teste seguro",
+    });
+    expect(projectedPilotBlockers(providerFailed)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ category: "push", label: "Provider recusou teste seguro" }),
+      ]),
+    );
+    expect(JSON.stringify({ localOnly, providerFailed })).not.toMatch(
+      /providerTicket|providerReceipt|ExpoPushToken|objectKey|photoUri|base64/i,
+    );
+  });
 });
 
 interface UatStepProjection {
@@ -816,6 +962,63 @@ function uatStep(body: unknown, stepId: string): UatStepProjection {
 
 function projectedPilotBlockers(body: unknown): readonly PilotBlockerProjection[] {
   return (body as { pilotBlockers?: readonly PilotBlockerProjection[] }).pilotBlockers ?? [];
+}
+
+async function seedApprovedDevice(
+  captureRepository: ReturnType<typeof createInMemoryCaptureRepository>,
+  overrides: {
+    appBuild?: string;
+    deviceId: string;
+    deviceLabel: string;
+  },
+): Promise<void> {
+  await captureRepository.upsertDeviceSnapshot({
+    deviceId: overrides.deviceId,
+    storeId: "loja-piloto",
+    storeName: "Loja Ficticia Piloto",
+    deviceLabel: overrides.deviceLabel,
+    activeUserLabel: "Lider FICTICIO",
+    appVersion: "0.12.0",
+    appBuild: overrides.appBuild ?? "147",
+    environment: "staging",
+    apiTarget: "https://api.ficticia.invalid",
+    preparedAt: new Date("2030-01-10T11:40:00.000Z"),
+    lastForegroundAt: new Date("2030-01-10T11:42:00.000Z"),
+    lastSyncAt: new Date("2030-01-10T11:43:00.000Z"),
+    lastCentralReadAt: new Date("2030-01-10T11:44:00.000Z"),
+    lastHydratedAt: new Date("2030-01-10T11:44:00.000Z"),
+    pendingCommandCount: 0,
+    conflictCount: 0,
+    source: "central",
+    pushPermission: "granted",
+    pushProviderState: "remote_ready",
+    cameraPermission: "granted",
+    updatedAt: new Date("2030-01-10T11:45:00.000Z"),
+  });
+}
+
+function safePushTimeline(
+  state: "local_only" | "provider_failed",
+): SafePushTestTimelineItem {
+  return {
+    eventId: `push-${state}`,
+    deviceIdMasked: "andr...001",
+    deviceLabel: "Aparelho Loja 18 #1",
+    requesterLabel: "Lideranca Loja 18",
+    occurredAt: "2030-01-10T11:50:00.000Z",
+    state,
+    permissionOutcome: state === "local_only" ? "unknown" : "granted",
+    providerOutcome: state === "provider_failed" ? "failed" : "not_attempted",
+    deliveryAttemptState: state === "provider_failed" ? "failed" : "not_attempted",
+    detail:
+      state === "provider_failed"
+        ? "Provider recusou teste seguro em aparelho aprovado."
+        : "Teste ficou local e nao prova recebimento remoto.",
+    nextAction:
+      state === "provider_failed"
+        ? "Resolver provider em Aparelhos antes do Go."
+        : "Repetir teste com provider remoto habilitado.",
+  };
 }
 
 function createCentralCaptureApp(input?: {
