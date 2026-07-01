@@ -73,7 +73,7 @@ Captured 2026-07-01 during Phase 16 execution:
 - `cmd /c pnpm.cmd --filter @validade-zero/web test` - passed, 9 files / 40 tests.
 - `cmd /c pnpm.cmd --filter @validade-zero/mobile test` - passed, 37 files / 261 tests.
 - `cmd /c pnpm.cmd test:e2e:web` - passed, 6 Playwright tests. Vite logged expected local proxy misses for `/session/stores`; tested routes still passed with fixtures.
-- `cmd /c pnpm.cmd security:evidence` - passed, 459 tracked text files scanned.
+- `cmd /c pnpm.cmd security:evidence` - passed, 460 tracked text files scanned in the final full check.
 - `cmd /c pnpm.cmd check` - passed after formatting three files. Full gate covered typecheck, lint/boundaries, Prettier, 89-test all-project Vitest run, 58-test smoke run, build, security, and performance budgets.
 
 The web build emitted a non-failing chunk-size warning for the existing app bundle. Performance budgets still passed.

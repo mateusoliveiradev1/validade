@@ -100,7 +100,7 @@ completed: 2026-07-01
 - `cmd /c pnpm.cmd --filter @validade-zero/web test` - passed, 9 files / 40 tests.
 - `cmd /c pnpm.cmd --filter @validade-zero/mobile test` - passed, 37 files / 261 tests.
 - `cmd /c pnpm.cmd test:e2e:web` - passed, 6 Playwright tests.
-- `cmd /c pnpm.cmd security:evidence` - passed, 459 tracked text files scanned.
+- `cmd /c pnpm.cmd security:evidence` - passed, 460 tracked text files scanned in the final full check.
 - `cmd /c pnpm.cmd check` - passed. It covered typecheck, lint/boundaries, Prettier, full Vitest, smoke Vitest, build, security, and performance budgets.
 
 ## User Setup Required
