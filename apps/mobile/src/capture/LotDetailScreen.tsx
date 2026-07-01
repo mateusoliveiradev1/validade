@@ -57,6 +57,9 @@ export function LotDetailScreen({
   const [submitting, setSubmitting] = useState(false);
   const observation = detail.currentObservation;
   const centralStatus = lotCentralStatus(detail);
+  const markdownEntryOwnsObservationAction =
+    markdownEntryState?.status === "presence_required" ||
+    markdownEntryState?.status === "withdrawal_required";
 
   async function requestRuleWindowMarkdown(): Promise<void> {
     if (onRequestMarkdown === undefined) {
@@ -144,7 +147,7 @@ export function LotDetailScreen({
         }}
       />
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
-      {markdownEntryState?.status === "presence_required" ? null : (
+      {markdownEntryOwnsObservationAction ? null : (
         <SecondaryAction label="Registrar observacao" onPress={onObserve} />
       )}
       <SecondaryAction label="Voltar e revisar" onPress={onBack} />
@@ -225,6 +228,25 @@ function MarkdownEntry({
         <StatusNotice>{todayCopy.markdown.presenceGate}</StatusNotice>
         <PrimaryAction label={todayCopy.markdown.presenceGate} onPress={onObserve} />
       </>
+    );
+  }
+
+  if (entryState.status === "withdrawal_required") {
+    return (
+      <>
+        <StatusNotice tone="critical">
+          Lote vencendo hoje ou vencido: confirme retirada da area ou registre perda.
+        </StatusNotice>
+        <PrimaryAction label={entryState.label} onPress={onObserve} />
+      </>
+    );
+  }
+
+  if (entryState.status === "terminal_finalized") {
+    return (
+      <StatusNotice tone="success">
+        {entryState.label}. Rebaixa indisponivel para lote finalizado.
+      </StatusNotice>
     );
   }
 

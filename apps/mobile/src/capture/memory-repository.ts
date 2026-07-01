@@ -72,6 +72,7 @@ import type {
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  assertMarkdownRequestAllowedForLot,
   appendTaskResolutionHistoryEntry,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
@@ -129,6 +130,7 @@ import {
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
+import { operationalDateKey } from "./operational-date";
 import { createDeviceInstallId } from "./device-identity";
 
 const OFFLINE_CACHE_STALE_AFTER_HOURS = 4;
@@ -1107,14 +1109,17 @@ export function createMemoryCaptureRepository(
     const command = parseMarkdownRequestCommand(input);
     const detail = await requireLotDetail(command.lotId);
     const existing = findActiveMarkdownWorkflow(command.lotId);
+    const currentDate = operationalDateKey(new Date(command.occurredAt));
 
     if (existing !== undefined) {
       throw new Error(`An active markdown workflow already exists for lot ${command.lotId}.`);
     }
 
+    assertMarkdownRequestAllowedForLot(detail, currentDate);
+
     const assessment = calculateAssessmentForLot({
       lot: detail,
-      currentDate: command.occurredAt.slice(0, 10),
+      currentDate,
       currentTimestamp: command.occurredAt,
     });
     const eligibility = canStartMarkdownWorkflow({
@@ -1388,6 +1393,7 @@ export function createMemoryCaptureRepository(
       lot,
       assessment,
       ...(activeWorkflow === undefined ? {} : { activeWorkflow }),
+      currentDate: input.currentDate,
       currentTimestamp: input.currentTimestamp,
     });
   }

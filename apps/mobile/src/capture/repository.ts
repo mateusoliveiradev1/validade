@@ -385,6 +385,16 @@ export interface QueueUnsafeShiftCloseInput {
 
 export type MarkdownEntryState =
   | {
+      status: "terminal_finalized";
+      label: "Finalizado: perda registrada" | "Finalizado: retirado da area";
+      lotId: string;
+    }
+  | {
+      status: "withdrawal_required";
+      label: "Retirar da area ou registrar perda";
+      lotId: string;
+    }
+  | {
       status: "presence_required";
       label: "Conferir presenca antes da rebaixa";
       lotId: string;
@@ -1265,8 +1275,23 @@ export function deriveMarkdownEntryState(input: {
   lot: CaptureLotDetail;
   assessment: RiskAssessment;
   activeWorkflow?: MarkdownWorkflowRecord;
+  currentDate: string;
   currentTimestamp: string;
 }): MarkdownEntryState {
+  const terminal = terminalMarkdownEntryState(input.lot);
+
+  if (terminal !== undefined) {
+    return terminal;
+  }
+
+  if (isExpiredForMarkdownEntry(input.lot, input.currentDate)) {
+    return {
+      status: "withdrawal_required",
+      label: "Retirar da area ou registrar perda",
+      lotId: input.lot.id,
+    };
+  }
+
   if (input.activeWorkflow !== undefined) {
     return {
       status: "already_active",
@@ -1313,6 +1338,45 @@ export function deriveMarkdownEntryState(input: {
     lotId: input.lot.id,
     reasons: ["excess_stock", "quality_issue", "package_damage", "operational_guidance", "other"],
   };
+}
+
+export function assertMarkdownRequestAllowedForLot(
+  lot: CaptureLotDetail,
+  currentDate: string,
+): void {
+  if (!isExpiredForMarkdownEntry(lot, currentDate)) {
+    return;
+  }
+
+  throw new Error("Lote vencendo hoje ou vencido exige retirada da area ou perda.");
+}
+
+function terminalMarkdownEntryState(lot: CaptureLotDetail): MarkdownEntryState | undefined {
+  if (lot.currentObservation.status === "loss") {
+    return {
+      status: "terminal_finalized",
+      label: "Finalizado: perda registrada",
+      lotId: lot.id,
+    };
+  }
+
+  if (lot.currentObservation.status === "withdrawn") {
+    return {
+      status: "terminal_finalized",
+      label: "Finalizado: retirado da area",
+      lotId: lot.id,
+    };
+  }
+
+  return undefined;
+}
+
+function isExpiredForMarkdownEntry(lot: CaptureLotDetail, currentDate: string): boolean {
+  if (lot.mode !== "formal_validity" && lot.mode !== "processed_repack_loss") {
+    return false;
+  }
+
+  return lot.expiresAt <= currentDate;
 }
 
 export function sortTodayTasks(tasks: readonly TodayTaskRecord[]): TodayTaskRecord[] {

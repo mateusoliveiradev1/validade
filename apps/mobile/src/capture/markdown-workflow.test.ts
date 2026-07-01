@@ -330,6 +330,57 @@ describe("markdown workflow repository", () => {
     });
   });
 
+  it("blocks lot-detail markdown for lots expiring today or already finalized", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    const lot = await saveFormalLot({
+      repository,
+      displayName: "Iogurte Vence Hoje FICTICIO",
+      lotCode: "LOTE-VENCE-HOJE-FICTICIO",
+      expiresAt: currentDate,
+    });
+
+    await expect(
+      repository.loadMarkdownEntryState({
+        lotId: lot.id,
+        currentDate,
+        currentTimestamp,
+      }),
+    ).resolves.toMatchObject({
+      status: "withdrawal_required",
+      label: "Retirar da area ou registrar perda",
+    });
+    await expect(
+      repository.requestMarkdown({
+        lotId: lot.id,
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: currentTimestamp,
+        reason: "rule_window",
+      }),
+    ).rejects.toThrow("retirada da area ou perda");
+
+    await repository.appendObservation(lot.id, {
+      status: "loss",
+      actorLabel: "Colaboradora FICTICIA",
+      occurredAt: "2030-01-10T12:05:00.000Z",
+      location: { kind: "retirada_perda" },
+      quantityState: "estimated",
+      approximateQuantity: 12,
+      isCorrection: false,
+    });
+
+    await expect(
+      repository.loadMarkdownEntryState({
+        lotId: lot.id,
+        currentDate,
+        currentTimestamp: "2030-01-10T12:10:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      status: "terminal_finalized",
+      label: "Finalizado: perda registrada",
+    });
+  });
+
   it("keeps delayed markdown stage tasks alertable and acknowledgement-only", async () => {
     const { repository, lot, sourceTask } = await createMarkdownDueLot();
     await repository.registerAlertDevice({

@@ -79,6 +79,7 @@ import type {
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  assertMarkdownRequestAllowedForLot,
   appendTaskResolutionHistoryEntry,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
@@ -131,6 +132,7 @@ import {
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
+import { operationalDateKey } from "./operational-date";
 import {
   canStartMarkdownWorkflow,
   classifySyncCommandUrgency,
@@ -1706,9 +1708,13 @@ export function createSQLiteCaptureRepository(
     await initialize();
     const command = parseMarkdownRequestCommand(input);
     const detail = await requireLotDetail(command.lotId);
+    const currentDate = operationalDateKey(new Date(command.occurredAt));
+
+    assertMarkdownRequestAllowedForLot(detail, currentDate);
+
     const assessment = calculateAssessmentForLot({
       lot: detail,
-      currentDate: command.occurredAt.slice(0, 10),
+      currentDate,
       currentTimestamp: command.occurredAt,
     });
     const eligibility = canStartMarkdownWorkflow({
@@ -2014,6 +2020,7 @@ export function createSQLiteCaptureRepository(
         currentTimestamp: input.currentTimestamp,
       }),
       ...(activeWorkflow === null ? {} : { activeWorkflow }),
+      currentDate: input.currentDate,
       currentTimestamp: input.currentTimestamp,
     });
   }
