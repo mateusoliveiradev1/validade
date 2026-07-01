@@ -319,6 +319,10 @@ interface LotProjectionRow extends LotRow {
   observation_occurred_at: string | Date | null;
 }
 
+interface ProjectionRefreshLotRow {
+  central_lot_id: string;
+}
+
 interface TaskRow {
   central_task_id: string;
   active_key: string;
@@ -982,6 +986,26 @@ export function createCaptureRepositoryFromQuery(
       updatedAt: input.updatedAt,
     });
 
+    if (result.activeTask === undefined) {
+      await sql.query(
+        `update central_projected_tasks
+        set status = 'resolved',
+          resolved_at = $1::timestamptz,
+          resolution_reason = 'projection_cleared',
+          actor_label = $2,
+          updated_at = $1::timestamptz
+        where store_id = $3 and central_lot_id = $4 and status = 'active'`,
+        [
+          input.updatedAt,
+          input.context.currentObservation.actorLabel,
+          input.context.storeId,
+          input.context.centralLotId,
+        ],
+      );
+
+      return result;
+    }
+
     if (result.activeTask !== undefined) {
       await sql.query(
         `update central_projected_tasks
@@ -1057,6 +1081,56 @@ export function createCaptureRepositoryFromQuery(
     }
 
     return result;
+  }
+
+  async function refreshCentralTaskProjectionsForPrepareTurn(
+    input: PrepareTurnInput,
+  ): Promise<void> {
+    const rows = (await sql.query(
+      `select central_lot_id
+      from central_lots
+      where store_id = $1
+        and state <> 'discarded'
+        and (
+          expires_at is not null
+          or received_at is not null
+          or quality_inspection_due_at is not null
+        )
+      order by updated_at desc
+      limit 150`,
+      [input.storeId],
+    )) as ProjectionRefreshLotRow[];
+
+    for (const row of rows) {
+      const context = await selectLotProjectionContext({
+        storeId: input.storeId,
+        centralLotId: row.central_lot_id,
+      });
+
+      if (context === undefined) continue;
+
+      const result = await upsertCentralTaskProjection({
+        context,
+        requestId: createStableId(
+          "prepare-projection",
+          input.storeId,
+          `${input.requestId}:${row.central_lot_id}`,
+        ),
+        updatedAt: input.request.requestedAt,
+      });
+      const riskState = centralRiskStateFromAssessment(result.assessment);
+
+      await sql.query(
+        `update central_lots
+        set risk_state = $1,
+          version = version + 1,
+          updated_at = $2::timestamptz
+        where store_id = $3
+          and central_lot_id = $4
+          and risk_state is distinct from $1`,
+        [riskState, input.request.requestedAt, input.storeId, row.central_lot_id],
+      );
+    }
   }
 
   async function selectCatalogProducts(input: {
@@ -2056,6 +2130,8 @@ export function createCaptureRepositoryFromQuery(
 
   return {
     async prepareTurn(input) {
+      await refreshCentralTaskProjectionsForPrepareTurn(input);
+
       const [productRows, lotRows, taskRows, resolvedRows, conflictRows] = await Promise.all([
         sql.query(
           `select p.central_product_id, p.display_name, p.normalized_key, p.category_id, p.category_name,
@@ -2430,6 +2506,39 @@ export function createInMemoryCaptureRepository(input?: {
 
   return {
     async prepareTurn(prepareInput) {
+      for (const [lotIndex, lot] of lots.entries()) {
+        if (lot.storeId !== prepareInput.storeId || lot.state === "discarded") continue;
+
+        const context = contextFromStoredLot(prepareInput.storeId, lot);
+        if (context === undefined) continue;
+
+        const result = persistLotProjection(
+          context,
+          createStableId(
+            "prepare-projection",
+            prepareInput.storeId,
+            `${prepareInput.requestId}:${lot.centralLotId}`,
+          ),
+          prepareInput.request.requestedAt,
+        );
+        const riskState = centralRiskStateFromAssessment(result.assessment);
+        const nextLot: StoredLot = {
+          ...lot,
+          updatedAt:
+            riskState === (lot.riskState ?? null)
+              ? lot.updatedAt
+              : prepareInput.request.requestedAt,
+        };
+
+        if (riskState === null) {
+          delete nextLot.riskState;
+        } else {
+          nextLot.riskState = riskState;
+        }
+
+        lots[lotIndex] = nextLot;
+      }
+
       const response = buildPrepareTurnResponse({
         input: prepareInput,
         products: products.filter((item) => item.storeId === prepareInput.storeId),

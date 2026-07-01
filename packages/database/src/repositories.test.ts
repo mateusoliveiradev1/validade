@@ -233,7 +233,7 @@ describe("database repositories", () => {
     const response = await repository.prepareTurn(prepareTurnInput("store-1"));
     expect(response.products.map((item) => item.centralProductId)).toEqual(["produto-store-1"]);
     expect(response.lots.map((item) => item.centralLotId)).toEqual(["lote-store-1"]);
-    expect(response.activeTasks.map((item) => item.centralTaskId)).toEqual(["tarefa-store-1"]);
+    expect(response.activeTasks.map((item) => item.centralLotId)).toEqual(["lote-store-1"]);
     expect(response.store.readiness).toBe("prepared");
     expect(JSON.stringify(response)).not.toContain("store-2");
     expect(repository.readDeviceSnapshots()).toHaveLength(1);
@@ -332,6 +332,94 @@ describe("database repositories", () => {
     expect(response.store.blockers[0]).toContain("Leitura central sem fatos");
   });
 
+  it("reprojects dated lots during prepare-turn so same-day expiry becomes active work", async () => {
+    const repository = createInMemoryCaptureRepository({
+      products: [centralProduct("store-1", "produto-store-1")],
+      lots: [
+        {
+          ...centralLot("store-1", "lote-expira-hoje"),
+          riskState: "radar",
+          expiresAt: "2030-01-10",
+          updatedAt: "2030-01-01T09:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(response.activeTasks).toHaveLength(1);
+    expect(response.activeTasks[0]).toMatchObject({
+      centralLotId: "lote-expira-hoje",
+      riskState: "expired",
+      requiredResolution: "withdraw_or_loss",
+    });
+    expect(response.lots[0]).toMatchObject({
+      centralLotId: "lote-expira-hoje",
+      riskState: "expired",
+    });
+  });
+
+  it("refreshes SQL lot projections before returning prepare-turn tasks", async () => {
+    const captured: unknown[][] = [];
+    let projected = false;
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        const query = String(strings);
+        captured.push([query, ...(values ?? [])]);
+
+        if (
+          query.includes("select central_lot_id, central_product_id") &&
+          query.includes("from central_lots")
+        ) {
+          return Promise.resolve([centralLotRow({ riskState: projected ? "expired" : "radar" })]);
+        }
+
+        if (query.includes("select central_lot_id") && query.includes("from central_lots")) {
+          return Promise.resolve([{ central_lot_id: "lote-expira-hoje" }]);
+        }
+
+        if (query.includes("from central_lots l") && query.includes("join central_products p")) {
+          return Promise.resolve([centralLotProjectionRow()]);
+        }
+
+        if (query.includes("insert into central_projected_tasks")) {
+          projected = true;
+          return Promise.resolve([]);
+        }
+
+        if (query.includes("from central_products p")) {
+          return Promise.resolve([centralProductRow()]);
+        }
+
+        if (query.includes("from central_projected_tasks") && query.includes("status = 'active'")) {
+          return Promise.resolve(projected ? [centralTaskRow()] : []);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+
+    const response = await repository.prepareTurn(prepareTurnInput("store-1"));
+    const projectionInsertIndex = captured.findIndex(([query]) =>
+      String(query).includes("insert into central_projected_tasks"),
+    );
+    const taskSelectIndex = captured.findIndex(
+      ([query]) =>
+        String(query).includes("from central_projected_tasks") &&
+        String(query).includes("status = 'active'"),
+    );
+
+    expect(projectionInsertIndex).toBeGreaterThan(-1);
+    expect(taskSelectIndex).toBeGreaterThan(projectionInsertIndex);
+    expect(response.activeTasks).toHaveLength(1);
+    expect(response.activeTasks[0]).toMatchObject({
+      centralLotId: "lote-expira-hoje",
+      riskState: "expired",
+      requiredResolution: "withdraw_or_loss",
+    });
+  });
+
   it("uses store-scoped SQL and writes sanitized prepare-turn audit rows", async () => {
     const captured: unknown[][] = [];
     const sql = {
@@ -347,15 +435,23 @@ describe("database repositories", () => {
     const repository = createCaptureRepositoryFromQuery(sql as never);
 
     const response = await repository.prepareTurn(prepareTurnInput("store-1"));
-    const selectQueries = captured.slice(0, 5).map(([query]) => String(query));
-    expect(selectQueries).toHaveLength(5);
+    const selectQueries = captured
+      .map(([query]) => String(query))
+      .filter((query) => query.trimStart().startsWith("select"));
+    expect(selectQueries).toHaveLength(6);
     expect(selectQueries.every((query) => /where\s+((t|p)\.)?store_id = \$1/.test(query))).toBe(
       true,
     );
-    expect(String(captured[5]?.[0])).toContain("insert into central_device_snapshots");
-    expect(String(captured[6]?.[0])).toContain("insert into audit_events");
-    expect(String(captured[6]?.[0])).toContain("sanitized");
-    expect(String(captured[6]?.[0])).toContain("true");
+    const deviceSnapshotQuery = captured.find(([query]) =>
+      String(query).includes("insert into central_device_snapshots"),
+    );
+    const auditQuery = captured.find(([query]) =>
+      String(query).includes("insert into audit_events"),
+    );
+    expect(String(deviceSnapshotQuery?.[0])).toContain("insert into central_device_snapshots");
+    expect(String(auditQuery?.[0])).toContain("insert into audit_events");
+    expect(String(auditQuery?.[0])).toContain("sanitized");
+    expect(String(auditQuery?.[0])).toContain("true");
     expect(response.products[0]?.centralProductId).toBe("produto-store-1");
   });
 
@@ -1338,6 +1434,67 @@ function centralProductRow() {
       categoryId: "categoria-ficticia-ovos",
       mode: "formal_validity",
     },
+    updated_at: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function centralLotRow(input: { riskState: "radar" | "expired" }) {
+  return {
+    central_lot_id: "lote-expira-hoje",
+    central_product_id: "produto-store-1",
+    product_display_name: "Ovos Brancos FICTICIOS",
+    lot_identity: {
+      identitySource: "printed",
+      value: "LOTE-HOJE-FICTICIO",
+    },
+    mode: "formal_validity",
+    current_location: { kind: "area_de_venda" },
+    state: "synchronized",
+    source: "central",
+    risk_state: input.riskState,
+    expires_at: "2030-01-10",
+    received_at: null,
+    quality_inspection_due_at: null,
+    approximate_quantity: 7,
+    updated_at: "2030-01-10T09:00:00.000Z",
+  };
+}
+
+function centralLotProjectionRow() {
+  return {
+    ...centralLotRow({ riskState: "radar" }),
+    store_id: "store-1",
+    lot_identity_key: "printed:lote-hoje-ficticio",
+    created_at: "2030-01-01T09:00:00.000Z",
+    updated_at: "2030-01-01T09:00:00.000Z",
+    category_id: "categoria-ficticia-ovos",
+    category_name: "Ovos ficticios",
+    category_rule_profile: {
+      categoryId: "categoria-ficticia-ovos",
+      mode: "formal_validity",
+    },
+    observation_id: null,
+    observation_actor_display_name: null,
+    observation_status: null,
+    observation_location: null,
+    observation_quantity: null,
+    observation_occurred_at: null,
+  };
+}
+
+function centralTaskRow() {
+  return {
+    central_task_id: "task-expira-hoje",
+    active_key: "task-key-expira-hoje",
+    central_lot_id: "lote-expira-hoje",
+    product_display_name: "Ovos Brancos FICTICIOS",
+    current_location: { kind: "area_de_venda" },
+    risk_state: "expired",
+    severity: "critical",
+    required_resolution: "withdraw_or_loss",
+    state: "synchronized",
+    owner_label: "Equipe do turno",
+    due_at: "2030-01-10T09:00:00.000Z",
     updated_at: "2030-01-10T09:00:00.000Z",
   };
 }
