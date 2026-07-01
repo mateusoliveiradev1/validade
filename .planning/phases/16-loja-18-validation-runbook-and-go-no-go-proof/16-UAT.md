@@ -1,3 +1,73 @@
+---
+status: complete
+phase: 16-loja-18-validation-runbook-and-go-no-go-proof
+source:
+  - 16-01-SUMMARY.md
+  - 16-02-SUMMARY.md
+  - 16-03-SUMMARY.md
+  - 16-04-SUMMARY.md
+  - 16-05-SUMMARY.md
+started: 2026-07-01T09:46:18.7353000-03:00
+updated: 2026-07-01T09:50:34.0197826-03:00
+---
+
+## Current Test
+
+[testing complete]
+
+## Tests
+
+### 1. Validation Verdict And Next Action
+expected: In web Validacao, the operator or lead sees the current Loja 18 verdict as Go, No-Go, or Aguardando prova externa with a concrete reason and next action derived from central proof, not from a manual checklist.
+result: pass
+
+### 2. Ordered Loja 18 Runbook
+expected: Validacao shows the nine mandatory Loja 18 runbook steps in order, with state, cause, next action, owner route, timestamp or evidence label where available, and no manual pass control.
+result: pass
+
+### 3. Owner Route Shortcuts
+expected: Missing proof routes the user to the owning surface, such as Aparelhos, Atualizacoes, or Operacao, while push tests, update actions, and physical execution stay outside Validacao.
+result: pass
+
+### 4. External Proof Gates Stay Explicit
+expected: Installed APK/build, second approved device, remote push, camera or fallback, safe shift close, and physical Loja 18 UAT remain visible as passed, blocked, or external proof states; repository-green checks never become physical Go by themselves.
+result: pass
+
+### 5. Mobile Operational Boundary
+expected: Mobile remains the real operational proof producer with no validation-only route, and the user still performs product, lot, task, evidence or fallback, sync, and shift-close work through the operational mobile flow.
+result: pass
+
+### 6. Public-Safe Evidence Rendering
+expected: Validacao, the runbook, and repository artifacts show only bounded public-safe labels, masked device references, generic roles, and timestamps; they do not reveal product names, lot identifiers, tokens, provider receipts, photos, object keys, raw device ids, or private URLs.
+result: pass
+
+### 7. Repository Evidence Boundary
+expected: Phase 16 validation and testing docs show the repository gates that passed and clearly say which external installed-device, provider, camera, second-device, safe-close, and physical Loja 18 proofs are still required before real Go.
+result: pass
+
+## Summary
+
+total: 7
+passed: 7
+issues: 0
+pending: 0
+skipped: 0
+blocked: 0
+
+## Gaps
+
+[none yet]
+
+## Verification Notes
+
+- Codex completed repository-side verification on 2026-07-01 because the user was away from the Loja 18 physical devices.
+- `cmd /c pnpm.cmd check` passed after the UAT session was created. It covered typecheck, lint and boundary checks, Prettier, full Vitest, smoke Vitest, build, security checks, sensitive evidence scanning, UI release readiness, and performance budgets.
+- No APK was generated during this verification.
+- No deployment was performed during this verification.
+- Real installed-device, provider push, camera/fallback, second-device convergence, safe-close, and in-aisle Loja 18 proof remain external evidence gates, not repository evidence.
+
+## Reference Runbook
+
 # Phase 16 UAT - Loja 18 Validation Runbook
 
 Status: repository-ready with explicit external proof gates
