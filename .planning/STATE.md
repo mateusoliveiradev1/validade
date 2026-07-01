@@ -113,6 +113,7 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 | 260630-d6v | Debug unchanged pending central lot sync after APK install | 2026-06-30 | local | Verified | [260630-d6v-debug-unchanged-pending-central-lot-sync](./quick/260630-d6v-debug-unchanged-pending-central-lot-sync/) |
 | 260630-dsq | Corrigir sincronizacao manual sem feedback quando lote central pendente nao vira comando | 2026-06-30 | local | Verified | [260630-dsq-corrigir-sincronizacao-manual-sem-feedba](./quick/260630-dsq-corrigir-sincronizacao-manual-sem-feedba/) |
 | 260630-euk | Corrigir sync de lote pendente e categoria para produto embalado do fornecedor | 2026-06-30 | pending | Verified | [260630-euk-corrigir-sync-de-lote-pendente-e-categor](./quick/260630-euk-corrigir-sync-de-lote-pendente-e-categor/) |
+| 260701-ed0 | Gerar APK Android staging build 147 e fazer deploy staging da API e web | 2026-07-01 | pending-docs-commit | Verified | [260701-ed0-gerar-apk-android-staging-build-147-e-fa](./quick/260701-ed0-gerar-apk-android-staging-build-147-e-fa/) |
 
 ## Performance Metrics
 
@@ -274,12 +275,12 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 Phase: 16 (Loja 18 Validation Runbook and Go/No-Go Proof) — EXECUTING
 Plan: 5 of 5
 Status: Phase complete — ready for verification
-Last activity: 2026-07-01
+Last activity: 2026-07-01 - Completed quick task 260701-ed0: generated APK 147 and deployed API/web staging
 
 ## Operator Next Steps
 
-- Start `$gsd-discuss-phase 16` or `$gsd-plan-phase 16` for the Loja 18 validation runbook and Go/No-Go proof.
-- Preserve the Phase 15 proof boundary: repo-local gates are green, while installed APK, provider push, camera/evidence, second-device convergence, and physical Loja 18 UAT remain external validation evidence.
+- Install `artifacts\validade-zero-staging-0.12.0-147.apk` on the Loja 18 Android device and run the physical validation path.
+- Preserve the Phase 16 proof boundary: API/web/APK build are deployed/generated, while installed-device proof, provider push, camera/fallback, second-device convergence, safe close, and physical Loja 18 UAT remain external validation evidence.
 
 ## Deferred Items
 
