@@ -72,6 +72,7 @@ import type {
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  appendTaskResolutionHistoryEntry,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
   calculateAssessmentForLot,
@@ -123,6 +124,7 @@ import {
   parseSyncTransportResult,
   parseAuditTimelineItem,
   parseTodayTaskRecord,
+  shouldPreserveLocalResolutionProjection,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
@@ -184,6 +186,9 @@ export function createMemoryCaptureRepository(
 
     for (const task of prepared.activeTasks) {
       const record = centralActiveTaskToLocal(task, lotsById);
+      if (shouldPreserveLocalResolutionProjection(todayTasks.get(record.id))) {
+        continue;
+      }
       todayTasks.set(record.id, record);
     }
 
@@ -908,8 +913,11 @@ export function createMemoryCaptureRepository(
       const centralProjectedTask = centralProjectedTaskFromLot(detail);
 
       if (centralProjectedTask !== null) {
-        resolveActiveLotTasksExcept(centralProjectedTask, refreshedAt);
         const existingCentralTask = todayTasks.get(centralProjectedTask.id);
+        if (shouldPreserveLocalResolutionProjection(existingCentralTask)) {
+          continue;
+        }
+        resolveActiveLotTasksExcept(centralProjectedTask, refreshedAt);
         todayTasks.set(
           centralProjectedTask.id,
           existingCentralTask?.resolutionHistory === undefined
@@ -1023,15 +1031,12 @@ export function createMemoryCaptureRepository(
 
       assertRecheckResolutionHasEvidence(existing, command);
 
-      const resolutionHistory = [
-        ...(existing.resolutionHistory ?? []),
-        {
-          action: command.action,
-          actorLabel: command.actorLabel,
-          occurredAt: command.occurredAt,
-          ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
-        },
-      ];
+      const resolutionHistory = appendTaskResolutionHistoryEntry(existing.resolutionHistory, {
+        action: command.action,
+        actorLabel: command.actorLabel,
+        occurredAt: command.occurredAt,
+        ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
+      });
       const resolved = parseTodayTaskRecord({
         ...existing,
         status: "resolved",
@@ -3087,7 +3092,7 @@ export function createMemoryCaptureRepository(
       resolutionHistory:
         historyEntry === undefined
           ? task.resolutionHistory
-          : [...(task.resolutionHistory ?? []), historyEntry],
+          : appendTaskResolutionHistoryEntry(task.resolutionHistory, historyEntry),
     });
   }
 

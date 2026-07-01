@@ -537,7 +537,22 @@ function releaseOfflineRepository(
       }),
     listActiveTodayTasks: () => Promise.resolve([expiredReleaseTask()]),
     listFutureAttention: () => Promise.resolve([]),
-    resolveTodayTask: () => Promise.reject(new Error("not used")),
+    resolveTodayTask: (command) =>
+      Promise.resolve({
+        ...expiredReleaseTask(),
+        status: "resolved",
+        resolvedAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+        responsibleActorLabel: command.actorLabel,
+        resolutionHistory: [
+          {
+            action: command.action,
+            actorLabel: command.actorLabel,
+            occurredAt: command.occurredAt,
+            ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
+          },
+        ],
+      }),
     loadTodayTask: () => Promise.resolve(expiredReleaseTask()),
     requestMarkdown: () => Promise.reject(new Error("not used")),
     decideMarkdown: () => Promise.reject(new Error("not used")),

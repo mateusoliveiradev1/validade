@@ -317,6 +317,7 @@ export function TaskResolutionPanel({
 
     if (shouldSaveResolutionThroughSync(task) || (await shouldSaveOffline())) {
       await repository.saveOfflineAction({ kind: "resolve_task", payload: command });
+      await repository.resolveTodayTask(command);
       setSubmitting(false);
       setConfirming(false);
       handleLocalSave();

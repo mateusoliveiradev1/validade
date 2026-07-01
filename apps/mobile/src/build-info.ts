@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+  artifactLabel: "uat21-overdue-task-fix-apk-151",
   appVersion: "0.12.0",
-  build: "150",
+  build: "151",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,11 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(
-      extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "onboarding-shift-e2e-150",
-      24,
-    ),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "overdue-task-fix-151", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,

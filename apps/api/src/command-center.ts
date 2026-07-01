@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+  artifactLabel: "uat21-overdue-task-fix-apk-151",
   appVersion: "0.12.0",
-  build: "150",
+  build: "151",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

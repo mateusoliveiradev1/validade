@@ -626,6 +626,49 @@ export function parseTaskResolutionCommand(input: unknown): TaskResolutionComman
   return TaskResolutionCommandSchema.parse(input);
 }
 
+const LOCAL_RESOLUTION_PENDING_SYNC_STATES: readonly NonNullable<
+  TodayTaskRecord["sync"]
+>["state"][] = ["command_saved_local", "pending_sync", "syncing", "sync_failed", "sync_conflict"];
+
+export function shouldPreserveLocalResolutionProjection(
+  task: TodayTaskRecord | undefined,
+): boolean {
+  return (
+    task !== undefined &&
+    task.status === "resolved" &&
+    task.sync !== undefined &&
+    LOCAL_RESOLUTION_PENDING_SYNC_STATES.includes(task.sync.state) &&
+    (task.resolutionHistory?.length ?? 0) > 0
+  );
+}
+
+type TaskResolutionHistoryEntry = NonNullable<TodayTaskRecord["resolutionHistory"]>[number];
+
+export function appendTaskResolutionHistoryEntry(
+  history: TodayTaskRecord["resolutionHistory"],
+  entry: TaskResolutionHistoryEntry,
+): NonNullable<TodayTaskRecord["resolutionHistory"]> {
+  const existing = history ?? [];
+
+  if (existing.some((candidate) => isSameTaskResolutionHistoryEntry(candidate, entry))) {
+    return existing;
+  }
+
+  return [...existing, entry];
+}
+
+function isSameTaskResolutionHistoryEntry(
+  left: TaskResolutionHistoryEntry,
+  right: TaskResolutionHistoryEntry,
+): boolean {
+  return (
+    left.action === right.action &&
+    left.actorLabel === right.actorLabel &&
+    left.occurredAt === right.occurredAt &&
+    JSON.stringify(left.evidence ?? null) === JSON.stringify(right.evidence ?? null)
+  );
+}
+
 export function parseMarkdownRequestCommand(input: unknown): MarkdownRequestCommand {
   return MarkdownRequestCommandSchema.parse(input);
 }

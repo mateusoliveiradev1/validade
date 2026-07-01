@@ -79,6 +79,7 @@ import type {
 } from "./repository";
 import {
   assertRecheckResolutionHasEvidence,
+  appendTaskResolutionHistoryEntry,
   alertChannelStateForRegistration,
   applyAlertDeliveryResult,
   calculateAssessmentForLot,
@@ -126,6 +127,7 @@ import {
   parseSyncTransportResult,
   parseAuditTimelineItem,
   parseTodayTaskRecord,
+  shouldPreserveLocalResolutionProjection,
   shouldCreateSalesAreaRecheck,
   sortTodayTasks,
 } from "./repository";
@@ -558,7 +560,16 @@ export function createSQLiteCaptureRepository(
       }
 
       for (const task of prepared.activeTasks) {
-        await upsertTodayTask(db, mapCentralActiveTask(task, lotsById));
+        const record = mapCentralActiveTask(task, lotsById);
+        const existingRow = await db.getFirstAsync<TodayTaskRow>(
+          "SELECT * FROM today_tasks WHERE id = ?",
+          record.id,
+        );
+        const existing = existingRow === null ? undefined : mapTodayTask(existingRow);
+        if (shouldPreserveLocalResolutionProjection(existing)) {
+          continue;
+        }
+        await upsertTodayTask(db, record);
       }
 
       await reconcilePreparedCentralTasks(
@@ -1521,6 +1532,9 @@ export function createSQLiteCaptureRepository(
         const existingCentralTask =
           existingCentralTaskRow === null ? undefined : mapTodayTask(existingCentralTaskRow);
 
+        if (shouldPreserveLocalResolutionProjection(existingCentralTask)) {
+          continue;
+        }
         await resolveActiveLotTasksExcept(db, centralProjectedTask, refreshedAt);
         await upsertTodayTask(
           db,
@@ -2070,15 +2084,12 @@ export function createSQLiteCaptureRepository(
     const existing = mapTodayTask(existingRow);
     assertRecheckResolutionHasEvidence(existing, command);
 
-    const resolutionHistory = [
-      ...(existing.resolutionHistory ?? []),
-      {
-        action: command.action,
-        actorLabel: command.actorLabel,
-        occurredAt: command.occurredAt,
-        ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
-      },
-    ];
+    const resolutionHistory = appendTaskResolutionHistoryEntry(existing.resolutionHistory, {
+      action: command.action,
+      actorLabel: command.actorLabel,
+      occurredAt: command.occurredAt,
+      ...(command.evidence === undefined ? {} : { evidence: command.evidence }),
+    });
     const resolved = parseTodayTaskRecord({
       ...existing,
       status: "resolved",
@@ -3045,7 +3056,7 @@ export function createSQLiteCaptureRepository(
       resolutionHistory:
         historyEntry === undefined
           ? task.resolutionHistory
-          : [...(task.resolutionHistory ?? []), historyEntry],
+          : appendTaskResolutionHistoryEntry(task.resolutionHistory, historyEntry),
     });
   }
 

@@ -450,7 +450,13 @@ describe("TaskResolutionPanel", () => {
         destination: { kind: "retirada_perda" },
       }),
     });
-    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(resolveTodayTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "tarefa-vencida-ficticia",
+        action: "withdraw",
+        destination: { kind: "retirada_perda" },
+      }),
+    );
     expect(JSON.stringify(tree.toJSON())).toContain(
       "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     );
@@ -459,7 +465,7 @@ describe("TaskResolutionPanel", () => {
     );
   });
 
-  it("queues central presence confirmation for sync instead of resolving only on the device", async () => {
+  it("queues central presence confirmation and applies the local projection", async () => {
     const saveOfflineAction = vi.fn().mockResolvedValue({});
     const resolveTodayTask = vi.fn();
     const onLocalSave = vi.fn();
@@ -506,7 +512,13 @@ describe("TaskResolutionPanel", () => {
         actorLabel: "Mateus Oliveira",
       }),
     });
-    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(resolveTodayTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: centralPresenceTask().id,
+        action: "confirm_presence",
+        actorLabel: "Mateus Oliveira",
+      }),
+    );
     expect(onLocalSave).toHaveBeenCalledOnce();
   });
 
@@ -571,7 +583,16 @@ describe("TaskResolutionPanel", () => {
         },
       }),
     });
-    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(resolveTodayTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "tarefa-reconferencia-ficticia",
+        action: "complete_recheck",
+        evidence: {
+          kind: "no_photo_reason",
+          reason: "Camera indisponivel",
+        },
+      }),
+    );
   });
 
   it("requires a no-photo reason before completing a sales-area recheck", async () => {

@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { CaptureProductInput, SyncConflictRecord } from "@validade-zero/contracts";
+import type {
+  CaptureProductInput,
+  PrepareTurnResponse,
+  SyncConflictRecord,
+} from "@validade-zero/contracts";
 import { createMemoryCaptureRepository } from "./memory-repository";
 import { ensureTodayTaskSyncColumns } from "./sqlite-migrations";
 
@@ -33,6 +37,100 @@ function formalProduct(displayName: string) {
       mode: "formal_validity",
     },
   } satisfies CaptureProductInput;
+}
+
+function centralExpiredPrepareTurnResponse(): PrepareTurnResponse {
+  return {
+    requestId: "prepare-turn-central-sync-ficticio",
+    store: {
+      storeId: "loja-ficticia",
+      storeName: "Loja FICTICIA",
+      centralVersion: 1,
+      generatedAt: "2030-01-10T09:00:00.000Z",
+      centralReadAt: "2030-01-10T09:00:00.000Z",
+      source: "central",
+      readiness: "prepared",
+      blockers: [],
+    },
+    device: {
+      deviceId: "validade-zero-mobile:loja-ficticia",
+      preparedAt: "2030-01-10T09:00:00.000Z",
+      lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+      lastHydratedAt: "2030-01-10T09:00:00.000Z",
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+    },
+    cache: {
+      state: "ready",
+      source: "central",
+      updatedAt: "2030-01-10T09:00:00.000Z",
+      lastCentralReadAt: "2030-01-10T09:00:00.000Z",
+      staleAfterHours: 4,
+      productCount: 1,
+      lotCount: 1,
+      activeTaskCount: 1,
+      conflictCount: 0,
+      resolvedHistoryCount: 0,
+    },
+    products: [
+      {
+        centralProductId: "produto-central-morango-001",
+        displayName: "Morango FICTICIO",
+        categoryId: "categoria-ficticia-frutas",
+        categoryName: "Frutas",
+        status: "validated",
+        state: "synchronized",
+        source: "central",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+        categoryRuleProfile: {
+          categoryId: "categoria-ficticia-frutas",
+          mode: "formal_validity",
+          windows: {
+            radarDays: 60,
+            markdownDays: 15,
+            criticalDays: 3,
+            expiredDays: 0,
+          },
+        },
+      },
+    ],
+    lots: [
+      {
+        centralLotId: "lote-central-morango-001",
+        centralProductId: "produto-central-morango-001",
+        productDisplayName: "Morango FICTICIO",
+        lotIdentity: { identitySource: "printed", value: "LOTE-MORANGO-FICTICIO" },
+        mode: "formal_validity",
+        currentLocation: { kind: "area_de_venda" },
+        state: "synchronized",
+        source: "central",
+        riskState: "expired",
+        expiresAt: "2030-01-09",
+        approximateQuantity: 8,
+        updatedAt: "2030-01-10T09:00:00.000Z",
+      },
+    ],
+    activeTasks: [
+      {
+        centralTaskId: "tarefa-central-morango-001",
+        activeKey: "lote-central-morango-001:expired:withdraw_or_loss:root",
+        centralLotId: "lote-central-morango-001",
+        productDisplayName: "Morango FICTICIO",
+        currentLocation: { kind: "area_de_venda" },
+        riskState: "expired",
+        severity: "critical",
+        requiredResolution: "withdraw_or_loss",
+        state: "synchronized",
+        source: "central",
+        ownerLabel: "Equipe do turno",
+        dueAt: "2030-01-10T09:00:00.000Z",
+        updatedAt: "2030-01-10T09:00:00.000Z",
+      },
+    ],
+    resolvedHistory: [],
+    conflicts: [],
+  };
 }
 
 async function createExpiredTask() {
@@ -136,6 +234,57 @@ describe("offline sync repository behavior", () => {
         pendingCommandId: command.id,
       },
     });
+  });
+
+  it("does not reopen a locally confirmed central task while sync is pending", async () => {
+    const { repository } = createRepository();
+    await repository.initialize();
+    await repository.hydratePrepareTurn?.(centralExpiredPrepareTurnResponse());
+    const initial = await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp,
+      source: "today_open",
+    });
+    const task = initial.tasks.find((candidate) => candidate.id === "tarefa-central-morango-001");
+
+    if (task === undefined) {
+      throw new Error("Expected central expired task.");
+    }
+
+    const commandPayload = {
+      taskId: task.id,
+      action: "withdraw" as const,
+      actorLabel: "Ana FICTICIA",
+      occurredAt: "2030-01-10T12:10:00.000Z",
+      destination: { kind: "retirada_perda" as const },
+    };
+    const command = await repository.saveOfflineAction({
+      kind: "resolve_task",
+      payload: commandPayload,
+    });
+
+    await repository.resolveTodayTask(commandPayload);
+    await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp,
+      source: "today_open",
+    });
+    await repository.hydratePrepareTurn?.(centralExpiredPrepareTurnResponse());
+
+    await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
+      status: "resolved",
+      sync: {
+        state: "pending_sync",
+        pendingCommandId: command.id,
+      },
+      resolutionHistory: [expect.objectContaining({ action: "withdraw" })],
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({
+        requiredResolution: "sales_area_recheck",
+        recheckParentId: task.id,
+      }),
+    ]);
   });
 
   it("creates a local audit timeline event and reconciles it without duplication", async () => {
