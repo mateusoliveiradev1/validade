@@ -114,6 +114,7 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 | 260630-dsq | Corrigir sincronizacao manual sem feedback quando lote central pendente nao vira comando | 2026-06-30 | local | Verified | [260630-dsq-corrigir-sincronizacao-manual-sem-feedba](./quick/260630-dsq-corrigir-sincronizacao-manual-sem-feedba/) |
 | 260630-euk | Corrigir sync de lote pendente e categoria para produto embalado do fornecedor | 2026-06-30 | pending | Verified | [260630-euk-corrigir-sync-de-lote-pendente-e-categor](./quick/260630-euk-corrigir-sync-de-lote-pendente-e-categor/) |
 | 260701-ed0 | Gerar APK Android staging build 147 e fazer deploy staging da API e web | 2026-07-01 | 187824eb | Verified | [260701-ed0-gerar-apk-android-staging-build-147-e-fa](./quick/260701-ed0-gerar-apk-android-staging-build-147-e-fa/) |
+| 260701-f3d | Implementar onboarding guiado no app mobile e publicar build 148 | 2026-07-01 | ffe60e10 | Verified | [260701-f3d-implementar-onboarding-guiado-no-app-mob](./quick/260701-f3d-implementar-onboarding-guiado-no-app-mob/) |
 
 ## Performance Metrics
 
@@ -275,11 +276,11 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 Phase: 16 (Loja 18 Validation Runbook and Go/No-Go Proof) — EXECUTING
 Plan: 5 of 5
 Status: Phase complete — ready for verification
-Last activity: 2026-07-01 - Completed quick task 260701-ed0: generated APK 147 and deployed API/web staging
+Last activity: 2026-07-01 - Completed quick task 260701-f3d: implemented guided mobile onboarding, generated APK 148, and deployed API/web staging
 
 ## Operator Next Steps
 
-- Install `artifacts\validade-zero-staging-0.12.0-147.apk` on the Loja 18 Android device and run the physical validation path.
+- Install `artifacts\validade-zero-staging-0.12.0-148.apk` on the Loja 18 Android device and run the physical validation path.
 - Preserve the Phase 16 proof boundary: API/web/APK build are deployed/generated, while installed-device proof, provider push, camera/fallback, second-device convergence, safe close, and physical Loja 18 UAT remain external validation evidence.
 
 ## Deferred Items
