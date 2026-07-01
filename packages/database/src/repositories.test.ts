@@ -872,6 +872,77 @@ describe("database repositories", () => {
     );
   });
 
+  it("reconciles stale central sync conflicts when the task was already resolved by the same action", async () => {
+    const task = {
+      ...centralTask("store-1", "task-stale-conflict-001"),
+      taskStatus: "resolved" as const,
+    };
+    const command = syncCommandForTask({
+      taskId: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      action: "confirm_presence",
+      requiredResolution: "check_presence",
+      riskState: "critical",
+      idempotencyKey: "sync-stale-conflict-001",
+    });
+    const repository = createInMemoryCaptureRepository({
+      lots: [centralLot("store-1", task.centralLotId)],
+      tasks: [task],
+      resolvedHistory: [
+        {
+          storeId: "store-1",
+          centralTaskId: task.centralTaskId,
+          centralLotId: task.centralLotId,
+          productDisplayName: task.productDisplayName,
+          lotIdentity: command.lotIdentity,
+          currentLocation: command.currentLocation,
+          action: "confirm_presence",
+          actorLabel: "Pessoa Piloto",
+          resolvedAt: "2030-01-10T09:15:00.000Z",
+          state: "resolved",
+          source: "central",
+        },
+      ],
+      conflicts: [
+        {
+          storeId: "store-1",
+          conflictId: "conflict-sync-stale-conflict-001",
+          commandId: command.id,
+          productDisplayName: command.productDisplayName,
+          lotIdentity: command.lotIdentity,
+          currentLocation: command.currentLocation,
+          reason: "A tarefa central ja foi resolvida ou mudou de chave ativa.",
+          createdAt: "2030-01-10T09:16:00.000Z",
+          state: "conflict",
+          source: "central",
+        },
+      ],
+    });
+
+    const result = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(result).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: task.centralTaskId,
+          action: "confirm_presence",
+          resolutionState: "resolved",
+        },
+      },
+    });
+    expect(prepared.conflicts).toEqual([]);
+    expect(prepared.resolvedHistory).toEqual([
+      expect.objectContaining({
+        centralTaskId: task.centralTaskId,
+        action: "confirm_presence",
+      }),
+    ]);
+  });
+
   it("keeps active central risk visible when a sync command conflicts", async () => {
     const task = centralTask("store-1", "task-conflict-001");
     const repository = createInMemoryCaptureRepository({
@@ -1365,7 +1436,7 @@ function syncCommandForTask(input: {
   taskId: string;
   activeKey: string;
   lotId: string;
-  action: "withdraw";
+  action: "withdraw" | "confirm_presence";
   requiredResolution: SyncCommandRecord["requiredResolution"];
   riskState: SyncCommandRecord["riskState"];
   idempotencyKey: string;
@@ -1383,8 +1454,12 @@ function syncCommandForTask(input: {
         action: input.action,
         actorLabel: "Pessoa Piloto",
         occurredAt: "2030-01-10T09:15:00.000Z",
-        destination: { kind: "retirada_perda" },
-        evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+        ...(input.action === "withdraw"
+          ? {
+              destination: { kind: "retirada_perda" },
+              evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
+            }
+          : {}),
       },
     },
     taskId: input.taskId,

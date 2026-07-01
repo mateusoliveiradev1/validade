@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat21-overdue-task-fix-apk-151",
+  artifactLabel: "uat22-cloud-first-sync-apk-152",
   appVersion: "0.12.0",
-  build: "151",
+  build: "152",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

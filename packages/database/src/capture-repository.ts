@@ -343,6 +343,13 @@ interface SyncTaskRow extends TaskRow {
   version: number;
 }
 
+interface ResolvedSyncTaskRow extends SyncTaskRow {
+  resolution_action: ResolvedTaskHistorySnippet["action"] | null;
+  actor_label: string | null;
+  resolution_reason: string | null;
+  resolved_at: string | Date | null;
+}
+
 interface ResolvedTaskRow {
   central_task_id: string;
   central_lot_id: string;
@@ -1893,11 +1900,12 @@ export function createCaptureRepositoryFromQuery(
 
   async function selectResolvedSyncTask(
     input: CentralSyncCommandApplyInput,
-  ): Promise<SyncTaskRow | undefined> {
+  ): Promise<ResolvedSyncTaskRow | undefined> {
     const rows = (await sql.query(
       `select t.central_task_id, t.active_key, t.central_lot_id, t.product_display_name,
         l.lot_identity, t.current_location, t.risk_state, t.severity, t.required_resolution,
-        t.state, t.owner_label, t.due_at, t.updated_at, t.version
+        t.state, t.owner_label, t.due_at, t.updated_at, t.version,
+        t.resolution_action, t.actor_label, t.resolution_reason, t.resolved_at
       from central_projected_tasks t
       join central_lots l on l.central_lot_id = t.central_lot_id and l.store_id = t.store_id
       where t.store_id = $1
@@ -1906,9 +1914,47 @@ export function createCaptureRepositoryFromQuery(
         and t.status = 'resolved'
       limit 1`,
       [input.storeId, input.command.taskId, input.command.taskActiveKey],
-    )) as SyncTaskRow[];
+    )) as ResolvedSyncTaskRow[];
 
     return rows[0];
+  }
+
+  async function acknowledgeResolvedSyncCommand(
+    input: CentralSyncCommandApplyInput,
+    task: ResolvedSyncTaskRow,
+    acceptedAt: string,
+  ): Promise<SyncTransportResult> {
+    await sql.query(
+      `update central_sync_commands
+      set state = 'resolved',
+        accepted_at = $1::timestamptz,
+        updated_at = $1::timestamptz
+      where store_id = $2 and idempotency_key = $3`,
+      [acceptedAt, input.storeId, input.command.idempotencyKey],
+    );
+    await sql.query(
+      `update central_sync_conflicts
+      set state = 'resolved',
+        resolved_at = $1::timestamptz,
+        resolution_reason = $2
+      where store_id = $3 and command_id = $4 and state = 'conflict'`,
+      [
+        acceptedAt,
+        "Comando reconciliado porque a tarefa central ja estava resolvida com a mesma acao.",
+        input.storeId,
+        input.command.id,
+      ],
+    );
+
+    return buildCentralSyncAckResult(
+      input.command,
+      acceptedAt,
+      buildResolvedHistoryFromResolvedSyncTask({
+        command: input.command,
+        task,
+        updatedAt: acceptedAt,
+      }),
+    );
   }
 
   async function replayCentralSyncCommand(
@@ -1916,16 +1962,8 @@ export function createCaptureRepositoryFromQuery(
   ): Promise<SyncTransportResult> {
     const resolvedTask = await selectResolvedSyncTask(input);
 
-    if (resolvedTask !== undefined) {
-      return buildCentralSyncAckResult(
-        input.command,
-        input.receivedAt,
-        buildResolvedHistoryFromTask({
-          command: input.command,
-          task: resolvedTask,
-          updatedAt: toIso(resolvedTask.updated_at),
-        }),
-      );
+    if (resolvedTask !== undefined && resolvedTaskMatchesCommand(resolvedTask, input.command)) {
+      return acknowledgeResolvedSyncCommand(input, resolvedTask, input.receivedAt);
     }
 
     const conflict = await selectStoredCentralSyncConflict(input);
@@ -2018,6 +2056,12 @@ export function createCaptureRepositoryFromQuery(
 
     const task = await selectSyncActiveTask(input);
     if (task === undefined) {
+      const resolvedTask = await selectResolvedSyncTask(input);
+
+      if (resolvedTask !== undefined && resolvedTaskMatchesCommand(resolvedTask, input.command)) {
+        return acknowledgeResolvedSyncCommand(input, resolvedTask, input.receivedAt);
+      }
+
       return persistCentralSyncConflict(
         input,
         buildCentralSyncConflict(input.command, {
@@ -3018,7 +3062,9 @@ export function createInMemoryCaptureRepository(input?: {
     },
     applySyncCommand(syncInput) {
       const existing = syncResultsByIdempotencyKey.get(syncInput.command.idempotencyKey);
-      if (existing !== undefined) return Promise.resolve(existing);
+      if (existing !== undefined && existing.status !== "conflict") {
+        return Promise.resolve(existing);
+      }
 
       const taskIndex = tasks.findIndex(
         (task) =>
@@ -3029,6 +3075,49 @@ export function createInMemoryCaptureRepository(input?: {
       );
 
       if (taskIndex === -1) {
+        const resolvedTask = tasks.find(
+          (task) =>
+            task.storeId === syncInput.storeId &&
+            task.centralTaskId === syncInput.command.taskId &&
+            task.activeKey === syncInput.command.taskActiveKey &&
+            (task.taskStatus ?? "active") === "resolved",
+        );
+        const resolved = resolvedHistory.find(
+          (history) =>
+            history.storeId === syncInput.storeId &&
+            history.centralTaskId === syncInput.command.taskId &&
+            history.action === commandResolutionAction(syncInput.command),
+        );
+
+        if (resolvedTask !== undefined && resolved !== undefined) {
+          const history = buildResolvedHistoryFromStoredTask({
+            command: syncInput.command,
+            task: resolvedTask,
+            updatedAt: syncInput.receivedAt,
+          });
+          const result = buildCentralSyncAckResult(syncInput.command, syncInput.receivedAt, {
+            ...history,
+            action: resolved.action,
+            actorLabel: resolved.actorLabel,
+            occurredAt: resolved.resolvedAt,
+            resolutionState: resolutionStateForAction(resolved.action),
+          });
+
+          for (let index = conflicts.length - 1; index >= 0; index -= 1) {
+            const conflict = conflicts[index];
+            if (
+              conflict?.storeId === syncInput.storeId &&
+              conflict.commandId === syncInput.command.id
+            ) {
+              conflicts.splice(index, 1);
+            }
+          }
+          syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
+          auditEvents.push(syncAuditEvent(syncInput, "resolved", "Tarefa central ja resolvida."));
+
+          return Promise.resolve(result);
+        }
+
         const result = buildCentralSyncConflictResult(syncInput.command, {
           now: syncInput.receivedAt,
           kind: "task_already_resolved",
@@ -3768,6 +3857,42 @@ function buildResolvedHistoryFromTask(input: {
     updatedAt: input.updatedAt,
     ...(input.nextLocation === undefined ? {} : { nextLocation: input.nextLocation }),
   });
+}
+
+function buildResolvedHistoryFromResolvedSyncTask(input: {
+  command: SyncCommandRecord;
+  task: ResolvedSyncTaskRow;
+  updatedAt: string;
+}): CentralResolvedTaskHistory {
+  const action = input.task.resolution_action ?? commandResolutionAction(input.command);
+  const actorLabel = input.task.actor_label ?? commandActorLabel(input.command);
+  const occurredAt =
+    input.task.resolved_at === null
+      ? commandOccurredAt(input.command)
+      : toIso(input.task.resolved_at);
+  const result = CentralResolvedTaskHistorySchema.parse({
+    centralTaskId: input.command.taskId,
+    activeKey: input.command.taskActiveKey,
+    lotId: input.command.lotId,
+    productDisplayName: input.command.productDisplayName,
+    lotIdentity: parseJson(input.task.lot_identity) as CaptureLotInput["identity"],
+    currentLocation: parseJson(input.task.current_location) as OperationalLocation,
+    action,
+    actorLabel,
+    occurredAt,
+    resolutionState: resolutionStateForAction(action),
+    source: "central",
+    updatedAt: input.updatedAt,
+  });
+
+  return result;
+}
+
+function resolvedTaskMatchesCommand(
+  task: Pick<ResolvedSyncTaskRow, "resolution_action">,
+  command: SyncCommandRecord,
+): boolean {
+  return task.resolution_action === commandResolutionAction(command);
 }
 
 function buildResolvedHistoryFromStoredTask(input: {

@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat21-overdue-task-fix-apk-151",
+  artifactLabel: "uat22-cloud-first-sync-apk-152",
   appVersion: "0.12.0",
-  build: "151",
+  build: "152",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,7 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "overdue-task-fix-151", 24),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "cloud-first-sync-152", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,

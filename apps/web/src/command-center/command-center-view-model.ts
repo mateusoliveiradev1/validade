@@ -12,7 +12,7 @@ export interface DeviceReadinessCounts {
   bloqueado: number;
 }
 
-export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat21-overdue-task-fix-apk-151";
+export const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat22-cloud-first-sync-apk-152";
 
 const dailyOperationBlockerCodes: ReadonlySet<PilotDeviceBlockerCode> = new Set([
   "invalid_store_or_user",

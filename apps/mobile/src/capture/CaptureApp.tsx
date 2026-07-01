@@ -42,7 +42,7 @@ import type {
 } from "@validade-zero/contracts";
 import type { ShiftCloseDeviceAuthorization, StoreOperatingHours } from "@validade-zero/domain";
 import { createExpoPushAlertChannel, type PushAlertChannel } from "./alert-channel";
-import type { SyncEngine } from "./sync-engine";
+import type { SyncEngine, SyncEngineRunResult } from "./sync-engine";
 import { todayCopy } from "./today-copy";
 import { captureColors, captureRadii, captureSpacing } from "./capture-theme";
 import { addHardwareBackPressListener } from "../system/hardware-back";
@@ -509,6 +509,24 @@ export function CaptureApp({
     }
   }, [prepareTurn, pushDeviceIdentity.deviceId, repository, syncEngine]);
 
+  const syncPendingCommandsNow = useCallback(async (): Promise<SyncEngineRunResult | undefined> => {
+    if (syncEngine === undefined) {
+      return undefined;
+    }
+
+    const result = await syncEngine.syncPendingCommands({
+      deviceId: pushDeviceIdentity.deviceId,
+      manual: true,
+      maxBatchSize: 50,
+    });
+
+    if (result.state === "sent" && result.appliedResults.length > 0) {
+      await prepareTurn("silent");
+    }
+
+    return result;
+  }, [prepareTurn, pushDeviceIdentity.deviceId, syncEngine]);
+
   useEffect(() => {
     if (
       autoPrepareTurnAttemptedRef.current ||
@@ -813,6 +831,12 @@ export function CaptureApp({
         actorLabel={actorLabel}
         onBack={goBack}
         onDone={() => resetToToday()}
+        onCentralSave={() =>
+          resetToToday({
+            notice: todayCopy.sync.centralSaved,
+          })
+        }
+        onSyncCentralAction={syncPendingCommandsNow}
         onLocalSave={() => {
           resetToToday({
             notice: todayCopy.sync.localSaved,

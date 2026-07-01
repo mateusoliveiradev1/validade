@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.turbo/**",
       "**/.expo/**",
+      "**/.vercel/**",
       "**/.wrangler/**",
       "**/.stryker-tmp/**",
       "**/playwright-report/**",

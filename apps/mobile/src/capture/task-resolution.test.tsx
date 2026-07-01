@@ -465,10 +465,31 @@ describe("TaskResolutionPanel", () => {
     );
   });
 
-  it("queues central presence confirmation and applies the local projection", async () => {
-    const saveOfflineAction = vi.fn().mockResolvedValue({});
+  it("syncs central presence confirmation before closing the task as done", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({ id: "command-central-presence" });
     const resolveTodayTask = vi.fn();
     const onLocalSave = vi.fn();
+    const onCentralSave = vi.fn();
+    const onSyncCentralAction = vi.fn().mockResolvedValue({
+      state: "sent",
+      network: {
+        kind: "online",
+        isConnected: true,
+        isInternetReachable: true,
+        checkedAt: "2030-01-10T12:00:01.000Z",
+        source: "fake",
+      },
+      selectedCommandIds: ["command-central-presence"],
+      attemptedCommandIds: ["command-central-presence"],
+      appliedResults: [
+        {
+          status: "ack",
+          commandId: "command-central-presence",
+          idempotencyKey: "sync-central-presence-001",
+          syncedAt: "2030-01-10T12:00:02.000Z",
+        },
+      ],
+    });
     let tree: ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -480,6 +501,8 @@ describe("TaskResolutionPanel", () => {
           onDone={() => undefined}
           onBack={() => undefined}
           onLocalSave={onLocalSave}
+          onCentralSave={onCentralSave}
+          onSyncCentralAction={onSyncCentralAction}
           now={() => new Date("2030-01-10T12:00:00.000Z")}
         />,
       );
@@ -512,14 +535,10 @@ describe("TaskResolutionPanel", () => {
         actorLabel: "Mateus Oliveira",
       }),
     });
-    expect(resolveTodayTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        taskId: centralPresenceTask().id,
-        action: "confirm_presence",
-        actorLabel: "Mateus Oliveira",
-      }),
-    );
-    expect(onLocalSave).toHaveBeenCalledOnce();
+    expect(onSyncCentralAction).toHaveBeenCalledOnce();
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(onLocalSave).not.toHaveBeenCalled();
+    expect(onCentralSave).toHaveBeenCalledOnce();
   });
 
   it("keeps the recheck evidence gate before saving an offline action", async () => {
@@ -774,6 +793,84 @@ describe("TaskResolutionPanel", () => {
       }),
     );
     expect(resolveTodayTask).not.toHaveBeenCalled();
+  });
+
+  it("syncs a central markdown request before treating it as completed", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({ id: "command-central-markdown" });
+    const requestMarkdown = vi.fn();
+    const onCentralSave = vi.fn();
+    const onSyncCentralAction = vi.fn().mockResolvedValue({
+      state: "sent",
+      network: {
+        kind: "online",
+        isConnected: true,
+        isInternetReachable: true,
+        checkedAt: "2030-01-10T12:00:01.000Z",
+        source: "fake",
+      },
+      selectedCommandIds: ["command-central-markdown"],
+      attemptedCommandIds: ["command-central-markdown"],
+      appliedResults: [
+        {
+          status: "ack",
+          commandId: "command-central-markdown",
+          idempotencyKey: "sync-central-markdown-001",
+          syncedAt: "2030-01-10T12:00:02.000Z",
+        },
+      ],
+    });
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository({ saveOfflineAction, requestMarkdown })}
+          task={{
+            ...markdownRequestTask(),
+            sync: {
+              state: "synced",
+              savedAt: "2030-01-10T09:00:00.000Z",
+              lastSyncedAt: "2030-01-10T09:00:00.000Z",
+            },
+          }}
+          actorLabel="Mateus Oliveira"
+          onDone={() => undefined}
+          onBack={() => undefined}
+          onCentralSave={onCentralSave}
+          onSyncCentralAction={onSyncCentralAction}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    await act(async () => {
+      tree.root.findAllByProps({ accessibilityLabel: "Solicitar rebaixa" })[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Solicitar rebaixa");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledWith({
+      kind: "request_markdown",
+      payload: expect.objectContaining({
+        lotId: "lote-ovos",
+        sourceTaskId: "tarefa-request-markdown-ficticia",
+        reason: "rule_window",
+      }),
+    });
+    expect(onSyncCentralAction).toHaveBeenCalledOnce();
+    expect(requestMarkdown).not.toHaveBeenCalled();
+    expect(onCentralSave).toHaveBeenCalledOnce();
   });
 
   it("saves a markdown request locally while offline instead of resolving the task", async () => {

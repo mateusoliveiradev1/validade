@@ -25,6 +25,7 @@ import type { EvidenceUploadQueueRecord } from "./repository";
 import { todayActionLabel, todayCopy } from "./today-copy";
 import { captureColors, captureSpacing } from "./capture-theme";
 import { mobileStatusDescriptorFor } from "./mobile-status";
+import type { SyncEngineRunResult } from "./sync-engine";
 
 const STANDARD_RESOLUTION_ACTIONS = [
   "withdraw",
@@ -59,6 +60,8 @@ export function TaskResolutionPanel({
   onDone,
   onBack,
   onLocalSave,
+  onCentralSave,
+  onSyncCentralAction,
   auditEvents = [],
   evidenceUploads = [],
   onRetryEvidenceUpload,
@@ -70,6 +73,8 @@ export function TaskResolutionPanel({
   onDone: () => void;
   onBack: () => void;
   onLocalSave?: (() => void) | undefined;
+  onCentralSave?: (() => void) | undefined;
+  onSyncCentralAction?: (() => Promise<SyncEngineRunResult | undefined>) | undefined;
   auditEvents?: readonly AuditTimelineItem[] | undefined;
   evidenceUploads?: readonly EvidenceUploadQueueRecord[] | undefined;
   onRetryEvidenceUpload?: ((localEvidenceId: string) => void) | undefined;
@@ -193,9 +198,11 @@ export function TaskResolutionPanel({
           ...(markdownDecision === "rejected" ? { rejectionReason: trimmedReason } : {}),
         } satisfies OfflineActionCommand["payload"];
 
-        if (await shouldSaveOffline()) {
-          await repository.saveOfflineAction({ kind: "decide_markdown", payload: command });
-          handleLocalSave();
+        if (
+          (await handleCloudFirstOfflineCommand({
+            command: { kind: "decide_markdown", payload: command },
+          })) === "handled"
+        ) {
           return;
         }
 
@@ -220,12 +227,14 @@ export function TaskResolutionPanel({
           evidence,
         };
 
-        if (await shouldSaveOffline()) {
-          await repository.saveOfflineAction({
-            kind: "record_markdown_application",
-            payload: command,
-          });
-          handleLocalSave();
+        if (
+          (await handleCloudFirstOfflineCommand({
+            command: {
+              kind: "record_markdown_application",
+              payload: command,
+            },
+          })) === "handled"
+        ) {
           return;
         }
 
@@ -239,12 +248,14 @@ export function TaskResolutionPanel({
           evidence,
         };
 
-        if (await shouldSaveOffline()) {
-          await repository.saveOfflineAction({
-            kind: "confirm_markdown_on_shelf",
-            payload: command,
-          });
-          handleLocalSave();
+        if (
+          (await handleCloudFirstOfflineCommand({
+            command: {
+              kind: "confirm_markdown_on_shelf",
+              payload: command,
+            },
+          })) === "handled"
+        ) {
           return;
         }
 
@@ -284,10 +295,12 @@ export function TaskResolutionPanel({
           reason: "rule_window",
         } satisfies OfflineActionCommand["payload"];
 
-        if (await shouldSaveOffline()) {
-          await repository.saveOfflineAction({ kind: "request_markdown", payload: command });
+        if (
+          (await handleCloudFirstOfflineCommand({
+            command: { kind: "request_markdown", payload: command },
+          })) === "handled"
+        ) {
           setConfirming(false);
-          handleLocalSave();
           return;
         }
 
@@ -315,12 +328,14 @@ export function TaskResolutionPanel({
       ...(task.recheckParentId === undefined ? {} : { recheckParentId: task.recheckParentId }),
     } satisfies OfflineActionCommand["payload"];
 
-    if (shouldSaveResolutionThroughSync(task) || (await shouldSaveOffline())) {
-      await repository.saveOfflineAction({ kind: "resolve_task", payload: command });
-      await repository.resolveTodayTask(command);
+    if (
+      (await handleCloudFirstOfflineCommand({
+        command: { kind: "resolve_task", payload: command },
+        applyLocalFallback: () => repository.resolveTodayTask(command),
+      })) === "handled"
+    ) {
       setSubmitting(false);
       setConfirming(false);
-      handleLocalSave();
       return;
     }
 
@@ -339,6 +354,53 @@ export function TaskResolutionPanel({
     const status = await repository.loadOfflineCacheStatus();
 
     return status.state !== "offline_ready";
+  }
+
+  async function handleCloudFirstOfflineCommand(input: {
+    command: OfflineActionCommand;
+    applyLocalFallback?: (() => Promise<unknown>) | undefined;
+  }): Promise<"handled" | "use_direct_repository"> {
+    if (shouldSaveResolutionThroughSync(task)) {
+      const savedCommand = await repository.saveOfflineAction(input.command);
+      const result = await syncCentralActionNow().catch(() => undefined);
+      const centralStatus = centralSyncStatusFor(result, savedCommand.id);
+
+      if (centralStatus === "ack") {
+        setSubmitting(false);
+        setConfirming(false);
+        setFeedback(todayCopy.sync.centralSaved);
+        (onCentralSave ?? onDone)();
+        return "handled";
+      }
+
+      if (centralStatus === "conflict") {
+        setSubmitting(false);
+        setConfirming(false);
+        setBlockingNotice(todayCopy.sync.conflict);
+        return "handled";
+      }
+
+      await input.applyLocalFallback?.();
+      handleLocalSave();
+      return "handled";
+    }
+
+    if (await shouldSaveOffline()) {
+      await repository.saveOfflineAction(input.command);
+      await input.applyLocalFallback?.();
+      handleLocalSave();
+      return "handled";
+    }
+
+    return "use_direct_repository";
+  }
+
+  async function syncCentralActionNow(): Promise<SyncEngineRunResult | undefined> {
+    if (onSyncCentralAction === undefined) {
+      return undefined;
+    }
+
+    return onSyncCentralAction();
   }
 
   function handleLocalSave(): void {
@@ -756,6 +818,23 @@ function createsSalesAreaRecheck(task: TodayTaskRecord, action: TaskResolutionAc
 
 function shouldSaveResolutionThroughSync(task: TodayTaskRecord): boolean {
   return task.sync?.state === "synced";
+}
+
+function centralSyncStatusFor(
+  result: SyncEngineRunResult | undefined,
+  commandId: string,
+): "ack" | "conflict" | "pending" {
+  const applied = result?.appliedResults.find((candidate) => candidate.commandId === commandId);
+
+  if (applied?.status === "ack") {
+    return "ack";
+  }
+
+  if (applied?.status === "conflict") {
+    return "conflict";
+  }
+
+  return "pending";
 }
 
 function confirmationSummary(

@@ -45,6 +45,7 @@ export const todayCopy = {
     primary: "Sincronizar pendencias",
     offlineReady: "Pronto para operar sem internet",
     offlineMode: "Sem internet agora. Usando tarefas salvas neste aparelho.",
+    centralSaved: "Confirmado na central. Atualizando Hoje com a verdade da nuvem.",
     localSaved: "Acao salva neste aparelho. Ainda falta sincronizar para confirmacao central.",
     pending: "Pendente central. Ainda nao use como confirmacao da loja.",
     syncing: "Sincronizando pendencias",
