@@ -1145,6 +1145,94 @@ describe("database repositories", () => {
     expect(String(auditQuery?.[0])).toContain("true");
   });
 
+  it("generates distinct central observation ids for long central lot ids", async () => {
+    const captured: unknown[][] = [];
+    let createdLotId: string | undefined;
+    let initialObservationId: string | undefined;
+    const sql = {
+      query(strings: string, values?: unknown[]) {
+        captured.push([strings, ...(values ?? [])]);
+
+        if (strings.includes("insert into central_lots")) {
+          createdLotId = values?.[0] as string;
+          return Promise.resolve([]);
+        }
+
+        if (strings.includes("insert into central_observations")) {
+          initialObservationId ??= values?.[0] as string;
+          return Promise.resolve([]);
+        }
+
+        if (
+          strings.includes("from central_products") &&
+          !strings.includes("join central_products")
+        ) {
+          return Promise.resolve([centralProductRow()]);
+        }
+
+        if (strings.includes("from central_lots l") && strings.includes("join central_products")) {
+          if (createdLotId === undefined || initialObservationId === undefined) {
+            return Promise.resolve([]);
+          }
+
+          return Promise.resolve([
+            {
+              ...centralLotProjectionRow(),
+              central_lot_id: createdLotId,
+              observation_id: initialObservationId,
+              observation_actor_display_name: "Pessoa Piloto",
+              observation_status: "present",
+              observation_location: { kind: "area_de_venda" },
+              observation_quantity: { quantityState: "estimated", approximateQuantity: 7 },
+              observation_occurred_at: "2030-01-10T09:00:00.000Z",
+            },
+          ]);
+        }
+
+        return Promise.resolve([]);
+      },
+    };
+    const repository = createCaptureRepositoryFromQuery(sql as never);
+    const longIdempotencyKey = `mobile-lot-${"x".repeat(96)}`;
+
+    const created = await repository.createLot(
+      centralLotCreateInput("store-1", {
+        request: {
+          ...centralLotCreateRequest(),
+          idempotencyKey: longIdempotencyKey,
+        },
+      }),
+    );
+    await repository.appendObservation({
+      requestId: "append-loss-long-lot",
+      storeId: "store-1",
+      storeName: "Loja Ficticia Piloto",
+      actorId: "subject-1",
+      actorDisplayName: "Pessoa Piloto",
+      actorRoleSnapshot: "lead",
+      centralLotId: created.lot.centralLotId,
+      request: {
+        idempotencyKey: "mobile-observation-loss-long-lot",
+        observation: {
+          status: "loss",
+          actorLabel: "Pessoa Piloto",
+          occurredAt: "2030-01-10T09:30:00.000Z",
+          location: { kind: "retirada_perda" },
+          quantityState: "estimated",
+          approximateQuantity: 7,
+          isCorrection: false,
+        },
+      },
+    });
+
+    const observationIds = captured
+      .filter(([query]) => String(query).includes("insert into central_observations"))
+      .map(([, observationId]) => observationId);
+
+    expect(observationIds).toHaveLength(2);
+    expect(new Set(observationIds).size).toBe(2);
+  });
+
   it("preserves decimal central lot quantities in SQL writes", async () => {
     const captured: unknown[][] = [];
     const sql = {

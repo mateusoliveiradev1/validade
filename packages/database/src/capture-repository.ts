@@ -1677,10 +1677,10 @@ export function createCaptureRepositoryFromQuery(
 
     const observation = buildCentralObservation({
       centralLotId,
-      centralObservationId: createStableId(
-        "obs",
+      centralObservationId: createCentralObservationId(
         input.storeId,
-        `${centralLotId}:${input.request.idempotencyKey ?? occurredAt}:initial`,
+        centralLotId,
+        `${input.request.idempotencyKey ?? occurredAt}:initial`,
       ),
       observation: initialObservationFromLot(input.request),
     });
@@ -1771,10 +1771,10 @@ export function createCaptureRepositoryFromQuery(
     const occurredAt = new Date(input.request.observation.occurredAt).toISOString();
     const observation = buildCentralObservation({
       centralLotId: input.centralLotId,
-      centralObservationId: createStableId(
-        "obs",
+      centralObservationId: createCentralObservationId(
         input.storeId,
-        `${input.centralLotId}:${input.request.idempotencyKey ?? occurredAt}`,
+        input.centralLotId,
+        input.request.idempotencyKey ?? occurredAt,
       ),
       observation: input.request.observation,
     });
@@ -2594,7 +2594,7 @@ export function createInMemoryCaptureRepository(input?: {
       createdAt: lot.updatedAt,
       updatedAt: lot.updatedAt,
       currentObservation: lot.currentObservation ?? {
-        centralObservationId: createStableId("obs", storeId, `${lot.centralLotId}:memory`),
+        centralObservationId: createCentralObservationId(storeId, lot.centralLotId, "memory"),
         centralLotId: lot.centralLotId,
         status: "present",
         actorLabel: "Leitura central",
@@ -3065,10 +3065,10 @@ export function createInMemoryCaptureRepository(input?: {
 
       const observation = buildCentralObservation({
         centralLotId,
-        centralObservationId: createStableId(
-          "obs",
+        centralObservationId: createCentralObservationId(
           createInput.storeId,
-          `${centralLotId}:${createInput.request.idempotencyKey ?? occurredAt}:initial`,
+          centralLotId,
+          `${createInput.request.idempotencyKey ?? occurredAt}:initial`,
         ),
         observation: initialObservationFromLot(createInput.request),
       });
@@ -3136,10 +3136,10 @@ export function createInMemoryCaptureRepository(input?: {
       const occurredAt = new Date(observationInput.request.observation.occurredAt).toISOString();
       const observation = buildCentralObservation({
         centralLotId: observationInput.centralLotId,
-        centralObservationId: createStableId(
-          "obs",
+        centralObservationId: createCentralObservationId(
           observationInput.storeId,
-          `${observationInput.centralLotId}:${observationInput.request.idempotencyKey ?? occurredAt}`,
+          observationInput.centralLotId,
+          observationInput.request.idempotencyKey ?? occurredAt,
         ),
         observation: observationInput.request.observation,
       });
@@ -4120,10 +4120,10 @@ function findTerminalObservationForSyncCommand(
   }
 
   const base = {
-    centralObservationId: createStableId(
-      "obs",
+    centralObservationId: createCentralObservationId(
       input.storeId,
-      `${input.command.lotId}:${input.command.id}:terminal-state`,
+      input.command.lotId,
+      `${input.command.id}:terminal-state`,
     ),
     centralLotId: input.command.lotId,
     status: expectedStatus,
@@ -4502,7 +4502,7 @@ function mapLotProjectionRow(row: LotProjectionRow): CentralLotProjectionContext
   const observationBase = {
     centralObservationId:
       row.observation_id ??
-      createStableId("obs", row.store_id ?? "store", `${row.central_lot_id}:legacy`),
+      createCentralObservationId(row.store_id ?? "store", row.central_lot_id, "legacy"),
     centralLotId: row.central_lot_id,
     status: row.observation_status ?? "present",
     actorLabel: row.observation_actor_display_name ?? "Leitura central",
@@ -5501,6 +5501,20 @@ function stableShortHash(value: string): string {
   return `${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0)
     .toString(16)
     .padStart(8, "0")}`;
+}
+
+function createCentralObservationId(
+  storeId: string,
+  centralLotId: string,
+  discriminator: string,
+): string {
+  const lotTail = centralLotId.slice(-48);
+
+  return createStableId(
+    "obs",
+    storeId,
+    `${stableShortHash(`${centralLotId}:${discriminator}`)}:${lotTail}`,
+  );
 }
 
 function productAuditEvent(
