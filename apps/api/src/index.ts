@@ -182,6 +182,8 @@ export interface SyncCommandApplyContext {
 
 export interface WorkerEnvironment {
   VALIDADE_ZERO_APP_ENV?: string;
+  VALIDADE_ZERO_CONTROLE_GPP_ENABLED?: string;
+  CONTROLE_GPP_ENABLED?: string;
   VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL?: string;
   VALIDADE_ZERO_APPROVED_APP_VERSION?: string;
   VALIDADE_ZERO_APPROVED_BUILD?: string;
@@ -3092,10 +3094,15 @@ export function createWorkerApp(
       appEnv,
       approvedPilotBuild: approvedPilotBuildFromWorkerEnv(env),
       evidenceStoreMode: evidenceStore.mode,
+      controleGppEnabled: controleGppEnabledFromWorkerEnv(env),
     },
     sessionTtlSeconds: parsePositiveSeconds(env.AUTH_SESSION_TTL_SECONDS, 28_800),
     recoveryTtlSeconds: parsePositiveSeconds(env.AUTH_RECOVERY_TTL_SECONDS, 1_800),
   });
+}
+
+export function controleGppEnabledFromWorkerEnv(env: WorkerEnvironment): boolean {
+  return parsePublicBoolean(env.VALIDADE_ZERO_CONTROLE_GPP_ENABLED ?? env.CONTROLE_GPP_ENABLED);
 }
 
 function approvedPilotBuildFromWorkerEnv(env: WorkerEnvironment): ApprovedPilotBuildConfig {
@@ -3109,6 +3116,16 @@ function approvedPilotBuildFromWorkerEnv(env: WorkerEnvironment): ApprovedPilotB
     build:
       publicWorkerLabel(env.VALIDADE_ZERO_APPROVED_BUILD) ?? DEFAULT_APPROVED_PILOT_BUILD.build,
   };
+}
+
+function parsePublicBoolean(value: string | undefined): boolean {
+  const normalized = value?.trim().toLocaleLowerCase("en-US");
+  if (normalized === undefined || normalized.length === 0) return false;
+
+  if (["1", "true", "yes", "on", "enabled"].includes(normalized)) return true;
+  if (["0", "false", "no", "off", "disabled"].includes(normalized)) return false;
+
+  return false;
 }
 
 function publicWorkerLabel(value: string | undefined): string | undefined {

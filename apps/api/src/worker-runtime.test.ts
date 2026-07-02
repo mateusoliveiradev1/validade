@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import worker, { createWorkerApp, createWorkerScheduledHandler } from "./index";
+import { readFileSync } from "node:fs";
+import worker, {
+  controleGppEnabledFromWorkerEnv,
+  createWorkerApp,
+  createWorkerScheduledHandler,
+} from "./index";
 
 describe("Worker runtime configuration", () => {
   it("refuses to serve the API when persistent auth configuration is missing", async () => {
@@ -53,6 +58,29 @@ describe("Worker runtime configuration", () => {
         EVIDENCE_STORE_MODE: "disabled",
       }),
     ).toBeDefined();
+  });
+
+  it("parses the Controle GPP feature flag as default-off bounded public config", () => {
+    expect(controleGppEnabledFromWorkerEnv({})).toBe(false);
+    expect(controleGppEnabledFromWorkerEnv({ CONTROLE_GPP_ENABLED: "true" })).toBe(true);
+    expect(
+      controleGppEnabledFromWorkerEnv({ VALIDADE_ZERO_CONTROLE_GPP_ENABLED: "enabled" }),
+    ).toBe(true);
+    expect(controleGppEnabledFromWorkerEnv({ CONTROLE_GPP_ENABLED: "maybe" })).toBe(false);
+    expect(
+      controleGppEnabledFromWorkerEnv({
+        CONTROLE_GPP_ENABLED: "true",
+        VALIDADE_ZERO_CONTROLE_GPP_ENABLED: "false",
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps checked-in local and staging Worker config from enabling Controle GPP", () => {
+    const wrangler = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+
+    expect(wrangler).not.toMatch(
+      /^\s*(VALIDADE_ZERO_)?CONTROLE_GPP_ENABLED\s*=\s*"(true|1|yes|on|enabled)"\s*$/im,
+    );
   });
 
   it("runs technical database maintenance from the Worker cron when configured", async () => {
