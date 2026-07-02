@@ -9,6 +9,7 @@ export * from "./authorization";
 export * from "./authentication";
 export * from "./audit";
 export * from "./evidence";
+export * from "./gpp";
 export * from "./shift-close";
 export * from "./command-center";
 export * from "./privacy-content";
