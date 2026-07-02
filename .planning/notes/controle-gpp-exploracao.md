@@ -518,6 +518,100 @@ Acoes esperadas:
 - abrir detalhe;
 - corrigir/solicitar correcao a definir.
 
+### UI/UX decidida para web GPP
+
+Tela principal:
+
+- titulo: `Controle GPP - Loja 18` ou loja da sessao;
+- topo com data, status `Tempo real ativo` ou `Atualizado ha Xs`, busca global e botao `Atualizar`;
+- abas: `Avarias`, `Compras internas`, `Divergencias`, `Historico`;
+- sem graficos decorativos na primeira tela;
+- foco em trabalho pendente por setor.
+
+Aba `Avarias`:
+
+- comeca com visao geral por setor;
+- setor com mais pendencia fica aberto automaticamente;
+- cada setor mostra pendentes, total kg/un, divergencias e baixadas hoje;
+- dentro do setor, lista agrupada por codigo/produto;
+- mostrar finalidade: baixa GPP, reaproveitamento, producao interna ou transferencia;
+- permitir `Baixar` direto na lista com confirmacao;
+- permitir `Detalhes` para conferir lancamento por lancamento;
+- permitir `Divergencia`.
+
+Baixa em grupo:
+
+- GPP pode baixar grupo inteiro direto da tela principal;
+- antes de baixar, mostrar confirmacao curta com setor, codigo/produto, total, finalidade, quantidade de lancamentos e aviso de que alteracoes posteriores exigem estorno/correcao;
+- detalhe permite baixa individual se o GPP precisar trabalhar linha por linha.
+
+Detalhe lateral:
+
+- resumo do grupo no topo;
+- lancamentos individuais no meio;
+- historico/auditoria no fim;
+- acoes fixas no rodape: `Baixar`, `Divergencia`, `Fechar`.
+
+Divergencia no web:
+
+- abrir painel lateral/modal simples;
+- motivo fechado: quantidade diferente, codigo/produto errado, etiqueta fisica nao encontrada, setor destino errado, duplicado, producao sem finalidade clara, outro;
+- observacao obrigatoria;
+- foto/anexo opcional quando fizer sentido;
+- botao `Marcar divergencia`;
+- item sai da fila normal e entra na aba `Divergencias`;
+- setor/lideranca corrige;
+- GPP revisa e baixa.
+
+Aba `Compras internas`:
+
+- lista densa por setor solicitante;
+- setor com mais pedidos aberto primeiro;
+- cada pedido mostra nome/produto, codigo se existir, quantidade, finalidade, horario e quem pediu;
+- acoes rapidas: `Atendido`, `Parcial`, `Sem produto`;
+- se faltar codigo, GPP confirma ou vincula produto/codigo no atendimento;
+- `Parcial` exige quantidade atendida;
+- `Sem produto` exige motivo curto;
+- tudo vai para historico.
+
+Estados vazios e erro:
+
+- vazio: `Nenhuma pendencia GPP agora` e `Quando um setor registrar avaria ou solicitacao, ela aparece aqui.`;
+- central indisponivel: `Central indisponivel` e `Nao foi possivel carregar as pendencias do GPP. Tente atualizar antes de baixar.`;
+- tempo real pausado: `Tempo real pausado` e `A tela continua atualizando quando voce tocar em Atualizar.`;
+- nunca fingir sucesso quando a central nao confirmou.
+
+### UI/UX decidida para mobile
+
+Entrada mobile:
+
+- manter `Hoje` focado em validade;
+- criar entrada separada `Controle GPP`;
+- dentro de `Controle GPP`, duas acoes grandes: `Registrar avaria` e `Solicitar compra interna`;
+- abaixo, mostrar `Minhas pendencias` e `Enviadas hoje`.
+
+Navegacao por papel:
+
+- `gpp`: web/mobile abre direto em `Controle GPP`;
+- `lideranca`/`admin`: ve `Hoje`, `Controle GPP`, `Equipe`, `Ajustes`;
+- `colaborador`: ve `Hoje`, `Controle GPP`, `Ajustes`, mas sem acoes de baixa GPP.
+
+Fluxo mobile de avaria:
+
+- passos curtos: Produto -> Quantidade -> O que aconteceu? -> Campos extras -> Confirmar;
+- pergunta principal: `O que aconteceu com o produto?`;
+- opcoes: `Vai para baixa GPP`, `Vai para reaproveitamento`, `Vai para producao interna`, `Foi transferido para outro setor`;
+- botao final: `Registrar na central`;
+- feedback precisa respeitar ack central.
+
+Fluxo mobile de compra interna:
+
+- passos curtos: Produto -> Quantidade -> Finalidade -> Confirmar;
+- codigo opcional;
+- nome/descricao obrigatorio;
+- botao final: `Solicitar ao GPP`;
+- feedback precisa respeitar ack central.
+
 ## Pontos ainda em aberto
 
 1. Fluxo de divergencia:
@@ -527,14 +621,7 @@ Acoes esperadas:
    - se o setor discordar.
    - se producao interna foi marcada sem item/finalidade clara.
 
-2. UI/UX final das telas:
-   - tela web do GPP por setor;
-   - detalhe lateral do lancamento;
-   - fluxo mobile de registro rapido;
-   - aba de compras internas;
-   - melhoria da UI de convites/equipe para incluir papel GPP.
-
-3. Contrato tecnico do backend:
+2. Contrato tecnico do backend:
    - tabelas novas do Controle GPP;
    - endpoints novos;
    - idempotency key obrigatoria;
@@ -542,7 +629,7 @@ Acoes esperadas:
    - feature flag;
    - tempo real aditivo.
 
-4. Ordem de implementacao:
+3. Ordem de implementacao:
    - UI/UX web do GPP;
    - contratos e backend;
    - mobile entrada rapida;
