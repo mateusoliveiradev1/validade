@@ -51,7 +51,12 @@ function getInput(tree: ReactTestRenderer, label: string): ReactTestInstance {
   return input;
 }
 
-async function renderObservationComposer(): Promise<ReactTestRenderer> {
+async function renderObservationComposer(
+  input: {
+    onAfterSave?: () => Promise<void> | void;
+    onDone?: () => void;
+  } = {},
+): Promise<ReactTestRenderer> {
   const repository = createMemoryCaptureRepository({
     clock: () => "2030-01-10T09:00:00.000Z",
     createId: () => "identificador-ficticio",
@@ -85,7 +90,8 @@ async function renderObservationComposer(): Promise<ReactTestRenderer> {
         repository={repository}
         detail={detail}
         onBack={() => undefined}
-        onDone={() => undefined}
+        {...(input.onAfterSave === undefined ? {} : { onAfterSave: input.onAfterSave })}
+        onDone={input.onDone ?? (() => undefined)}
       />,
     );
   });
@@ -123,5 +129,30 @@ describe("presence observation composer", () => {
         .find((candidate) => candidate.props.accessibilityLabel === "Registrar observação")?.props
         .disabled,
     ).toBe(false);
+  });
+
+  it("runs the post-save sync hook before closing the observation flow", async () => {
+    const events: string[] = [];
+    const tree = await renderObservationComposer({
+      onAfterSave: () => {
+        events.push("sync");
+      },
+      onDone: () => {
+        events.push("done");
+      },
+    });
+
+    act(() => {
+      press(tree, "Registrar perda");
+    });
+    act(() => {
+      press(tree, "Registrar observação");
+    });
+    await act(async () => {
+      press(tree, "Confirmar registro");
+      await Promise.resolve();
+    });
+
+    expect(events).toEqual(["sync", "done"]);
   });
 });

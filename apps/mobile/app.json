@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat29-cloud-replay-apk-159",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat30-auto-sync-apk-160",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "159",
-      "VALIDADE_ZERO_BUILD_REF": "cloud-replay-159",
+      "VALIDADE_ZERO_APPROVED_BUILD": "160",
+      "VALIDADE_ZERO_BUILD_REF": "auto-sync-160",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -36,7 +36,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 159,
+      "versionCode": 160,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F9F8"

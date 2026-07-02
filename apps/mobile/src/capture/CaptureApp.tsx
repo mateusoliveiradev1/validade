@@ -953,6 +953,7 @@ export function CaptureApp({
         repository={repository}
         detail={currentRoute.detail}
         onBack={goBack}
+        onAfterSave={() => syncPendingCommandsAutomatically()}
         onDone={() => {
           void refreshCurrentDetail(currentRoute.detail.id).then((route) => {
             if (route === undefined) {

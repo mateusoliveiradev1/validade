@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat29-cloud-replay-apk-159",
+  artifactLabel: "uat30-auto-sync-apk-160",
   appVersion: "0.12.0",
-  build: "159",
+  build: "160",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,7 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "cloud-replay-159", 24),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "auto-sync-160", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,

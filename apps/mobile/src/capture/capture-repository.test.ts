@@ -1396,6 +1396,11 @@ describe("memory capture repository", () => {
       status: "loss",
       location: { kind: "retirada_perda" },
     });
+    await expect(repository.listSyncQueue()).resolves.toMatchObject({
+      state: "has_pending",
+      totalCount: 1,
+      mediumCount: 1,
+    });
     await expect(repository.listActiveTodayTasks()).resolves.toEqual([
       expect.objectContaining({ id: "tarefa-central-recentes-ativa-001" }),
     ]);
@@ -1436,6 +1441,7 @@ describe("memory capture repository", () => {
       }),
     );
     await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
+    await expect(repository.listSyncQueue()).resolves.toMatchObject({ totalCount: 0 });
   });
 
   it("replays a pending lot after central search finds a reusable product missing from local cache", async () => {

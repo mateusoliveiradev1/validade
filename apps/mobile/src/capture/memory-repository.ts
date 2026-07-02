@@ -1907,6 +1907,10 @@ export function createMemoryCaptureRepository(
         : [...lots.values()].filter(
             (lot) => lot.centralSyncState === "pending_central" || lot.centralSyncState === "local",
           ).length;
+    const pendingCentralObservationCount = [...lots.values()].filter(
+      (lot) =>
+        latestPendingCentralObservationForLot(lot, observations.get(lot.id) ?? []) !== undefined,
+    ).length;
     const summaries = queueCommands.map((command) => ({
       id: command.id,
       kind: command.kind,
@@ -1928,7 +1932,7 @@ export function createMemoryCaptureRepository(
     const oldestPendingCritical = summaries.find((command) => command.urgency === "critical");
     const hasFailed = queueCommands.some((command) => command.state === "sync_failed");
     const hasSyncing = queueCommands.some((command) => command.state === "syncing");
-    const totalCount = summaries.length + pendingCentralLotCount;
+    const totalCount = summaries.length + pendingCentralLotCount + pendingCentralObservationCount;
 
     return Promise.resolve(
       parseSyncQueueSummary({
@@ -1949,7 +1953,8 @@ export function createMemoryCaptureRepository(
         highCount: queueCommands.filter((command) => command.urgency === "high").length,
         mediumCount:
           queueCommands.filter((command) => command.urgency === "medium").length +
-          pendingCentralLotCount,
+          pendingCentralLotCount +
+          pendingCentralObservationCount,
         lowCount: queueCommands.filter((command) => command.urgency === "low").length,
         ...(oldestPendingCritical === undefined ? {} : { oldestPendingCritical }),
         commands: summaries,

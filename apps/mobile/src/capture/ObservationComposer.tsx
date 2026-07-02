@@ -24,11 +24,13 @@ type Action = (typeof observationActions)[number][0];
 export function ObservationComposer({
   repository,
   detail,
+  onAfterSave,
   onDone,
   onBack,
 }: {
   repository: CaptureRepository;
   detail: CaptureLotDetail;
+  onAfterSave?: () => Promise<void> | void;
   onDone: () => void;
   onBack: () => void;
 }) {
@@ -113,6 +115,7 @@ export function ObservationComposer({
       ...(correction ? { correctionReason: reason } : {}),
     };
     await repository.appendObservation(detail.id, input);
+    await onAfterSave?.();
     onDone();
   }
   if (confirming && action !== undefined)
