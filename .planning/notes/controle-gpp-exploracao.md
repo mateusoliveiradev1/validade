@@ -746,17 +746,79 @@ Quando online:
 
 ## Pontos ainda em aberto
 
-1. Ordem de implementacao:
-   - UI/UX web do GPP;
-   - contratos e backend;
-   - mobile entrada rapida;
-   - integracao com avaria/reaproveitamento do fluxo de validade;
-   - integracao com producao interna;
-   - compras internas dos setores;
-   - papel GPP e melhoria da tela de convites/equipe.
+Nenhum ponto grande de produto esta aberto nesta nota. A proxima etapa deve transformar este material em fase formal, UI-SPEC/PLAN e implementacao controlada por feature flag.
+
+## Ordem de implementacao decidida
+
+### Fase 1 - Web/API GPP com tempo real
+
+Objetivo: provar backend, web e tempo real sem tocar na build `0.12.0` build `170`.
+
+Escopo:
+
+- contratos;
+- tabelas;
+- endpoints;
+- permissoes;
+- auditoria;
+- idempotencia;
+- feature flag `controle_gpp_enabled`;
+- web GPP inicial;
+- aba `Avarias`;
+- aba `Compras internas`;
+- aba `Divergencias`;
+- historico basico;
+- tempo real por loja;
+- fallback manual/refresh;
+- sem mobile novo;
+- sem integracao nova com `Hoje`.
+
+Regra:
+
+- banco salvou -> publica evento;
+- web recebeu evento -> busca central;
+- evento falhou -> web ainda funciona por refresh;
+- banco falhou -> nao existe sucesso.
+
+### Fase 2 - Mobile GPP
+
+Objetivo: permitir que setores registrem GPP pelo app sem substituir a build 170 em teste ate a base provar estabilidade.
+
+Escopo:
+
+- entrada `Controle GPP`;
+- `Registrar avaria`;
+- `Solicitar compra interna`;
+- navegacao por papel;
+- feedback central;
+- pendencias/enviadas hoje;
+- nova APK futura.
+
+### Fase 3 - Integracao com Hoje
+
+Objetivo: conectar o fluxo de validade ao Controle GPP somente depois que web/API/mobile GPP estiverem confiaveis.
+
+Escopo:
+
+- `Registrar avaria por vencimento`;
+- `Enviar para reaproveitamento`;
+- `Enviar para producao interna`;
+- `Confirmar esgotado` sem baixa GPP;
+- preservar regra de saida da area de venda antes de resolver risco.
+
+### Fase 4 - Expandir tempo real para Hoje
+
+Objetivo: aplicar a camada de eventos no `Hoje` somente apos o Controle GPP provar estabilidade.
+
+Escopo:
+
+- eventos de tarefas/lotes por loja;
+- atualizacao cruzada web/mobile;
+- fallback por refresh;
+- tempo real continua sendo aviso, nao fonte da verdade.
 
 ## Proxima discussao recomendada
 
-Definir a ordem de implementacao sem tocar na build `0.12.0` build `170`.
+Transformar esta nota em fase formal do roadmap.
 
-Pergunta aberta: a primeira fase deve entregar somente web/API do Controle GPP com feature flag, ou ja incluir mobile de entrada rapida na mesma versao futura?
+Pergunta aberta: criar uma unica fase grande para Controle GPP ou quebrar em fases separadas conforme a ordem acima?
