@@ -28,6 +28,7 @@ import {
 
 export interface GppRepository {
   readQueue(input: GppStoreReadInput): Promise<GppQueueSnapshot>;
+  readAvaria(input: GppAvariaReadInput): Promise<GppAvariaEntry>;
   readDetail(input: GppDetailReadInput): Promise<GppDetailSnapshot>;
   readHistory(input: GppHistoryReadInput): Promise<readonly GppHistoryRow[]>;
   createAvaria(input: GppCreateAvariaInput): Promise<GppMutationResult<GppAvariaEntry>>;
@@ -57,6 +58,10 @@ export interface InMemoryGppRepository extends GppRepository {
 export interface GppStoreReadInput {
   storeId: string;
   storeName: string;
+}
+
+export interface GppAvariaReadInput extends GppStoreReadInput {
+  avariaId: string;
 }
 
 export interface GppDetailReadInput extends GppStoreReadInput {
@@ -238,6 +243,9 @@ export function createInMemoryGppRepository(
   return {
     readQueue(input) {
       return Promise.resolve(buildQueueSnapshot(input.storeId, input.storeName));
+    },
+    readAvaria(input) {
+      return Promise.resolve(entryOrThrow(input.avariaId, input.storeId));
     },
     readDetail(input) {
       const snapshot = buildQueueSnapshot(input.storeId, input.storeName);
@@ -846,6 +854,24 @@ export function createGppRepositoryFromQuery(sql: NeonQueryFunction<false, false
         purchaseRequests: [],
         divergenceEntries: [],
         history: [],
+      });
+    },
+    async readAvaria(input) {
+      await sql.query(
+        `select * from gpp_avaria_entries
+         where store_id = $1 and avaria_id = $2
+         limit 1`,
+        [input.storeId, input.avariaId],
+      );
+      return placeholderEntry({
+        store: input,
+        actor: {
+          actorId: "central-gpp",
+          displayName: "Central GPP",
+          roleSnapshot: "gpp",
+        },
+        avariaId: input.avariaId,
+        occurredAt: new Date().toISOString(),
       });
     },
     async readDetail(input) {

@@ -37,6 +37,7 @@ export const AuditEventTypeSchema = z.enum([
   "evidence.changed",
   "shift.changed",
   "membership.changed",
+  "gpp.changed",
 ]);
 
 export const AuditEventStatusSchema = z.enum([
@@ -57,6 +58,9 @@ export const AuditTargetTypeSchema = z.enum([
   "access_request",
   "membership",
   "product",
+  "gpp_avaria",
+  "gpp_movement",
+  "gpp_purchase_request",
 ]);
 
 export const AuditProducerKindSchema = z.enum([
@@ -82,6 +86,10 @@ export const AuditProducerKindSchema = z.enum([
   "shift.close",
   "shift.handoff_ack",
   "shift.reopen",
+  "gpp.avaria.create",
+  "gpp.avaria.correct",
+  "gpp.avaria.baixar",
+  "gpp.purchase.attend",
   "access.denied",
 ]);
 

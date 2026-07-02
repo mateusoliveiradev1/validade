@@ -7,9 +7,10 @@ export type AuditEventType =
   | "sync.changed"
   | "evidence.changed"
   | "shift.changed"
-  | "membership.changed";
+  | "membership.changed"
+  | "gpp.changed";
 
-export type AuditActorRoleSnapshot = "collaborator" | "lead" | "admin";
+export type AuditActorRoleSnapshot = "collaborator" | "lead" | "admin" | "gpp";
 
 export type AuditEventStatus = "received" | "pending_ack" | "conflict" | "denied" | "invalidated";
 
@@ -22,7 +23,10 @@ export type AuditTargetType =
   | "sync_command"
   | "access_request"
   | "membership"
-  | "product";
+  | "product"
+  | "gpp_avaria"
+  | "gpp_movement"
+  | "gpp_purchase_request";
 
 export interface AppendAuditEventInput {
   eventId: string;

@@ -93,6 +93,11 @@ import {
   createNeonCaptureRepository,
   type CaptureRepository,
 } from "@validade-zero/database/capture-repository";
+import {
+  createInMemoryGppRepository,
+  createNeonGppRepository,
+  type GppRepository,
+} from "@validade-zero/database/gpp-repository";
 import type { ShiftCloseRepository } from "@validade-zero/database/shift-close-repository";
 import { createPrivacySafeNotificationContent } from "@validade-zero/domain";
 import { roleAllowsCapability } from "@validade-zero/domain";
@@ -148,6 +153,7 @@ import {
   createInMemoryEvidenceRepository,
   type EvidenceService,
 } from "./evidence";
+import { registerGppRoutes, type GppRealtimePublisher } from "./gpp";
 import { createMembershipService, type MembershipService } from "./memberships";
 import {
   createCentralCaptureShiftCloseRevalidator,
@@ -225,6 +231,8 @@ export function createApiApp(input?: {
   evidenceStore?: EvidenceStore;
   evidenceService?: EvidenceService;
   captureRepository?: CaptureRepository;
+  gppRepository?: GppRepository;
+  gppRealtimePublisher?: GppRealtimePublisher;
   shiftCloseRepository?: ShiftCloseRepository;
   shiftCloseRevalidator?: ShiftCloseRevalidator;
   shiftCloseService?: ShiftCloseService;
@@ -327,6 +335,11 @@ export function createApiApp(input?: {
     (input?.databaseUrl === undefined
       ? createInMemoryCaptureRepository()
       : createNeonCaptureRepository({ connectionString: input.databaseUrl }));
+  const gppRepository =
+    input?.gppRepository ??
+    (input?.databaseUrl === undefined
+      ? createInMemoryGppRepository()
+      : createNeonGppRepository({ connectionString: input.databaseUrl }));
   const pilotPushDeliveryProvider =
     input?.pilotPushDeliveryProvider ?? createFakeExpoAlertDeliveryProvider();
   const pilotPushTestTimeline: SafePushTestTimelineItem[] = [];
@@ -374,6 +387,18 @@ export function createApiApp(input?: {
     now,
     sessionTtlSeconds: input?.sessionTtlSeconds ?? 28_800,
     recoveryTtlSeconds: input?.recoveryTtlSeconds ?? 1_800,
+  });
+
+  registerGppRoutes(api, {
+    enabled: controleGppEnabled,
+    repository: gppRepository,
+    authProvider,
+    authorizationService,
+    membershipRepository,
+    auditRepository,
+    accessDeniedAuditRecorder,
+    realtimePublisher: input?.gppRealtimePublisher,
+    now,
   });
 
   api.get("/health", (context) => {
@@ -1932,8 +1957,7 @@ export function createApiApp(input?: {
           canSendPilotPushTest: pushTestDecision.allowed,
           canReadGppQueue: controleGppEnabled && gppQueueReadDecision.allowed,
           canCreateGppEntry: controleGppEnabled && gppCreateDecision.allowed,
-          canCorrectOwnPendingGppEntry:
-            controleGppEnabled && gppCorrectOwnPendingDecision.allowed,
+          canCorrectOwnPendingGppEntry: controleGppEnabled && gppCorrectOwnPendingDecision.allowed,
           canMarkGppDivergence: controleGppEnabled && gppDivergenceDecision.allowed,
           canReviewGppCorrection: controleGppEnabled && gppCorrectionReviewDecision.allowed,
           canBaixarGppAvaria: controleGppEnabled && gppBaixaDecision.allowed,
@@ -2247,13 +2271,11 @@ function actionsForRoles(
     canCreateGppEntry: controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.create"),
     canCorrectOwnPendingGppEntry:
       controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.correct_own_pending"),
-    canMarkGppDivergence:
-      controleGppEnabled && rolesAllowCapability(roles, "gpp.divergence.mark"),
+    canMarkGppDivergence: controleGppEnabled && rolesAllowCapability(roles, "gpp.divergence.mark"),
     canReviewGppCorrection:
       controleGppEnabled && rolesAllowCapability(roles, "gpp.correction.review"),
     canBaixarGppAvaria: controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.baixar"),
-    canAttendGppPurchase:
-      controleGppEnabled && rolesAllowCapability(roles, "gpp.purchase.attend"),
+    canAttendGppPurchase: controleGppEnabled && rolesAllowCapability(roles, "gpp.purchase.attend"),
     canReadGppHistory: controleGppEnabled && rolesAllowCapability(roles, "gpp.history.read"),
   };
 }

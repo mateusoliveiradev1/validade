@@ -12,7 +12,7 @@ export interface ShiftClosurePersistenceRecord {
   checklist: readonly string[];
   actorId: string;
   actorDisplayName: string;
-  actorRoleSnapshot: "collaborator" | "lead" | "admin";
+  actorRoleSnapshot: "collaborator" | "lead" | "admin" | "gpp";
   occurredAt: Date;
   receivedAt: Date;
   ruleVersion: string;
@@ -32,7 +32,7 @@ export interface ShiftHandoffPersistenceRecord {
   storeId: string;
   acknowledgedBy: string;
   acknowledgedDisplayName: string;
-  acknowledgedRoleSnapshot: "collaborator" | "lead" | "admin";
+  acknowledgedRoleSnapshot: "collaborator" | "lead" | "admin" | "gpp";
   acknowledgedAt: Date;
   receivedAt: Date;
 }

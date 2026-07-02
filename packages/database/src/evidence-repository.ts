@@ -16,7 +16,7 @@ export interface EvidenceAssetPersistenceRecord {
   sha256: string;
   authorId: string;
   authorDisplayName: string;
-  authorRoleSnapshot: "collaborator" | "lead" | "admin";
+  authorRoleSnapshot: "collaborator" | "lead" | "admin" | "gpp";
   capturedAt: Date;
   uploadRequestedAt: Date;
   uploadedAt?: Date;

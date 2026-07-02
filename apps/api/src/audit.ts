@@ -302,7 +302,9 @@ export function createAuditAccessDeniedRecorder(input: {
       }
 
       const roleSnapshot =
-        event.actorRoleSnapshot === "admin" || event.actorRoleSnapshot === "lead"
+        event.actorRoleSnapshot === "admin" ||
+        event.actorRoleSnapshot === "lead" ||
+        event.actorRoleSnapshot === "gpp"
           ? event.actorRoleSnapshot
           : "collaborator";
       const occurredAt = event.occurredAt;
