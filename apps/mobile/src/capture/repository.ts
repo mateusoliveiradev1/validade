@@ -701,7 +701,7 @@ export function latestPendingCentralObservationForLot(
   lot: CaptureLotSnapshot,
   observations: readonly CaptureObservationRecord[],
 ): CaptureObservationRecord | undefined {
-  if (lot.centralSource !== "central") {
+  if (centralLotIdForObservationWrite(lot) === undefined) {
     return undefined;
   }
 
@@ -716,11 +716,7 @@ export function shouldReplayObservationToCentral(
   lot: CaptureLotSnapshot,
   observation: CaptureObservationRecord,
 ): boolean {
-  if (lot.centralSource !== "central") {
-    return false;
-  }
-
-  if (lot.centralLotId === undefined && lot.id.trim().length === 0) {
+  if (centralLotIdForObservationWrite(lot) === undefined) {
     return false;
   }
 
@@ -732,6 +728,20 @@ export function shouldReplayObservationToCentral(
     observation.id === lot.currentObservation.id ||
     observation.occurredAt > lot.currentObservation.occurredAt
   );
+}
+
+export function centralLotIdForObservationWrite(
+  lot: Pick<CaptureLotSnapshot, "id" | "centralLotId" | "centralSource">,
+): string | undefined {
+  if (lot.centralLotId !== undefined && lot.centralLotId.trim().length > 0) {
+    return lot.centralLotId;
+  }
+
+  if (lot.centralSource === "central" && lot.id.trim().length > 0) {
+    return lot.id;
+  }
+
+  return undefined;
 }
 
 export function isLikelyCentralObservationId(observationId: string): boolean {

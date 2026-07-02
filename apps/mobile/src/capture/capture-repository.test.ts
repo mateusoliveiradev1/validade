@@ -3,9 +3,12 @@ import type { PrepareTurnResponse } from "@validade-zero/contracts";
 import { createMemoryCaptureRepository } from "./memory-repository";
 import {
   PendingCentralLotSyncError,
+  centralLotIdForObservationWrite,
+  latestPendingCentralObservationForLot,
   pendingCentralLotWriteBlocker,
   productDraftToLocalRecord,
   shouldFallbackToLocalCentralWrite,
+  shouldReplayObservationToCentral,
 } from "./repository";
 
 const categoryRuleProfile = {
@@ -1393,6 +1396,52 @@ describe("memory capture repository", () => {
         location: { kind: "area_de_venda" },
       },
     });
+  });
+
+  it("keeps central-id observations cloud-writable even when the local source is legacy", () => {
+    const previousObservation = {
+      id: "observacao-central-shadow-presenca-001",
+      lotId: "lote-local-shadow-001",
+      status: "present" as const,
+      actorLabel: "Leitura central",
+      occurredAt: "2030-01-10T09:00:00.000Z",
+      location: { kind: "area_de_venda" as const },
+      quantityState: "estimated" as const,
+      approximateQuantity: 4,
+      isCorrection: false,
+    };
+    const pendingObservation = {
+      id: "observacao-local-shadow-perda-001",
+      lotId: "lote-local-shadow-001",
+      status: "loss" as const,
+      actorLabel: "Colaborador local",
+      occurredAt: "2030-01-10T09:12:00.000Z",
+      location: { kind: "retirada_perda" as const },
+      quantityState: "estimated" as const,
+      approximateQuantity: 4,
+      isCorrection: false,
+    };
+    const lot = {
+      id: "lote-local-shadow-001",
+      productId: "produto-local-shadow-001",
+      productDisplayName: "Melao Shadow FICTICIO",
+      identity: { identitySource: "generated_internal" as const, value: "INTERNO-SHADOW-001" },
+      mode: "formal_validity" as const,
+      expiresAt: "2030-01-10",
+      receivedAt: "2030-01-09",
+      approximateQuantity: 4,
+      initialLocation: { kind: "area_de_venda" as const },
+      currentObservation: pendingObservation,
+      centralLotId: "lote-central-shadow-001",
+      centralSyncState: "resolved" as const,
+      centralSource: "local_cache" as const,
+    };
+
+    expect(centralLotIdForObservationWrite(lot)).toBe("lote-central-shadow-001");
+    expect(shouldReplayObservationToCentral(lot, pendingObservation)).toBe(true);
+    expect(
+      latestPendingCentralObservationForLot(lot, [previousObservation, pendingObservation]),
+    ).toBe(pendingObservation);
   });
 
   it("replays locally kept central observations automatically after a refreshed central read", async () => {

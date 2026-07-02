@@ -105,6 +105,7 @@ import {
   parseAlertDeliveryResult,
   parseAlertDeviceRegistration,
   categoryCatalogItemToLocalCategory,
+  centralLotIdForObservationWrite,
   parseCentralLotCreateRequest,
   parseCentralObservationAppendRequest,
   parseCentralLotWriteResponse,
@@ -887,10 +888,9 @@ export function createMemoryCaptureRepository(
       return null;
     }
 
-    const centralLotId =
-      snapshot.centralLotId ?? (snapshot.centralSource === "central" ? snapshot.id : undefined);
+    const centralLotId = centralLotIdForObservationWrite(snapshot);
 
-    if (centralLotId === undefined || snapshot.centralSource !== "central") {
+    if (centralLotId === undefined) {
       return null;
     }
 

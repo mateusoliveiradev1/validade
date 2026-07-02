@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat35-cloud-first-writes-apk-165",
+  artifactLabel: "uat36-observation-cloud-write-apk-166",
   appVersion: "0.12.0",
-  build: "165",
+  build: "166",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

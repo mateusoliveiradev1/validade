@@ -47,7 +47,7 @@ describe("mobile build info", () => {
       constants: {
         expoConfig: {
           version: "0.12.0",
-          android: { package: "com.validadezero.app", versionCode: 165 },
+          android: { package: "com.validadezero.app", versionCode: 166 },
           extra: {},
         },
       },
@@ -55,7 +55,7 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "165",
+      appBuild: "166",
       packageId: "com.validadezero.app",
       buildCompatibility: "atual",
     });
@@ -93,8 +93,8 @@ describe("mobile build info", () => {
     expect(oldBuild.buildCompatibility).toBe("desatualizado");
     expect(futureBuild.buildCompatibility).toBe("incompativel");
     expect(unknownBuild.buildCompatibility).toBe("desconhecido");
-    expect(unknownBuild.approvedArtifactLabel).toBe("uat35-cloud-first-writes-apk-165");
-    expect(unknownBuild.approvedBuild).toBe("165");
+    expect(unknownBuild.approvedArtifactLabel).toBe("uat36-observation-cloud-write-apk-166");
+    expect(unknownBuild.approvedBuild).toBe("166");
     expect(unknownBuild.buildRef).not.toBe(longRef);
     expect(unknownBuild.buildRef).toMatch(/^abcdef123\.\.\./);
     expect(JSON.stringify(unknownBuild)).not.toMatch(/token|segredo|expo\.dev|abcdef1234567890/i);

@@ -103,6 +103,7 @@ import {
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
   shouldFallbackToLocalCentralWrite,
+  centralLotIdForObservationWrite,
   categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
@@ -1376,7 +1377,7 @@ export function createSQLiteCaptureRepository(
   > {
     const rows = await db.getAllAsync<LotRow>(
       `${LOT_SELECT}
-       WHERE l.central_source = 'central' AND l.central_lot_id IS NOT NULL
+       WHERE l.central_lot_id IS NOT NULL
        ORDER BY l.current_occurred_at DESC
        LIMIT 100`,
     );
@@ -1527,10 +1528,9 @@ export function createSQLiteCaptureRepository(
       return null;
     }
 
-    const centralLotId =
-      detail.centralLotId ?? (detail.centralSource === "central" ? detail.id : undefined);
+    const centralLotId = centralLotIdForObservationWrite(detail);
 
-    if (centralLotId === undefined || detail.centralSource !== "central") {
+    if (centralLotId === undefined) {
       return null;
     }
 
