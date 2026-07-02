@@ -98,7 +98,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 4. Realtime events publish only after central database success and cause clients to re-read central snapshots, with manual refresh fallback.
 5. `controle_gpp_enabled` keeps the new surface hidden from current Loja 18 validation until explicitly enabled.
 
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 
