@@ -252,7 +252,7 @@ describe("database repositories", () => {
       deviceLabel: "Moto G Lideranca",
       activeUserLabel: "Lider FICTICIO",
       appVersion: "0.12.0",
-      appBuild: "150",
+      appBuild: "164",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       preparedAt: new Date("2030-01-10T12:00:00.000Z"),
@@ -314,9 +314,9 @@ describe("database repositories", () => {
     expect(readiness[1]).toMatchObject({
       deviceLabel: "Moto G Lideranca",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+      approvedArtifactLabel: "uat34-init-central-refresh-apk-164",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "150",
+      approvedBuild: "164",
     });
     expect(JSON.stringify(readiness)).not.toMatch(
       /device-store-1-ready|device-store-2|pushToken|expoPushToken|buildUrl/i,
@@ -442,6 +442,13 @@ describe("database repositories", () => {
     expect(selectQueries.every((query) => /where\s+((t|p)\.)?store_id = \$1/.test(query))).toBe(
       true,
     );
+    const resolvedHistoryQuery = selectQueries.find(
+      (query) =>
+        query.includes("from central_projected_tasks t") && query.includes("t.status = 'resolved'"),
+    );
+    expect(resolvedHistoryQuery).toContain("t.resolution_action is not null");
+    expect(resolvedHistoryQuery).toContain("t.actor_label is not null");
+    expect(resolvedHistoryQuery).toContain("t.resolved_at is not null");
     const deviceSnapshotQuery = captured.find(([query]) =>
       String(query).includes("insert into central_device_snapshots"),
     );

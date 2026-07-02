@@ -127,6 +127,37 @@ describe("prepare-turn gate", () => {
     );
   });
 
+  it("does not let native push diagnostics block the central prepare request", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const repository = createRepository();
+      const prepareTurnClient = vi.fn(() => Promise.resolve(preparedTurnResponse()));
+      const tree = await renderApp(repository, prepareTurnClient, {
+        alertChannel: hangingPushAlertChannel(),
+      });
+
+      await press(tree, "Preparar turno");
+
+      expect(prepareTurnClient).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+        await flush();
+      });
+
+      expect(prepareTurnClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pushPermission: "unknown",
+          pushProviderState: "not_configured",
+        }),
+      );
+      expect(textContent(tree)).toContain("Morango FICTICIO");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("drains existing local sync commands automatically after opening with central cache", async () => {
     const repository = createRepository();
     await repository.hydratePrepareTurn?.(preparedTurnResponse());
@@ -262,15 +293,41 @@ describe("prepare-turn gate", () => {
   it("labels local-cache fallback as not safe when central is unavailable", async () => {
     const repository = createRepository();
     await repository.hydratePrepareTurn?.(preparedTurnResponse({ cacheSource: "local_cache" }));
-    const tree = await renderApp(repository, () => Promise.reject(new Error("network")));
-
-    await press(tree, "Preparar turno");
-    expect(textContent(tree)).toContain("Central indisponivel");
-
-    await press(tree, "Entrar com leitura local");
+    const prepareTurnClient = vi.fn(() => Promise.reject(new Error("network")));
+    const tree = await renderApp(repository, prepareTurnClient);
 
     expect(textContent(tree)).toContain("Local");
     expect(textContent(tree)).toContain("Nao declare area segura");
+    expect(prepareTurnClient).toHaveBeenCalledOnce();
+  });
+
+  it("refreshes central read directly from the local-cache Today warning", async () => {
+    const repository = createRepository();
+    await repository.hydratePrepareTurn?.(preparedTurnResponse({ cacheSource: "local_cache" }));
+    const prepareTurnClient = vi
+      .fn<(_: PrepareTurnRequest) => Promise<PrepareTurnResponse>>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(preparedTurnResponse());
+    const tree = await renderApp(repository, prepareTurnClient);
+
+    expect(textContent(tree)).toContain("Local");
+    expect(textContent(tree)).toContain("Leitura local em uso desde");
+    expect(prepareTurnClient).toHaveBeenCalledOnce();
+
+    await press(tree, "Atualizar leitura central");
+
+    expect(prepareTurnClient).toHaveBeenCalledTimes(2);
+    expect(prepareTurnClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        deviceId: "validade-zero-mobile:loja-piloto:install-ficticio",
+        localSnapshot: expect.objectContaining({
+          knownLotCount: 1,
+          pendingCommandCount: 0,
+        }),
+      }),
+    );
+    expect(textContent(tree)).toContain("Area de venda com risco agora");
+    expect(textContent(tree)).not.toContain("Leitura local em uso desde");
   });
 });
 
@@ -346,6 +403,17 @@ function pilotBuildInfo(): MobileBuildInfo {
     approvedBuild: "138",
     buildRef: "sync-debug-138",
     buildCompatibility: "atual",
+  };
+}
+
+function hangingPushAlertChannel(): PushAlertChannel {
+  return {
+    getPermissionState: () => new Promise(() => undefined),
+    requestPermission: () => Promise.resolve({ state: "unavailable" }),
+    getExpoPushToken: () => Promise.resolve({ state: "unavailable" }),
+    scheduleTaskNotification: () => Promise.resolve({ attemptState: "retry_pending" }),
+    cancelTaskNotification: () => Promise.resolve(),
+    subscribeToNotificationResponses: () => ({ remove: () => undefined }),
   };
 }
 

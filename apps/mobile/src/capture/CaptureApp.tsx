@@ -38,6 +38,7 @@ import type {
   SessionContextResponse,
   ShiftCloseSafeRequest,
   ShiftClosureSnapshot,
+  SyncQueueSummary,
   TodayTaskRecord,
 } from "@validade-zero/contracts";
 import type { ShiftCloseDeviceAuthorization, StoreOperatingHours } from "@validade-zero/domain";
@@ -78,6 +79,7 @@ type CaptureRoute =
 const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
 type PrepareTurnMode = "manual" | "silent";
 type RegisterPushDeviceClient = (request: DevicePushRegistrationCommand) => Promise<void>;
+const PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS = 1500;
 type OnboardingProgressClient = {
   loadOnboardingProgress(input: OnboardingProgressQuery): Promise<OnboardingProgressResponse>;
   saveOnboardingProgress(
@@ -272,38 +274,6 @@ export function CaptureApp({
 
   useEffect(() => {
     let current = true;
-    void repository
-      .initialize()
-      .then(async () => {
-        const cache = await loadPrepareTurnCache(repository);
-        if (!current) return;
-        setPrepareTurnCache(cache);
-        if (prepareTurnClient === undefined) {
-          setPrepareTurnState("ready");
-          return;
-        }
-
-        if (cache?.state === "ready" && cache.source === "central") {
-          setPrepareTurnSource("central");
-          setPrepareTurnState("ready");
-          return;
-        }
-
-        setPrepareTurnState("needs_prepare");
-      })
-      .catch(() => {
-        if (!current) return;
-        setInitializationError("Nao foi possivel preparar o registro local neste aparelho.");
-        setPrepareTurnState(prepareTurnClient === undefined ? "ready" : "error");
-      });
-
-    return () => {
-      current = false;
-    };
-  }, [prepareTurnClient, repository]);
-
-  useEffect(() => {
-    let current = true;
 
     if (prepareTurnState !== "ready") {
       setOnboardingDecision("checking");
@@ -406,16 +376,35 @@ export function CaptureApp({
 
       try {
         const [cache, queue, pushReadiness, cameraPermission] = await Promise.all([
-          loadPrepareTurnCache(repository),
-          repository.listSyncQueue(),
-          resolvePrepareTurnPushReadiness(
-            repository,
-            resolvedAlertChannel,
-            () => new Date().toISOString(),
-            pushDeviceIdentity,
-            registerPushDeviceClient,
+          bestEffortPrepareTurnValue(
+            loadPrepareTurnCache(repository),
+            null,
+            PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS,
           ),
-          readCameraPermissionState(),
+          bestEffortPrepareTurnValue(
+            repository.listSyncQueue(),
+            emptySyncQueueSummary(),
+            PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS,
+          ),
+          bestEffortPrepareTurnValue(
+            resolvePrepareTurnPushReadiness(
+              repository,
+              resolvedAlertChannel,
+              () => new Date().toISOString(),
+              pushDeviceIdentity,
+              registerPushDeviceClient,
+            ),
+            {
+              pushPermission: "unknown",
+              pushProviderState: "not_configured",
+            },
+            PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS,
+          ),
+          bestEffortPrepareTurnValue(
+            readCameraPermissionState(),
+            undefined,
+            PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS,
+          ),
         ]);
         const requestedAt = new Date().toISOString();
         const response = await prepareTurnClient({
@@ -492,6 +481,41 @@ export function CaptureApp({
     ],
   );
 
+  useEffect(() => {
+    let current = true;
+    void repository
+      .initialize()
+      .then(async () => {
+        const cache = await loadPrepareTurnCache(repository);
+        if (!current) return;
+        setPrepareTurnCache(cache);
+        if (prepareTurnClient === undefined) {
+          setPrepareTurnState("ready");
+          return;
+        }
+
+        if (cache?.state === "ready") {
+          setPrepareTurnSource(cache.source === "central" ? "central" : "local_cache");
+          setPrepareTurnState("ready");
+          if (!autoPrepareTurnAttemptedRef.current) {
+            void prepareTurn("silent");
+          }
+          return;
+        }
+
+        setPrepareTurnState("needs_prepare");
+      })
+      .catch(() => {
+        if (!current) return;
+        setInitializationError("Nao foi possivel preparar o registro local neste aparelho.");
+        setPrepareTurnState(prepareTurnClient === undefined ? "ready" : "error");
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [prepareTurn, prepareTurnClient, repository]);
+
   const syncPendingCommandsAutomatically = useCallback(async (): Promise<void> => {
     const [syncedLots, result] = await Promise.all([
       repository.syncPendingCentralLots === undefined
@@ -532,8 +556,7 @@ export function CaptureApp({
       autoPrepareTurnAttemptedRef.current ||
       prepareTurnClient === undefined ||
       prepareTurnState !== "ready" ||
-      prepareTurnCache?.state !== "ready" ||
-      prepareTurnCache.source !== "central"
+      prepareTurnCache?.state !== "ready"
     ) {
       return;
     }
@@ -611,9 +634,8 @@ export function CaptureApp({
 
   function requestCentralReprepare(): void {
     setPrepareTurnError(undefined);
-    setPrepareTurnSource("local_cache");
-    setPrepareTurnState("needs_prepare");
     setRouteStack(initialRouteStack);
+    void prepareTurn("manual");
   }
 
   async function loadMarkdownEntryStateFor(lotId: string): Promise<MarkdownEntryState | undefined> {
@@ -1120,6 +1142,44 @@ async function loadPrepareTurnCache(
   return repository.loadPrepareTurnCacheStatus === undefined
     ? null
     : repository.loadPrepareTurnCacheStatus();
+}
+
+async function bestEffortPrepareTurnValue<T>(
+  promise: Promise<T>,
+  fallback: T,
+  timeoutMs: number,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise.catch(() => fallback),
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+function emptySyncQueueSummary(): SyncQueueSummary {
+  const now = new Date().toISOString();
+
+  return {
+    state: "empty",
+    totalCount: 0,
+    conflictCount: 0,
+    hasCriticalConflict: false,
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    commands: [],
+    updatedAt: now,
+  };
 }
 
 async function hydratePrepareTurn(

@@ -2349,6 +2349,9 @@ export function createCaptureRepositoryFromQuery(
           from central_projected_tasks t
           join central_lots l on l.central_lot_id = t.central_lot_id and l.store_id = t.store_id
           where t.store_id = $1 and t.status = 'resolved'
+            and t.resolution_action is not null
+            and t.actor_label is not null
+            and t.resolved_at is not null
           order by t.resolved_at desc
           limit 40`,
           [input.storeId],
@@ -3450,9 +3453,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat20-onboarding-shift-e2e-apk-150";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat34-init-central-refresh-apk-164";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "150";
+const DEFAULT_APPROVED_BUILD = "164";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;

@@ -549,7 +549,19 @@ export function createApiApp(input?: {
       });
 
       return context.json(PrepareTurnResponseSchema.parse(response));
-    } catch {
+    } catch (error) {
+      console.error(
+        JSON.stringify(
+          compactMetadata({
+            event: "prepare_turn_failed",
+            requestId,
+            storeId: resolved.decision.context.membership.storeId,
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: publicErrorReason(error),
+            errorCode: errorCode(error),
+          }),
+        ),
+      );
       return context.json({ error: "prepare_turn_unavailable" }, 503);
     }
   });
