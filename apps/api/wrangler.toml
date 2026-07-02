@@ -15,6 +15,14 @@ EVIDENCE_RETENTION_DAYS = "90"
 # Evidence binaries use a private R2 bucket bound as EVIDENCE_BUCKET outside local mode.
 # Do not commit real bucket names, account identifiers, object keys, photos, or credentials here.
 
+[[durable_objects.bindings]]
+name = "GPP_REALTIME_ROOM"
+class_name = "GppRealtimeRoom"
+
+[[migrations]]
+tag = "v1-gpp-realtime-room"
+new_sqlite_classes = ["GppRealtimeRoom"]
+
 [triggers]
 crons = ["*/15 * * * *"]
 

@@ -41,6 +41,12 @@ import type {
 } from "./auth";
 import { toClientSafeDenial } from "./auth";
 import type { AuditEventRepository } from "./audit";
+import {
+  createNoopGppRealtimePublisher,
+  storeRoomName,
+  type GppRealtimeRoomBinding,
+  type GppRealtimePublisher,
+} from "./gpp-realtime";
 
 const RequiredIdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(280);
@@ -97,10 +103,6 @@ const GppMovementRequestSchema = z
     }
   });
 
-export interface GppRealtimePublisher {
-  publish(envelope: GppRealtimeEnvelope): Promise<void>;
-}
-
 export interface GppRoutesDependencies {
   enabled: boolean;
   repository: GppRepository;
@@ -110,6 +112,7 @@ export interface GppRoutesDependencies {
   auditRepository: AuditEventRepository;
   accessDeniedAuditRecorder: AccessDeniedAuditRecorder;
   realtimePublisher?: GppRealtimePublisher | undefined;
+  realtimeRoomBinding?: GppRealtimeRoomBinding | undefined;
   now?: (() => Date) | undefined;
 }
 
@@ -138,7 +141,7 @@ export class GppService {
 
   constructor(private readonly deps: GppRoutesDependencies) {
     this.now = deps.now ?? (() => new Date());
-    this.publisher = deps.realtimePublisher ?? { publish: () => Promise.resolve() };
+    this.publisher = deps.realtimePublisher ?? createNoopGppRealtimePublisher();
   }
 
   readQueue(scope: { storeId: string; storeName: string }): Promise<GppQueueSnapshot> {
@@ -166,12 +169,16 @@ export class GppService {
     }
 
     const envelope = GppRealtimeEnvelopeSchema.parse({
+      eventId: createRequestId("gpp-event", result.audit.idempotencyKey),
       storeId: input.actorContext.membership.storeId,
       kind: input.eventKind,
       occurredAt: mutationResponseTime(result.response),
+      actorLabel:
+        input.actorContext.identity.displayName ?? input.actorContext.membership.subjectId,
       refresh: {
         reason: input.eventKind === "gpp_history_changed" ? "history_append" : "central_commit",
         scope: input.refreshScope,
+        topics: topicsForRealtimeEvent(input.eventKind, input.refreshScope),
       },
     });
 
@@ -186,6 +193,22 @@ export class GppService {
 
 export function registerGppRoutes(api: Hono, deps: GppRoutesDependencies): void {
   const service = new GppService(deps);
+
+  api.get("/gpp/realtime", async (context) => {
+    if (!deps.enabled) return gppDisabled(context);
+    if (deps.realtimeRoomBinding === undefined) {
+      return context.json({ realtimeState: "paused", reason: "binding_unavailable" }, 503);
+    }
+
+    const scope = await authorizeGpp(context, deps, ["gpp.queue.read"]);
+    if (!isAuthorized(scope))
+      return context.json(AuthorizationContract.denial.parse(scope.body), 403);
+
+    const id = deps.realtimeRoomBinding.idFromName(
+      storeRoomName(scope.actorContext.membership.storeId),
+    );
+    return deps.realtimeRoomBinding.get(id).fetch(context.req.raw);
+  });
 
   api.get("/gpp/queue", async (context) => {
     if (!deps.enabled) return gppDisabled(context);
@@ -301,7 +324,7 @@ export function registerGppRoutes(api: Hono, deps: GppRoutesDependencies): void 
 
     return runGppMutation(context, service, {
       actorContext: scope.actorContext,
-      eventKind: "gpp_entries_changed",
+      eventKind: "gpp_divergences_changed",
       refreshScope: "queue",
       requestId: createRequestId("gpp-movement", parsed.data.idempotencyKey),
       mutate: () =>
@@ -775,6 +798,19 @@ function mutationResponseTime(response: GppMutationResponse): string {
   if (response.state === "central_confirmed") return response.confirmedAt;
   if (response.state === "central_failed") return response.failedAt;
   return response.replayedAt;
+}
+
+function topicsForRealtimeEvent(
+  kind: GppRealtimeEnvelope["kind"],
+  scope: GppRealtimeEnvelope["refresh"]["scope"],
+): GppRealtimeEnvelope["refresh"]["topics"] {
+  if (kind === "gpp_divergences_changed") return ["queue", "divergences", "history"];
+  if (kind === "gpp_purchase_requests_changed") return ["purchases", "history"];
+  if (kind === "gpp_history_changed") return ["history"];
+  if (scope === "all") return ["queue", "purchases", "divergences", "history"];
+  if (scope === "purchases") return ["purchases"];
+  if (scope === "history") return ["history"];
+  return ["queue"];
 }
 
 function centralFailedResponse(requestId: string, failedAt: string): GppMutationResponse {

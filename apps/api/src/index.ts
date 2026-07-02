@@ -153,7 +153,12 @@ import {
   createInMemoryEvidenceRepository,
   type EvidenceService,
 } from "./evidence";
-import { registerGppRoutes, type GppRealtimePublisher } from "./gpp";
+import { registerGppRoutes } from "./gpp";
+import {
+  createDurableObjectGppRealtimePublisher,
+  type GppRealtimePublisher,
+  type GppRealtimeRoomBinding,
+} from "./gpp-realtime";
 import { createMembershipService, type MembershipService } from "./memberships";
 import {
   createCentralCaptureShiftCloseRevalidator,
@@ -164,6 +169,8 @@ import {
   type ShiftCloseRevalidator,
   type ShiftCloseService,
 } from "./shift-close";
+
+export { GppRealtimeRoom } from "./gpp-realtime";
 
 export interface SyncCommandService {
   handleBatch(
@@ -200,6 +207,7 @@ export interface WorkerEnvironment {
   AUTH_RECOVERY_TTL_SECONDS?: string;
   EVIDENCE_STORE_MODE?: string;
   EVIDENCE_BUCKET?: R2BucketLike;
+  GPP_REALTIME_ROOM?: GppRealtimeRoomBinding;
 }
 
 type EvidenceStoreMode = "memory" | "r2" | "disabled";
@@ -233,6 +241,7 @@ export function createApiApp(input?: {
   captureRepository?: CaptureRepository;
   gppRepository?: GppRepository;
   gppRealtimePublisher?: GppRealtimePublisher;
+  gppRealtimeRoomBinding?: GppRealtimeRoomBinding;
   shiftCloseRepository?: ShiftCloseRepository;
   shiftCloseRevalidator?: ShiftCloseRevalidator;
   shiftCloseService?: ShiftCloseService;
@@ -398,6 +407,7 @@ export function createApiApp(input?: {
     auditRepository,
     accessDeniedAuditRecorder,
     realtimePublisher: input?.gppRealtimePublisher,
+    realtimeRoomBinding: input?.gppRealtimeRoomBinding,
     now,
   });
 
@@ -3112,6 +3122,10 @@ export function createWorkerApp(
       connectionString: databaseUrl,
       pepper: tokenPepper,
     }),
+    gppRealtimePublisher: createDurableObjectGppRealtimePublisher(env.GPP_REALTIME_ROOM),
+    ...(env.GPP_REALTIME_ROOM === undefined
+      ? {}
+      : { gppRealtimeRoomBinding: env.GPP_REALTIME_ROOM }),
     runtimeConfig: {
       appEnv,
       approvedPilotBuild: approvedPilotBuildFromWorkerEnv(env),

@@ -229,25 +229,58 @@ describe("GPP contracts", () => {
   it("keeps realtime envelopes as refresh hints instead of row truth", () => {
     expect(
       GppRealtimeEnvelopeSchema.parse({
+        eventId: "gpp-event-1",
         storeId: "loja-piloto",
-        kind: "gpp_entries_changed",
+        kind: "gpp_divergences_changed",
         occurredAt: now,
+        actorLabel: "Operador GPP",
         refresh: {
           reason: "central_commit",
           scope: "queue",
+          topics: ["queue", "divergences"],
         },
       }).kind,
-    ).toBe("gpp_entries_changed");
+    ).toBe("gpp_divergences_changed");
     expect(
       GppRealtimeEnvelopeSchema.safeParse({
+        eventId: "gpp-event-2",
         storeId: "loja-piloto",
         kind: "gpp_entries_changed",
         occurredAt: now,
         refresh: {
           reason: "central_commit",
           scope: "queue",
+          topics: ["queue"],
         },
         entries: [avariaEntry],
+      }).success,
+    ).toBe(false);
+    expect(
+      GppRealtimeEnvelopeSchema.safeParse({
+        eventId: "gpp-event-3",
+        storeId: "loja-piloto",
+        kind: "gpp_entries_changed",
+        occurredAt: now,
+        actorLabel: "Baixado na central",
+        refresh: {
+          reason: "central_commit",
+          scope: "queue",
+          topics: ["queue"],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      GppRealtimeEnvelopeSchema.safeParse({
+        eventId: "gpp-event-4",
+        storeId: "loja-piloto",
+        kind: "gpp_purchase_requests_changed",
+        occurredAt: now,
+        refresh: {
+          reason: "central_commit",
+          scope: "purchases",
+          topics: ["purchases"],
+          status: "atendido",
+        },
       }).success,
     ).toBe(false);
   });

@@ -3,7 +3,7 @@ import type { StoreMembership } from "@validade-zero/domain";
 import { describe, expect, it } from "vitest";
 import { createInMemoryAuditRepository } from "./audit";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
-import type { GppRealtimePublisher } from "./gpp";
+import type { GppRealtimePublisher, GppRealtimeRoomBinding } from "./gpp-realtime";
 import { createApiApp } from "./index";
 
 const NOW = "2030-01-10T12:30:00.000Z";
@@ -53,6 +53,42 @@ describe("GPP API", () => {
 
     expect(unavailable.status).toBe(503);
     expect(unavailableBody.message).toMatch(/Central indisponivel/);
+  });
+
+  it("keeps realtime paused without a room binding and forwards authorized store upgrades", async () => {
+    const pausedApp = createGppApp({ enabled: true });
+    const paused = await pausedApp.request("/gpp/realtime?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:gpp-local" },
+    });
+    const pausedBody = (await paused.json()) as { realtimeState?: string };
+
+    expect(paused.status).toBe(503);
+    expect(pausedBody.realtimeState).toBe("paused");
+
+    const calls: string[] = [];
+    const roomBinding: GppRealtimeRoomBinding = {
+      idFromName(name) {
+        calls.push(name);
+        return { toString: () => name } as DurableObjectId;
+      },
+      get() {
+        return {
+          fetch: () => Promise.resolve(Response.json({ upgraded: true })),
+        } as DurableObjectStub;
+      },
+    };
+    const app = createGppApp({ enabled: true, roomBinding });
+    const connected = await app.request("/gpp/realtime?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:gpp-local" },
+    });
+    const crossStore = await app.request("/gpp/realtime?storeId=loja-999", {
+      headers: { authorization: "Bearer fake:gpp-local" },
+    });
+
+    expect(connected.status).toBe(200);
+    await expect(connected.json()).resolves.toEqual({ upgraded: true });
+    expect(crossStore.status).toBe(403);
+    expect(calls).toEqual(["gpp-store:loja-piloto"]);
   });
 
   it("allows collaborator create and own-pending correction but denies baixa and other-owner edits", async () => {
@@ -316,6 +352,7 @@ function createGppApp(
     repository?: ReturnType<typeof createInMemoryGppRepository>;
     auditRepository?: ReturnType<typeof createInMemoryAuditRepository>;
     publisher?: GppRealtimePublisher;
+    roomBinding?: GppRealtimeRoomBinding;
   } = {},
 ) {
   return createApiApp({
@@ -329,6 +366,7 @@ function createGppApp(
     gppRepository: input.repository ?? createInMemoryGppRepository(),
     auditRepository: input.auditRepository ?? createInMemoryAuditRepository(),
     gppRealtimePublisher: input.publisher,
+    gppRealtimeRoomBinding: input.roomBinding,
     runtimeConfig: { controleGppEnabled: input.enabled === true },
     now: () => new Date(NOW),
   });

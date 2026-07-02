@@ -63,9 +63,9 @@ describe("Worker runtime configuration", () => {
   it("parses the Controle GPP feature flag as default-off bounded public config", () => {
     expect(controleGppEnabledFromWorkerEnv({})).toBe(false);
     expect(controleGppEnabledFromWorkerEnv({ CONTROLE_GPP_ENABLED: "true" })).toBe(true);
-    expect(
-      controleGppEnabledFromWorkerEnv({ VALIDADE_ZERO_CONTROLE_GPP_ENABLED: "enabled" }),
-    ).toBe(true);
+    expect(controleGppEnabledFromWorkerEnv({ VALIDADE_ZERO_CONTROLE_GPP_ENABLED: "enabled" })).toBe(
+      true,
+    );
     expect(controleGppEnabledFromWorkerEnv({ CONTROLE_GPP_ENABLED: "maybe" })).toBe(false);
     expect(
       controleGppEnabledFromWorkerEnv({
@@ -81,6 +81,9 @@ describe("Worker runtime configuration", () => {
     expect(wrangler).not.toMatch(
       /^\s*(VALIDADE_ZERO_)?CONTROLE_GPP_ENABLED\s*=\s*"(true|1|yes|on|enabled)"\s*$/im,
     );
+    expect(wrangler).toContain('name = "GPP_REALTIME_ROOM"');
+    expect(wrangler).toContain('class_name = "GppRealtimeRoom"');
+    expect(wrangler).toContain('new_sqlite_classes = ["GppRealtimeRoom"]');
   });
 
   it("runs technical database maintenance from the Worker cron when configured", async () => {

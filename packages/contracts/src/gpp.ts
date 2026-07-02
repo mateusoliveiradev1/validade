@@ -46,7 +46,15 @@ export const GppCentralFeedbackStateSchema = z.enum([
 export const GppRealtimeEventKindSchema = z.enum([
   "gpp_entries_changed",
   "gpp_purchase_requests_changed",
+  "gpp_divergences_changed",
   "gpp_history_changed",
+]);
+
+export const GppRealtimeRefreshTopicSchema = z.enum([
+  "queue",
+  "purchases",
+  "divergences",
+  "history",
 ]);
 
 export const GppDivergenceReasonSchema = z.enum([
@@ -449,18 +457,45 @@ export const GppMutationResponseSchema = z.discriminatedUnion("state", [
 
 export const GppRealtimeEnvelopeSchema = z
   .object({
+    eventId: RequiredIdentifierSchema,
     storeId: RequiredIdentifierSchema,
     kind: GppRealtimeEventKindSchema,
     occurredAt: IsoDateTimeSchema,
+    actorLabel: RequiredTextSchema.optional(),
     refresh: z
       .object({
         reason: z.enum(["central_commit", "history_append", "fallback_poll"]),
         scope: z.enum(["queue", "purchases", "history", "all"]),
+        topics: z.array(GppRealtimeRefreshTopicSchema).min(1).max(4),
         cursor: RequiredIdentifierSchema.optional(),
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const serialized = JSON.stringify(value).toLocaleLowerCase("pt-BR");
+    const forbiddenClaims = [
+      "baixado",
+      "atendido",
+      "resolvido",
+      "central_confirmed",
+      "sucesso",
+      "success",
+    ];
+
+    for (const claim of forbiddenClaims) {
+      if (serialized.includes(claim)) {
+        context.addIssue({
+          code: "custom",
+          path: ["refresh"],
+          message: "GPP realtime events must be refresh hints, not authoritative outcomes.",
+        });
+        return;
+      }
+    }
+  });
+
+export const GppRealtimeEventSchema = GppRealtimeEnvelopeSchema;
 
 export const GppContract = {
   quantity: GppQuantitySchema,
@@ -478,6 +513,7 @@ export const GppContract = {
   purchaseAttendanceRequest: GppPurchaseAttendanceRequestSchema,
   mutationResponse: GppMutationResponseSchema,
   realtimeEnvelope: GppRealtimeEnvelopeSchema,
+  realtimeEvent: GppRealtimeEventSchema,
 } as const;
 
 export type GppQuantityUnit = z.infer<typeof GppQuantityUnitSchema>;
@@ -506,3 +542,4 @@ export type GppPurchaseCreateRequest = z.infer<typeof GppPurchaseCreateRequestSc
 export type GppPurchaseAttendanceRequest = z.infer<typeof GppPurchaseAttendanceRequestSchema>;
 export type GppMutationResponse = z.infer<typeof GppMutationResponseSchema>;
 export type GppRealtimeEnvelope = z.infer<typeof GppRealtimeEnvelopeSchema>;
+export type GppRealtimeEvent = z.infer<typeof GppRealtimeEventSchema>;
