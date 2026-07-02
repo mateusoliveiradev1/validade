@@ -237,6 +237,60 @@ describe("today task repository", () => {
     ]);
   });
 
+  it("allows sold-out resolution for a lot expiring today and keeps sales-area recheck active", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    const product = await repository.createProduct(formalProduct("Melao FICTICIO"));
+
+    await saveFormalLot({
+      repository,
+      product,
+      lotCode: "LOTE-MELAO-VENDIDO-HOJE-FICTICIO",
+      expiresAt: currentDate,
+    });
+
+    const refresh = await repository.refreshTodayTasks({
+      currentDate,
+      currentTimestamp,
+      source: "today_open",
+    });
+    const task = refresh.tasks[0];
+
+    if (task === undefined) {
+      throw new Error("Expected expiring-today sold-out lot to create a task.");
+    }
+
+    expect(task).toMatchObject({
+      productDisplayName: "Melao FICTICIO",
+      riskState: "expired",
+      requiredResolution: "withdraw_or_loss",
+      status: "active",
+    });
+
+    await repository.resolveTodayTask({
+      taskId: task.id,
+      action: "mark_probably_sold_out",
+      actorLabel: "Ana FICTICIA",
+      occurredAt: "2030-01-10T12:10:00.000Z",
+    });
+
+    await expect(repository.loadTodayTask(task.id)).resolves.toMatchObject({
+      status: "resolved",
+      resolutionHistory: [
+        expect.objectContaining({
+          action: "mark_probably_sold_out",
+        }),
+      ],
+    });
+    await expect(repository.listActiveTodayTasks()).resolves.toEqual([
+      expect.objectContaining({
+        activeKey: `recheck:${task.id}`,
+        requiredResolution: "sales_area_recheck",
+        status: "active",
+      }),
+    ]);
+  });
+
   it("preserves resolved task state and resolution history across refreshes", async () => {
     const repository = createRepository();
     await repository.initialize();

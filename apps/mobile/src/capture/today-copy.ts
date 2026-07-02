@@ -126,7 +126,7 @@ export const todayCopy = {
   destinationLoss: "Destino: Retirada/perda",
   confirmationTitle: "Confirme antes de registrar",
   recheckConsequence: "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
-  recheckFeedback: "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+  recheckFeedback: "Acao registrada. Reconferir a area de venda antes de marcar como segura.",
   markdown: {
     primaryRequest: "Solicitar rebaixa",
     earlyRequest: "Solicitar rebaixa antecipada",

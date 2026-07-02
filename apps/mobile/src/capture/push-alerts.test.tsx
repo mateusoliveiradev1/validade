@@ -319,6 +319,41 @@ describe("Hoje push alert UI", () => {
     expect(rendered).toContain("Retirar agora");
   });
 
+  it("schedules the initial alert when a now task appears on opening Hoje", async () => {
+    const task = expiredTask();
+    const channel = createFakePushAlertChannel({
+      permissionState: "active",
+      clock: () => "2030-01-10T09:00:00.000Z",
+    });
+    const { repository, recordAlertAttempt } = createRepository({
+      channel: registration("granted"),
+      tasks: [task],
+      alertStates: [
+        alertState(task, {
+          attemptState: "pending",
+          channelState: "active",
+          lastReminderAt: undefined,
+        }),
+      ],
+    });
+
+    await renderToday({ repository, alertChannel: channel });
+
+    expect(channel.scheduledNotifications).toHaveLength(1);
+    expect(channel.scheduledNotifications[0]?.command.title).toBe("Retirar agora: Ovos FICTICIOS");
+    expect(channel.scheduledNotifications[0]?.command.data).toEqual({
+      taskId: task.id,
+      taskActiveKey: task.activeKey,
+    });
+    expect(recordAlertAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: task.id,
+        taskActiveKey: task.activeKey,
+        result: { status: "ok" },
+      }),
+    );
+  });
+
   it.each([
     ["denied", "Alertas desativados neste aparelho. As tarefas continuam ativas em Hoje."],
     [

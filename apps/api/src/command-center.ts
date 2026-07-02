@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat39-shift-open-empty-apk-169",
+  artifactLabel: "uat40-sold-out-expiry-alert-apk-170",
   appVersion: "0.12.0",
-  build: "169",
+  build: "170",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

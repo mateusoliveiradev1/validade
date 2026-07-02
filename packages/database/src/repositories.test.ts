@@ -879,6 +879,53 @@ describe("database repositories", () => {
     );
   });
 
+  it("accepts sold-out sync commands for expired central tasks", async () => {
+    const task = {
+      ...centralTask("store-1", "task-sold-out-001"),
+      activeKey: "active-sold-out-001",
+      centralLotId: "lot-sold-out-001",
+      riskState: "expired" as const,
+      severity: "critical" as const,
+      requiredResolution: "withdraw_or_loss" as const,
+    };
+    const repository = createInMemoryCaptureRepository({
+      lots: [centralLot("store-1", "lot-sold-out-001")],
+      tasks: [task],
+    });
+    const command = syncCommandForTask({
+      taskId: task.centralTaskId,
+      activeKey: task.activeKey,
+      lotId: task.centralLotId,
+      action: "mark_probably_sold_out",
+      requiredResolution: "withdraw_or_loss",
+      riskState: "expired",
+      idempotencyKey: "sync-central-sold-out-001",
+    });
+
+    const result = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(result).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: task.centralTaskId,
+          action: "mark_probably_sold_out",
+          resolutionState: "resolved",
+        },
+      },
+    });
+    expect(prepared.activeTasks).toHaveLength(0);
+    expect(prepared.resolvedHistory).toEqual([
+      expect.objectContaining({
+        centralTaskId: task.centralTaskId,
+        action: "mark_probably_sold_out",
+        state: "resolved",
+      }),
+    ]);
+  });
+
   it("does not re-open a resolved projected task with the same active key on prepare-turn", async () => {
     const repository = createInMemoryCaptureRepository({
       products: [centralProduct("store-1", "produto-store-1")],

@@ -401,10 +401,75 @@ describe("TaskResolutionPanel", () => {
     );
     expect(onDone).toHaveBeenCalledOnce();
     expect(JSON.stringify(tree.toJSON())).toContain(
-      "Retirada registrada. Reconferir a area de venda antes de marcar como segura.",
+      "Acao registrada. Reconferir a area de venda antes de marcar como segura.",
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Responsavel");
     expect(JSON.stringify(tree.toJSON())).toContain("Equipe do turno");
+  });
+
+  it("allows sold-out resolution for an expiring-today withdrawal task", async () => {
+    const resolveTodayTask = vi.fn((command: TaskResolutionCommand) =>
+      Promise.resolve({ ...expiredTask(), status: "resolved", resolvedAt: command.occurredAt }),
+    );
+    const onDone = vi.fn();
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository({ resolveTodayTask })}
+          task={expiredTask()}
+          actorLabel="Colaborador FICTICIO"
+          onDone={onDone}
+          onBack={() => undefined}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    const soldOut = tree.root.findByProps({
+      accessibilityLabel: "Registrar como provavelmente esgotado",
+    });
+
+    await act(async () => {
+      soldOut.props.onPress();
+      await Promise.resolve();
+    });
+
+    const submit = findEnabledButton(tree, "Confirmar provavelmente esgotado");
+
+    await act(async () => {
+      submit.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Confirme antes de registrar");
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
+    );
+
+    const confirm = findEnabledButton(tree, "Confirmar provavelmente esgotado");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(resolveTodayTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "tarefa-vencida-ficticia",
+        action: "mark_probably_sold_out",
+      }),
+    );
+    expect(onDone).toHaveBeenCalledOnce();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "Acao registrada. Reconferir a area de venda antes de marcar como segura.",
+    );
   });
 
   it("saves withdrawal locally while offline only after physical confirmation", async () => {

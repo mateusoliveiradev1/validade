@@ -819,7 +819,11 @@ function createsSalesAreaRecheck(task: TodayTaskRecord, action: TaskResolutionAc
   return (
     task.currentLocation.kind === "area_de_venda" &&
     (task.riskState === "expired" || task.riskState === "critical") &&
-    (action === "withdraw" || action === "repack" || action === "record_loss")
+    (action === "withdraw" ||
+      action === "repack" ||
+      action === "record_loss" ||
+      action === "mark_not_found" ||
+      action === "mark_probably_sold_out")
   );
 }
 

@@ -420,11 +420,11 @@ export function compatibleActionsFor(
   requiredResolution: RequiredResolution,
 ): readonly TaskResolutionAction[] {
   if (requiredResolution === "withdraw_or_loss") {
-    return ["withdraw", "record_loss"];
+    return ["withdraw", "record_loss", "mark_not_found", "mark_probably_sold_out"];
   }
 
   if (requiredResolution === "repack_or_loss") {
-    return ["repack", "record_loss"];
+    return ["repack", "record_loss", "mark_not_found", "mark_probably_sold_out"];
   }
 
   if (requiredResolution === "check_presence") {

@@ -1370,7 +1370,9 @@ export function shouldCreateSalesAreaRecheck(
   const resolvesByRemoval =
     command.action === "withdraw" ||
     command.action === "repack" ||
-    command.action === "record_loss";
+    command.action === "record_loss" ||
+    command.action === "mark_not_found" ||
+    command.action === "mark_probably_sold_out";
 
   return (
     resolvesByRemoval &&

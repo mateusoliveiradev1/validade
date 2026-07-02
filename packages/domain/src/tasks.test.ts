@@ -128,8 +128,11 @@ describe("Today task derivation", () => {
     expect(isResolutionCompatible("withdraw_or_loss", "confirm_presence")).toBe(false);
     expect(isResolutionCompatible("withdraw_or_loss", "withdraw")).toBe(true);
     expect(isResolutionCompatible("withdraw_or_loss", "record_loss")).toBe(true);
+    expect(isResolutionCompatible("withdraw_or_loss", "mark_probably_sold_out")).toBe(true);
+    expect(isResolutionCompatible("withdraw_or_loss", "mark_not_found")).toBe(true);
     expect(isResolutionCompatible("repack_or_loss", "repack")).toBe(true);
     expect(isResolutionCompatible("repack_or_loss", "record_loss")).toBe(true);
+    expect(isResolutionCompatible("repack_or_loss", "mark_probably_sold_out")).toBe(true);
     expect(isResolutionCompatible("repack_or_loss", "request_markdown")).toBe(false);
     expect(isResolutionCompatible("request_markdown", "request_markdown")).toBe(true);
     expect(isResolutionCompatible("check_presence", "confirm_presence")).toBe(true);
@@ -147,6 +150,8 @@ describe("Today task derivation", () => {
   it.each([
     ["withdraw_or_loss", "withdraw", "withdrawn"],
     ["withdraw_or_loss", "record_loss", "loss_recorded"],
+    ["withdraw_or_loss", "mark_probably_sold_out", "probably_sold_out"],
+    ["repack_or_loss", "mark_not_found", "not_found"],
     ["repack_or_loss", "repack", "repack_completed"],
     ["check_presence", "mark_not_found", "not_found"],
     ["check_presence", "mark_probably_sold_out", "probably_sold_out"],
