@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
-current_phase: 16
-status: completed
-stopped_at: Phase 17 UI-SPEC approved
-last_updated: "2026-07-02T20:31:28.174Z"
+current_phase: 17
+status: planned
+stopped_at: Phase 17 planned
+last_updated: "2026-07-02T20:45:42.819Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 21
+  total_plans: 27
   completed_plans: 21
   percent: 50
 ---
@@ -18,7 +18,7 @@ progress:
 # Project State: Validade Zero
 
 **Initialized:** 2026-06-18
-**Current phase:** 16
+**Current phase:** 17
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
@@ -29,7 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-30)
 
 **Core value:** Garantir que nenhum produto vencido permaneça na área de venda, mantendo cada risco visível e acionável até sua resolução confirmada.
-**Current focus:** Phase 16 — Loja 18 Validation Runbook and Go/No-Go Proof
+**Current focus:** Phase 17 -- Controle GPP Web API com tempo real
 
 ## Roadmap Progress
 
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 | 14 | Complete | Mobile Ajustes and Device Controls - 5 plans implemented; ready for verification |
 | 15 | Complete | Operational Surface Distillation - OPS-01..OPS-04 implemented and verified |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
-| 17 | Pending | Controle GPP Web API com tempo real - future v1.2 Phase 1; build 170 untouched |
+| 17 | Planned | Controle GPP Web API com tempo real - 6 plans ready; build 170 untouched |
 | 18 | Pending | Controle GPP Mobile para avaria e compras internas - future v1.2 Phase 2 |
 | 19 | Pending | Integracao do Controle GPP com Hoje - future v1.2 Phase 3 |
 | 20 | Pending | Tempo real do Hoje - future v1.2 Phase 4 |
@@ -282,16 +282,16 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Current Position
 
-Phase: 16 (Loja 18 Validation Runbook and Go/No-Go Proof) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete - build 170 validation continues; v1.2 GPP roadmap drafted
-Last activity: 2026-07-02 - Added future Controle GPP phases 17-20 without changing the current Loja 18 validation build.
+Phase: 17 (Controle GPP Web API com tempo real) -- READY TO EXECUTE
+Plan: 0 of 6
+Status: Ready to execute
+Last activity: 2026-07-02 -- Phase 17 planning complete
 
 ## Operator Next Steps
 
-- Continue validating `artifacts\validade-zero-staging-0.12.0-170.apk` on the Loja 18 Android device and run the physical validation path.
-- Preserve the Phase 16 proof boundary: API/web/APK build are deployed/generated, while installed-device proof, provider push, camera/fallback, second-device convergence, safe close, and physical Loja 18 UAT remain external validation evidence.
-- Keep testing the current build 170 validity/sync flow separately from GPP planning; start GPP with `$gsd-discuss-phase 17` only when ready to move into v1.2.
+- Continue validating `artifacts\validade-zero-staging-0.12.0-170.apk` separately from GPP planning/execution.
+- Execute Phase 17 only when ready to start additive web/API GPP work behind `controle_gpp_enabled`.
+- Preserve the Phase 17 boundary: no mobile Controle GPP, no Hoje integration, no build 170 behavior change.
 
 ## Deferred Items
 

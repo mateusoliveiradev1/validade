@@ -88,7 +88,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Goal:** Build the additive Controle GPP web/API foundation behind a feature flag, with central-first writes, auditability, idempotency, store-scoped permissions, and realtime store-room notifications that never replace central truth.
 
 **Requirements:** GPP-01, GPP-02, GPP-03, GPP-04, GPP-05, GPP-06, GPP-07
-**Status:** Not started
+**Status:** Planned
 **Depends on:** Phase 16
 
 **Success criteria:**
@@ -98,10 +98,20 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 4. Realtime events publish only after central database success and cause clients to re-read central snapshots, with manual refresh fallback.
 5. `controle_gpp_enabled` keeps the new surface hidden from current Loja 18 validation until explicitly enabled.
 
-**Plans:** 0 plans
+**Plans:** 6 plans
 
 Plans:
-- [ ] TBD (run /gsd-discuss-phase 17, then /gsd-ui-phase 17 or /gsd-plan-phase 17 as required)
+
+- **Wave 1:** `17-01-PLAN.md` - Contracts, GPP role/capabilities, session actions, and default-off feature flag.
+- **Wave 1:** `17-02-PLAN.md` - Additive database schema, migration, repository, saldo, idempotency, and audit-ready mutation results.
+- **Wave 2 (blocked on Wave 1 completion):** `17-03-PLAN.md` - Central-first GPP API service, routes, permissions, audit, and publish-after-commit hooks.
+- **Wave 3 (blocked on Wave 2 completion):** `17-04-PLAN.md` - Store-scoped realtime publisher, Durable Object/WebSocket room, and paused/manual fallback.
+- **Wave 4 (blocked on Wave 3 completion):** `17-05-PLAN.md` - Web Controle GPP route, tabs, sector grouping, grouped baixa, details, divergence, and central feedback.
+- **Wave 5 (blocked on Wave 4 completion):** `17-06-PLAN.md` - Verification, rollout fence, public-safe UAT/docs, and build 170 non-regression evidence.
+
+**Cross-cutting constraints:**
+
+- D-31: API publishes realtime events only after central commit succeeds.
 
 ### Phase 18: Controle GPP Mobile para avaria e compras internas
 
