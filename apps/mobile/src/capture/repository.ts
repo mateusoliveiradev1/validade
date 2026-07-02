@@ -68,6 +68,7 @@ import {
   type ProductSearchRequest,
   type ProductSearchResponse,
   type PushOpenIntent,
+  type ResolvedTaskHistorySnippet,
   type SyncCommandRecord,
   type SyncConflictRecord,
   type SyncQueueSummary,
@@ -667,6 +668,32 @@ export function normalizeTerminalObservationLocation(
     ...parsed,
     location: { kind: "retirada_perda" },
   };
+}
+
+export function centralReadObservationStatus(
+  lot: Pick<CaptureLotInput, "mode"> & { currentLocation: OperationalLocation },
+  resolvedHistory?: Pick<ResolvedTaskHistorySnippet, "action">,
+): PhysicalObservationInput["status"] {
+  if (resolvedHistory?.action === "record_loss") {
+    return "loss";
+  }
+
+  if (resolvedHistory?.action === "withdraw") {
+    return "withdrawn";
+  }
+
+  if (lot.currentLocation.kind === "retirada_perda") {
+    return lot.mode === "processed_repack_loss" ? "loss" : "withdrawn";
+  }
+
+  return "present";
+}
+
+export function centralReadObservationLocation(
+  status: PhysicalObservationInput["status"],
+  location: OperationalLocation,
+): OperationalLocation {
+  return isTerminalObservationStatus(status) ? { kind: "retirada_perda" } : location;
 }
 
 export function physicalObservationInputFromRecord(

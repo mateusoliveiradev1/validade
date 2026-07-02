@@ -104,6 +104,8 @@ import {
   pendingCentralLotWriteBlocker,
   shouldFallbackToLocalCentralWrite,
   centralLotIdForObservationWrite,
+  centralReadObservationLocation,
+  centralReadObservationStatus,
   categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
@@ -4252,7 +4254,13 @@ async function upsertCentralLot(
   resolvedHistory?: ResolvedTaskHistorySnippet,
 ): Promise<void> {
   const observationId = centralObservationIdFor(lot.centralLotId);
-  const occurredAt = lot.updatedAt;
+  const observationStatus = centralReadObservationStatus(lot, resolvedHistory);
+  const observationLocation = centralReadObservationLocation(
+    observationStatus,
+    lot.currentLocation,
+  );
+  const observationActorLabel = resolvedHistory?.actorLabel ?? "Leitura central";
+  const occurredAt = resolvedHistory?.resolvedAt ?? lot.updatedAt;
   const centralSyncState = resolvedHistory === undefined ? lot.state : "resolved";
   const acknowledgementMessage =
     resolvedHistory !== undefined
@@ -4270,7 +4278,7 @@ async function upsertCentralLot(
       current_location_custom_name, current_quantity_state, current_approximate_quantity,
       current_is_correction, current_correction_reason, central_lot_id, central_sync_state,
       central_source, task_projection_json, central_ack_message
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'present', 'Leitura central',
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, NULL, ?)
     ON CONFLICT(id) DO UPDATE SET
       product_id = excluded.product_id,
@@ -4306,9 +4314,11 @@ async function upsertCentralLot(
     lot.currentLocation.kind,
     lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
     observationId,
+    observationStatus,
+    observationActorLabel,
     occurredAt,
-    lot.currentLocation.kind,
-    lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
+    observationLocation.kind,
+    observationLocation.kind === "other" ? observationLocation.customName : null,
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
     lot.centralLotId,
@@ -4321,8 +4331,10 @@ async function upsertCentralLot(
     `INSERT INTO capture_observations (
       id, lot_id, status, actor_label, occurred_at, location_kind, location_custom_name,
       quantity_state, approximate_quantity, is_correction, correction_reason
-    ) VALUES (?, ?, 'present', 'Leitura central', ?, ?, ?, ?, ?, 0, NULL)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
     ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      actor_label = excluded.actor_label,
       occurred_at = excluded.occurred_at,
       location_kind = excluded.location_kind,
       location_custom_name = excluded.location_custom_name,
@@ -4330,9 +4342,11 @@ async function upsertCentralLot(
       approximate_quantity = excluded.approximate_quantity`,
     observationId,
     lot.centralLotId,
+    observationStatus,
+    observationActorLabel,
     occurredAt,
-    lot.currentLocation.kind,
-    lot.currentLocation.kind === "other" ? lot.currentLocation.customName : null,
+    observationLocation.kind,
+    observationLocation.kind === "other" ? observationLocation.customName : null,
     lot.approximateQuantity === undefined ? "not_estimable" : "estimated",
     lot.approximateQuantity ?? null,
   );

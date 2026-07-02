@@ -70,6 +70,7 @@ interface ExpoConstantsConfigPort {
 }
 
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
+const CENTRAL_REQUEST_TIMEOUT_MS = 15000;
 
 type GateScreen =
   | "checking"
@@ -120,10 +121,18 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
   const baseUrl = input?.baseUrl ?? configuredApiBaseUrl();
 
   async function request(path: string, init?: RequestInit): Promise<unknown> {
+    const abortController =
+      typeof AbortController === "undefined" ? undefined : new AbortController();
+    const timeout =
+      abortController === undefined
+        ? undefined
+        : setTimeout(() => abortController.abort(), CENTRAL_REQUEST_TIMEOUT_MS);
+
     let response: Response;
     try {
       response = await fetch(`${baseUrl}${path}`, {
         ...init,
+        ...(abortController === undefined ? {} : { signal: abortController.signal }),
         headers: {
           Accept: "application/json",
           ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -132,10 +141,22 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
         },
       });
     } catch {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
       throw new MobileAuthError("network", "Nao foi possivel falar com o acesso seguro agora.");
     }
 
     const body: unknown = await response.json().catch(() => undefined);
+    if (abortController?.signal.aborted === true) {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
+      throw new MobileAuthError("network", "Nao foi possivel falar com o acesso seguro agora.");
+    }
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw toMobileAuthError(body, { path, status: response.status });
     return body;
   }

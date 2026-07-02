@@ -55,6 +55,7 @@ afterEach(() => {
   };
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function activeSession(overrides: Partial<SessionContextResponse> = {}): SessionContextResponse {
@@ -224,6 +225,27 @@ describe("mobile auth flow", () => {
     await expect(
       createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession(),
     ).rejects.toMatchObject({ code: "session_expired" });
+  });
+
+  it("times out central requests instead of leaving save flows stuck", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = createMobileAuthClient({ baseUrl: "https://api.example.test" }).readSession();
+    const assertion = expect(request).rejects.toMatchObject({ code: "network" });
+    await vi.advanceTimersByTimeAsync(15000);
+
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.test/auth/session",
+      expect.objectContaining({ signal: expect.any(Object) }),
+    );
   });
 
   it("uses the authenticated central product endpoints for first-store setup", async () => {

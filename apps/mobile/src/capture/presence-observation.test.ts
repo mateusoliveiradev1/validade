@@ -7,6 +7,7 @@ import {
   centralStateLabel,
   centralStateShortLabel,
   effectiveObservationLocation,
+  lotActionStatus,
   lotPrimaryDate,
 } from "./RecentLotList";
 
@@ -183,6 +184,26 @@ describe("recent lot presentation", () => {
     expect(attention(lot)).toBe("Finalizado: perda registrada");
     expect(centralStateShortLabel(lot)).toBe("Perda");
     expect(effectiveObservationLocation(lot)).toEqual({ kind: "retirada_perda" });
+  });
+
+  it("does not display central withdrawal/loss locations as present", () => {
+    const lot = recentLotSnapshot({
+      currentObservation: {
+        ...recentLotSnapshot().currentObservation,
+        status: "present",
+        location: { kind: "retirada_perda" },
+      },
+    });
+
+    expect(lotActionStatus(lot)).toBe("loss");
+    expect(lotPrimaryDate(lot)).toEqual({
+      label: "Status",
+      value: "Perda",
+      badge: "finalizado",
+      tone: "neutral",
+    });
+    expect(attention(lot)).toBe("Finalizado: perda registrada");
+    expect(centralStateShortLabel(lot)).toBe("Perda");
   });
 
   it("lets resolved central state win over the generic central badge", () => {

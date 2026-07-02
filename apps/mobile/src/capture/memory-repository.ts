@@ -106,6 +106,8 @@ import {
   parseAlertDeviceRegistration,
   categoryCatalogItemToLocalCategory,
   centralLotIdForObservationWrite,
+  centralReadObservationLocation,
+  centralReadObservationStatus,
   parseCentralLotCreateRequest,
   parseCentralObservationAppendRequest,
   parseCentralLotWriteResponse,
@@ -2565,13 +2567,14 @@ export function createMemoryCaptureRepository(
     lot: CentralLotSnippet,
     resolvedHistory?: ResolvedTaskHistorySnippet,
   ): CaptureLotSnapshot {
+    const observationStatus = centralReadObservationStatus(lot, resolvedHistory);
     const observation: CaptureObservationRecord = {
       id: centralObservationIdFor(lot.centralLotId),
       lotId: lot.centralLotId,
-      status: "present",
-      actorLabel: "Leitura central",
-      occurredAt: lot.updatedAt,
-      location: lot.currentLocation,
+      status: observationStatus,
+      actorLabel: resolvedHistory?.actorLabel ?? "Leitura central",
+      occurredAt: resolvedHistory?.resolvedAt ?? lot.updatedAt,
+      location: centralReadObservationLocation(observationStatus, lot.currentLocation),
       isCorrection: false,
       ...(lot.approximateQuantity === undefined
         ? { quantityState: "not_estimable" as const }

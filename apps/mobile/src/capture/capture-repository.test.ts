@@ -620,6 +620,46 @@ describe("memory capture repository", () => {
     );
   });
 
+  it("hydrates central lots already in withdrawal/loss as terminal local facts", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "identificador-local-nao-usado",
+    });
+    const response = preparedRecentLotResponse({});
+    const [centralLot] = response.lots;
+    if (centralLot === undefined) throw new Error("Expected prepared central lot fixture.");
+    const { riskState, ...terminalCentralLot } = centralLot;
+    expect(riskState).toBe("critical");
+
+    await repository.hydratePrepareTurn?.({
+      ...response,
+      lots: [
+        {
+          ...terminalCentralLot,
+          mode: "processed_repack_loss",
+          currentLocation: { kind: "retirada_perda" },
+          state: "resolved",
+        },
+      ],
+    });
+
+    await expect(repository.loadLotDetail("lote-central-recentes-001")).resolves.toMatchObject({
+      centralSyncState: "resolved",
+      currentObservation: {
+        status: "loss",
+        location: { kind: "retirada_perda" },
+      },
+    });
+    await expect(
+      repository.listRecentLots({ location: { kind: "retirada_perda" } }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "lote-central-recentes-001",
+        currentObservation: expect.objectContaining({ status: "loss" }),
+      }),
+    ]);
+  });
+
   it("reuses a hydrated central product by barcode and links a newly scanned code", async () => {
     const repository = createMemoryCaptureRepository({
       clock: () => "2030-01-10T09:00:00.000Z",

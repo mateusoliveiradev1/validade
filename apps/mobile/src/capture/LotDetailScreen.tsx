@@ -4,7 +4,7 @@ import type { AuditTimelineItem } from "@validade-zero/contracts";
 import type { MarkdownRequestReason } from "@validade-zero/domain";
 import { AuditTimeline } from "./AuditTimeline";
 import type { CaptureLotDetail, MarkdownEntryState } from "./repository";
-import { actionLabel, centralStateLabel, formatQuantity } from "./RecentLotList";
+import { actionLabel, centralStateLabel, formatQuantity, lotActionStatus } from "./RecentLotList";
 import { formatLocation, formatObservationTimestamp } from "./capture-copy";
 import {
   Field,
@@ -109,7 +109,7 @@ export function LotDetailScreen({
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader title={detail.productDisplayName} body={`Lote ${detail.identity.value}`} />
       <Text style={styles.metadata}>Local atual: {formatLocation(observation.location)}</Text>
-      <Text style={styles.metadata}>Ultima acao: {actionLabel(observation.status)}</Text>
+      <Text style={styles.metadata}>Ultima acao: {actionLabel(lotActionStatus(detail))}</Text>
       <Text style={styles.metadata}>
         Registrado por {observation.actorLabel} em{" "}
         {formatObservationTimestamp(observation.occurredAt)}

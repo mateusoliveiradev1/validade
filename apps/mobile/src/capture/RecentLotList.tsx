@@ -77,11 +77,12 @@ function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () =>
   const primaryDate = lotPrimaryDate(lot);
   const attentionLabel = attention(lot);
   const location = effectiveObservationLocation(lot);
+  const actionStatus = lotActionStatus(lot);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${lot.productDisplayName}, ${primaryDate.label} ${primaryDate.value}, ${actionLabel(lot.currentObservation.status)} em ${formatLocation(location)}`}
+      accessibilityLabel={`${lot.productDisplayName}, ${primaryDate.label} ${primaryDate.value}, ${actionLabel(actionStatus)} em ${formatLocation(location)}`}
       onPress={onOpen}
       style={({ pressed }) => [styles.lotCard, pressed ? styles.lotCardPressed : undefined]}
     >
@@ -113,7 +114,7 @@ function RecentLotCard({ lot, onOpen }: { lot: CaptureLotSnapshot; onOpen: () =>
 
       <View style={styles.factGroup}>
         <Text style={styles.factPrimary}>
-          {actionLabel(lot.currentObservation.status)} em {formatLocation(location)}
+          {actionLabel(actionStatus)} em {formatLocation(location)}
         </Text>
         <Text style={styles.factSecondary}>
           {formatQuantity(lot)} -{" "}
@@ -145,6 +146,10 @@ export function formatQuantity(lot: CaptureLotSnapshot): string {
   return lot.currentObservation.quantityState === "not_estimable"
     ? "Quantidade não estimada"
     : `Qtd. aprox. ${formatQuantityNumber(lot.currentObservation.approximateQuantity)}`;
+}
+
+export function lotActionStatus(lot: CaptureLotSnapshot): string {
+  return terminalLotStatus(lot) ?? lot.currentObservation.status;
 }
 
 export function attention(lot: CaptureLotSnapshot): string | undefined {
@@ -323,6 +328,10 @@ function formatQuantityNumber(value: number | undefined): string {
 export function terminalLotStatus(lot: CaptureLotSnapshot): "loss" | "withdrawn" | undefined {
   if (lot.currentObservation.status === "loss" || lot.currentObservation.status === "withdrawn") {
     return lot.currentObservation.status;
+  }
+
+  if (lot.currentObservation.location.kind === "retirada_perda") {
+    return lot.mode === "processed_repack_loss" ? "loss" : "withdrawn";
   }
 
   return undefined;

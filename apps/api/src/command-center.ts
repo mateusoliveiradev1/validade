@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat36-observation-cloud-write-apk-166",
+  artifactLabel: "uat37-terminal-sync-timeout-apk-167",
   appVersion: "0.12.0",
-  build: "166",
+  build: "167",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {
