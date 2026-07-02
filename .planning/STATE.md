@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 16
 status: completed
-stopped_at: Phase 17 context gathered
-last_updated: "2026-07-02T20:26:21.232Z"
+stopped_at: Phase 17 UI-SPEC approved
+last_updated: "2026-07-02T20:31:28.174Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 8
@@ -200,9 +200,9 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Session
 
-**Last session:** 2026-07-02T20:26:21.228Z
-**Stopped at:** Phase 17 context gathered
-**Resume file:** .planning/phases/17-controle-gpp-web-api-com-tempo-real/17-CONTEXT.md
+**Last session:** 2026-07-02T20:31:28.169Z
+**Stopped at:** Phase 17 UI-SPEC approved
+**Resume file:** .planning/phases/17-controle-gpp-web-api-com-tempo-real/17-UI-SPEC.md
 
 ## Decisions
 
