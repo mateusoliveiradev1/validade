@@ -13,7 +13,12 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const membershipRoleEnum = pgEnum("membership_role", ["collaborator", "lead", "admin"]);
+export const membershipRoleEnum = pgEnum("membership_role", [
+  "collaborator",
+  "lead",
+  "admin",
+  "gpp",
+]);
 
 export const membershipStatusEnum = pgEnum("membership_status", ["active", "inactive"]);
 
@@ -33,6 +38,7 @@ export const auditEventTypeEnum = pgEnum("audit_event_type", [
   "evidence.changed",
   "shift.changed",
   "membership.changed",
+  "gpp.changed",
 ]);
 
 export const auditEventStatusEnum = pgEnum("audit_event_status", [
@@ -95,6 +101,42 @@ export const centralTaskStatusEnum = pgEnum("central_task_status", [
   "active",
   "resolved",
   "blocked",
+]);
+
+export const gppQuantityUnitEnum = pgEnum("gpp_quantity_unit", [
+  "un",
+  "kg",
+  "g",
+  "l",
+  "ml",
+  "caixa",
+  "pacote",
+]);
+
+export const gppAvariaFinalityEnum = pgEnum("gpp_avaria_finality", [
+  "baixa_gpp",
+  "reaproveitamento",
+  "producao_interna",
+  "transferencia",
+]);
+
+export const gppAvariaStatusEnum = pgEnum("gpp_avaria_status", [
+  "pendente",
+  "divergencia",
+  "corrigido",
+  "revisado_gpp",
+  "baixado",
+  "cancelado",
+  "estornado",
+  "correcao_administrativa",
+]);
+
+export const gppPurchaseStatusEnum = pgEnum("gpp_purchase_status", [
+  "solicitado",
+  "atendido",
+  "atendido_parcial",
+  "sem_produto",
+  "cancelado",
 ]);
 
 export const stores = pgTable(
@@ -512,6 +554,121 @@ export const shiftTurnStarts = pgTable(
   ],
 );
 
+export const gppAvariaEntries = pgTable(
+  "gpp_avaria_entries",
+  {
+    avariaId: text("avaria_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    storeId: text("store_id").notNull(),
+    sector: text("sector").notNull(),
+    productCode: text("product_code").notNull(),
+    productName: text("product_name").notNull(),
+    quantityValue: doublePrecision("quantity_value").notNull(),
+    quantityUnit: gppQuantityUnitEnum("quantity_unit").notNull(),
+    finality: gppAvariaFinalityEnum("finality").notNull(),
+    destination: text("destination").notNull(),
+    status: gppAvariaStatusEnum("status").notNull().default("pendente"),
+    creatorId: text("creator_id").notNull(),
+    creatorDisplayName: text("creator_display_name").notNull(),
+    creatorRoleSnapshot: membershipRoleEnum("creator_role_snapshot").notNull(),
+    divergenceReason: text("divergence_reason"),
+    correctionJustification: text("correction_justification"),
+    baixaAt: timestamp("baixa_at", { withTimezone: true, mode: "date" }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("gpp_avaria_entries_idempotency_key_uidx").on(table.idempotencyKey),
+    index("gpp_avaria_entries_store_status_idx").on(table.storeId, table.status),
+    index("gpp_avaria_entries_store_sector_idx").on(table.storeId, table.sector),
+    index("gpp_avaria_entries_store_product_code_idx").on(table.storeId, table.productCode),
+    index("gpp_avaria_entries_store_updated_idx").on(table.storeId, table.updatedAt),
+  ],
+);
+
+export const gppAvariaMovements = pgTable(
+  "gpp_avaria_movements",
+  {
+    movementId: text("movement_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    avariaId: text("avaria_id").notNull(),
+    storeId: text("store_id").notNull(),
+    kind: gppAvariaFinalityEnum("kind").notNull(),
+    quantityValue: doublePrecision("quantity_value").notNull(),
+    quantityUnit: gppQuantityUnitEnum("quantity_unit").notNull(),
+    destination: text("destination"),
+    actorId: text("actor_id").notNull(),
+    actorDisplayName: text("actor_display_name").notNull(),
+    actorRoleSnapshot: membershipRoleEnum("actor_role_snapshot").notNull(),
+    justification: text("justification"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("gpp_avaria_movements_idempotency_key_uidx").on(table.idempotencyKey),
+    index("gpp_avaria_movements_store_avaria_idx").on(table.storeId, table.avariaId),
+    index("gpp_avaria_movements_store_kind_idx").on(table.storeId, table.kind),
+    index("gpp_avaria_movements_store_occurred_idx").on(table.storeId, table.occurredAt),
+  ],
+);
+
+export const gppPurchaseRequests = pgTable(
+  "gpp_purchase_requests",
+  {
+    purchaseRequestId: text("purchase_request_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    storeId: text("store_id").notNull(),
+    sector: text("sector").notNull(),
+    productCode: text("product_code"),
+    productName: text("product_name").notNull(),
+    requestedQuantityValue: doublePrecision("requested_quantity_value").notNull(),
+    requestedQuantityUnit: gppQuantityUnitEnum("requested_quantity_unit").notNull(),
+    attendedProductCode: text("attended_product_code"),
+    attendedProductName: text("attended_product_name"),
+    attendedQuantityValue: doublePrecision("attended_quantity_value"),
+    attendedQuantityUnit: gppQuantityUnitEnum("attended_quantity_unit"),
+    finality: text("finality").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    requesterDisplayName: text("requester_display_name").notNull(),
+    requesterRoleSnapshot: membershipRoleEnum("requester_role_snapshot").notNull(),
+    status: gppPurchaseStatusEnum("status").notNull().default("solicitado"),
+    exceptionReason: text("exception_reason"),
+    version: integer("version").notNull().default(1),
+    requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("gpp_purchase_requests_idempotency_key_uidx").on(table.idempotencyKey),
+    index("gpp_purchase_requests_store_status_idx").on(table.storeId, table.status),
+    index("gpp_purchase_requests_store_sector_idx").on(table.storeId, table.sector),
+    index("gpp_purchase_requests_store_product_code_idx").on(table.storeId, table.productCode),
+    index("gpp_purchase_requests_store_requested_idx").on(table.storeId, table.requestedAt),
+  ],
+);
+
+export const gppMutationReceipts = pgTable(
+  "gpp_mutation_receipts",
+  {
+    idempotencyKey: text("idempotency_key").primaryKey(),
+    storeId: text("store_id").notNull(),
+    operation: text("operation").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("gpp_mutation_receipts_store_operation_idx").on(table.storeId, table.operation),
+    index("gpp_mutation_receipts_store_target_idx").on(
+      table.storeId,
+      table.targetType,
+      table.targetId,
+    ),
+    index("gpp_mutation_receipts_store_created_idx").on(table.storeId, table.createdAt),
+  ],
+);
+
 export const centralProducts = pgTable(
   "central_products",
   {
@@ -812,3 +969,11 @@ export type CentralSyncConflictRecord = typeof centralSyncConflicts.$inferSelect
 export type NewCentralSyncConflictRecord = typeof centralSyncConflicts.$inferInsert;
 export type CentralDeviceSnapshotRecord = typeof centralDeviceSnapshots.$inferSelect;
 export type NewCentralDeviceSnapshotRecord = typeof centralDeviceSnapshots.$inferInsert;
+export type GppAvariaEntryRecord = typeof gppAvariaEntries.$inferSelect;
+export type NewGppAvariaEntryRecord = typeof gppAvariaEntries.$inferInsert;
+export type GppAvariaMovementRecord = typeof gppAvariaMovements.$inferSelect;
+export type NewGppAvariaMovementRecord = typeof gppAvariaMovements.$inferInsert;
+export type GppPurchaseRequestRecord = typeof gppPurchaseRequests.$inferSelect;
+export type NewGppPurchaseRequestRecord = typeof gppPurchaseRequests.$inferInsert;
+export type GppMutationReceiptRecord = typeof gppMutationReceipts.$inferSelect;
+export type NewGppMutationReceiptRecord = typeof gppMutationReceipts.$inferInsert;

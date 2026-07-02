@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  auditEventTypeEnum,
   auditEventStatusEnum,
   auditEvents,
   authAccountStatusEnum,
@@ -16,6 +17,14 @@ import {
   centralProductIdentifiers,
   evidenceAssets,
   evidenceAssetStateEnum,
+  gppAvariaEntries,
+  gppAvariaFinalityEnum,
+  gppAvariaMovements,
+  gppAvariaStatusEnum,
+  gppMutationReceipts,
+  gppPurchaseRequests,
+  gppPurchaseStatusEnum,
+  gppQuantityUnitEnum,
   membershipRoleEnum,
   membershipStatusEnum,
   membershipMutations,
@@ -78,11 +87,16 @@ const firstTurnOnboardingMigrationSql = readFileSync(
   join(process.cwd(), "packages/database/drizzle/0016_phase_16_first_turn_onboarding.sql"),
   "utf8",
 );
+const gppControlMigrationSql = readFileSync(
+  join(process.cwd(), "packages/database/drizzle/0018_phase_17_gpp_control.sql"),
+  "utf8",
+);
 
 describe("phase 08 database schema", () => {
   it("defines membership roles and active status vocabulary", () => {
-    expect(membershipRoleEnum.enumValues).toEqual(["collaborator", "lead", "admin"]);
+    expect(membershipRoleEnum.enumValues).toEqual(["collaborator", "lead", "admin", "gpp"]);
     expect(membershipStatusEnum.enumValues).toEqual(["active", "inactive"]);
+    expect(auditEventTypeEnum.enumValues).toContain("gpp.changed");
     expect(auditEventStatusEnum.enumValues).toEqual([
       "received",
       "pending_ack",
@@ -322,5 +336,73 @@ describe("phase 08 database schema", () => {
     expect(storeCatalogMigrationSql).not.toMatch(
       /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
     );
+  });
+
+  it("models additive GPP persistence without touching mobile capture tables", () => {
+    expect(gppQuantityUnitEnum.enumValues).toEqual([
+      "un",
+      "kg",
+      "g",
+      "l",
+      "ml",
+      "caixa",
+      "pacote",
+    ]);
+    expect(gppAvariaFinalityEnum.enumValues).toEqual([
+      "baixa_gpp",
+      "reaproveitamento",
+      "producao_interna",
+      "transferencia",
+    ]);
+    expect(gppAvariaStatusEnum.enumValues).toEqual([
+      "pendente",
+      "divergencia",
+      "corrigido",
+      "revisado_gpp",
+      "baixado",
+      "cancelado",
+      "estornado",
+      "correcao_administrativa",
+    ]);
+    expect(gppPurchaseStatusEnum.enumValues).toEqual([
+      "solicitado",
+      "atendido",
+      "atendido_parcial",
+      "sem_produto",
+      "cancelado",
+    ]);
+    expect(gppAvariaEntries.storeId.name).toBe("store_id");
+    expect(gppAvariaEntries.productCode.name).toBe("product_code");
+    expect(gppAvariaEntries.quantityValue.name).toBe("quantity_value");
+    expect(gppAvariaEntries.creatorRoleSnapshot.name).toBe("creator_role_snapshot");
+    expect(gppAvariaEntries.version.name).toBe("version");
+    expect(gppAvariaMovements.avariaId.name).toBe("avaria_id");
+    expect(gppAvariaMovements.kind.name).toBe("kind");
+    expect(gppPurchaseRequests.status.name).toBe("status");
+    expect(gppPurchaseRequests.productCode.name).toBe("product_code");
+    expect(gppMutationReceipts.idempotencyKey.name).toBe("idempotency_key");
+  });
+
+  it("migration creates store, status, product-code, and idempotency indexes for GPP", () => {
+    expect(gppControlMigrationSql).toContain("ALTER TYPE membership_role ADD VALUE IF NOT EXISTS 'gpp'");
+    expect(gppControlMigrationSql).toContain(
+      "ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'gpp.changed'",
+    );
+    expect(gppControlMigrationSql).toContain("CREATE TABLE IF NOT EXISTS gpp_avaria_entries");
+    expect(gppControlMigrationSql).toContain("CREATE TABLE IF NOT EXISTS gpp_avaria_movements");
+    expect(gppControlMigrationSql).toContain("CREATE TABLE IF NOT EXISTS gpp_purchase_requests");
+    expect(gppControlMigrationSql).toContain("CREATE TABLE IF NOT EXISTS gpp_mutation_receipts");
+    expect(gppControlMigrationSql).toContain("gpp_avaria_entries_idempotency_key_uidx");
+    expect(gppControlMigrationSql).toContain("gpp_avaria_entries_store_status_idx");
+    expect(gppControlMigrationSql).toContain("gpp_avaria_entries_store_product_code_idx");
+    expect(gppControlMigrationSql).toContain("gpp_avaria_movements_store_avaria_idx");
+    expect(gppControlMigrationSql).toContain("gpp_purchase_requests_store_status_idx");
+    expect(gppControlMigrationSql).toContain("gpp_purchase_requests_store_product_code_idx");
+    expect(gppControlMigrationSql).toContain("gpp_mutation_receipts_store_operation_idx");
+    expect(gppControlMigrationSql).not.toMatch(
+      /\b(raw_token|raw_password|signed_url|device_uri|base64|bytea)\b/i,
+    );
+    expect(gppControlMigrationSql).not.toContain("ALTER TABLE central_lots");
+    expect(gppControlMigrationSql).not.toContain("ALTER TABLE central_sync_commands");
   });
 });
