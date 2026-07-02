@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat34-init-central-refresh-apk-164",
+  artifactLabel: "uat35-cloud-first-writes-apk-165",
   appVersion: "0.12.0",
-  build: "164",
+  build: "165",
 } as const;
 
 interface ExpoApplicationPort {
@@ -97,7 +97,7 @@ export function readMobileBuildInfo(
     approvedBuild,
     buildRef: publicLabel(
       extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "init-central-refresh-164",
+      "cloud-first-writes-165",
       24,
     ),
     buildCompatibility: resolvePilotBuildCompatibility({

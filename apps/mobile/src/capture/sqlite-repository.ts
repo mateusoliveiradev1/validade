@@ -102,6 +102,7 @@ import {
   physicalObservationInputFromRecord,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
+  shouldFallbackToLocalCentralWrite,
   categoryCatalogItemToLocalCategory,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
@@ -1213,7 +1214,12 @@ export function createSQLiteCaptureRepository(
       });
 
       return centralLotSnapshotToLocal(response.lot, response.acknowledgement.message);
-    } catch {
+    } catch (error) {
+      if (!shouldFallbackToLocalCentralWrite(error)) {
+        const blocker = pendingCentralLotWriteBlocker(error);
+        throw new PendingCentralLotSyncError(blocker, blocker, { cause: error });
+      }
+
       return null;
     }
   }
@@ -1554,7 +1560,12 @@ export function createSQLiteCaptureRepository(
       });
 
       return synced;
-    } catch {
+    } catch (error) {
+      if (!shouldFallbackToLocalCentralWrite(error)) {
+        const blocker = pendingCentralLotWriteBlocker(error);
+        throw new PendingCentralLotSyncError(blocker, blocker, { cause: error });
+      }
+
       return null;
     }
   }

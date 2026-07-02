@@ -3453,9 +3453,9 @@ function buildPilotDeviceReadiness(
   });
 }
 
-const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat34-init-central-refresh-apk-164";
+const DEFAULT_APPROVED_ARTIFACT_LABEL = "uat35-cloud-first-writes-apk-165";
 const DEFAULT_APPROVED_APP_VERSION = "0.12.0";
-const DEFAULT_APPROVED_BUILD = "164";
+const DEFAULT_APPROVED_BUILD = "165";
 
 function approvedPilotBuildFor(input: ListDeviceReadinessInput): {
   artifactLabel: string;

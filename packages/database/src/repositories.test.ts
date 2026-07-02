@@ -252,7 +252,7 @@ describe("database repositories", () => {
       deviceLabel: "Moto G Lideranca",
       activeUserLabel: "Lider FICTICIO",
       appVersion: "0.12.0",
-      appBuild: "164",
+      appBuild: "165",
       environment: "staging",
       apiTarget: "https://api.ficticia.invalid",
       preparedAt: new Date("2030-01-10T12:00:00.000Z"),
@@ -314,9 +314,9 @@ describe("database repositories", () => {
     expect(readiness[1]).toMatchObject({
       deviceLabel: "Moto G Lideranca",
       buildCompatibility: "atual",
-      approvedArtifactLabel: "uat34-init-central-refresh-apk-164",
+      approvedArtifactLabel: "uat35-cloud-first-writes-apk-165",
       approvedAppVersion: "0.12.0",
-      approvedBuild: "164",
+      approvedBuild: "165",
     });
     expect(JSON.stringify(readiness)).not.toMatch(
       /device-store-1-ready|device-store-2|pushToken|expoPushToken|buildUrl/i,

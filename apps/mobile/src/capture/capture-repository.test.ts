@@ -5,6 +5,7 @@ import {
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
   productDraftToLocalRecord,
+  shouldFallbackToLocalCentralWrite,
 } from "./repository";
 
 const categoryRuleProfile = {
@@ -173,6 +174,8 @@ describe("memory capture repository", () => {
     expect(pendingCentralLotWriteBlocker(new Error("central denied"))).toBe(
       "central_lot_write_failed",
     );
+    expect(shouldFallbackToLocalCentralWrite(new Error("network unavailable"))).toBe(true);
+    expect(shouldFallbackToLocalCentralWrite(new Error("central denied"))).toBe(false);
   });
 
   it("ranks frequent products by registered lots with a stable name tie-breaker", async () => {
@@ -578,6 +581,40 @@ describe("memory capture repository", () => {
       centralSyncState: "resolved",
     });
     expect(recentLots[0]?.taskProjection).toBeUndefined();
+  });
+
+  it("does not keep ready central-cache lots local when central write fails online", async () => {
+    const createCentralLot = vi.fn(() => Promise.reject(new Error("central denied")));
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "lote-local-indevido",
+      createCentralLot,
+    });
+
+    await repository.hydratePrepareTurn?.(preparedRecentLotResponse({}));
+
+    await expect(
+      repository.saveLot({
+        lot: {
+          productId: "produto-central-recentes-001",
+          identity: { identitySource: "printed", value: "LOTE-ONLINE-SEM-ACK-001" },
+          mode: "formal_validity",
+          expiresAt: "2030-01-12",
+          receivedAt: "2030-01-10",
+          approximateQuantity: 3,
+          initialLocation: { kind: "area_de_venda" },
+        },
+        actorLabel: "Colaboradora Central FICTICIA",
+      }),
+    ).rejects.toMatchObject({
+      name: "PendingCentralLotSyncError",
+      blocker: "central_lot_write_failed",
+    } satisfies Partial<PendingCentralLotSyncError>);
+
+    expect(createCentralLot).toHaveBeenCalledOnce();
+    await expect(repository.listRecentLots({ query: "LOTE-ONLINE-SEM-ACK-001" })).resolves.toEqual(
+      [],
+    );
   });
 
   it("reuses a hydrated central product by barcode and links a newly scanned code", async () => {
@@ -1322,11 +1359,47 @@ describe("memory capture repository", () => {
     await expect(repository.listActiveTodayTasks()).resolves.toEqual([]);
   });
 
+  it("does not append a local observation to a central lot when central append fails online", async () => {
+    const appendCentralObservation = vi.fn(() => Promise.reject(new Error("central denied")));
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "observacao-local-indevida",
+      appendCentralObservation,
+    });
+
+    await repository.hydratePrepareTurn?.(
+      preparedRecentLotResponse({ resolvedHistory: false, activeTask: true }),
+    );
+
+    await expect(
+      repository.appendObservation("lote-central-recentes-001", {
+        status: "loss",
+        actorLabel: "Colaboradora FICTICIA",
+        occurredAt: "2030-01-10T09:12:00.000Z",
+        location: { kind: "area_de_venda" },
+        quantityState: "estimated",
+        approximateQuantity: 2,
+        isCorrection: false,
+      }),
+    ).rejects.toMatchObject({
+      name: "PendingCentralLotSyncError",
+      blocker: "central_lot_write_failed",
+    } satisfies Partial<PendingCentralLotSyncError>);
+
+    expect(appendCentralObservation).toHaveBeenCalledOnce();
+    await expect(repository.loadLotDetail("lote-central-recentes-001")).resolves.toMatchObject({
+      currentObservation: {
+        status: "present",
+        location: { kind: "area_de_venda" },
+      },
+    });
+  });
+
   it("replays locally kept central observations automatically after a refreshed central read", async () => {
     let centralAvailable = false;
     const appendCentralObservation = vi.fn((centralLotId, request) => {
       if (!centralAvailable) {
-        return Promise.reject(new Error("central temporarily unavailable"));
+        return Promise.reject(new Error("network unavailable"));
       }
 
       return Promise.resolve({

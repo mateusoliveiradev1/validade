@@ -263,6 +263,10 @@ export function pendingCentralLotWriteBlocker(error: unknown): PendingCentralLot
   return "central_lot_write_failed";
 }
 
+export function shouldFallbackToLocalCentralWrite(error: unknown): boolean {
+  return pendingCentralLotWriteBlocker(error) === "central_lot_network_unavailable";
+}
+
 export type CaptureLotDetail = CaptureLotSnapshot & {
   product: CaptureProductRecord;
   observations: readonly CaptureObservationRecord[];

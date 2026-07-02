@@ -380,8 +380,15 @@ export function TaskResolutionPanel({
         return "handled";
       }
 
-      await input.applyLocalFallback?.();
-      handleLocalSave();
+      if (centralStatus === "offline") {
+        await input.applyLocalFallback?.();
+        handleLocalSave();
+        return "handled";
+      }
+
+      setSubmitting(false);
+      setConfirming(false);
+      setBlockingNotice(todayCopy.sync.centralRequired);
       return "handled";
     }
 
@@ -823,7 +830,7 @@ function shouldSaveResolutionThroughSync(task: TodayTaskRecord): boolean {
 function centralSyncStatusFor(
   result: SyncEngineRunResult | undefined,
   commandId: string,
-): "ack" | "conflict" | "pending" {
+): "ack" | "conflict" | "offline" | "pending" {
   const applied = result?.appliedResults.find((candidate) => candidate.commandId === commandId);
 
   if (applied?.status === "ack") {
@@ -832,6 +839,10 @@ function centralSyncStatusFor(
 
   if (applied?.status === "conflict") {
     return "conflict";
+  }
+
+  if (result?.network.kind === "offline") {
+    return "offline";
   }
 
   return "pending";

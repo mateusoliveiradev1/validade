@@ -96,6 +96,7 @@ import {
   physicalObservationInputFromRecord,
   PendingCentralLotSyncError,
   pendingCentralLotWriteBlocker,
+  shouldFallbackToLocalCentralWrite,
   parseMarkdownApplicationCommand,
   parseMarkdownApprovalCommand,
   parseMarkdownRequestCommand,
@@ -716,7 +717,12 @@ export function createMemoryCaptureRepository(
       }
 
       return snapshot;
-    } catch {
+    } catch (error) {
+      if (!shouldFallbackToLocalCentralWrite(error)) {
+        const blocker = pendingCentralLotWriteBlocker(error);
+        throw new PendingCentralLotSyncError(blocker, blocker, { cause: error });
+      }
+
       return null;
     }
   }
@@ -912,7 +918,12 @@ export function createMemoryCaptureRepository(
       reconcileCentralLotTasks(synced, response.lot.updatedAt);
 
       return synced;
-    } catch {
+    } catch (error) {
+      if (!shouldFallbackToLocalCentralWrite(error)) {
+        const blocker = pendingCentralLotWriteBlocker(error);
+        throw new PendingCentralLotSyncError(blocker, blocker, { cause: error });
+      }
+
       return null;
     }
   }

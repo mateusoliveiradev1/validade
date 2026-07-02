@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat34-init-central-refresh-apk-164",
+  artifactLabel: "uat35-cloud-first-writes-apk-165",
   appVersion: "0.12.0",
-  build: "164",
+  build: "165",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

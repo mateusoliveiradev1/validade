@@ -64,6 +64,8 @@ export const todayCopy = {
     failed:
       "Nao foi possivel sincronizar. As acoes continuam salvas neste aparelho; confira a conexao e tente novamente.",
     conflict: "Conflito de sincronizacao. Revise antes de confirmar esta acao.",
+    centralRequired:
+      "A central nao confirmou esta acao. Com internet, tente novamente antes de considerar a tarefa resolvida.",
     stale:
       "Tarefas salvas podem estar desatualizadas. Sincronize antes de marcar a area como segura.",
     retryHelper: "Tentaremos novamente sem duplicar a acao.",

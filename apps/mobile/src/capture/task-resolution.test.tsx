@@ -541,6 +541,79 @@ describe("TaskResolutionPanel", () => {
     expect(onCentralSave).toHaveBeenCalledOnce();
   });
 
+  it("does not close a synced central task locally when online sync fails", async () => {
+    const saveOfflineAction = vi.fn().mockResolvedValue({ id: "command-central-presence" });
+    const resolveTodayTask = vi.fn();
+    const onLocalSave = vi.fn();
+    const onCentralSave = vi.fn();
+    const onSyncCentralAction = vi.fn().mockResolvedValue({
+      state: "transport_failed",
+      network: {
+        kind: "online",
+        isConnected: true,
+        isInternetReachable: true,
+        checkedAt: "2030-01-10T12:00:01.000Z",
+        source: "fake",
+      },
+      selectedCommandIds: ["command-central-presence"],
+      attemptedCommandIds: ["command-central-presence"],
+      appliedResults: [
+        {
+          status: "retry",
+          commandId: "command-central-presence",
+          idempotencyKey: "sync-central-presence-001",
+          retryAfterSeconds: 30,
+          error: "central_lot_unavailable",
+        },
+      ],
+    });
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <TaskResolutionPanel
+          repository={createRepository({ saveOfflineAction, resolveTodayTask })}
+          task={centralPresenceTask()}
+          actorLabel="Mateus Oliveira"
+          onDone={() => undefined}
+          onBack={() => undefined}
+          onLocalSave={onLocalSave}
+          onCentralSave={onCentralSave}
+          onSyncCentralAction={onSyncCentralAction}
+          now={() => new Date("2030-01-10T12:00:00.000Z")}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) {
+      throw new Error("TaskResolutionPanel did not render.");
+    }
+
+    const presence = tree.root.findByProps({ accessibilityLabel: "Conferir presenca" });
+
+    await act(async () => {
+      presence.props.onPress();
+      await Promise.resolve();
+    });
+
+    const confirm = findEnabledButton(tree, "Confirmar presenca");
+
+    await act(async () => {
+      confirm.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(saveOfflineAction).toHaveBeenCalledOnce();
+    expect(onSyncCentralAction).toHaveBeenCalledOnce();
+    expect(resolveTodayTask).not.toHaveBeenCalled();
+    expect(onLocalSave).not.toHaveBeenCalled();
+    expect(onCentralSave).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "A central nao confirmou esta acao. Com internet, tente novamente antes de considerar a tarefa resolvida.",
+    );
+  });
+
   it("keeps the recheck evidence gate before saving an offline action", async () => {
     const saveOfflineAction = vi.fn().mockResolvedValue({});
     const resolveTodayTask = vi.fn();
