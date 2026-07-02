@@ -218,6 +218,13 @@ Produtos que ja estao no controle de validade continuam normalmente no fluxo `Ho
 
 Outro exemplo: frutas registradas ou retiradas para produzir salada de frutas no proprio Hortifruti devem poder gerar uma avaria com finalidade `Producao interna`, sem obrigar transferencia para outro setor.
 
+Acoes esperadas no `Hoje` para lote vencido/retirado:
+
+- `Registrar avaria por vencimento`;
+- `Enviar para reaproveitamento`;
+- `Enviar para producao interna`;
+- `Confirmar esgotado`, quando vendeu tudo e nao ha baixa GPP.
+
 Essa acao deve:
 
 1. confirmar que o produto saiu da area de venda;
@@ -227,6 +234,8 @@ Essa acao deve:
 5. exigir codigo, quantidade/peso e setor destino.
 
 Regra: reaproveitamento so pode resolver o `Hoje` se o produto saiu da area de venda. Se ainda esta exposto para venda, nao resolve.
+
+Regra: compras internas nao nascem do `Hoje`, porque usam produto bom solicitado por um setor. Compra interna nao resolve validade e nao deve ser usada para esconder lote vencido.
 
 ### Compras internas para setores
 
@@ -262,16 +271,21 @@ Solicitado -> Cancelado
 
 Campos obrigatorios da solicitacao:
 
-- codigo do produto;
-- produto;
+- nome/descricao do produto;
 - quantidade/peso;
 - unidade;
 - setor solicitante;
 - finalidade, como pizza, preparo, salada;
 - observacao opcional.
 
+Campos opcionais da solicitacao:
+
+- codigo do produto, se o setor souber;
+- produto cadastrado, se o app conseguir sugerir.
+
 Campos no atendimento GPP:
 
+- codigo/produto confirmado ou corrigido pelo GPP;
 - quantidade atendida;
 - status: `Atendido`, `Atendido parcial`, `Sem produto`, `Cancelado`;
 - observacao/motivo quando parcial, sem produto ou cancelado.
@@ -281,6 +295,8 @@ Regras:
 - setor cria a solicitacao;
 - GPP ve a fila por setor;
 - GPP atende e finaliza;
+- solicitacao pode nascer sem codigo, porque o setor pode saber o nome do produto mas nao o codigo;
+- GPP completa ou confirma o codigo/produto no atendimento;
 - isso nao gera avaria;
 - isso nao resolve lote de validade;
 - usa o mesmo cadastro de produto/codigo;
@@ -452,7 +468,7 @@ Direcao:
 
 ### Mobile - entrada rapida
 
-Fluxo recomendado:
+Fluxo recomendado para avaria:
 
 1. Produto
    - campo principal: codigo do produto;
@@ -466,6 +482,22 @@ Fluxo recomendado:
    - aparece quando necessario.
 5. Confirmacao
    - resumo claro antes de registrar na central.
+
+Fluxo recomendado para compra interna:
+
+1. Produto
+   - nome/descricao do produto obrigatorio;
+   - codigo opcional, se o setor souber;
+   - sugestoes por nome/codigo quando existirem.
+2. Quantidade
+   - valor e unidade.
+3. Finalidade
+   - exemplo: pizza, salada, preparo;
+   - sugestoes recentes por setor podem ajudar depois.
+4. Confirmacao
+   - resumo claro;
+   - botao `Solicitar ao GPP`;
+   - feedback real de central.
 
 ### Web - Controle GPP Hoje
 
