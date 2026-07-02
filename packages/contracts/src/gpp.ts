@@ -5,6 +5,7 @@ const RequiredIdentifierSchema = z.string().trim().min(1).max(160);
 const RequiredTextSchema = z.string().trim().min(1).max(280);
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
 const QuantityValueSchema = z.number().positive().finite();
+const BalanceQuantityValueSchema = z.number().min(0).finite();
 
 export const GppQuantityUnitSchema = z.enum(["un", "kg", "g", "l", "ml", "caixa", "pacote"]);
 
@@ -94,6 +95,13 @@ export const GppQuantitySchema = z
   })
   .strict();
 
+export const GppBalanceQuantitySchema = z
+  .object({
+    value: BalanceQuantityValueSchema,
+    unit: GppQuantityUnitSchema,
+  })
+  .strict();
+
 export const GppAvariaEntrySchema = z
   .object({
     avariaId: RequiredIdentifierSchema,
@@ -105,7 +113,7 @@ export const GppAvariaEntrySchema = z
     destination: RequiredTextSchema,
     status: GppAvariaStatusSchema,
     baixaEligibility: z.enum(["eligible", "blocked_divergence", "not_eligible"]),
-    balanceQuantity: GppQuantitySchema,
+    balanceQuantity: GppBalanceQuantitySchema,
     actor: GppActorSnapshotSchema,
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
@@ -166,7 +174,7 @@ export const GppAvariaMovementSchema = z
     avariaId: RequiredIdentifierSchema,
     kind: GppAvariaFinalitySchema,
     quantity: GppQuantitySchema,
-    remainingBalance: GppQuantitySchema,
+    remainingBalance: GppBalanceQuantitySchema,
     actor: GppActorSnapshotSchema,
     occurredAt: IsoDateTimeSchema,
     idempotencyKey: RequiredIdentifierSchema,
@@ -369,48 +377,47 @@ export const GppPurchaseCreateRequestSchema = z
   })
   .strict();
 
-export const GppPurchaseAttendanceRequestSchema = z
-  .discriminatedUnion("action", [
-    z
-      .object({
-        action: z.literal("atendido"),
-        purchaseRequestId: RequiredIdentifierSchema,
-        confirmedProduct: GppProductIdentitySchema,
-        attendedQuantity: GppQuantitySchema,
-        occurredAt: IsoDateTimeSchema,
-        idempotencyKey: RequiredIdentifierSchema,
-      })
-      .strict(),
-    z
-      .object({
-        action: z.literal("atendido_parcial"),
-        purchaseRequestId: RequiredIdentifierSchema,
-        confirmedProduct: GppProductIdentitySchema,
-        attendedQuantity: GppQuantitySchema,
-        reason: RequiredTextSchema,
-        occurredAt: IsoDateTimeSchema,
-        idempotencyKey: RequiredIdentifierSchema,
-      })
-      .strict(),
-    z
-      .object({
-        action: z.literal("sem_produto"),
-        purchaseRequestId: RequiredIdentifierSchema,
-        reason: RequiredTextSchema,
-        occurredAt: IsoDateTimeSchema,
-        idempotencyKey: RequiredIdentifierSchema,
-      })
-      .strict(),
-    z
-      .object({
-        action: z.literal("cancelado"),
-        purchaseRequestId: RequiredIdentifierSchema,
-        reason: RequiredTextSchema,
-        occurredAt: IsoDateTimeSchema,
-        idempotencyKey: RequiredIdentifierSchema,
-      })
-      .strict(),
-  ]);
+export const GppPurchaseAttendanceRequestSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("atendido"),
+      purchaseRequestId: RequiredIdentifierSchema,
+      confirmedProduct: GppProductIdentitySchema,
+      attendedQuantity: GppQuantitySchema,
+      occurredAt: IsoDateTimeSchema,
+      idempotencyKey: RequiredIdentifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("atendido_parcial"),
+      purchaseRequestId: RequiredIdentifierSchema,
+      confirmedProduct: GppProductIdentitySchema,
+      attendedQuantity: GppQuantitySchema,
+      reason: RequiredTextSchema,
+      occurredAt: IsoDateTimeSchema,
+      idempotencyKey: RequiredIdentifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("sem_produto"),
+      purchaseRequestId: RequiredIdentifierSchema,
+      reason: RequiredTextSchema,
+      occurredAt: IsoDateTimeSchema,
+      idempotencyKey: RequiredIdentifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("cancelado"),
+      purchaseRequestId: RequiredIdentifierSchema,
+      reason: RequiredTextSchema,
+      occurredAt: IsoDateTimeSchema,
+      idempotencyKey: RequiredIdentifierSchema,
+    })
+    .strict(),
+]);
 
 export const GppMutationResponseSchema = z.discriminatedUnion("state", [
   z
@@ -496,8 +503,6 @@ export type GppAvariaCreateRequest = z.infer<typeof GppAvariaCreateRequestSchema
 export type GppDivergenceMarkRequest = z.infer<typeof GppDivergenceMarkRequestSchema>;
 export type GppBaixaRequest = z.infer<typeof GppBaixaRequestSchema>;
 export type GppPurchaseCreateRequest = z.infer<typeof GppPurchaseCreateRequestSchema>;
-export type GppPurchaseAttendanceRequest = z.infer<
-  typeof GppPurchaseAttendanceRequestSchema
->;
+export type GppPurchaseAttendanceRequest = z.infer<typeof GppPurchaseAttendanceRequestSchema>;
 export type GppMutationResponse = z.infer<typeof GppMutationResponseSchema>;
 export type GppRealtimeEnvelope = z.infer<typeof GppRealtimeEnvelopeSchema>;

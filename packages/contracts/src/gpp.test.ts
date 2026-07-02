@@ -136,6 +136,34 @@ describe("GPP contracts", () => {
     ).toBe(false);
   });
 
+  it("allows GPP balances to reach zero without accepting zero movement quantities", () => {
+    expect(
+      GppAvariaMovementSchema.safeParse({
+        movementId: "movement-baixa",
+        avariaId: "avaria-1",
+        kind: "baixa_gpp",
+        quantity,
+        remainingBalance: { value: 0, unit: "kg" },
+        actor,
+        occurredAt: now,
+        idempotencyKey: "movement-baixa",
+        justification: "Baixa conferida pelo GPP.",
+      }).success,
+    ).toBe(true);
+    expect(
+      GppAvariaMovementSchema.safeParse({
+        movementId: "movement-zero",
+        avariaId: "avaria-1",
+        kind: "reaproveitamento",
+        quantity: { value: 0, unit: "kg" },
+        remainingBalance: { value: 0, unit: "kg" },
+        actor,
+        occurredAt: now,
+        idempotencyKey: "movement-zero",
+      }).success,
+    ).toBe(false);
+  });
+
   it("models purchase requests separately and blocks attendance without confirmed code and quantity", () => {
     const request = GppPurchaseRequestSchema.parse({
       purchaseRequestId: "purchase-1",

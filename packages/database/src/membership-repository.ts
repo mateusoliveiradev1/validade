@@ -466,7 +466,9 @@ function requiredString(value: unknown): string {
 }
 
 function requiredRole(value: unknown): AuthorizationRole {
-  if (value === "collaborator" || value === "lead" || value === "admin") return value;
+  if (value === "collaborator" || value === "lead" || value === "admin" || value === "gpp") {
+    return value;
+  }
   throw new Error("Membership mutation receipt is invalid.");
 }
 

@@ -28,6 +28,10 @@
       "types": "./src/evidence-repository.ts",
       "import": "./src/evidence-repository.ts"
     },
+    "./gpp-repository": {
+      "types": "./src/gpp-repository.ts",
+      "import": "./src/gpp-repository.ts"
+    },
     "./health-repository": {
       "types": "./src/health-repository.ts",
       "import": "./src/health-repository.ts"

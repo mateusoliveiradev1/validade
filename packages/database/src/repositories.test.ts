@@ -15,6 +15,7 @@ import {
   createCaptureRepositoryFromQuery,
   createInMemoryCaptureRepository,
 } from "./capture-repository";
+import { createGppRepositoryFromQuery, createInMemoryGppRepository } from "./gpp-repository";
 import {
   createInMemoryMembershipManagementRepository,
   createMembershipRepositoryFromQuery,
@@ -218,6 +219,118 @@ describe("database repositories", () => {
     expect(String(captured[0]?.[0])).toContain("target_type");
     expect(String(captured[0]?.[0])).toContain("limit");
     expect(page.items).toHaveLength(1);
+  });
+
+  it("groups in-memory GPP avarias by sector and product code with idempotent replay", async () => {
+    const repository = createInMemoryGppRepository();
+    const first = await repository.createAvaria(gppCreateAvariaInput("avaria-1"));
+    const replay = await repository.createAvaria(gppCreateAvariaInput("avaria-1"));
+    const snapshot = await repository.readQueue(gppStoreReadInput());
+
+    expect(first.replayed).toBe(false);
+    expect(replay.replayed).toBe(true);
+    expect(repository.readEntries()).toHaveLength(1);
+    expect(snapshot.avariaGroups).toHaveLength(1);
+    expect(snapshot.avariaGroups[0]).toMatchObject({
+      sector: "FLV",
+      product: { code: "162" },
+      entryCount: 1,
+      eligibleForBaixa: true,
+    });
+  });
+
+  it("rejects GPP movements above remaining saldo and blocks direct edits after baixa", async () => {
+    const repository = createInMemoryGppRepository();
+    await repository.createAvaria(gppCreateAvariaInput("avaria-saldo", { quantity: 2 }));
+
+    await expect(
+      runAsync(() =>
+        repository.recordMovement(
+          gppRecordMovementInput("movement-too-large", "avaria-saldo", { quantity: 3 }),
+        ),
+      ),
+    ).rejects.toThrow(/saldo/i);
+    await expect(
+      repository.recordMovement(
+        gppRecordMovementInput("movement-ok", "avaria-saldo", { quantity: 1 }),
+      ),
+    ).resolves.toMatchObject({ replayed: false });
+    await repository.baixarAvaria(gppBaixaInput("baixa-saldo", ["avaria-saldo"]));
+    await expect(
+      runAsync(() =>
+        repository.correctAvaria({
+          ...gppMutationActorInput(),
+          requestId: "correct-after-baixa",
+          avariaId: "avaria-saldo",
+          justification: "Tentativa de ajuste direto.",
+          occurredAt: GPP_NOW,
+          idempotencyKey: "correct-after-baixa",
+        }),
+      ),
+    ).rejects.toThrow(/administrative correction|estorno/i);
+    await expect(
+      repository.administrativeCorrection({
+        ...gppMutationActorInput(),
+        requestId: "admin-correction-after-baixa",
+        avariaId: "avaria-saldo",
+        reason: "Ajuste administrativo justificado.",
+        occurredAt: GPP_NOW,
+        idempotencyKey: "admin-correction-after-baixa",
+      }),
+    ).resolves.toMatchObject({
+      audit: { action: "gpp.avaria.administrative_correction" },
+    });
+  });
+
+  it("keeps GPP purchase requests separate from the avaria queue", async () => {
+    const repository = createInMemoryGppRepository();
+
+    await repository.createPurchaseRequest(gppCreatePurchaseInput("purchase-1"));
+    const snapshot = await repository.readQueue(gppStoreReadInput());
+
+    expect(snapshot.avariaGroups).toHaveLength(0);
+    expect(snapshot.purchaseRequests).toHaveLength(1);
+    expect(snapshot.purchaseRequests[0]).toMatchObject({
+      purchaseRequestId: "purchase-1",
+      status: "solicitado",
+      product: { name: "Tomate selecionado" },
+    });
+  });
+
+  it("uses GPP SQL store predicates, idempotency lookup, and guarded status updates", async () => {
+    const captured: Array<{ query: string; values: unknown[] }> = [];
+    const repository = createGppRepositoryFromQuery({
+      query(query: string, values?: unknown[]) {
+        captured.push({ query, values: values ?? [] });
+        return Promise.resolve([]);
+      },
+    } as never);
+
+    await repository.readQueue(gppStoreReadInput());
+    await repository.createAvaria(gppCreateAvariaInput("sql-avaria"));
+    await repository.baixarAvaria(gppBaixaInput("sql-baixa", ["sql-avaria"]));
+    await repository.attendPurchase(gppAttendPurchaseInput("sql-purchase"));
+
+    const serialized = captured.map((call) => call.query).join("\n");
+    const replayIndex = captured.findIndex((call) =>
+      call.query.includes("from gpp_mutation_receipts"),
+    );
+    const insertIndex = captured.findIndex((call) =>
+      call.query.includes("insert into gpp_avaria_entries"),
+    );
+    const purchaseUpdate = captured.find((call) =>
+      call.query.includes("update gpp_purchase_requests"),
+    );
+
+    expect(serialized).toContain("from gpp_avaria_entries");
+    expect(serialized).toContain("where store_id = $1");
+    expect(replayIndex).toBeGreaterThan(-1);
+    expect(insertIndex).toBeGreaterThan(replayIndex);
+    expect(serialized).toContain("and store_id = $3");
+    expect(serialized).toContain("and status in ('pendente', 'revisado_gpp')");
+    expect(serialized).toContain("and ($4::integer is null or version = $4)");
+    expect(serialized).toContain("from gpp_purchase_requests");
+    expect(String(purchaseUpdate?.query)).not.toContain("gpp_avaria_entries");
   });
 
   it("hydrates prepare-turn packages by authorized store only", async () => {
@@ -1503,6 +1616,127 @@ describe("database repositories", () => {
     expect(String(captured[0]?.[0])).toContain("a.subject_id");
   });
 });
+
+const GPP_NOW = "2030-01-10T12:00:00.000Z";
+
+function runAsync<T>(callback: () => T | Promise<T>): Promise<T> {
+  return Promise.resolve().then(callback);
+}
+
+function gppStoreReadInput() {
+  return {
+    storeId: "loja-piloto",
+    storeName: "Loja Ficticia Piloto",
+  };
+}
+
+function gppMutationActorInput() {
+  return {
+    store: gppStoreReadInput(),
+    actor: {
+      actorId: "gpp-local",
+      displayName: "Operador GPP",
+      roleSnapshot: "gpp" as const,
+    },
+  };
+}
+
+function gppCreateAvariaInput(avariaId: string, overrides: { quantity?: number } = {}) {
+  return {
+    ...gppMutationActorInput(),
+    requestId: avariaId,
+    request: {
+      storeId: "loja-piloto",
+      sector: "FLV",
+      product: {
+        code: "162",
+        name: "Banana prata",
+      },
+      quantity: {
+        value: overrides.quantity ?? 3.25,
+        unit: "kg" as const,
+      },
+      finality: "baixa_gpp" as const,
+      destination: "Caixa GPP",
+      occurredAt: GPP_NOW,
+      idempotencyKey: avariaId,
+    },
+  };
+}
+
+function gppRecordMovementInput(
+  requestId: string,
+  avariaId: string,
+  overrides: { quantity?: number } = {},
+) {
+  return {
+    ...gppMutationActorInput(),
+    requestId,
+    avariaId,
+    kind: "reaproveitamento" as const,
+    quantity: {
+      value: overrides.quantity ?? 1,
+      unit: "kg" as const,
+    },
+    occurredAt: GPP_NOW,
+    idempotencyKey: requestId,
+  };
+}
+
+function gppBaixaInput(requestId: string, avariaIds: readonly string[]) {
+  return {
+    ...gppMutationActorInput(),
+    requestId,
+    request: {
+      avariaIds: [...avariaIds],
+      occurredAt: GPP_NOW,
+      idempotencyKey: requestId,
+      justification: "Baixa conferida no GPP.",
+    },
+  };
+}
+
+function gppCreatePurchaseInput(purchaseRequestId: string) {
+  return {
+    ...gppMutationActorInput(),
+    requestId: purchaseRequestId,
+    request: {
+      storeId: "loja-piloto",
+      sector: "Pizzaria",
+      product: {
+        name: "Tomate selecionado",
+      },
+      requestedQuantity: {
+        value: 2,
+        unit: "kg" as const,
+      },
+      finality: "preparo de pizza",
+      requestedAt: GPP_NOW,
+      idempotencyKey: purchaseRequestId,
+    },
+  };
+}
+
+function gppAttendPurchaseInput(requestId: string) {
+  return {
+    ...gppMutationActorInput(),
+    requestId,
+    request: {
+      action: "atendido" as const,
+      purchaseRequestId: requestId,
+      confirmedProduct: {
+        code: "162",
+        name: "Tomate selecionado",
+      },
+      attendedQuantity: {
+        value: 2,
+        unit: "kg" as const,
+      },
+      occurredAt: GPP_NOW,
+      idempotencyKey: requestId,
+    },
+  };
+}
 
 const TEST_SECRETS = {
   tokenPepper: "test-token-pepper-at-least-16",
