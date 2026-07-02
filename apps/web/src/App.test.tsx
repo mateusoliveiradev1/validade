@@ -208,7 +208,7 @@ describe("authenticated web shell", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
+      await screen.findByRole("heading", { name: "Fila GPP - Loja Ficticia Piloto" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Controle GPP" })).toHaveProperty("disabled", false);
     expect(

@@ -239,6 +239,39 @@ describe("database repositories", () => {
     });
   });
 
+  it("keeps corrected GPP avarias in the divergence queue until review", async () => {
+    const repository = createInMemoryGppRepository();
+    await repository.createAvaria(gppCreateAvariaInput("avaria-review"));
+    await repository.markDivergence({
+      ...gppMutationActorInput(),
+      requestId: "divergence-review",
+      request: {
+        avariaId: "avaria-review",
+        reason: "quantidade_diferente",
+        observation: "Saldo fisico diverge do registrado.",
+        occurredAt: GPP_NOW,
+        idempotencyKey: "divergence-review",
+      },
+    });
+    await repository.correctAvaria({
+      ...gppMutationActorInput(),
+      requestId: "correct-review",
+      avariaId: "avaria-review",
+      correctedQuantity: { value: 2, unit: "kg" },
+      justification: "Quantidade corrigida para revisao do GPP.",
+      occurredAt: GPP_NOW,
+      idempotencyKey: "correct-review",
+    });
+
+    const snapshot = await repository.readQueue(gppStoreReadInput());
+
+    expect(snapshot.divergenceEntries).toHaveLength(1);
+    expect(snapshot.divergenceEntries[0]).toMatchObject({
+      avariaId: "avaria-review",
+      status: "corrigido",
+    });
+  });
+
   it("rejects GPP movements above remaining saldo and blocks direct edits after baixa", async () => {
     const repository = createInMemoryGppRepository();
     await repository.createAvaria(gppCreateAvariaInput("avaria-saldo", { quantity: 2 }));

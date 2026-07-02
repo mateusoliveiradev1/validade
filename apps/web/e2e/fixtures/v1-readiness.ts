@@ -408,6 +408,9 @@ export async function installWebFixture(
   await page.route("**/gpp/history?*", async (route) => {
     await route.fulfill({ json: { history: gppQueueSnapshot.history } });
   });
+  await page.route("**/gpp/detail/*", async (route) => {
+    await route.fulfill({ json: gppDetailSnapshot });
+  });
   await page.route("**/audit/events?*", async (route) => {
     await route.fulfill({ json: { items: [] } });
   });
@@ -470,4 +473,32 @@ export const gppQueueSnapshot = {
       summary: "Banana baixada na central",
     },
   ],
+} as const;
+
+export const gppDetailSnapshot = {
+  group: gppQueueSnapshot.avariaGroups[0],
+  entries: [
+    {
+      avariaId: "avaria-001",
+      store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+      sector: "FLV",
+      product: { code: "162", name: "Banana prata" },
+      quantity: { value: 2, unit: "kg" },
+      finality: "baixa_gpp",
+      destination: "Caixa GPP",
+      status: "pendente",
+      baixaEligibility: "eligible",
+      balanceQuantity: { value: 2, unit: "kg" },
+      actor: {
+        actorId: "lead-ficticio",
+        displayName: "Lideranca FICTICIA",
+        roleSnapshot: "lead",
+      },
+      createdAt: "2030-01-10T10:00:00.000Z",
+      updatedAt: "2030-01-10T11:58:00.000Z",
+      centralState: "central_confirmed",
+    },
+  ],
+  movements: [],
+  history: gppQueueSnapshot.history,
 } as const;

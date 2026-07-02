@@ -180,7 +180,7 @@ export function toAvariaGroupRow(group: GppAvariaGroupSummary): GppAvariaGroupRo
     productLabel: `${group.product.code} - ${group.product.name}`,
     finalityLabel: finalityLabel(group.finality),
     totalLabel: quantityLabel(group.totalQuantity),
-    entryCountLabel: `${group.entryCount} ${group.entryCount === 1 ? "lancamento" : "lancamentos"}`,
+    entryCountLabel: `${group.entryCount} ${group.entryCount === 1 ? "item" : "itens"}`,
     ...(group.divergenceCount > 0
       ? {
           divergenceLabel: `${group.divergenceCount} ${group.divergenceCount === 1 ? "divergencia" : "divergencias"}`,
@@ -235,14 +235,14 @@ export function purchaseMatchesQuery(request: GppPurchaseRequest, query: string)
 }
 
 export function finalityLabel(finality: GppAvariaFinality): string {
-  if (finality === "baixa_gpp") return "Baixa GPP";
+  if (finality === "baixa_gpp") return "Baixa para GPP";
   if (finality === "reaproveitamento") return "Reaproveitamento";
   if (finality === "producao_interna") return "Producao interna";
   return "Transferencia";
 }
 
 export function purchaseStatusLabel(status: GppPurchaseStatus): string {
-  if (status === "solicitado") return "Solicitado";
+  if (status === "solicitado") return "Pendente";
   if (status === "atendido") return "Atendido";
   if (status === "atendido_parcial") return "Atendido parcial";
   if (status === "sem_produto") return "Sem produto";
@@ -260,12 +260,12 @@ export function divergenceReasonLabel(reason: GppDivergenceReason): string {
 }
 
 export function historyEventLabel(event: GppHistoryRow["event"]): string {
-  if (event === "created") return "Criado";
+  if (event === "created") return "Registrado";
   if (event === "edited") return "Editado";
   if (event === "divergence_marked") return "Divergencia marcada";
   if (event === "corrected") return "Corrigido";
   if (event === "reviewed_by_gpp") return "Revisado pelo GPP";
-  if (event === "baixado") return "Baixa GPP";
+  if (event === "baixado") return "Baixado";
   if (event === "canceled") return "Cancelado";
   if (event === "estornado") return "Estornado";
   if (event === "purchase_attended") return "Compra atendida";
@@ -282,7 +282,7 @@ export function roleLabel(role: GppActorSnapshot["roleSnapshot"]): string {
 }
 
 export function actorLabel(actor: GppActorSnapshot): string {
-  return `${actor.displayName} - ${roleLabel(actor.roleSnapshot)}`;
+  return actor.displayName;
 }
 
 export function quantityLabel(quantity: GppQuantity): string {

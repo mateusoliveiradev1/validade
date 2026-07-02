@@ -128,23 +128,43 @@ test("role and store scope keep operational routes denied for admin-only access"
   await expect(navigation.getByRole("button", { name: "Controle GPP" })).toHaveCount(0);
 });
 
-test("Controle GPP opens for GPP role and keeps central fallback explicit", async ({ page }) => {
+test("Controle GPP opens for GPP role and keeps unavailable fallback explicit", async ({
+  page,
+}) => {
   await installWebFixture(page, { session: gppSession });
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
+    page.getByRole("heading", { name: "Fila GPP - Loja Ficticia Piloto" }),
   ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "Navegacao principal" });
   await expect(navigation.getByRole("button", { name: "Controle GPP" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Avarias" })).toBeVisible();
   await expect(page.getByText("162 - Banana prata")).toBeVisible();
+  await page.getByRole("button", { name: "Detalhes" }).click();
+  const detailsDialog = page.getByRole("dialog", { name: "Detalhes do grupo GPP" });
+  await expect(detailsDialog).toBeVisible();
+  await detailsDialog.getByRole("button", { name: "Fechar" }).last().click();
+  await expect(detailsDialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Marcar divergencia", exact: true }).click();
+  const divergenceDialog = page.getByRole("dialog", { name: "Marcar divergencia GPP" });
+  await expect(divergenceDialog).toBeVisible();
+  await divergenceDialog.getByRole("button", { name: "Voltar para fila" }).click();
   await page.getByRole("tab", { name: "Compras internas" }).click();
   await expect(page.getByText("Molho para salada")).toBeVisible();
+  await page.getByRole("button", { name: "Detalhes" }).click();
+  const purchaseDetailDialog = page.getByRole("dialog", {
+    name: "Detalhes da compra interna GPP",
+  });
+  await expect(purchaseDetailDialog).toBeVisible();
+  await purchaseDetailDialog.getByRole("button", { name: "Atendido" }).click();
+  const purchaseDialog = page.getByRole("dialog", { name: "Atendimento de compra interna" });
+  await expect(purchaseDialog).toBeVisible();
+  await purchaseDialog.getByRole("button", { name: "Voltar para fila" }).click();
 
   await installWebFixture(page, { gppQueueStatus: 503, session: gppSession });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("Central indisponivel");
+  await expect(page.getByRole("alert")).toContainText("Nao foi possivel atualizar a fila");
   await expect(page.getByRole("alert").getByRole("button", { name: "Atualizar" })).toBeVisible();
 });
 

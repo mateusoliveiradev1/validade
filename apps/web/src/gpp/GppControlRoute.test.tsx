@@ -23,7 +23,7 @@ describe("Controle GPP route", () => {
     render(<GppControlRoute client={fakeClient()} now={() => NOW} session={gppSession()} />);
 
     expect(
-      await screen.findByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
+      await screen.findByRole("heading", { name: "Fila GPP - Loja Ficticia Piloto" }),
     ).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Avarias" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("tab", { name: "Compras internas" })).toBeTruthy();
@@ -31,7 +31,7 @@ describe("Controle GPP route", () => {
     expect(screen.getByRole("tab", { name: "Historico" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /FLV/ }).getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByText("162 - Banana prata")).toBeTruthy();
-    expect(screen.getByText(/3 kg - 2 lancamentos/)).toBeTruthy();
+    expect(screen.getByText(/3 kg - 2 itens/)).toBeTruthy();
     expect(screen.getByText("Corrigir divergencia antes da baixa")).toBeTruthy();
   });
 
@@ -39,7 +39,7 @@ describe("Controle GPP route", () => {
     render(<GppControlRoute client={fakeClient()} now={() => NOW} session={gppSession()} />);
 
     await screen.findByText("162 - Banana prata");
-    fireEvent.change(screen.getByPlaceholderText("Buscar produto, codigo, setor ou lancamento"), {
+    fireEvent.change(screen.getByPlaceholderText("Buscar produto, codigo, setor ou registro"), {
       target: { value: "pao" },
     });
 
@@ -55,7 +55,9 @@ describe("Controle GPP route", () => {
 
     render(<GppControlRoute client={client} now={() => NOW} session={gppSession()} />);
 
-    expect((await screen.findByRole("alert")).textContent).toContain("Central indisponivel");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Nao foi possivel atualizar a fila",
+    );
     expect(screen.getAllByRole("button", { name: "Atualizar" }).length).toBeGreaterThan(0);
   });
 
@@ -69,11 +71,13 @@ describe("Controle GPP route", () => {
     await screen.findByText("162 - Banana prata");
     fireEvent.click(enabledButton("Baixar"));
     await screen.findByRole("alertdialog");
-    fireEvent.click(screen.getByRole("button", { name: "Confirmar baixa GPP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar baixa" }));
 
-    expect((await screen.findByRole("alert")).textContent).toContain("Falha na central");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Nao conseguimos salvar a baixa",
+    );
     expect(screen.getAllByText("162 - Banana prata").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Confirmar baixa GPP" })).toHaveProperty(
+    expect(screen.getByRole("button", { name: "Confirmar baixa" })).toHaveProperty(
       "disabled",
       false,
     );
@@ -86,7 +90,9 @@ describe("Controle GPP route", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Compras internas" }));
 
     expect(screen.getByText("Molho para salada")).toBeTruthy();
-    expect(screen.getByText("Confirmar codigo do produto antes de atender.")).toBeTruthy();
+    expect(
+      screen.getByText("Confirme o codigo do produto antes de finalizar como atendido."),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Atendido" }));
 
     expect(
@@ -100,15 +106,15 @@ describe("Controle GPP route", () => {
 
     await screen.findByText("162 - Banana prata");
     fireEvent.click(screen.getByRole("tab", { name: "Historico" }));
-    expect(screen.getByText(/Banana baixada na central/)).toBeTruthy();
+    expect(screen.getByText("Baixa confirmada.")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Produto ou codigo"), {
       target: { value: "pao" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
-    expect(screen.queryByText(/Banana baixada na central/)).toBeNull();
-    expect(screen.getByText(/Pao registrado/)).toBeTruthy();
+    expect(screen.queryByText("Baixa confirmada.")).toBeNull();
+    expect(screen.getByText(/900 - Pao frances/)).toBeTruthy();
   });
 
   it("applies realtime refresh hints only after a central re-read", async () => {
@@ -168,6 +174,7 @@ function fakeClient(overrides: Partial<GppClient> = {}): GppClient {
     readDetail: vi.fn(() => Promise.resolve(detail)),
     readHistory: vi.fn(() => Promise.resolve(queue.history)),
     readQueue: vi.fn(() => Promise.resolve(queue)),
+    reviewCorrection: vi.fn(() => Promise.resolve(centralConfirmed())),
     ...overrides,
   };
 }
@@ -404,6 +411,6 @@ function centralFailed(): GppMutationResponse {
     requestId: "request-001",
     failedAt: "2030-01-10T12:30:00.000Z",
     retryable: true,
-    message: "Central indisponivel",
+    message: "Sistema fora do ar",
   };
 }

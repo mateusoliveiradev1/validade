@@ -38,7 +38,7 @@ function Sheet({
   }
 
   return (
-    <div data-slot="sheet" className="fixed inset-0 z-50 md:hidden">
+    <div data-slot="sheet" className="fixed inset-0 z-50">
       <button
         type="button"
         aria-label="Fechar painel de detalhe"

@@ -22,7 +22,16 @@ export interface GppClient {
   readHistory(input: { storeId: string; limit?: number }): Promise<readonly GppHistoryRow[]>;
   baixarAvarias(input: GppBaixaRequest): Promise<GppMutationResponse>;
   markDivergence(input: GppDivergenceMarkRequest): Promise<GppMutationResponse>;
+  reviewCorrection(input: GppReviewCorrectionRequest): Promise<GppMutationResponse>;
   attendPurchase(input: GppPurchaseAttendanceRequest): Promise<GppMutationResponse>;
+}
+
+export interface GppReviewCorrectionRequest {
+  avariaId: string;
+  approved: boolean;
+  justification: string;
+  occurredAt: string;
+  idempotencyKey: string;
 }
 
 export function createFetchGppClient(fetcher: WebFetcher = fetch): GppClient {
@@ -72,6 +81,14 @@ export function createFetchGppClient(fetcher: WebFetcher = fetch): GppClient {
         parsed,
       );
     },
+    async reviewCorrection(input) {
+      return postMutation(fetcher, `/gpp/avarias/${encodeURIComponent(input.avariaId)}/review`, {
+        approved: input.approved,
+        justification: input.justification,
+        occurredAt: input.occurredAt,
+        idempotencyKey: input.idempotencyKey,
+      });
+    },
     async attendPurchase(input) {
       const parsed = GppPurchaseAttendanceRequestSchema.parse(input);
       return postMutation(
@@ -101,10 +118,10 @@ async function postMutation(
   }
 
   if (!response.ok) {
-    throw new Error("Falha na central");
+    throw new Error("Nao conseguimos salvar agora.");
   }
 
-  throw new Error("Resposta central GPP invalida.");
+  throw new Error("Resposta GPP invalida.");
 }
 
 function mutationResponseFromPayload(payload: unknown): GppMutationResponse | undefined {

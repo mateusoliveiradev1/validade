@@ -666,7 +666,9 @@ export function createInMemoryGppRepository(
       purchaseRequests: [...purchases.values()].filter(
         (purchase) => purchase.store.storeId === storeId,
       ),
-      divergenceEntries: storeEntries.filter((entry) => entry.status === "divergencia"),
+      divergenceEntries: storeEntries.filter((entry) =>
+        ["divergencia", "corrigido"].includes(entry.status),
+      ),
       history: history.slice(-50),
     });
   }
