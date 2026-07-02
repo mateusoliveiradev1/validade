@@ -23,6 +23,9 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 - O app deve aprender esses codigos: depois que `162 - Tomate` for usado, deve sugerir automaticamente pelo codigo ou pelo nome.
 - Existem casos em que uma avaria continua existindo, mas o produto sai da avaria para outro setor como reaproveitamento/reprocessamento, por exemplo tomate ruim indo para rotisserie.
 - Nesses casos, a avaria nao some; nasce uma movimentacao ligada a ela para reprocessamento/transferencia, e o GPP baixa de forma diferente.
+- Historicamente, quando havia reaproveitamento, uma etiqueta ia para o caderno de avaria e outra para o caderno do setor que recebeu, marcada com `R`.
+- O processo evoluiu para tres trilhas fisicas: caderno de avaria, caderno dos setores e caderno de reaproveitamento.
+- Mesmo assim, para ser reaproveitado, o produto primeiro precisa entrar como avaria. Reaproveitamento nao nasce sozinho.
 
 ## Decisoes ja alinhadas
 
@@ -30,7 +33,7 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 
 O nome recomendado para a nova area e **Controle GPP**.
 
-Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, perda, transferencia, reprocessamento, pendencias, baixas e divergencias.
+Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, reaproveitamento, transferencia para setor, pendencias, baixas e divergencias.
 
 ### Separacao do fluxo de validade
 
@@ -66,7 +69,7 @@ Convite GPP deve exigir loja obrigatoria e papel `GPP`. Setor pode ficar vazio, 
 
 Mobile do setor:
 
-- entrada rapida para registrar avaria, perda, transferencia e reprocessamento;
+- entrada rapida para registrar avaria, transferencia e reaproveitamento;
 - fluxo grande, direto e usavel com uma mao;
 - comecar pelo codigo do produto;
 - busca por nome como plano B.
@@ -91,9 +94,10 @@ Dentro de cada setor, permitir filtro por tipo:
 
 - Tudo
 - Avaria
-- Perda
 - Transferencia
-- Reprocessamento
+- Reaproveitamento
+- Divergencias
+- Baixados
 
 A lista padrao deve ser agrupada por codigo/produto, com possibilidade de abrir os lancamentos individuais.
 
@@ -126,16 +130,49 @@ Campos base:
 
 Campos condicionais:
 
-- setor destino obrigatorio para transferencia e reprocessamento;
-- motivo obrigatorio para perda e avaria;
+- setor destino obrigatorio para transferencia e reaproveitamento;
+- motivo obrigatorio para avaria;
 - observacao opcional;
 - vinculo com lote de validade quando a movimentacao nasce do fluxo de validade.
 
-Regra decidida: para perda/avaria/transferencia/reprocessamento, bloquear finalizacao se faltar codigo, quantidade/peso ou destino obrigatorio. Evitar criar pendencia incompleta para o GPP.
+Regra decidida: para avaria, transferencia e reaproveitamento, bloquear finalizacao se faltar codigo, quantidade/peso ou destino obrigatorio. Evitar criar pendencia incompleta para o GPP.
+
+### Avaria como registro principal
+
+Na realidade da loja, o GPP trata a saida do produto como **avaria**. Por isso, no modulo GPP, `perda` nao deve ser o tipo principal.
+
+Modelo recomendado:
+
+- `Avaria` e o registro principal.
+- `Reaproveitamento` e uma movimentacao vinculada a uma avaria.
+- `Transferencia para setor` pode existir como destino/movimento quando a avaria ou produto sai para outro setor.
+- `Baixa GPP` e o fechamento final feito pelo GPP.
+
+Fluxo base:
+
+```text
+Avaria registrada -> Baixada pelo GPP
+```
+
+Fluxo com reaproveitamento:
+
+```text
+Avaria registrada -> Reaproveitamento vinculado -> Baixada pelo GPP
+```
+
+O reaproveitamento deve mostrar saldo:
+
+```text
+Avaria registrada: 5,000kg
+Reaproveitado para Rotisserie: 1,000kg
+Saldo em avaria: 4,000kg
+```
+
+Se o saldo restante tambem tiver destino depois, novas movimentacoes podem ser vinculadas a mesma avaria ate a baixa final.
 
 ### Integracao com validade
 
-Quando uma perda for registrada no fluxo de validade, o app deve abrir automaticamente a etapa do Controle GPP antes de concluir:
+Quando uma retirada/perda for registrada no fluxo de validade, o app deve abrir automaticamente a etapa do Controle GPP antes de concluir. Para o GPP, isso deve virar uma **avaria por vencimento**, e nao um tipo solto chamado perda.
 
 - codigo do produto;
 - quantidade/peso;
@@ -146,9 +183,59 @@ Quando uma perda for registrada no fluxo de validade, o app deve abrir automatic
 Ao confirmar:
 
 1. o lote sai da fila ativa de risco somente se os criterios operacionais forem atendidos;
-2. nasce uma pendencia no Controle GPP;
+2. nasce uma pendencia de avaria no Controle GPP;
 3. o GPP ve a pendencia no web/mobile dele;
 4. depois que o GPP baixa no sistema interno, ele marca como baixado/finalizado no app.
+
+Produtos que nao estao no controle de validade tambem podem entrar pelo botao separado `Controle GPP`. Exemplo: tomate ruim retirado da venda sem lote monitorado. Nesse caso, o colaborador registra apenas a avaria no Controle GPP com codigo, quantidade, motivo e setor.
+
+Produtos que ja estao no controle de validade continuam normalmente no fluxo `Hoje`. Exemplo: cabotia cortada registrada para acompanhar validade. Se vencer, nao vender e ainda puder ser usada pela rotisserie/cozinha, o lote deve ter uma acao como `Enviar para reaproveitamento`.
+
+Essa acao deve:
+
+1. confirmar que o produto saiu da area de venda;
+2. resolver o risco de validade;
+3. criar uma avaria por vencimento no Controle GPP;
+4. criar o reaproveitamento vinculado a essa avaria;
+5. exigir codigo, quantidade/peso e setor destino.
+
+Regra: reaproveitamento so pode resolver o `Hoje` se o produto saiu da area de venda. Se ainda esta exposto para venda, nao resolve.
+
+### Piloto com redundancia fisica
+
+No inicio, manter caderno/caixa fisica como redundancia operacional.
+
+Fluxo de validacao:
+
+- setor registra no app;
+- setor ainda coloca a etiqueta no caderno/caixa;
+- GPP compara app contra fisico;
+- divergencias viram aprendizado/correcao;
+- apos alguns dias consistentes, avaliar reducao do papel.
+
+Regra de piloto: em caso de divergencia entre app e fisico, o fisico vence ate o sistema ganhar confianca.
+
+### Ciclo de vida decidido
+
+Fluxo principal simples:
+
+```text
+Pendente -> Baixado
+```
+
+Fluxo de excecao:
+
+```text
+Pendente -> Divergencia -> Corrigido -> Baixado
+```
+
+Regras:
+
+- o GPP marca a divergencia;
+- setor/lideranca corrige dados operacionais quando necessario;
+- o GPP pode fazer correcao pequena com justificativa;
+- a baixa final e sempre do GPP;
+- tudo fica auditado.
 
 ### Sincronizacao e verdade central
 
@@ -229,53 +316,42 @@ Acoes esperadas:
 
 ## Pontos ainda em aberto
 
-1. Ciclo de vida/status do lancamento:
-   - usar apenas `Pendente -> Baixado`;
-   - ou incluir `Recebido pelo GPP` antes de `Baixado`;
-   - como tratar `Divergencia`, `Corrigido` e `Cancelado`.
-
-2. Permissoes finas:
+1. Permissoes finas:
    - quem pode marcar baixado;
    - quem pode marcar divergencia;
    - quem pode corrigir quantidade/codigo;
    - quem pode cancelar um lancamento.
 
-3. Fluxo de divergencia:
+2. Fluxo de divergencia:
    - se o GPP encontrar quantidade errada;
    - se codigo/produto estiver errado;
    - se o fisico nao estiver na caixa/caderno;
    - se o setor discordar.
 
-4. Evidencia:
+3. Evidencia:
    - se foto da etiqueta/caixa deve ser opcional ou obrigatoria;
    - se assinatura/confirmacao do setor entra depois.
 
-5. Atualizacao quase em tempo real:
+4. Atualizacao quase em tempo real:
    - polling curto no web;
    - SSE/WebSocket se justificar;
    - como mostrar freshness sem criar ansiedade operacional.
+
+5. UI/UX final das telas:
+   - tela web do GPP por setor;
+   - detalhe lateral do lancamento;
+   - fluxo mobile de registro rapido;
+   - melhoria da UI de convites/equipe para incluir papel GPP.
 
 6. Ordem de implementacao:
    - UI/UX web do GPP;
    - contratos e backend;
    - mobile entrada rapida;
-   - integracao com perda do fluxo de validade;
+   - integracao com avaria/reaproveitamento do fluxo de validade;
    - papel GPP e melhoria da tela de convites/equipe.
 
 ## Proxima discussao recomendada
 
-Definir o ciclo de vida perfeito do lancamento GPP.
+Definir as permissoes finas e o fluxo de divergencia.
 
-Pergunta aberta: quando um lancamento entra no Controle GPP, o melhor caminho e:
-
-```text
-Pendente -> Baixado
-```
-
-ou:
-
-```text
-Pendente -> Recebido pelo GPP -> Baixado
-```
-
-Tambem precisamos decidir como `Divergencia`, `Corrigido` e `Cancelado` entram sem deixar o fluxo pesado demais.
+Pergunta aberta: quando o GPP encontra erro de quantidade, codigo, produto, setor ou etiqueta fisica, quais campos o setor/lideranca pode corrigir e quais correcoes precisam ficar restritas ao GPP com justificativa?
