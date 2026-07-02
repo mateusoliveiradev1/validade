@@ -41,10 +41,10 @@
 ### Controle GPP e Tempo Real
 
 - [x] **GPP-01**: The app can expose a feature-flagged Controle GPP web/API foundation without changing the tested build 170 mobile flow or existing Hoje persistence semantics.
-- [ ] **GPP-02**: The GPP flow can register avaria as the primary operational record, with linked baixa GPP, reaproveitamento, producao interna, or transferencia destinations and required product code, quantity/unit, and finality/destination fields.
-- [ ] **GPP-03**: The GPP flow can handle compras internas for good products requested by sectors, allowing requests by product name/description and quantity while letting GPP confirm or correct product code during service.
+- [x] **GPP-02**: The GPP flow can register avaria as the primary operational record, with linked baixa GPP, reaproveitamento, producao interna, or transferencia destinations and required product code, quantity/unit, and finality/destination fields.
+- [x] **GPP-03**: The GPP flow can handle compras internas for good products requested by sectors, allowing requests by product name/description and quantity while letting GPP confirm or correct product code during service.
 - [x] **GPP-04**: The backend enforces store-scoped GPP permissions for collaborator, leadership, GPP, and admin roles, including creator-only edits for collaborators and backend-only authorization for every write.
-- [ ] **GPP-05**: The GPP flow supports divergencia, correcao, revisao pelo GPP, baixa, cancelamento, estorno, and append-only audit events without allowing a divergent or baixado item to be silently edited.
+- [x] **GPP-05**: The GPP flow supports divergencia, correcao, revisao pelo GPP, baixa, cancelamento, estorno, and append-only audit events without allowing a divergent or baixado item to be silently edited.
 - [ ] **GPP-06**: Realtime store-room events can notify web/mobile GPP clients after central database success while clients re-read central snapshots and continue to work with manual refresh/fallback if realtime fails.
 - [x] **GPP-07**: The web GPP surface can show Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped baixa, detail drilldown, confirmation, and no decorative dashboard noise.
 - [ ] **GPP-08**: Mobile can add a separate Controle GPP entry for Registrar avaria and Solicitar compra interna with central-ack feedback and local-pending only during real offline use.
@@ -98,10 +98,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VAL-03 | Phase 16 | Complete |
 | VAL-04 | Phase 16 | Complete |
 | GPP-01 | Phase 17 | Complete |
-| GPP-02 | Phase 17 | Pending |
-| GPP-03 | Phase 17 | Pending |
+| GPP-02 | Phase 17 | Complete |
+| GPP-03 | Phase 17 | Complete |
 | GPP-04 | Phase 17 | Complete |
-| GPP-05 | Phase 17 | Pending |
+| GPP-05 | Phase 17 | Complete |
 | GPP-06 | Phase 17 | Pending |
 | GPP-07 | Phase 17 | Complete |
 | GPP-08 | Phase 18 | Pending |
