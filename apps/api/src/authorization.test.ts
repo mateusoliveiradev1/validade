@@ -61,6 +61,116 @@ describe("authorization API seam", () => {
     });
   });
 
+  it("keeps GPP actions unavailable while the feature flag is disabled", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        {
+          subjectId: "gpp-local",
+          role: "gpp",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+      ]),
+    });
+
+    const response = await app.request("/session/context?storeId=loja-piloto", {
+      headers: { authorization: "Bearer fake:gpp-local" },
+    });
+    const body = (await response.json()) as unknown;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      activeRole: "gpp",
+      featureFlags: {
+        controle_gpp_enabled: false,
+      },
+      actions: {
+        canReadGppQueue: false,
+        canBaixarGppAvaria: false,
+        canAttendGppPurchase: false,
+      },
+    });
+  });
+
+  it("derives feature-enabled GPP actions from server-owned role capabilities", async () => {
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([
+        {
+          subjectId: "collaborator-local",
+          role: "collaborator",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+        {
+          subjectId: "lead-local",
+          role: "lead",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+        {
+          subjectId: "gpp-local",
+          role: "gpp",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+        {
+          subjectId: "admin-local",
+          role: "admin",
+          storeId: "loja-piloto",
+          storeName: "Loja Ficticia Piloto",
+          status: "active",
+        },
+      ]),
+      runtimeConfig: { controleGppEnabled: true },
+    });
+    const readContext = async (subjectId: string) => {
+      const response = await app.request("/session/context?storeId=loja-piloto", {
+        headers: { authorization: `Bearer fake:${subjectId}` },
+      });
+      expect(response.status).toBe(200);
+      return (await response.json()) as {
+        actions: Record<string, boolean>;
+        featureFlags: { controle_gpp_enabled: boolean };
+      };
+    };
+
+    const collaborator = await readContext("collaborator-local");
+    const lead = await readContext("lead-local");
+    const gpp = await readContext("gpp-local");
+    const admin = await readContext("admin-local");
+
+    expect(collaborator.featureFlags.controle_gpp_enabled).toBe(true);
+    expect(collaborator.actions).toMatchObject({
+      canCreateGppEntry: true,
+      canCorrectOwnPendingGppEntry: true,
+      canReadGppQueue: false,
+      canBaixarGppAvaria: false,
+    });
+    expect(lead.actions).toMatchObject({
+      canReviewGppCorrection: true,
+      canReadGppHistory: true,
+      canBaixarGppAvaria: false,
+    });
+    expect(gpp.actions).toMatchObject({
+      canReadGppQueue: true,
+      canMarkGppDivergence: true,
+      canReviewGppCorrection: true,
+      canBaixarGppAvaria: true,
+      canAttendGppPurchase: true,
+    });
+    expect(admin.actions).toMatchObject({
+      canManageUsers: true,
+      canReadGppQueue: false,
+      canBaixarGppAvaria: false,
+    });
+  });
+
   it("lists only the signed-in actor store scopes with aggregated actions", async () => {
     const app = createApiApp({
       authProvider: new FakeAuthProvider(),

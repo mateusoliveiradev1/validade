@@ -239,6 +239,7 @@ export function createApiApp(input?: {
     appEnv?: string;
     approvedPilotBuild?: ApprovedPilotBuildConfig;
     evidenceStoreMode?: EvidenceStoreMode;
+    controleGppEnabled?: boolean;
   };
   now?: () => Date;
 }): Hono {
@@ -310,6 +311,7 @@ export function createApiApp(input?: {
   const evidenceBinaryAvailable = evidenceStoreMode !== "disabled";
   const appEnv =
     input?.runtimeConfig?.appEnv ?? (input?.databaseUrl === undefined ? "local" : "production");
+  const controleGppEnabled = input?.runtimeConfig?.controleGppEnabled === true;
   const evidenceService =
     input?.evidenceService ??
     createEvidenceService({
@@ -1775,7 +1777,7 @@ export function createApiApp(input?: {
             return {
               store: entry.store,
               roles,
-              actions: actionsForRoles(roles),
+              actions: actionsForRoles(roles, { controleGppEnabled }),
             };
           }),
       }),
@@ -1826,6 +1828,46 @@ export function createApiApp(input?: {
       capability: "pilot.push_test.send",
       resourceStoreId: storeId,
     });
+    const gppQueueReadDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.queue.read",
+      resourceStoreId: storeId,
+    });
+    const gppCreateDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.avaria.create",
+      resourceStoreId: storeId,
+    });
+    const gppCorrectOwnPendingDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.avaria.correct_own_pending",
+      resourceStoreId: storeId,
+    });
+    const gppDivergenceDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.divergence.mark",
+      resourceStoreId: storeId,
+    });
+    const gppCorrectionReviewDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.correction.review",
+      resourceStoreId: storeId,
+    });
+    const gppBaixaDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.avaria.baixar",
+      resourceStoreId: storeId,
+    });
+    const gppPurchaseAttendDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.purchase.attend",
+      resourceStoreId: storeId,
+    });
+    const gppHistoryReadDecision = await authorizationService.authorize({
+      identity,
+      capability: "gpp.history.read",
+      resourceStoreId: storeId,
+    });
     const decision = commandCenterReadDecision.allowed
       ? commandCenterReadDecision
       : taskDecision.allowed
@@ -1840,7 +1882,11 @@ export function createApiApp(input?: {
                 ? auditReadDecision
                 : pushTestDecision.allowed
                   ? pushTestDecision
-                  : commandCenterReadDecision;
+                  : gppQueueReadDecision.allowed
+                    ? gppQueueReadDecision
+                    : gppCreateDecision.allowed
+                      ? gppCreateDecision
+                      : commandCenterReadDecision;
 
     if (!decision.allowed) {
       const denial = await recordDeniedAccess({
@@ -1856,7 +1902,7 @@ export function createApiApp(input?: {
       return context.json(AuthorizationContract.denial.parse(denial), 403);
     }
 
-    const sessionContext = createSessionContext(decision);
+    const sessionContext = createSessionContext(decision, { controleGppEnabled });
 
     if (sessionContext === undefined) {
       return context.json(
@@ -1870,6 +1916,9 @@ export function createApiApp(input?: {
     return context.json(
       SessionContextResponseSchema.parse({
         ...sessionContext,
+        featureFlags: {
+          controle_gpp_enabled: controleGppEnabled,
+        },
         actions: {
           ...sessionContext.actions,
           canReadCommandCenter: commandCenterReadDecision.allowed,
@@ -1879,6 +1928,15 @@ export function createApiApp(input?: {
           canReadStoreAudit: auditReadDecision.allowed,
           canManageUsers: userManagementDecision.allowed,
           canSendPilotPushTest: pushTestDecision.allowed,
+          canReadGppQueue: controleGppEnabled && gppQueueReadDecision.allowed,
+          canCreateGppEntry: controleGppEnabled && gppCreateDecision.allowed,
+          canCorrectOwnPendingGppEntry:
+            controleGppEnabled && gppCorrectOwnPendingDecision.allowed,
+          canMarkGppDivergence: controleGppEnabled && gppDivergenceDecision.allowed,
+          canReviewGppCorrection: controleGppEnabled && gppCorrectionReviewDecision.allowed,
+          canBaixarGppAvaria: controleGppEnabled && gppBaixaDecision.allowed,
+          canAttendGppPurchase: controleGppEnabled && gppPurchaseAttendDecision.allowed,
+          canReadGppHistory: controleGppEnabled && gppHistoryReadDecision.allowed,
         },
       }),
     );
@@ -2169,7 +2227,12 @@ function syncAuditSummary(command: SyncCommandRecord, result: SyncTransportResul
   return "Acao operacional sincronizada pelo mobile.";
 }
 
-function actionsForRoles(roles: readonly AuthorizationRole[]) {
+function actionsForRoles(
+  roles: readonly AuthorizationRole[],
+  options: { controleGppEnabled?: boolean } = {},
+) {
+  const controleGppEnabled = options.controleGppEnabled === true;
+
   return {
     canReadCommandCenter: rolesAllowCapability(roles, "command_center.read_store"),
     canActOnTask: rolesAllowCapability(roles, "task.act"),
@@ -2178,6 +2241,18 @@ function actionsForRoles(roles: readonly AuthorizationRole[]) {
     canReadStoreAudit: rolesAllowCapability(roles, "audit.read_store"),
     canManageUsers: rolesAllowCapability(roles, "user.manage"),
     canSendPilotPushTest: rolesAllowCapability(roles, "pilot.push_test.send"),
+    canReadGppQueue: controleGppEnabled && rolesAllowCapability(roles, "gpp.queue.read"),
+    canCreateGppEntry: controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.create"),
+    canCorrectOwnPendingGppEntry:
+      controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.correct_own_pending"),
+    canMarkGppDivergence:
+      controleGppEnabled && rolesAllowCapability(roles, "gpp.divergence.mark"),
+    canReviewGppCorrection:
+      controleGppEnabled && rolesAllowCapability(roles, "gpp.correction.review"),
+    canBaixarGppAvaria: controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.baixar"),
+    canAttendGppPurchase:
+      controleGppEnabled && rolesAllowCapability(roles, "gpp.purchase.attend"),
+    canReadGppHistory: controleGppEnabled && rolesAllowCapability(roles, "gpp.history.read"),
   };
 }
 

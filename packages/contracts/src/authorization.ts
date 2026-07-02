@@ -69,14 +69,30 @@ export const ClientSafeAuthorizationDenialSchema = z
   .strict();
 
 export const SessionActionsSchema = z
+  .preprocess(
+    normalizeSessionActionObject,
+    z.object({
+      canReadCommandCenter: z.boolean(),
+      canActOnTask: z.boolean(),
+      canReviewProductDrafts: z.boolean(),
+      canCloseShift: z.boolean(),
+      canReadStoreAudit: z.boolean(),
+      canManageUsers: z.boolean(),
+      canSendPilotPushTest: z.boolean(),
+      canReadGppQueue: z.boolean(),
+      canCreateGppEntry: z.boolean(),
+      canCorrectOwnPendingGppEntry: z.boolean(),
+      canMarkGppDivergence: z.boolean(),
+      canReviewGppCorrection: z.boolean(),
+      canBaixarGppAvaria: z.boolean(),
+      canAttendGppPurchase: z.boolean(),
+      canReadGppHistory: z.boolean(),
+    }).strict(),
+  );
+
+export const SessionFeatureFlagsSchema = z
   .object({
-    canReadCommandCenter: z.boolean(),
-    canActOnTask: z.boolean(),
-    canReviewProductDrafts: z.boolean(),
-    canCloseShift: z.boolean(),
-    canReadStoreAudit: z.boolean(),
-    canManageUsers: z.boolean(),
-    canSendPilotPushTest: z.boolean(),
+    controle_gpp_enabled: z.boolean(),
   })
   .strict();
 
@@ -95,12 +111,13 @@ const SessionContextBaseResponseSchema = z
     accountStatus: AccountStatusSchema,
     canRequestRecovery: z.boolean(),
     privacyCenterUrl: z.string().trim().min(1).max(500),
+    featureFlags: SessionFeatureFlagsSchema,
     actions: SessionActionsSchema,
   })
   .strict();
 
 export const SessionContextResponseSchema = z.preprocess(
-  normalizeSessionActions,
+  normalizeSessionContext,
   SessionContextBaseResponseSchema,
 );
 
@@ -123,35 +140,108 @@ export const SessionStoresResponseSchema = z
   })
   .strict();
 
-function normalizeSessionActions(input: unknown): unknown {
-  if (!isRecord(input) || !isRecord(input.actions)) return input;
+const DEFAULT_SESSION_ACTIONS = {
+  canReadCommandCenter: false,
+  canActOnTask: false,
+  canReviewProductDrafts: false,
+  canCloseShift: false,
+  canReadStoreAudit: false,
+  canManageUsers: false,
+  canSendPilotPushTest: false,
+  canReadGppQueue: false,
+  canCreateGppEntry: false,
+  canCorrectOwnPendingGppEntry: false,
+  canMarkGppDivergence: false,
+  canReviewGppCorrection: false,
+  canBaixarGppAvaria: false,
+  canAttendGppPurchase: false,
+  canReadGppHistory: false,
+} as const;
+
+function normalizeSessionActionObject(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  return {
+    ...DEFAULT_SESSION_ACTIONS,
+    ...input,
+  };
+}
+
+function normalizeSessionContext(input: unknown): unknown {
+  if (!isRecord(input)) return input;
 
   const capabilities = Array.isArray(input.capabilities) ? input.capabilities : [];
+  const actions = isRecord(input.actions) ? input.actions : {};
+  const featureFlags = normalizeSessionFeatureFlags(input.featureFlags);
+  const gppEnabled = featureFlags.controle_gpp_enabled;
+
   return {
     ...input,
+    featureFlags,
     actions: {
       canReadCommandCenter:
-        getBoolean(input.actions.canReadCommandCenter) ??
+        getBoolean(actions.canReadCommandCenter) ??
         capabilities.includes("command_center.read_store" satisfies DomainCapability),
       canActOnTask:
-        getBoolean(input.actions.canActOnTask) ??
+        getBoolean(actions.canActOnTask) ??
         capabilities.includes("task.act" satisfies DomainCapability),
       canReviewProductDrafts:
-        getBoolean(input.actions.canReviewProductDrafts) ??
+        getBoolean(actions.canReviewProductDrafts) ??
         capabilities.includes("catalog.review" satisfies DomainCapability),
       canCloseShift:
-        getBoolean(input.actions.canCloseShift) ??
+        getBoolean(actions.canCloseShift) ??
         capabilities.includes("shift.close" satisfies DomainCapability),
       canReadStoreAudit:
-        getBoolean(input.actions.canReadStoreAudit) ??
+        getBoolean(actions.canReadStoreAudit) ??
         capabilities.includes("audit.read_store" satisfies DomainCapability),
       canManageUsers:
-        getBoolean(input.actions.canManageUsers) ??
+        getBoolean(actions.canManageUsers) ??
         capabilities.includes("user.manage" satisfies DomainCapability),
       canSendPilotPushTest:
-        getBoolean(input.actions.canSendPilotPushTest) ??
+        getBoolean(actions.canSendPilotPushTest) ??
         capabilities.includes("pilot.push_test.send" satisfies DomainCapability),
+      canReadGppQueue:
+        gppEnabled &&
+        (getBoolean(actions.canReadGppQueue) ??
+          capabilities.includes("gpp.queue.read" satisfies DomainCapability)),
+      canCreateGppEntry:
+        gppEnabled &&
+        (getBoolean(actions.canCreateGppEntry) ??
+          capabilities.includes("gpp.avaria.create" satisfies DomainCapability)),
+      canCorrectOwnPendingGppEntry:
+        gppEnabled &&
+        (getBoolean(actions.canCorrectOwnPendingGppEntry) ??
+          capabilities.includes("gpp.avaria.correct_own_pending" satisfies DomainCapability)),
+      canMarkGppDivergence:
+        gppEnabled &&
+        (getBoolean(actions.canMarkGppDivergence) ??
+          capabilities.includes("gpp.divergence.mark" satisfies DomainCapability)),
+      canReviewGppCorrection:
+        gppEnabled &&
+        (getBoolean(actions.canReviewGppCorrection) ??
+          capabilities.includes("gpp.correction.review" satisfies DomainCapability)),
+      canBaixarGppAvaria:
+        gppEnabled &&
+        (getBoolean(actions.canBaixarGppAvaria) ??
+          capabilities.includes("gpp.avaria.baixar" satisfies DomainCapability)),
+      canAttendGppPurchase:
+        gppEnabled &&
+        (getBoolean(actions.canAttendGppPurchase) ??
+          capabilities.includes("gpp.purchase.attend" satisfies DomainCapability)),
+      canReadGppHistory:
+        gppEnabled &&
+        (getBoolean(actions.canReadGppHistory) ??
+          capabilities.includes("gpp.history.read" satisfies DomainCapability)),
     },
+  };
+}
+
+function normalizeSessionFeatureFlags(input: unknown): { controle_gpp_enabled: boolean } {
+  if (!isRecord(input)) {
+    return { controle_gpp_enabled: false };
+  }
+
+  return {
+    controle_gpp_enabled: getBoolean(input.controle_gpp_enabled) ?? false,
   };
 }
 
@@ -248,6 +338,7 @@ export type AuthorizedActorContext = z.infer<typeof AuthorizedActorContextSchema
 export type ClientSafeAuthorizationDenial = z.infer<typeof ClientSafeAuthorizationDenialSchema>;
 export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema>;
 export type SessionActions = z.infer<typeof SessionActionsSchema>;
+export type SessionFeatureFlags = z.infer<typeof SessionFeatureFlagsSchema>;
 export type SessionStoreAccess = z.infer<typeof SessionStoreAccessSchema>;
 export type SessionStoresResponse = z.infer<typeof SessionStoresResponseSchema>;
 export type ProtectedCapabilityProbeResponse = z.infer<

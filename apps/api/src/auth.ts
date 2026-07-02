@@ -256,13 +256,21 @@ export function createDefaultMemberships(): readonly StoreMembership[] {
   ];
 }
 
-export function createSessionContext(decision: AuthorizationDecision) {
+export interface SessionContextOptions {
+  controleGppEnabled?: boolean;
+}
+
+export function createSessionContext(
+  decision: AuthorizationDecision,
+  options: SessionContextOptions = {},
+) {
   if (!decision.allowed || decision.context === undefined) {
     return undefined;
   }
 
   const role = decision.context.membership.role;
   const capabilities = listRoleCapabilities(role);
+  const controleGppEnabled = options.controleGppEnabled === true;
 
   return {
     actor: decision.context.identity,
@@ -276,6 +284,9 @@ export function createSessionContext(decision: AuthorizationDecision) {
     accountStatus: "active" as const,
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
+    featureFlags: {
+      controle_gpp_enabled: controleGppEnabled,
+    },
     actions: {
       canReadCommandCenter: roleAllowsCapability(role, "command_center.read_store"),
       canActOnTask: roleAllowsCapability(role, "task.act"),
@@ -284,6 +295,18 @@ export function createSessionContext(decision: AuthorizationDecision) {
       canReadStoreAudit: roleAllowsCapability(role, "audit.read_store"),
       canManageUsers: roleAllowsCapability(role, "user.manage"),
       canSendPilotPushTest: roleAllowsCapability(role, "pilot.push_test.send"),
+      canReadGppQueue: controleGppEnabled && roleAllowsCapability(role, "gpp.queue.read"),
+      canCreateGppEntry: controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.create"),
+      canCorrectOwnPendingGppEntry:
+        controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.correct_own_pending"),
+      canMarkGppDivergence:
+        controleGppEnabled && roleAllowsCapability(role, "gpp.divergence.mark"),
+      canReviewGppCorrection:
+        controleGppEnabled && roleAllowsCapability(role, "gpp.correction.review"),
+      canBaixarGppAvaria: controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.baixar"),
+      canAttendGppPurchase:
+        controleGppEnabled && roleAllowsCapability(role, "gpp.purchase.attend"),
+      canReadGppHistory: controleGppEnabled && roleAllowsCapability(role, "gpp.history.read"),
     },
   };
 }

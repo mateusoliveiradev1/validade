@@ -59,6 +59,9 @@ describe("authorization contracts", () => {
       accountStatus: "active",
       canRequestRecovery: true,
       privacyCenterUrl: "/privacy",
+      featureFlags: {
+        controle_gpp_enabled: false,
+      },
       actions: {
         canReadCommandCenter: true,
         canActOnTask: true,
@@ -72,6 +75,8 @@ describe("authorization contracts", () => {
 
     expect(context.actions.canCloseShift).toBe(true);
     expect(context.actions.canSendPilotPushTest).toBe(true);
+    expect(context.actions.canReadGppQueue).toBe(false);
+    expect(context.featureFlags.controle_gpp_enabled).toBe(false);
   });
 
   it("backfills newly introduced session actions from server-owned capabilities", () => {
@@ -107,6 +112,54 @@ describe("authorization contracts", () => {
     expect(context.actions.canReadCommandCenter).toBe(true);
     expect(context.actions.canReviewProductDrafts).toBe(false);
     expect(context.actions.canSendPilotPushTest).toBe(true);
+    expect(context.featureFlags.controle_gpp_enabled).toBe(false);
+    expect(context.actions.canReadGppQueue).toBe(false);
+    expect(context.actions.canBaixarGppAvaria).toBe(false);
+  });
+
+  it("derives GPP actions only when the session feature flag is enabled", () => {
+    const disabledContext = SessionContextResponseSchema.parse({
+      actor: {
+        subjectId: "gpp-local",
+        displayName: "Operador GPP",
+      },
+      store: {
+        storeId: "loja-piloto",
+        storeName: "Loja Ficticia Piloto",
+      },
+      activeRole: "gpp",
+      capabilities: [
+        "gpp.queue.read",
+        "gpp.avaria.create",
+        "gpp.divergence.mark",
+        "gpp.correction.review",
+        "gpp.avaria.baixar",
+        "gpp.purchase.attend",
+        "gpp.history.read",
+      ],
+      sessionExpiresAt: "2026-06-23T12:00:00.000Z",
+      accountStatus: "active",
+      canRequestRecovery: true,
+      privacyCenterUrl: "/privacy",
+      actions: {
+        canReadGppQueue: true,
+        canBaixarGppAvaria: true,
+      },
+    });
+    const enabledContext = SessionContextResponseSchema.parse({
+      ...disabledContext,
+      featureFlags: {
+        controle_gpp_enabled: true,
+      },
+      actions: {},
+    });
+
+    expect(disabledContext.featureFlags.controle_gpp_enabled).toBe(false);
+    expect(disabledContext.actions.canReadGppQueue).toBe(false);
+    expect(disabledContext.actions.canBaixarGppAvaria).toBe(false);
+    expect(enabledContext.actions.canReadGppQueue).toBe(true);
+    expect(enabledContext.actions.canBaixarGppAvaria).toBe(true);
+    expect(enabledContext.actions.canAttendGppPurchase).toBe(true);
   });
 
   it("represents store-scoped administration without leaking other stores", () => {

@@ -23,6 +23,9 @@ const session = {
   accountStatus: "active" as const,
   canRequestRecovery: true,
   privacyCenterUrl: "/privacy",
+  featureFlags: {
+    controle_gpp_enabled: false,
+  },
   actions: {
     canReadCommandCenter: true,
     canActOnTask: true,
@@ -31,6 +34,14 @@ const session = {
     canReadStoreAudit: true,
     canManageUsers: false,
     canSendPilotPushTest: true,
+    canReadGppQueue: false,
+    canCreateGppEntry: false,
+    canCorrectOwnPendingGppEntry: false,
+    canMarkGppDivergence: false,
+    canReviewGppCorrection: false,
+    canBaixarGppAvaria: false,
+    canAttendGppPurchase: false,
+    canReadGppHistory: false,
   },
 };
 
