@@ -1,7 +1,7 @@
-# Requirements: Validade Zero v1.1
+# Requirements: Validade Zero v1.1 + v1.2
 
 **Defined:** 2026-06-29
-**Milestone:** v1.1 Operacao Real de Loja e Diagnostico
+**Milestone:** v1.1 Operacao Real de Loja e Diagnostico; v1.2 Controle GPP e Tempo Real Operacional
 **Core Value:** Garantir que nenhum produto vencido permaneca na area de venda, mantendo cada risco visivel e acionavel ate sua resolucao confirmada.
 
 ## v1.1 Requirements
@@ -35,6 +35,21 @@
 - [x] **VAL-02**: Validation records pass, blocked, and external-blocked outcomes public-safely, without storing real product names, photos, tokens, private URLs, or personal data in repository artifacts.
 - [x] **VAL-03**: The app keeps APK install, provider push, camera/evidence, second-device proof, and physical Loja 18 UAT as explicit gates instead of treating repo tests or mocks as rollout proof.
 - [x] **VAL-04**: The milestone produces a clear next-step runbook for store validation so the operator knows what to do in the aisle and leadership knows what evidence is still missing.
+
+## v1.2 Requirements
+
+### Controle GPP e Tempo Real
+
+- [ ] **GPP-01**: The app can expose a feature-flagged Controle GPP web/API foundation without changing the tested build 170 mobile flow or existing Hoje persistence semantics.
+- [ ] **GPP-02**: The GPP flow can register avaria as the primary operational record, with linked baixa GPP, reaproveitamento, producao interna, or transferencia destinations and required product code, quantity/unit, and finality/destination fields.
+- [ ] **GPP-03**: The GPP flow can handle compras internas for good products requested by sectors, allowing requests by product name/description and quantity while letting GPP confirm or correct product code during service.
+- [ ] **GPP-04**: The backend enforces store-scoped GPP permissions for collaborator, leadership, GPP, and admin roles, including creator-only edits for collaborators and backend-only authorization for every write.
+- [ ] **GPP-05**: The GPP flow supports divergencia, correcao, revisao pelo GPP, baixa, cancelamento, estorno, and append-only audit events without allowing a divergent or baixado item to be silently edited.
+- [ ] **GPP-06**: Realtime store-room events can notify web/mobile GPP clients after central database success while clients re-read central snapshots and continue to work with manual refresh/fallback if realtime fails.
+- [ ] **GPP-07**: The web GPP surface can show Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped baixa, detail drilldown, confirmation, and no decorative dashboard noise.
+- [ ] **GPP-08**: Mobile can add a separate Controle GPP entry for Registrar avaria and Solicitar compra interna with central-ack feedback and local-pending only during real offline use.
+- [ ] **GPP-09**: Hoje can create GPP-linked avaria por vencimento, reaproveitamento, or producao interna records only after confirming the product left the sales area, while Confirmar esgotado remains separate from baixa GPP.
+- [ ] **GPP-10**: Hoje can use the proven realtime layer for store-scoped task/lot refresh hints without weakening central acknowledgement, conflict handling, or offline-pending truth.
 
 ## Future Requirements
 
@@ -82,12 +97,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VAL-02 | Phase 16 | Complete |
 | VAL-03 | Phase 16 | Complete |
 | VAL-04 | Phase 16 | Complete |
+| GPP-01 | Phase 17 | Pending |
+| GPP-02 | Phase 17 | Pending |
+| GPP-03 | Phase 17 | Pending |
+| GPP-04 | Phase 17 | Pending |
+| GPP-05 | Phase 17 | Pending |
+| GPP-06 | Phase 17 | Pending |
+| GPP-07 | Phase 17 | Pending |
+| GPP-08 | Phase 18 | Pending |
+| GPP-09 | Phase 19 | Pending |
+| GPP-10 | Phase 20 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 18 total
-- Mapped to phases: 18
+- v1.2 requirements: 10 total
+- Mapped to phases: 28
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-29*
-*Last updated: 2026-06-29 after v1.1 milestone definition*
+*Last updated: 2026-07-02 after Controle GPP v1.2 phase definition*

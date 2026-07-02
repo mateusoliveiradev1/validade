@@ -2,13 +2,14 @@
 
 **Mode:** Vertical MVP
 **Granularity:** Fine
-**Requirements covered:** 18/18
-**Current status:** Phase 14 complete; ready for verification
+**Requirements covered:** 28/28
+**Current status:** Phase 16 validation/testing active; v1.2 Controle GPP phases drafted
 
 ## Milestones
 
 - [x] **v1.0 Repository Complete** - Phases 1-12, 54 plans, shipped 2026-06-28.
 - [ ] **v1.1 Operacao Real de Loja e Diagnostico** - Separate daily operation, devices, updates, mobile settings, and Loja 18 validation.
+- [ ] **v1.2 Controle GPP e Tempo Real Operacional** - Add a store-scoped GPP control layer for avarias, internal purchases, backend-backed auditability, and additive realtime visibility without disturbing the build 170 validation.
 
 ## Phases
 
@@ -82,6 +83,86 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 3. APK install, provider push, camera/evidence, second-device proof, and physical Loja 18 UAT remain explicit gates rather than being inferred from repo tests or mocks.
 4. The milestone produces a clear next-step runbook for store validation in the aisle and leadership evidence review.
 
+### Phase 17: Controle GPP Web API com tempo real
+
+**Goal:** Build the additive Controle GPP web/API foundation behind a feature flag, with central-first writes, auditability, idempotency, store-scoped permissions, and realtime store-room notifications that never replace central truth.
+
+**Requirements:** GPP-01, GPP-02, GPP-03, GPP-04, GPP-05, GPP-06, GPP-07
+**Status:** Not started
+**Depends on:** Phase 16
+
+**Success criteria:**
+1. New GPP contracts, tables, endpoints, idempotency keys, and audit events are additive and do not alter the tested build 170 mobile flow.
+2. The web GPP surface exposes Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped and detail views.
+3. Backend permissions enforce store, role, sector, creator, status, and mandatory justification rules for every GPP write.
+4. Realtime events publish only after central database success and cause clients to re-read central snapshots, with manual refresh fallback.
+5. `controle_gpp_enabled` keeps the new surface hidden from current Loja 18 validation until explicitly enabled.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 17, then /gsd-ui-phase 17 or /gsd-plan-phase 17 as required)
+
+### Phase 18: Controle GPP Mobile para avaria e compras internas
+
+**Goal:** Add the mobile Controle GPP entry for sector operators to register avarias and request internal purchases with central-confirmed feedback, while keeping local-only behavior restricted to real offline use.
+
+**Requirements:** GPP-08
+**Status:** Not started
+**Depends on:** Phase 17
+
+**Success criteria:**
+1. Mobile shows a separate Controle GPP entry with Registrar avaria, Solicitar compra interna, Minhas pendencias, and Enviadas hoje.
+2. Avaria registration requires product code, quantity/unit, and destination/finality fields for baixa GPP, reaproveitamento, producao interna, or transferencia.
+3. Internal purchase requests can start from product name/description plus quantity and finality, with product code optional until GPP service.
+4. Role-aware navigation opens GPP users directly into Controle GPP while collaborators keep Hoje as the daily validation surface.
+5. Online mobile actions show success only after central acknowledgement; offline actions remain explicitly pending on this device.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 18 after Phase 17 verification)
+
+### Phase 19: Integracao do Controle GPP com Hoje
+
+**Goal:** Connect Hoje task resolution to Controle GPP only after the GPP web/API/mobile base is proven, so vencido/retirado lots can generate avaria, reaproveitamento, or producao interna records without hiding sales-area risk prematurely.
+
+**Requirements:** GPP-09
+**Status:** Not started
+**Depends on:** Phase 18
+
+**Success criteria:**
+1. Hoje offers Registrar avaria por vencimento, Enviar para reaproveitamento, Enviar para producao interna, and Confirmar esgotado in the correct terminal contexts.
+2. GPP-linked Hoje actions confirm the product left the sales area before resolving sales-area risk.
+3. Hoje-created GPP records preserve lot linkage, product code, quantity/unit, destination/finality, actor, and central acknowledgement state.
+4. Internal purchases remain separate from Hoje and cannot be used to hide vencido or sales-area risk.
+5. Existing build 170 semantics remain untouched until this future mobile version is intentionally built and validated.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 19 after Phase 18 verification)
+
+### Phase 20: Tempo real do Hoje
+
+**Goal:** Extend the proven store-room realtime layer from Controle GPP to Hoje so active tasks/lots refresh across web/mobile quickly while central snapshots remain the source of truth.
+
+**Requirements:** GPP-10
+**Status:** Not started
+**Depends on:** Phase 19
+
+**Success criteria:**
+1. Hoje task/lot changes publish store-scoped events only after central database success.
+2. Web/mobile clients treat realtime events as refresh hints and re-read central snapshots instead of mutating task truth from socket payloads.
+3. Manual refresh and existing polling/fallback paths still work when realtime is paused, disconnected, or disabled.
+4. Cross-device visibility improves without weakening central acknowledgement, conflict, or offline-pending semantics.
+5. Realtime remains feature-flagged and can be disabled without breaking the core Hoje workflow.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 20 after Phase 19 verification)
+
 ## Milestone Outcome
 
 v1.1 succeeds when the app feels like a real store tool instead of a pilot debug surface:
@@ -91,12 +172,19 @@ v1.1 succeeds when the app feels like a real store tool instead of a pilot debug
 - Healthy sync/push/build state stays quiet; blockers become explicit with next actions.
 - Loja 18 validation can run with real product/lote flow and public-safe proof boundaries.
 
+v1.2 succeeds when Controle GPP becomes a trustworthy store tool without destabilizing the tested validity flow:
+
+- GPP sees avarias, internal purchases, divergences, and history by store/sector from central truth.
+- Sector operators can register avarias and internal purchase requests without paper becoming the primary workflow.
+- Realtime makes work visible quickly, but central acknowledgement remains the only success source.
+- Hoje integrates with GPP only after the GPP base is proven, preserving zero expired product in the sales area.
+
 ## Active Planning
 
-Continue with Phase 14 verification:
+Continue validating the current Loja 18 build 170 flow. When ready to start the GPP track:
 
 ```powershell
-$gsd-verify-work 14
+$gsd-discuss-phase 17
 ```
 
 ## Archive
@@ -118,3 +206,7 @@ Phase execution directories from v1.0 were cleared from `.planning/phases/` when
 | Mobile Ajustes | SET-01..SET-05 | Phase 14 | Complete |
 | Operational Focus | OPS-01..OPS-04 | Phase 15 | Pending |
 | Loja 18 Validation | VAL-01..VAL-04 | Phase 16 | Pending |
+| GPP Web/API Realtime | GPP-01..GPP-07 | Phase 17 | Pending |
+| GPP Mobile | GPP-08 | Phase 18 | Pending |
+| GPP + Hoje Integration | GPP-09 | Phase 19 | Pending |
+| Hoje Realtime | GPP-10 | Phase 20 | Pending |

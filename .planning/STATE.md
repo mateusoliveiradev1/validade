@@ -5,8 +5,8 @@ milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 16
 status: verifying
 stopped_at: Completed 16-03-PLAN.md
-last_updated: "2026-07-01T12:31:47.375Z"
-last_activity: 2026-07-01
+last_updated: "2026-07-02T17:05:24.4068389-03:00"
+last_activity: 2026-07-02
 progress:
   total_phases: 4
   completed_phases: 4
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-07-01
+**Last activity:** 2026-07-02
 
 ## Project Reference
 
@@ -39,6 +39,10 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 | 14 | Complete | Mobile Ajustes and Device Controls - 5 plans implemented; ready for verification |
 | 15 | Complete | Operational Surface Distillation - OPS-01..OPS-04 implemented and verified |
 | 16 | Pending | Loja 18 Validation Runbook and Go/No-Go Proof - VAL-01..VAL-04 |
+| 17 | Pending | Controle GPP Web API com tempo real - future v1.2 Phase 1; build 170 untouched |
+| 18 | Pending | Controle GPP Mobile para avaria e compras internas - future v1.2 Phase 2 |
+| 19 | Pending | Integracao do Controle GPP com Hoje - future v1.2 Phase 3 |
+| 20 | Pending | Tempo real do Hoje - future v1.2 Phase 4 |
 
 ## Active Constraints
 
@@ -50,7 +54,7 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 
 ## Next Step
 
-Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
+Continue Loja 18 build 170 validation/testing. When ready to start the GPP track, run `$gsd-discuss-phase 17`.
 
 ## Accumulated Context
 
@@ -87,6 +91,11 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 - v1.0 milestone audit rerun completed: all 37 v1 requirements now have traceability through REQUIREMENTS.md, summaries, and VERIFICATION.md; repository and web gates passed; physical rollout remains blocked by external Android/provider/camera/Loja 18 UAT proof.
 - Post-v1.0 staging hotfix completed: Neon `staging` received the Phase 12 device readiness migration, then the deployed API was fixed so prepare-turn prefers the authenticated session store for multi-store subjects instead of falling back to the first active membership; staging Worker `389c468e-12ce-4254-8be6-2e8689fb54ee` is live and database/auth health checks pass.
 - v1.1 milestone started: scope separates daily operation from diagnostic/rollout surfaces, keeps device readiness permanent, adds mobile Ajustes, and makes Loja 18 validation runnable without polluting the daily workflow.
+- v1.2 Controle GPP e Tempo Real Operacional drafted from `.planning/notes/controle-gpp-exploracao.md` while keeping current build 170 validation untouched.
+- Phase 17 added: Controle GPP Web API com tempo real for additive web/API, permissions, audit, idempotency, feature flag, and realtime-after-central-success.
+- Phase 18 added: Controle GPP Mobile para avaria e compras internas for store operator avaria records, internal purchase requests, role-aware entry, and central-ack feedback.
+- Phase 19 added: Integracao do Controle GPP com Hoje for future Hoje actions that create GPP-linked avaria/reaproveitamento/producao records only after product leaves the sales area.
+- Phase 20 added: Tempo real do Hoje to reuse the proven GPP realtime layer as refresh hints without weakening central truth, conflict, or offline-pending semantics.
 
 ### Quick Tasks Completed
 
@@ -275,13 +284,14 @@ Discuss and plan Phase 16: Loja 18 validation runbook and Go/No-Go proof.
 
 Phase: 16 (Loja 18 Validation Runbook and Go/No-Go Proof) — EXECUTING
 Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-07-01 - Completed quick task 260701-f3d: implemented guided mobile onboarding, generated APK 148, and deployed API/web staging
+Status: Phase complete - build 170 validation continues; v1.2 GPP roadmap drafted
+Last activity: 2026-07-02 - Added future Controle GPP phases 17-20 without changing the current Loja 18 validation build.
 
 ## Operator Next Steps
 
-- Install `artifacts\validade-zero-staging-0.12.0-148.apk` on the Loja 18 Android device and run the physical validation path.
+- Continue validating `artifacts\validade-zero-staging-0.12.0-170.apk` on the Loja 18 Android device and run the physical validation path.
 - Preserve the Phase 16 proof boundary: API/web/APK build are deployed/generated, while installed-device proof, provider push, camera/fallback, second-device convergence, safe close, and physical Loja 18 UAT remain external validation evidence.
+- Keep testing the current build 170 validity/sync flow separately from GPP planning; start GPP with `$gsd-discuss-phase 17` only when ready to move into v1.2.
 
 ## Deferred Items
 
