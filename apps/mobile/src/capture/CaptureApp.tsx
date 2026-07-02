@@ -456,7 +456,7 @@ export function CaptureApp({
         setPrepareTurnCache(response.cache);
         setPrepareTurnSource("central");
 
-        if (response.store.readiness === "prepared") {
+        if (response.store.readiness === "prepared" || response.store.readiness === "cache_ready") {
           setPrepareTurnState("ready");
           if (isSilent) {
             setTodayRefreshRequest((current) => ({

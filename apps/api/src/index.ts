@@ -2452,19 +2452,53 @@ async function prepareTurnResponseWithShiftState(input: {
       createdAt: input.now(),
     });
 
-    return input.response;
+    return responseWithAcceptedTurnState(input.response, input.request.requestedAt);
   }
 
   const activeClosure = await input.shiftCloseRepository.findActiveClosureForStore({
     storeId: input.storeId,
   });
 
-  return activeClosure === undefined
+  if (activeClosure !== undefined) {
+    return responseWithAcceptedTurnState(input.response, input.request.requestedAt, {
+      shiftClose: shiftClosureSnapshotFromRecord(activeClosure),
+    });
+  }
+
+  const latestTurnStart = await input.shiftCloseRepository.findLatestTurnStartForStore({
+    storeId: input.storeId,
+  });
+
+  return latestTurnStart === undefined
     ? input.response
-    : PrepareTurnResponseSchema.parse({
-        ...input.response,
-        shiftClose: shiftClosureSnapshotFromRecord(activeClosure),
-      });
+    : responseWithAcceptedTurnState(input.response, input.request.requestedAt);
+}
+
+function responseWithAcceptedTurnState(
+  response: PrepareTurnResponse,
+  readAt: string,
+  extra: Pick<PrepareTurnResponse, "shiftClose"> = {},
+): PrepareTurnResponse {
+  return PrepareTurnResponseSchema.parse({
+    ...response,
+    ...extra,
+    store: {
+      ...response.store,
+      centralReadAt: response.store.centralReadAt ?? readAt,
+      readiness: response.store.readiness === "blocked" ? response.store.readiness : "cache_ready",
+      blockers: response.store.readiness === "blocked" ? response.store.blockers : [],
+    },
+    device: {
+      ...response.device,
+      lastCentralReadAt: response.device.lastCentralReadAt ?? readAt,
+    },
+    cache: {
+      ...response.cache,
+      state: response.cache.state === "unavailable" ? response.cache.state : "ready",
+      source: "central",
+      lastCentralReadAt: response.cache.lastCentralReadAt ?? readAt,
+    },
+  });
 }
 
 function createProductCatalogRequestId(kind: string, value: string): string {

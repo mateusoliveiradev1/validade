@@ -100,6 +100,17 @@ export function createInMemoryShiftCloseRepository(): InMemoryShiftCloseReposito
         )[0];
       return Promise.resolve(closure);
     },
+    findLatestTurnStartForStore(input) {
+      const turnStart = [...turnStartsByIdempotency.entries()]
+        .filter(([, start]) => start.storeId === input.storeId)
+        .map(([idempotencyKey, start]) => ({ idempotencyKey, ...start }))
+        .sort(
+          (left, right) =>
+            right.startedAt.getTime() - left.startedAt.getTime() ||
+            right.createdAt.getTime() - left.createdAt.getTime(),
+        )[0];
+      return Promise.resolve(turnStart);
+    },
     recordTurnStart(input) {
       if (!turnStartsByIdempotency.has(input.idempotencyKey)) {
         turnStartsByIdempotency.set(input.idempotencyKey, {

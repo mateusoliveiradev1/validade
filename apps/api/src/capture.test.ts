@@ -65,20 +65,7 @@ describe("capture prepare-turn API", () => {
   });
 
   it("returns the active central shift close until the next turn is prepared", async () => {
-    const captureRepository = createInMemoryCaptureRepository({
-      products: [centralProduct("loja-piloto")],
-      lots: [
-        {
-          ...centralLot("loja-piloto"),
-          currentLocation: { kind: "retirada_perda" as const },
-          riskState: "safe" as const,
-          expiresAt: "2030-01-20",
-        },
-      ],
-      tasks: [],
-      resolvedHistory: [],
-      conflicts: [],
-    });
+    const captureRepository = createInMemoryCaptureRepository();
     const shiftCloseRepository = createInMemoryShiftCloseRepository();
     await shiftCloseRepository.createClosure({
       closureId: "shift-close-prepare-turn-central",
@@ -119,6 +106,10 @@ describe("capture prepare-turn API", () => {
     });
     const refreshBody = (await refresh.json()) as { shiftClose?: { verdict?: string } };
     expect(refresh.status).toBe(200);
+    expect(refreshBody).toMatchObject({
+      store: { readiness: "cache_ready" },
+      cache: { state: "ready" },
+    });
     expect(refreshBody.shiftClose).toMatchObject({ verdict: "safe" });
 
     const nextTurn = await app.request("/capture/prepare-turn", {
@@ -136,6 +127,10 @@ describe("capture prepare-turn API", () => {
     });
     const nextTurnBody = (await nextTurn.json()) as { shiftClose?: unknown };
     expect(nextTurn.status).toBe(200);
+    expect(nextTurnBody).toMatchObject({
+      store: { readiness: "cache_ready" },
+      cache: { state: "ready" },
+    });
     expect(nextTurnBody.shiftClose).toBeUndefined();
 
     const laterRefresh = await app.request("/capture/prepare-turn", {
@@ -153,6 +148,10 @@ describe("capture prepare-turn API", () => {
     });
     const laterRefreshBody = (await laterRefresh.json()) as { shiftClose?: unknown };
     expect(laterRefresh.status).toBe(200);
+    expect(laterRefreshBody).toMatchObject({
+      store: { readiness: "cache_ready" },
+      cache: { state: "ready" },
+    });
     expect(laterRefreshBody.shiftClose).toBeUndefined();
   });
 

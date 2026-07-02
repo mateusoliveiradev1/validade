@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat38-shift-close-cloud-apk-168",
+  artifactLabel: "uat39-shift-open-empty-apk-169",
   appVersion: "0.12.0",
-  build: "168",
+  build: "169",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

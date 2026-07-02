@@ -37,6 +37,13 @@ export interface ShiftHandoffPersistenceRecord {
   receivedAt: Date;
 }
 
+export interface ShiftTurnStartPersistenceRecord {
+  storeId: string;
+  idempotencyKey: string;
+  startedAt: Date;
+  createdAt: Date;
+}
+
 export interface ShiftCloseRepository {
   createClosure(input: ShiftClosurePersistenceRecord): Promise<{
     closure: ShiftClosurePersistenceRecord;
@@ -49,6 +56,9 @@ export interface ShiftCloseRepository {
     closureId: string;
     storeId: string;
   }): Promise<ShiftClosurePersistenceRecord | undefined>;
+  findLatestTurnStartForStore(input: {
+    storeId: string;
+  }): Promise<ShiftTurnStartPersistenceRecord | undefined>;
   recordTurnStart(input: {
     storeId: string;
     idempotencyKey: string;
@@ -95,6 +105,13 @@ interface ShiftHandoffRow {
   acknowledged_role_snapshot: ShiftHandoffPersistenceRecord["acknowledgedRoleSnapshot"];
   acknowledged_at: string | Date;
   received_at: string | Date;
+}
+
+interface ShiftTurnStartRow {
+  idempotency_key: string;
+  store_id: string;
+  started_at: string | Date;
+  created_at: string | Date;
 }
 
 const SHIFT_CLOSURE_COLUMNS = `
@@ -220,6 +237,19 @@ export function createShiftCloseRepositoryFromQuery(
       return rows[0] === undefined ? undefined : mapClosure(rows[0]);
     },
     findClosure,
+    async findLatestTurnStartForStore(input) {
+      await ensureTurnStartsTable();
+      const rows = (await sql.query(
+        `select idempotency_key, store_id, started_at, created_at
+        from shift_turn_starts
+        where store_id = $1
+        order by started_at desc, created_at desc
+        limit 1`,
+        [input.storeId],
+      )) as ShiftTurnStartRow[];
+
+      return rows[0] === undefined ? undefined : mapTurnStart(rows[0]);
+    },
     async recordTurnStart(input) {
       await ensureTurnStartsTable();
       const startId = `shift-turn-start-${sanitizeIdentifier(input.idempotencyKey)}`;
@@ -323,6 +353,15 @@ function mapHandoff(row: ShiftHandoffRow): ShiftHandoffPersistenceRecord {
     acknowledgedRoleSnapshot: row.acknowledged_role_snapshot,
     acknowledgedAt: toDate(row.acknowledged_at),
     receivedAt: toDate(row.received_at),
+  };
+}
+
+function mapTurnStart(row: ShiftTurnStartRow): ShiftTurnStartPersistenceRecord {
+  return {
+    storeId: row.store_id,
+    idempotencyKey: row.idempotency_key,
+    startedAt: toDate(row.started_at),
+    createdAt: toDate(row.created_at),
   };
 }
 

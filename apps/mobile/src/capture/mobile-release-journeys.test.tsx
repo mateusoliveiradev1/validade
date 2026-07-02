@@ -309,6 +309,50 @@ function pilotPrepareTurnResponse(
   return { ...response, ...overrides };
 }
 
+function acceptedEmptyTurnResponse(
+  overrides: Partial<PrepareTurnResponse> = {},
+): PrepareTurnResponse {
+  return pilotPrepareTurnResponse({
+    store: {
+      storeId: "loja-ficticia",
+      storeName: "Loja Ficticia Piloto",
+      centralVersion: 1,
+      generatedAt: "2030-01-10T18:10:00.000Z",
+      centralReadAt: "2030-01-10T18:10:00.000Z",
+      source: "central",
+      readiness: "cache_ready",
+      blockers: [],
+    },
+    device: {
+      deviceId: "validade-zero-mobile:loja-ficticia",
+      preparedAt: "2030-01-10T18:10:00.000Z",
+      lastCentralReadAt: "2030-01-10T18:10:00.000Z",
+      lastHydratedAt: "2030-01-10T18:10:00.000Z",
+      pendingCommandCount: 0,
+      conflictCount: 0,
+      source: "central",
+    },
+    cache: {
+      state: "ready",
+      source: "central",
+      updatedAt: "2030-01-10T18:10:00.000Z",
+      lastCentralReadAt: "2030-01-10T18:10:00.000Z",
+      staleAfterHours: 4,
+      productCount: 0,
+      lotCount: 0,
+      activeTaskCount: 0,
+      conflictCount: 0,
+      resolvedHistoryCount: 0,
+    },
+    products: [],
+    lots: [],
+    activeTasks: [],
+    resolvedHistory: [],
+    conflicts: [],
+    ...overrides,
+  });
+}
+
 function firstStorePrepareTurnCache(): PrepareTurnCacheStatus {
   return {
     state: "needs_first_central_read",
@@ -1001,7 +1045,7 @@ describe("mobile release journeys", () => {
 
     const prepareTurnAfterRestart = vi.fn((request: PrepareTurnRequest) =>
       Promise.resolve(
-        pilotPrepareTurnResponse(
+        acceptedEmptyTurnResponse(
           request.turnIntent === "start_next_turn"
             ? {}
             : { shiftClose: safeShiftClosureSnapshot() },

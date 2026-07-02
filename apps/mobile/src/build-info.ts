@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat38-shift-close-cloud-apk-168",
+  artifactLabel: "uat39-shift-open-empty-apk-169",
   appVersion: "0.12.0",
-  build: "168",
+  build: "169",
 } as const;
 
 interface ExpoApplicationPort {
@@ -95,7 +95,7 @@ export function readMobileBuildInfo(
     ),
     approvedAppVersion,
     approvedBuild,
-    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "shift-close-cloud-168", 24),
+    buildRef: publicLabel(extraText(extra, "VALIDADE_ZERO_BUILD_REF"), "shift-open-empty-169", 24),
     buildCompatibility: resolvePilotBuildCompatibility({
       appVersion,
       appBuild,
