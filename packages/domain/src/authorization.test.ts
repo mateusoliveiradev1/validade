@@ -35,6 +35,20 @@ describe("authorization matrix", () => {
     expect(roleAllowsCapability("admin", "pilot.push_test.send")).toBe(true);
     expect(roleAllowsCapability("admin", "command_center.read_store")).toBe(false);
     expect(roleAllowsCapability("admin", "shift.close")).toBe(false);
+    expect(roleAllowsCapability("collaborator", "gpp.avaria.create")).toBe(true);
+    expect(roleAllowsCapability("collaborator", "gpp.avaria.correct_own_pending")).toBe(true);
+    expect(roleAllowsCapability("collaborator", "gpp.queue.read")).toBe(false);
+    expect(roleAllowsCapability("collaborator", "gpp.avaria.baixar")).toBe(false);
+    expect(roleAllowsCapability("lead", "gpp.avaria.correct_store")).toBe(true);
+    expect(roleAllowsCapability("lead", "gpp.correction.review")).toBe(true);
+    expect(roleAllowsCapability("lead", "gpp.avaria.baixar")).toBe(false);
+    expect(roleAllowsCapability("admin", "gpp.avaria.baixar")).toBe(false);
+    expect(roleAllowsCapability("gpp", "gpp.queue.read")).toBe(true);
+    expect(roleAllowsCapability("gpp", "gpp.avaria.baixar")).toBe(true);
+    expect(roleAllowsCapability("gpp", "gpp.purchase.attend")).toBe(true);
+    expect(roleAllowsCapability("gpp", "shift.close")).toBe(false);
+    expect(roleAllowsCapability("gpp", "user.manage")).toBe(false);
+    expect(roleAllowsCapability("gpp", "policy.manage")).toBe(false);
   });
 
   it("authorizes only active memberships in the target store", () => {
@@ -112,6 +126,54 @@ describe("authorization matrix", () => {
     expect(adminDecision.context?.capabilities).toContain("pilot.push_test.send");
   });
 
+  it("authorizes GPP operations only for active same-store GPP membership", () => {
+    const decision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "gpp",
+        },
+      ],
+      capability: "gpp.avaria.baixar",
+      resourceStoreId: "loja-piloto",
+    });
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.context?.membership.role).toBe("gpp");
+    expect(decision.context?.capabilities).toContain("gpp.queue.read");
+    expect(decision.context?.capabilities).toContain("gpp.avaria.baixar");
+  });
+
+  it("denies governance and leadership memberships for GPP baixa by default", () => {
+    const leadDecision = authorizeStoreCapability({
+      identity,
+      memberships: [leadMembership],
+      capability: "gpp.avaria.baixar",
+      resourceStoreId: "loja-piloto",
+    });
+    const adminDecision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "admin",
+        },
+      ],
+      capability: "gpp.avaria.baixar",
+      resourceStoreId: "loja-piloto",
+    });
+
+    expect(leadDecision).toEqual({
+      allowed: false,
+      reason: "capability_not_allowed",
+    });
+    expect(adminDecision).toEqual({
+      allowed: false,
+      reason: "capability_not_allowed",
+    });
+  });
+
   it("denies collaborator push tests without leaking cross-store details", () => {
     const collaboratorDecision = authorizeStoreCapability({
       identity,
@@ -140,6 +202,42 @@ describe("authorization matrix", () => {
       reason: "outside_store_scope",
     });
     expect(JSON.stringify(crossStoreDecision)).not.toContain("loja-outra");
+  });
+
+  it("keeps GPP cross-store and inactive membership denial behavior unchanged", () => {
+    const crossStoreDecision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "gpp",
+        },
+      ],
+      capability: "gpp.queue.read",
+      resourceStoreId: "loja-outra",
+    });
+    const inactiveDecision = authorizeStoreCapability({
+      identity,
+      memberships: [
+        {
+          ...leadMembership,
+          role: "gpp",
+          status: "inactive",
+        },
+      ],
+      capability: "gpp.queue.read",
+      resourceStoreId: "loja-piloto",
+    });
+
+    expect(crossStoreDecision).toEqual({
+      allowed: false,
+      reason: "outside_store_scope",
+    });
+    expect(JSON.stringify(crossStoreDecision)).not.toContain("loja-outra");
+    expect(inactiveDecision).toEqual({
+      allowed: false,
+      reason: "inactive_membership",
+    });
   });
 
   it("denies inactive memberships before capability evaluation", () => {

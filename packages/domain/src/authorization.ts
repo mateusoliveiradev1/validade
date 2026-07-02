@@ -19,11 +19,20 @@ export const CAPABILITIES = [
   "policy.manage",
   "audit.read_global",
   "evidence.read_global",
+  "gpp.queue.read",
+  "gpp.avaria.create",
+  "gpp.avaria.correct_own_pending",
+  "gpp.avaria.correct_store",
+  "gpp.divergence.mark",
+  "gpp.correction.review",
+  "gpp.avaria.baixar",
+  "gpp.purchase.attend",
+  "gpp.history.read",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
 
-export const AUTHORIZATION_ROLES = ["collaborator", "lead", "admin"] as const;
+export const AUTHORIZATION_ROLES = ["collaborator", "lead", "admin", "gpp"] as const;
 
 export type AuthorizationRole = (typeof AUTHORIZATION_ROLES)[number];
 
@@ -76,6 +85,8 @@ const COLLABORATOR_CAPABILITIES = [
   "evidence.attach",
   "markdown.request",
   "command_center.read_store",
+  "gpp.avaria.create",
+  "gpp.avaria.correct_own_pending",
 ] as const satisfies readonly Capability[];
 
 const LEAD_CAPABILITIES = [
@@ -90,6 +101,9 @@ const LEAD_CAPABILITIES = [
   "shift.close",
   "shift.handoff_ack",
   "pilot.push_test.send",
+  "gpp.avaria.correct_store",
+  "gpp.correction.review",
+  "gpp.history.read",
 ] as const satisfies readonly Capability[];
 
 const ADMIN_CAPABILITIES = [
@@ -103,10 +117,23 @@ const ADMIN_CAPABILITIES = [
   "evidence.read_global",
 ] as const satisfies readonly Capability[];
 
+const GPP_CAPABILITIES = [
+  "gpp.queue.read",
+  "gpp.avaria.create",
+  "gpp.avaria.correct_own_pending",
+  "gpp.avaria.correct_store",
+  "gpp.divergence.mark",
+  "gpp.correction.review",
+  "gpp.avaria.baixar",
+  "gpp.purchase.attend",
+  "gpp.history.read",
+] as const satisfies readonly Capability[];
+
 export const ROLE_CAPABILITIES = {
   collaborator: COLLABORATOR_CAPABILITIES,
   lead: LEAD_CAPABILITIES,
   admin: ADMIN_CAPABILITIES,
+  gpp: GPP_CAPABILITIES,
 } as const satisfies Record<AuthorizationRole, readonly Capability[]>;
 
 export function roleAllowsCapability(role: AuthorizationRole, capability: Capability): boolean {
