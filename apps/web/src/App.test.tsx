@@ -16,6 +16,9 @@ const activeSession = {
     accountStatus: "active",
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
+    featureFlags: {
+      controle_gpp_enabled: false,
+    },
     actions: {
       canReadCommandCenter: true,
       canActOnTask: true,
@@ -24,6 +27,14 @@ const activeSession = {
       canReadStoreAudit: false,
       canManageUsers: false,
       canSendPilotPushTest: false,
+      canReadGppQueue: false,
+      canCreateGppEntry: false,
+      canCorrectOwnPendingGppEntry: false,
+      canMarkGppDivergence: false,
+      canReviewGppCorrection: false,
+      canBaixarGppAvaria: false,
+      canAttendGppPurchase: false,
+      canReadGppHistory: false,
     },
   },
 };
@@ -113,10 +124,7 @@ describe("authenticated web shell", () => {
     const commandCenterCall = fetchMock.mock.calls.find(([input]) =>
       (input instanceof Request ? input.url : String(input)).includes("/command-center"),
     );
-    const commandCenterHeaders = new Headers(
-      commandCenterCall?.[1]?.headers ??
-        (commandCenterCall?.[0] instanceof Request ? commandCenterCall[0].headers : undefined),
-    );
+    const commandCenterHeaders = headersFromFetchCall(commandCenterCall);
     expect(commandCenterHeaders.get("authorization")).toBe(`Bearer ${activeSession.sessionToken}`);
     expect(screen.queryByText("Ambiente seguro para desenvolvimento")).toBeNull();
 
@@ -139,6 +147,7 @@ describe("authenticated web shell", () => {
       "disabled",
       false,
     );
+    expect(within(navigationDialog).queryByRole("button", { name: "Controle GPP" })).toBeNull();
     expect(
       within(navigationDialog).getByRole("button", { name: "Acessos da loja" }),
     ).toHaveProperty("disabled", true);
@@ -148,6 +157,63 @@ describe("authenticated web shell", () => {
       true,
     );
     expect(within(navigationDialog).getByText("Lideranca apenas")).toBeTruthy();
+  });
+
+  it("lands GPP users on the feature-flagged Controle GPP route", async () => {
+    const gppSession = {
+      ...activeSession,
+      session: {
+        ...activeSession.session,
+        activeRole: "gpp",
+        capabilities: [
+          "gpp.queue.read",
+          "gpp.divergence.mark",
+          "gpp.correction.review",
+          "gpp.avaria.baixar",
+          "gpp.purchase.attend",
+          "gpp.history.read",
+        ],
+        featureFlags: {
+          controle_gpp_enabled: true,
+        },
+        actions: {
+          ...activeSession.session.actions,
+          canReadCommandCenter: false,
+          canReadGppQueue: true,
+          canCreateGppEntry: false,
+          canCorrectOwnPendingGppEntry: false,
+          canMarkGppDivergence: true,
+          canReviewGppCorrection: true,
+          canBaixarGppAvaria: true,
+          canAttendGppPurchase: true,
+          canReadGppHistory: true,
+        },
+      },
+    };
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+
+      if (url.includes("/gpp/queue")) {
+        return Promise.resolve(Response.json(gppQueueSnapshot()));
+      }
+
+      if (url.includes("/gpp/history")) {
+        return Promise.resolve(Response.json({ history: gppQueueSnapshot().history }));
+      }
+
+      return Promise.resolve(Response.json(gppSession));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Controle GPP" })).toHaveProperty("disabled", false);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/command-center"))).toBe(
+      false,
+    );
   });
 
   it("keeps operational routes disabled for an admin-only session", () => {
@@ -183,8 +249,41 @@ describe("authenticated web shell", () => {
       "disabled",
       false,
     );
+    expect(screen.queryByRole("button", { name: "Controle GPP" })).toBeNull();
   });
 });
+
+function gppQueueSnapshot() {
+  return {
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    generatedAt: "2030-01-11T11:00:00.000Z",
+    centralState: "available",
+    avariaGroups: [
+      {
+        groupId: "FLV:162:baixa_gpp",
+        sector: "FLV",
+        product: { code: "162", name: "Banana prata" },
+        finality: "baixa_gpp",
+        totalQuantity: { value: 2, unit: "kg" },
+        entryCount: 1,
+        divergenceCount: 0,
+        latestActivityAt: "2030-01-11T10:00:00.000Z",
+        eligibleForBaixa: true,
+      },
+    ],
+    purchaseRequests: [],
+    divergenceEntries: [],
+    history: [],
+  };
+}
+
+function headersFromFetchCall(call: Parameters<typeof fetch> | undefined): Headers {
+  if (call === undefined) return new Headers();
+  const initHeaders = call[1]?.headers;
+  if (initHeaders !== undefined) return new Headers(initHeaders);
+  const requestLike = call[0] as { headers?: HeadersInit };
+  return new Headers(requestLike.headers);
+}
 
 function pilotUatChecklist(storeId: string, storeName: string) {
   const updatedAt = "2030-01-11T11:00:00.000Z";

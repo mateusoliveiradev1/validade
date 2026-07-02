@@ -13,6 +13,7 @@ import { LoginPage } from "./auth/LoginPage";
 import { RecoveryPage } from "./auth/RecoveryPage";
 import { createAuthenticatedFetcher } from "./auth/authenticated-fetch";
 import { Skeleton } from "./components/ui/skeleton";
+import { GppControlRoute } from "./gpp/GppControlRoute";
 import { MembershipAdministration } from "./memberships/MembershipAdministration";
 import { PrivacyCenter } from "./privacy/PrivacyCenter";
 import { AppShell, type AppRoute } from "./shell/AppShell";
@@ -48,8 +49,8 @@ export function App() {
           return;
         }
         const parsed = AuthenticatedSessionResponseSchema.parse(payload);
-        setSession(parsed.session);
         setSessionToken(parsed.sessionToken);
+        setSession(parsed.session);
         setScreen("login");
       })
       .catch(() => setScreen("login"));
@@ -71,8 +72,8 @@ export function App() {
       return;
     }
     const parsed = AuthenticatedSessionResponseSchema.parse(payload);
-    setSession(parsed.session);
     setSessionToken(parsed.sessionToken);
+    setSession(parsed.session);
     setScreen("login");
   }
   if (screen === "loading" || (session !== undefined && sessionToken === undefined))
@@ -108,8 +109,8 @@ export function App() {
           const payload: unknown = await response.json();
           if (!response.ok) throw new Error("invite");
           const parsed = AuthenticatedSessionResponseSchema.parse(payload);
-          setSession(parsed.session);
           setSessionToken(parsed.sessionToken);
+          setSession(parsed.session);
           setInviteToken(undefined);
           clearInviteUrlParam();
           setScreen("login");
@@ -181,6 +182,8 @@ export function App() {
           onOpenAtualizacoes={() => setRoute("atualizacoes")}
           onOpenOperacao={() => setRoute("operacao")}
         />
+      ) : activeRoute === "controle-gpp" ? (
+        <GppControlRoute fetcher={apiFetch} session={session} />
       ) : activeRoute === "access" ? (
         <MembershipAdministration
           fetcher={apiFetch}
@@ -204,12 +207,15 @@ export function App() {
 
 function routeAllowed(route: AppRoute, session: SessionContextResponse): boolean {
   if (isOperationalRoute(route)) return session.actions.canReadCommandCenter;
+  if (route === "controle-gpp") return canOpenGpp(session);
   if (route === "access") return session.actions.canManageUsers;
   return session.actions.canReadStoreAudit;
 }
 
 function firstAllowedRoute(session: SessionContextResponse): AppRoute {
+  if (session.activeRole === "gpp" && canOpenGpp(session)) return "controle-gpp";
   if (session.actions.canReadCommandCenter) return "operacao";
+  if (canOpenGpp(session)) return "controle-gpp";
   if (session.actions.canManageUsers) return "access";
   if (session.actions.canReadStoreAudit) return "audit";
   return "operacao";
@@ -238,4 +244,8 @@ function clearInviteUrlParam(): void {
   const nextUrl = new URL(window.location.href);
   nextUrl.searchParams.delete("invite");
   window.history.replaceState({}, "", nextUrl);
+}
+
+function canOpenGpp(session: SessionContextResponse): boolean {
+  return session.featureFlags.controle_gpp_enabled && session.actions.canReadGppQueue;
 }

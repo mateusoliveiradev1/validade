@@ -18,6 +18,9 @@ export const activeSession = {
     accountStatus: "active",
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
+    featureFlags: {
+      controle_gpp_enabled: false,
+    },
     actions: {
       canReadCommandCenter: true,
       canActOnTask: true,
@@ -25,6 +28,15 @@ export const activeSession = {
       canCloseShift: true,
       canReadStoreAudit: true,
       canManageUsers: false,
+      canSendPilotPushTest: false,
+      canReadGppQueue: false,
+      canCreateGppEntry: false,
+      canCorrectOwnPendingGppEntry: false,
+      canMarkGppDivergence: false,
+      canReviewGppCorrection: false,
+      canBaixarGppAvaria: false,
+      canAttendGppPurchase: false,
+      canReadGppHistory: false,
     },
   },
 } as const;
@@ -41,6 +53,9 @@ export const adminSession = {
     accountStatus: "active",
     canRequestRecovery: true,
     privacyCenterUrl: "/privacy",
+    featureFlags: {
+      controle_gpp_enabled: false,
+    },
     actions: {
       canReadCommandCenter: false,
       canActOnTask: false,
@@ -48,6 +63,57 @@ export const adminSession = {
       canCloseShift: false,
       canReadStoreAudit: false,
       canManageUsers: true,
+      canSendPilotPushTest: false,
+      canReadGppQueue: false,
+      canCreateGppEntry: false,
+      canCorrectOwnPendingGppEntry: false,
+      canMarkGppDivergence: false,
+      canReviewGppCorrection: false,
+      canBaixarGppAvaria: false,
+      canAttendGppPurchase: false,
+      canReadGppHistory: false,
+    },
+  },
+} as const;
+
+export const gppSession = {
+  status: "refreshed",
+  sessionToken: "c".repeat(32),
+  session: {
+    actor: { subjectId: "gpp-ficticio", displayName: "GPP FICTICIO" },
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    activeRole: "gpp",
+    capabilities: [
+      "gpp.queue.read",
+      "gpp.divergence.mark",
+      "gpp.correction.review",
+      "gpp.avaria.baixar",
+      "gpp.purchase.attend",
+      "gpp.history.read",
+    ],
+    sessionExpiresAt: "2030-01-11T12:00:00.000Z",
+    accountStatus: "active",
+    canRequestRecovery: true,
+    privacyCenterUrl: "/privacy",
+    featureFlags: {
+      controle_gpp_enabled: true,
+    },
+    actions: {
+      canReadCommandCenter: false,
+      canActOnTask: false,
+      canReviewProductDrafts: false,
+      canCloseShift: false,
+      canReadStoreAudit: false,
+      canManageUsers: false,
+      canSendPilotPushTest: false,
+      canReadGppQueue: true,
+      canCreateGppEntry: false,
+      canCorrectOwnPendingGppEntry: false,
+      canMarkGppDivergence: true,
+      canReviewGppCorrection: true,
+      canBaixarGppAvaria: true,
+      canAttendGppPurchase: true,
+      canReadGppHistory: true,
     },
   },
 } as const;
@@ -310,7 +376,11 @@ function pilotUatChecklist(storeId: string, storeName: string) {
 
 export async function installWebFixture(
   page: Page,
-  input?: { commandCenterStatus?: number; session?: typeof activeSession | typeof adminSession },
+  input?: {
+    commandCenterStatus?: number;
+    gppQueueStatus?: number;
+    session?: typeof activeSession | typeof adminSession | typeof gppSession;
+  },
 ) {
   await page.route("**/auth/session", async (route) => {
     await route.fulfill({ json: input?.session ?? activeSession });
@@ -325,6 +395,19 @@ export async function installWebFixture(
     }
     await route.fulfill({ json: commandCenterProjection });
   });
+  await page.route("**/gpp/queue?*", async (route) => {
+    if (input?.gppQueueStatus !== undefined) {
+      await route.fulfill({
+        status: input.gppQueueStatus,
+        json: { error: "central_unavailable" },
+      });
+      return;
+    }
+    await route.fulfill({ json: gppQueueSnapshot });
+  });
+  await page.route("**/gpp/history?*", async (route) => {
+    await route.fulfill({ json: { history: gppQueueSnapshot.history } });
+  });
   await page.route("**/audit/events?*", async (route) => {
     await route.fulfill({ json: { items: [] } });
   });
@@ -332,3 +415,59 @@ export async function installWebFixture(
     await route.fulfill({ json: { items: [membership] } });
   });
 }
+
+export const gppQueueSnapshot = {
+  store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+  generatedAt: "2030-01-10T12:00:00.000Z",
+  centralState: "available",
+  avariaGroups: [
+    {
+      groupId: "FLV:162:baixa_gpp",
+      sector: "FLV",
+      product: { code: "162", name: "Banana prata" },
+      finality: "baixa_gpp",
+      totalQuantity: { value: 2, unit: "kg" },
+      entryCount: 1,
+      divergenceCount: 0,
+      latestActivityAt: "2030-01-10T11:58:00.000Z",
+      eligibleForBaixa: true,
+    },
+  ],
+  purchaseRequests: [
+    {
+      purchaseRequestId: "purchase-001",
+      store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+      sector: "FLV",
+      product: { name: "Molho para salada" },
+      requestedQuantity: { value: 4, unit: "un" },
+      finality: "salada",
+      requester: {
+        actorId: "lead-ficticio",
+        displayName: "Lideranca FICTICIA",
+        roleSnapshot: "lead",
+      },
+      status: "solicitado",
+      requestedAt: "2030-01-10T10:30:00.000Z",
+      updatedAt: "2030-01-10T10:30:00.000Z",
+    },
+  ],
+  divergenceEntries: [],
+  history: [
+    {
+      historyId: "hist-gpp-001",
+      event: "baixado",
+      targetType: "avaria",
+      targetId: "avaria-001",
+      productCode: "162",
+      productName: "Banana prata",
+      sector: "FLV",
+      actor: {
+        actorId: "gpp-ficticio",
+        displayName: "GPP FICTICIO",
+        roleSnapshot: "gpp",
+      },
+      occurredAt: "2030-01-10T11:00:00.000Z",
+      summary: "Banana baixada na central",
+    },
+  ],
+} as const;

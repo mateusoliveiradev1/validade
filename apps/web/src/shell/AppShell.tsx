@@ -2,6 +2,7 @@ import {
   ClipboardCheck,
   KeyRound,
   Menu,
+  PackageCheck,
   RefreshCw,
   ScrollText,
   ShieldCheck,
@@ -13,7 +14,14 @@ import type { SessionContextResponse } from "@validade-zero/contracts";
 import { Button } from "../components/ui/button";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 
-export type AppRoute = "operacao" | "aparelhos" | "atualizacoes" | "validacao" | "access" | "audit";
+export type AppRoute =
+  | "operacao"
+  | "controle-gpp"
+  | "aparelhos"
+  | "atualizacoes"
+  | "validacao"
+  | "access"
+  | "audit";
 
 interface NavItemState {
   allowed: boolean;
@@ -31,6 +39,12 @@ const navItems: Array<{
     label: "Operacao",
     description: "Area segura agora",
     icon: ClipboardCheck,
+  },
+  {
+    id: "controle-gpp",
+    label: "Controle GPP",
+    description: "Avarias e compras internas",
+    icon: PackageCheck,
   },
   {
     id: "aparelhos",
@@ -54,7 +68,7 @@ const navItems: Array<{
   { id: "audit", label: "Auditoria", description: "Trilha operacional", icon: ScrollText },
 ];
 
-const operationalRoutes: ReadonlySet<AppRoute> = new Set([
+const commandCenterRoutes: ReadonlySet<AppRoute> = new Set([
   "operacao",
   "aparelhos",
   "atualizacoes",
@@ -134,7 +148,7 @@ function ShellNavigation({
           <p className="text-sm text-muted-foreground">Nada vencido invisivel</p>
         </div>
       </div>
-      {navItems.map((item) => {
+      {visibleNavItems(session).map((item) => {
         const state = navItemState(item.id, session);
 
         return (
@@ -241,10 +255,16 @@ function MobileNavigation({
 }
 
 function navItemState(route: AppRoute, session: SessionContextResponse): NavItemState {
-  if (operationalRoutes.has(route)) {
+  if (commandCenterRoutes.has(route)) {
     return session.actions.canReadCommandCenter
       ? { allowed: true }
       : { allowed: false, reason: "Escopo operacional indisponivel" };
+  }
+
+  if (route === "controle-gpp") {
+    return canOpenGpp(session)
+      ? { allowed: true }
+      : { allowed: false, reason: "Controle GPP indisponivel" };
   }
 
   if (route === "access") {
@@ -261,5 +281,14 @@ function navItemState(route: AppRoute, session: SessionContextResponse): NavItem
 function roleLabel(role: SessionContextResponse["activeRole"]): string {
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
+  if (role === "gpp") return "GPP";
   return "Colaborador";
+}
+
+function visibleNavItems(session: SessionContextResponse): typeof navItems {
+  return navItems.filter((item) => item.id !== "controle-gpp" || canOpenGpp(session));
+}
+
+function canOpenGpp(session: SessionContextResponse): boolean {
+  return session.featureFlags.controle_gpp_enabled && session.actions.canReadGppQueue;
 }

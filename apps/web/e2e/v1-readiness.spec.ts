@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { adminSession, installWebFixture } from "./fixtures/v1-readiness";
+import { adminSession, gppSession, installWebFixture } from "./fixtures/v1-readiness";
 
 test("operational readiness routes keep each truth in its own room", async ({ page }) => {
   await installWebFixture(page);
@@ -125,6 +125,27 @@ test("role and store scope keep operational routes denied for admin-only access"
   ).toBeDisabled();
   await expect(navigation.getByRole("button", { name: "Validacao", exact: true })).toBeDisabled();
   await expect(navigation.getByText("Escopo operacional indisponivel")).toHaveCount(4);
+  await expect(navigation.getByRole("button", { name: "Controle GPP" })).toHaveCount(0);
+});
+
+test("Controle GPP opens for GPP role and keeps central fallback explicit", async ({ page }) => {
+  await installWebFixture(page, { session: gppSession });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
+  ).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Navegacao principal" });
+  await expect(navigation.getByRole("button", { name: "Controle GPP" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Avarias" })).toBeVisible();
+  await expect(page.getByText("162 - Banana prata")).toBeVisible();
+  await page.getByRole("tab", { name: "Compras internas" }).click();
+  await expect(page.getByText("Molho para salada")).toBeVisible();
+
+  await installWebFixture(page, { gppQueueStatus: 503, session: gppSession });
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText("Central indisponivel");
+  await expect(page.getByRole("alert").getByRole("button", { name: "Atualizar" })).toBeVisible();
 });
 
 test("privacy content, audit fallback, and narrow navigation remain reachable", async ({

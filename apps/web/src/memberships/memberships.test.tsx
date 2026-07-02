@@ -11,6 +11,9 @@ const ADMIN_CONTEXT = {
   accountStatus: "active",
   canRequestRecovery: true,
   privacyCenterUrl: "/privacidade",
+  featureFlags: {
+    controle_gpp_enabled: false,
+  },
   actions: {
     canReadCommandCenter: false,
     canActOnTask: false,
@@ -19,6 +22,14 @@ const ADMIN_CONTEXT = {
     canReadStoreAudit: false,
     canManageUsers: true,
     canSendPilotPushTest: true,
+    canReadGppQueue: false,
+    canCreateGppEntry: false,
+    canCorrectOwnPendingGppEntry: false,
+    canMarkGppDivergence: false,
+    canReviewGppCorrection: false,
+    canBaixarGppAvaria: false,
+    canAttendGppPurchase: false,
+    canReadGppHistory: false,
   },
 };
 
@@ -121,6 +132,12 @@ describe("membership administration", () => {
     fireEvent.change(screen.getByLabelText("Motivo da revogacao"), {
       target: { value: "Mudanca de funcao no piloto ficticio." },
     });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Confirmar revogacao" })).toHaveProperty(
+        "disabled",
+        false,
+      ),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Confirmar revogacao" }));
     await waitFor(() => expect(screen.getByText("Revogado")).toBeTruthy());
   });
