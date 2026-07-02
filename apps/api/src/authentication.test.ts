@@ -18,6 +18,7 @@ const TEST_SECRETS = {
   passwordPepper: "api-test-password-pepper-at-least-16",
 };
 const INVITE_TOKEN = "invite-token-with-at-least-thirty-two-characters";
+const GPP_INVITE_TOKEN = "gpp-invite-token-with-at-least-thirty-two-chars";
 const PASSWORD = "senha-piloto-forte-123";
 
 describe("pilot authentication API", () => {
@@ -83,6 +84,60 @@ describe("pilot authentication API", () => {
     await expect(login.json()).resolves.toMatchObject({
       status: "authenticated",
       session: { store: { storeId: "store-1" }, activeRole: "lead" },
+    });
+  });
+
+  it("returns GPP feature flag and actions in authenticated sessions", async () => {
+    const now = () => new Date("2030-01-10T10:00:00.000Z");
+    const memberships = createGppMemberships();
+    const repository = createInMemoryAuthRepository({ memberships, secrets: TEST_SECRETS });
+    const app = createApiApp({
+      authRepository: repository,
+      membershipManagementRepository: memberships,
+      membershipRepository: memberships,
+      runtimeConfig: { controleGppEnabled: true },
+      now,
+    });
+    await seedGppInvite(repository);
+
+    const activated = await app.request(`/auth/invites/${GPP_INVITE_TOKEN}/activate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: PASSWORD }),
+    });
+    expect(activated.status).toBe(201);
+    await expect(activated.json()).resolves.toMatchObject({
+      status: "account_activated",
+      session: {
+        activeRole: "gpp",
+        featureFlags: { controle_gpp_enabled: true },
+        actions: {
+          canReadCommandCenter: false,
+          canReadGppQueue: true,
+          canMarkGppDivergence: true,
+          canBaixarGppAvaria: true,
+          canAttendGppPurchase: true,
+        },
+      },
+    });
+
+    const login = await app.request("/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identifier: "gpp@example.invalid", password: PASSWORD }),
+    });
+    expect(login.status).toBe(200);
+    await expect(login.json()).resolves.toMatchObject({
+      status: "authenticated",
+      session: {
+        activeRole: "gpp",
+        featureFlags: { controle_gpp_enabled: true },
+        actions: {
+          canReadGppQueue: true,
+          canReviewGppCorrection: true,
+          canReadGppHistory: true,
+        },
+      },
     });
   });
 
@@ -345,6 +400,24 @@ function createAdminMemberships() {
   ]);
 }
 
+function createGppMemberships() {
+  const at = new Date("2030-01-10T09:00:00.000Z");
+  return createInMemoryMembershipManagementRepository([
+    {
+      membershipId: "membership-gpp",
+      subjectId: "subject-gpp",
+      displayName: "Pessoa GPP",
+      role: "gpp",
+      storeId: "store-1",
+      storeName: "Loja Ficticia Piloto",
+      status: "active",
+      version: 1,
+      createdAt: at,
+      updatedAt: at,
+    },
+  ]);
+}
+
 async function seedInvite(repository: AuthRepository): Promise<void> {
   await repository.createInvite({
     inviteId: "invite-1",
@@ -356,6 +429,23 @@ async function seedInvite(repository: AuthRepository): Promise<void> {
     storeId: "store-1",
     storeName: "Loja Ficticia Piloto",
     role: "lead",
+    expiresAt: new Date("2030-01-17T10:00:00.000Z"),
+    createdBy: "admin-test",
+    createdAt: new Date("2030-01-10T09:30:00.000Z"),
+  });
+}
+
+async function seedGppInvite(repository: AuthRepository): Promise<void> {
+  await repository.createInvite({
+    inviteId: "invite-gpp",
+    idempotencyKey: "invite-gpp-auth-test",
+    token: GPP_INVITE_TOKEN,
+    identifier: "gpp@example.invalid",
+    subjectId: "subject-gpp",
+    displayName: "Pessoa GPP",
+    storeId: "store-1",
+    storeName: "Loja Ficticia Piloto",
+    role: "gpp",
     expiresAt: new Date("2030-01-17T10:00:00.000Z"),
     createdBy: "admin-test",
     createdAt: new Date("2030-01-10T09:30:00.000Z"),

@@ -19,6 +19,7 @@ import {
   RecoveryRequestSchema,
   RevokeInviteRequestSchema,
   SessionContextResponseSchema,
+  type SessionActions,
 } from "@validade-zero/contracts";
 import type {
   AuthAccountRecord,
@@ -48,6 +49,18 @@ const AUTH_CAPABILITIES: readonly Capability[] = [
   "user.manage",
   "shift.close",
   "audit.read_store",
+  "pilot.push_test.send",
+];
+const GPP_AUTH_CAPABILITIES: readonly Capability[] = [
+  "gpp.queue.read",
+  "gpp.avaria.create",
+  "gpp.avaria.correct_own_pending",
+  "gpp.avaria.correct_store",
+  "gpp.divergence.mark",
+  "gpp.correction.review",
+  "gpp.avaria.baixar",
+  "gpp.purchase.attend",
+  "gpp.history.read",
 ];
 
 export interface RecoveryDeliveryProvider {
@@ -93,6 +106,7 @@ export interface AuthenticationRouteDependencies {
   authSecurityAuditRecorder: AuthSecurityAuditRecorder;
   recoveryDeliveryProvider: RecoveryDeliveryProvider;
   loginAttemptLimiter: LoginAttemptLimiter;
+  controleGppEnabled?: boolean;
   now: () => Date;
   sessionTtlSeconds: number;
   recoveryTtlSeconds: number;
@@ -585,7 +599,11 @@ async function sessionResponse(
     expiresAt: session.expiresAt.toISOString(),
   };
   let allowedDecision: Awaited<ReturnType<AuthorizationService["authorize"]>> | undefined;
-  for (const capability of AUTH_CAPABILITIES) {
+  const authCapabilities =
+    input.controleGppEnabled === true
+      ? [...AUTH_CAPABILITIES, ...GPP_AUTH_CAPABILITIES]
+      : AUTH_CAPABILITIES;
+  for (const capability of authCapabilities) {
     const decision = await input.authorizationService.authorize({
       identity,
       capability,
@@ -598,33 +616,74 @@ async function sessionResponse(
   }
   if (allowedDecision === undefined)
     throw new Error("Account has no active operational capability.");
-  const base = createSessionContext(allowedDecision);
+  const controleGppEnabled = input.controleGppEnabled === true;
+  const base = createSessionContext(allowedDecision, { controleGppEnabled });
   if (base === undefined) throw new Error("Session context could not be created.");
 
-  const actions = {
+  const actions: Record<keyof SessionActions, boolean> = {
     canReadCommandCenter: false,
     canActOnTask: false,
     canReviewProductDrafts: false,
     canCloseShift: false,
     canReadStoreAudit: false,
     canManageUsers: false,
+    canSendPilotPushTest: false,
+    canReadGppQueue: false,
+    canCreateGppEntry: false,
+    canCorrectOwnPendingGppEntry: false,
+    canMarkGppDivergence: false,
+    canReviewGppCorrection: false,
+    canBaixarGppAvaria: false,
+    canAttendGppPurchase: false,
+    canReadGppHistory: false,
   };
-  const capabilityActions = [
-    ["command_center.read_store", "canReadCommandCenter"],
-    ["task.act", "canActOnTask"],
-    ["catalog.review", "canReviewProductDrafts"],
-    ["shift.close", "canCloseShift"],
-    ["audit.read_store", "canReadStoreAudit"],
-    ["user.manage", "canManageUsers"],
+  const capabilityActions: readonly {
+    capability: Capability;
+    action: keyof SessionActions;
+    requiresControleGpp?: boolean;
+  }[] = [
+    { capability: "command_center.read_store", action: "canReadCommandCenter" },
+    { capability: "task.act", action: "canActOnTask" },
+    { capability: "catalog.review", action: "canReviewProductDrafts" },
+    { capability: "shift.close", action: "canCloseShift" },
+    { capability: "audit.read_store", action: "canReadStoreAudit" },
+    { capability: "user.manage", action: "canManageUsers" },
+    { capability: "pilot.push_test.send", action: "canSendPilotPushTest" },
+    { capability: "gpp.queue.read", action: "canReadGppQueue", requiresControleGpp: true },
+    { capability: "gpp.avaria.create", action: "canCreateGppEntry", requiresControleGpp: true },
+    {
+      capability: "gpp.avaria.correct_own_pending",
+      action: "canCorrectOwnPendingGppEntry",
+      requiresControleGpp: true,
+    },
+    {
+      capability: "gpp.divergence.mark",
+      action: "canMarkGppDivergence",
+      requiresControleGpp: true,
+    },
+    {
+      capability: "gpp.correction.review",
+      action: "canReviewGppCorrection",
+      requiresControleGpp: true,
+    },
+    { capability: "gpp.avaria.baixar", action: "canBaixarGppAvaria", requiresControleGpp: true },
+    {
+      capability: "gpp.purchase.attend",
+      action: "canAttendGppPurchase",
+      requiresControleGpp: true,
+    },
+    { capability: "gpp.history.read", action: "canReadGppHistory", requiresControleGpp: true },
   ] as const;
-  for (const [capability, action] of capabilityActions) {
-    actions[action] = (
-      await input.authorizationService.authorize({
-        identity,
-        capability,
-        resourceStoreId: account.storeId,
-      })
-    ).allowed;
+  for (const { capability, action, requiresControleGpp } of capabilityActions) {
+    actions[action] =
+      (requiresControleGpp !== true || controleGppEnabled) &&
+      (
+        await input.authorizationService.authorize({
+          identity,
+          capability,
+          resourceStoreId: account.storeId,
+        })
+      ).allowed;
   }
 
   return AuthenticatedSessionResponseSchema.parse({

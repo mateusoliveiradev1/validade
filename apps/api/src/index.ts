@@ -393,6 +393,7 @@ export function createApiApp(input?: {
     recoveryDeliveryProvider:
       input?.recoveryDeliveryProvider ?? createNoopRecoveryDeliveryProvider(),
     loginAttemptLimiter: input?.loginAttemptLimiter ?? createInMemoryLoginAttemptLimiter(),
+    controleGppEnabled,
     now,
     sessionTtlSeconds: input?.sessionTtlSeconds ?? 28_800,
     recoveryTtlSeconds: input?.recoveryTtlSeconds ?? 1_800,

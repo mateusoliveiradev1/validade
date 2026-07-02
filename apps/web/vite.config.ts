@@ -44,6 +44,10 @@ export default defineConfig({
         target: "http://127.0.0.1:8787",
         changeOrigin: true,
       },
+      "/gpp": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
       "/shift-close": {
         target: "http://127.0.0.1:8787",
         changeOrigin: true,
