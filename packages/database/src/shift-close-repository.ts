@@ -138,23 +138,24 @@ export function createShiftCloseRepositoryFromQuery(
   let turnStartsTableEnsured: Promise<void> | undefined;
 
   function ensureTurnStartsTable(): Promise<void> {
-    turnStartsTableEnsured ??= sql
-      .query(
-        `
-      create table if not exists shift_turn_starts (
+    turnStartsTableEnsured ??= (async () => {
+      await sql.query(`
+        create table if not exists shift_turn_starts (
         start_id text primary key,
         idempotency_key text not null,
         store_id text not null,
         started_at timestamptz not null,
         created_at timestamptz not null default now()
-      );
-      create unique index if not exists shift_turn_starts_idempotency_key_uidx
+      )`);
+      await sql.query(`
+        create unique index if not exists shift_turn_starts_idempotency_key_uidx
         on shift_turn_starts (idempotency_key);
-      create index if not exists shift_turn_starts_store_started_idx
-        on shift_turn_starts (store_id, started_at desc);
-    `,
-      )
-      .then(() => undefined);
+      `);
+      await sql.query(`
+        create index if not exists shift_turn_starts_store_started_idx
+        on shift_turn_starts (store_id, started_at desc)
+      `);
+    })();
 
     return turnStartsTableEnsured;
   }

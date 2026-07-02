@@ -2445,19 +2445,50 @@ async function prepareTurnResponseWithShiftState(input: {
   now: () => Date;
 }): Promise<PrepareTurnResponse> {
   if (input.request.turnIntent === "start_next_turn") {
-    await input.shiftCloseRepository.recordTurnStart({
-      storeId: input.storeId,
-      idempotencyKey: `turn-start:${input.requestId}`,
-      startedAt: new Date(input.request.requestedAt),
-      createdAt: input.now(),
-    });
+    await input.shiftCloseRepository
+      .recordTurnStart({
+        storeId: input.storeId,
+        idempotencyKey: `turn-start:${input.requestId}`,
+        startedAt: new Date(input.request.requestedAt),
+        createdAt: input.now(),
+      })
+      .catch((error) => {
+        console.error(
+          JSON.stringify(
+            compactMetadata({
+              event: "shift_turn_start_record_failed",
+              requestId: input.requestId,
+              storeId: input.storeId,
+              errorName: error instanceof Error ? error.name : typeof error,
+              errorMessage: publicErrorReason(error),
+              errorCode: errorCode(error),
+            }),
+          ),
+        );
+      });
 
     return responseWithAcceptedTurnState(input.response, input.request.requestedAt);
   }
 
-  const activeClosure = await input.shiftCloseRepository.findActiveClosureForStore({
-    storeId: input.storeId,
-  });
+  const activeClosure = await input.shiftCloseRepository
+    .findActiveClosureForStore({
+      storeId: input.storeId,
+    })
+    .catch((error) => {
+      console.error(
+        JSON.stringify(
+          compactMetadata({
+            event: "shift_close_state_read_failed",
+            requestId: input.requestId,
+            storeId: input.storeId,
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: publicErrorReason(error),
+            errorCode: errorCode(error),
+          }),
+        ),
+      );
+      return undefined;
+    });
 
   if (activeClosure !== undefined) {
     return responseWithAcceptedTurnState(input.response, input.request.requestedAt, {
@@ -2465,9 +2496,25 @@ async function prepareTurnResponseWithShiftState(input: {
     });
   }
 
-  const latestTurnStart = await input.shiftCloseRepository.findLatestTurnStartForStore({
-    storeId: input.storeId,
-  });
+  const latestTurnStart = await input.shiftCloseRepository
+    .findLatestTurnStartForStore({
+      storeId: input.storeId,
+    })
+    .catch((error) => {
+      console.error(
+        JSON.stringify(
+          compactMetadata({
+            event: "shift_turn_start_read_failed",
+            requestId: input.requestId,
+            storeId: input.storeId,
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: publicErrorReason(error),
+            errorCode: errorCode(error),
+          }),
+        ),
+      );
+      return undefined;
+    });
 
   return latestTurnStart === undefined
     ? input.response

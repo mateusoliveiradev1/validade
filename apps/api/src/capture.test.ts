@@ -1,6 +1,6 @@
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
 import { SHIFT_CLOSE_CHECKLIST_KEYS } from "@validade-zero/domain";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createInMemoryAuditRepository } from "./audit";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import { createApiApp } from "./index";
@@ -62,6 +62,59 @@ describe("capture prepare-turn API", () => {
         source: "central",
       }),
     );
+  });
+
+  it("keeps prepare-turn available when auxiliary shift state is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto")],
+      lots: [centralLot("loja-piloto")],
+      tasks: [centralTask("loja-piloto")],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+    const shiftCloseRepository = {
+      ...createInMemoryShiftCloseRepository(),
+      findActiveClosureForStore: () => Promise.reject(new Error("shift state unavailable")),
+      findLatestTurnStartForStore: () => Promise.reject(new Error("shift state unavailable")),
+      recordTurnStart: () => Promise.reject(new Error("shift state unavailable")),
+    };
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      shiftCloseRepository,
+      now: () => new Date(NOW),
+    });
+
+    try {
+      const refresh = await app.request("/capture/prepare-turn", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer fake:lead-local",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(prepareTurnRequest({ turnIntent: "refresh" })),
+      });
+      const refreshBody = (await refresh.json()) as { store?: { readiness?: string } };
+      expect(refresh.status).toBe(200);
+      expect(refreshBody.store?.readiness).toBe("prepared");
+
+      const nextTurn = await app.request("/capture/prepare-turn", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer fake:lead-local",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(prepareTurnRequest({ turnIntent: "start_next_turn" })),
+      });
+      const nextTurnBody = (await nextTurn.json()) as { store?: { readiness?: string } };
+      expect(nextTurn.status).toBe(200);
+      expect(nextTurnBody.store?.readiness).toBe("cache_ready");
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("returns the active central shift close until the next turn is prepared", async () => {
