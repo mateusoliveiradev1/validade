@@ -15,22 +15,22 @@ afterEach(() => {
 describe("GPP web realtime helper", () => {
   it("refreshes the central snapshot after a valid realtime hint", async () => {
     const socket = new FakeSocket();
-    const client = fakeClient(queueSnapshot("Banana central"));
+    const { client, readQueue } = fakeClient(queueSnapshot("Banana central"));
 
     render(<RealtimeHarness client={client} socket={socket} />);
 
     act(() => socket.open());
     act(() => socket.message(realtimeEvent()));
 
-    await waitFor(() => expect(client.readQueue).toHaveBeenCalledWith({ storeId: "loja-piloto" }));
+    await waitFor(() => expect(readQueue).toHaveBeenCalledWith({ storeId: "loja-piloto" }));
     expect(await screen.findByText("Banana central")).toBeTruthy();
     expect(screen.getByText("Tempo real ativo")).toBeTruthy();
     expect(screen.getByText("Atualizado ha 0s").getAttribute("aria-live")).toBe("polite");
   });
 
-  it("does not change visible rows from an event payload alone", async () => {
+  it("does not change visible rows from an event payload alone", () => {
     const socket = new FakeSocket();
-    const client = fakeClient(queueSnapshot("Central somente"));
+    const { client, readQueue } = fakeClient(queueSnapshot("Central somente"));
 
     render(<RealtimeHarness client={client} socket={socket} />);
 
@@ -43,13 +43,13 @@ describe("GPP web realtime helper", () => {
     );
 
     expect(screen.queryByText("Nao pode aparecer")).toBeNull();
-    expect(client.readQueue).not.toHaveBeenCalled();
+    expect(readQueue).not.toHaveBeenCalled();
     expect(screen.getByText("Sem snapshot central")).toBeTruthy();
   });
 
   it("shows paused fallback state and keeps manual refresh usable", async () => {
     const socket = new FakeSocket();
-    const client = fakeClient(queueSnapshot("Tomate atualizado"));
+    const { client, readQueue } = fakeClient(queueSnapshot("Tomate atualizado"));
 
     render(<RealtimeHarness client={client} socket={socket} />);
 
@@ -58,25 +58,23 @@ describe("GPP web realtime helper", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
 
-    await waitFor(() => expect(client.readQueue).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readQueue).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Tomate atualizado")).toBeTruthy();
   });
 
   it("uses bounded polling while realtime is paused", async () => {
     vi.useFakeTimers();
     const socket = new FakeSocket();
-    const client = fakeClient(queueSnapshot("Abobrinha central"));
+    const { client, readQueue } = fakeClient(queueSnapshot("Abobrinha central"));
 
     render(<RealtimeHarness client={client} socket={socket} pollIntervalMs={1_000} />);
 
-    await act(async () => {
-      socket.error();
-    });
+    act(() => socket.error());
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
 
-    expect(client.readQueue).toHaveBeenCalledTimes(1);
+    expect(readQueue).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -147,10 +145,15 @@ class FakeSocket implements GppRealtimeSocket {
   }
 }
 
-function fakeClient(snapshot: GppQueueSnapshot): GppClient {
+function fakeClient(snapshot: GppQueueSnapshot) {
+  const readQueue = vi.fn<GppClient["readQueue"]>(() => Promise.resolve(snapshot));
+
   return {
-    readQueue: vi.fn(() => Promise.resolve(snapshot)),
-    readHistory: vi.fn(() => Promise.resolve([])),
+    client: {
+      readQueue,
+      readHistory: vi.fn(() => Promise.resolve([])),
+    },
+    readQueue,
   };
 }
 

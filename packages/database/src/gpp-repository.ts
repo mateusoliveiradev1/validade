@@ -216,7 +216,7 @@ export function createInMemoryGppRepository(
     idempotencyKey: string,
     result: GppMutationResult<T>,
   ): GppMutationResult<T> {
-    receipts.set(idempotencyKey, clone(result) as StoredResult);
+    receipts.set(idempotencyKey, clone(result));
     return result;
   }
 

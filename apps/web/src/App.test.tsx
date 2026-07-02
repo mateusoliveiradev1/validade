@@ -211,9 +211,11 @@ describe("authenticated web shell", () => {
       await screen.findByRole("heading", { name: "Controle GPP - Loja Ficticia Piloto" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Controle GPP" })).toHaveProperty("disabled", false);
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/command-center"))).toBe(
-      false,
-    );
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        (input instanceof Request ? input.url : String(input)).includes("/command-center"),
+      ),
+    ).toBe(false);
   });
 
   it("keeps operational routes disabled for an admin-only session", () => {

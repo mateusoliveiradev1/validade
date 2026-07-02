@@ -26,7 +26,7 @@ describe("GPP view model", () => {
       totalSummary: "5 kg",
       baixadasToday: 1,
     });
-    expect(toAvariaGroupRow(snapshot.avariaGroups[1]!).baixa).toEqual({
+    expect(toAvariaGroupRow(snapshot.avariaGroups[1]).baixa).toEqual({
       enabled: false,
       reason: "Corrigir divergencia antes da baixa",
     });

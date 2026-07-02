@@ -68,10 +68,10 @@ export const ClientSafeAuthorizationDenialSchema = z
   })
   .strict();
 
-export const SessionActionsSchema = z
-  .preprocess(
-    normalizeSessionActionObject,
-    z.object({
+export const SessionActionsSchema = z.preprocess(
+  normalizeSessionActionObject,
+  z
+    .object({
       canReadCommandCenter: z.boolean(),
       canActOnTask: z.boolean(),
       canReviewProductDrafts: z.boolean(),
@@ -87,8 +87,9 @@ export const SessionActionsSchema = z
       canBaixarGppAvaria: z.boolean(),
       canAttendGppPurchase: z.boolean(),
       canReadGppHistory: z.boolean(),
-    }).strict(),
-  );
+    })
+    .strict(),
+);
 
 export const SessionFeatureFlagsSchema = z
   .object({

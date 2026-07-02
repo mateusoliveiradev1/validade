@@ -633,6 +633,7 @@ function ReadinessBadge({ status }: { status: "Apto" | "Atencao" | "Bloqueado" }
 }
 
 function roleLabel(role: SessionContextResponse["activeRole"] | undefined): string {
+  if (role === "gpp") return "GPP";
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
   if (role === "collaborator") return "Operacao";

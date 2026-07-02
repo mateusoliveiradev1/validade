@@ -299,13 +299,11 @@ export function createSessionContext(
       canCreateGppEntry: controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.create"),
       canCorrectOwnPendingGppEntry:
         controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.correct_own_pending"),
-      canMarkGppDivergence:
-        controleGppEnabled && roleAllowsCapability(role, "gpp.divergence.mark"),
+      canMarkGppDivergence: controleGppEnabled && roleAllowsCapability(role, "gpp.divergence.mark"),
       canReviewGppCorrection:
         controleGppEnabled && roleAllowsCapability(role, "gpp.correction.review"),
       canBaixarGppAvaria: controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.baixar"),
-      canAttendGppPurchase:
-        controleGppEnabled && roleAllowsCapability(role, "gpp.purchase.attend"),
+      canAttendGppPurchase: controleGppEnabled && roleAllowsCapability(role, "gpp.purchase.attend"),
       canReadGppHistory: controleGppEnabled && roleAllowsCapability(role, "gpp.history.read"),
     },
   };

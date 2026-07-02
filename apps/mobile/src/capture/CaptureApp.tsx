@@ -92,6 +92,7 @@ type PushDeviceIdentity = Pick<
   DevicePushRegistrationCommand,
   "deviceId" | "deviceLabel" | "audienceRole"
 >;
+type MobileActiveRole = SessionContextResponse["activeRole"];
 
 export function CaptureApp({
   repository,
@@ -122,7 +123,7 @@ export function CaptureApp({
   buildInfo?: MobileBuildInfo | undefined;
   authControls?: AuthGateReadyControls | undefined;
   session?: SessionContextResponse | undefined;
-  activeRole?: "collaborator" | "lead" | "admin" | undefined;
+  activeRole?: MobileActiveRole | undefined;
   actorLabel?: string | undefined;
   storeId?: string | undefined;
   deviceId?: string | undefined;
@@ -1081,7 +1082,7 @@ function CaptureSessionBar({
   onOpenSettings,
 }: {
   actorLabel: string;
-  role: "collaborator" | "lead" | "admin";
+  role: MobileActiveRole;
   storeName: string;
   onOpenSettings: () => void;
 }) {
@@ -1109,7 +1110,8 @@ function CaptureSessionBar({
   );
 }
 
-function roleLabel(role: "collaborator" | "lead" | "admin"): string {
+function roleLabel(role: MobileActiveRole): string {
+  if (role === "gpp") return "GPP";
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
   return "Operacao";
@@ -1349,7 +1351,7 @@ function shiftCloseDeviceAuthorizationFor({
   session,
   storeId,
 }: {
-  activeRole: "collaborator" | "lead" | "admin" | undefined;
+  activeRole: MobileActiveRole | undefined;
   session: SessionContextResponse | undefined;
   storeId: string;
 }): ShiftCloseDeviceAuthorization {

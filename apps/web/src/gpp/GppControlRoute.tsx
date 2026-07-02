@@ -1,14 +1,5 @@
 import * as React from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ClipboardCheck,
-  Eye,
-  FileText,
-  RefreshCw,
-  Search,
-  ShoppingBasket,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Eye, RefreshCw, Search } from "lucide-react";
 import type {
   GppAvariaEntry,
   GppAvariaGroupSummary,
@@ -51,7 +42,6 @@ import {
   initialOpenAvariaSector,
   purchaseStatusLabel,
   quantityLabel,
-  roleLabel,
   toAvariaGroupRow,
   type GppHistoryFilters,
   type GppTab,
@@ -350,8 +340,8 @@ export function GppControlRoute({
 
   async function submitDivergence(formData: FormData): Promise<void> {
     if (divergenceTarget === undefined || divergenceTarget.detail === undefined) return;
-    const reason = String(formData.get("reason") ?? "") as GppDivergenceReason;
-    const observation = String(formData.get("observation") ?? "").trim();
+    const reason = formString(formData, "reason") as GppDivergenceReason;
+    const observation = formString(formData, "observation").trim();
     const targetEntry = divergenceTarget.detail.entries[0];
 
     if (targetEntry === undefined || observation.length === 0) {
@@ -404,11 +394,9 @@ export function GppControlRoute({
     const current = purchaseAction;
     const request = current.request;
     const quantity = quantityFromForm(formData, request.requestedQuantity);
-    const reason = String(formData.get("reason") ?? "").trim();
-    const confirmedCode = String(
-      formData.get("confirmedCode") ?? request.product.code ?? "",
-    ).trim();
-    const confirmedName = String(formData.get("confirmedName") ?? request.product.name).trim();
+    const reason = formString(formData, "reason").trim();
+    const confirmedCode = formString(formData, "confirmedCode", request.product.code ?? "").trim();
+    const confirmedName = formString(formData, "confirmedName", request.product.name).trim();
 
     if (
       (current.action === "atendido" || current.action === "atendido_parcial") &&
@@ -1675,13 +1663,18 @@ function purchaseSuccessCopy(action: GppPurchaseAttendanceRequest["action"]): st
 }
 
 function quantityFromForm(formData: FormData, fallback: GppQuantity): GppQuantity {
-  const value = Number(formData.get("quantity") ?? fallback.value);
-  const unit = String(formData.get("unit") ?? fallback.unit) as GppQuantity["unit"];
+  const value = Number(formString(formData, "quantity", String(fallback.value)));
+  const unit = formString(formData, "unit", fallback.unit) as GppQuantity["unit"];
 
   return {
     unit,
     value: Number.isFinite(value) && value > 0 ? value : fallback.value,
   };
+}
+
+function formString(formData: FormData, name: string, fallback = ""): string {
+  const value = formData.get(name);
+  return typeof value === "string" ? value : fallback;
 }
 
 function historyTone(

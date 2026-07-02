@@ -339,15 +339,7 @@ describe("phase 08 database schema", () => {
   });
 
   it("models additive GPP persistence without touching mobile capture tables", () => {
-    expect(gppQuantityUnitEnum.enumValues).toEqual([
-      "un",
-      "kg",
-      "g",
-      "l",
-      "ml",
-      "caixa",
-      "pacote",
-    ]);
+    expect(gppQuantityUnitEnum.enumValues).toEqual(["un", "kg", "g", "l", "ml", "caixa", "pacote"]);
     expect(gppAvariaFinalityEnum.enumValues).toEqual([
       "baixa_gpp",
       "reaproveitamento",
@@ -384,7 +376,9 @@ describe("phase 08 database schema", () => {
   });
 
   it("migration creates store, status, product-code, and idempotency indexes for GPP", () => {
-    expect(gppControlMigrationSql).toContain("ALTER TYPE membership_role ADD VALUE IF NOT EXISTS 'gpp'");
+    expect(gppControlMigrationSql).toContain(
+      "ALTER TYPE membership_role ADD VALUE IF NOT EXISTS 'gpp'",
+    );
     expect(gppControlMigrationSql).toContain(
       "ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'gpp.changed'",
     );

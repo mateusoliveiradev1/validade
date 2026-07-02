@@ -29,7 +29,7 @@ import type {
   GppRecordMovementInput,
   GppRepository,
 } from "@validade-zero/database/gpp-repository";
-import type { AuthorizedActorContext, Capability, StoreMembership } from "@validade-zero/domain";
+import type { AuthorizedActorContext, Capability } from "@validade-zero/domain";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
 import type {
@@ -644,7 +644,7 @@ async function authorizeGpp(
   context: Context,
   deps: GppRoutesDependencies,
   capabilities: readonly Capability[],
-  requestedStoreId?: string | undefined,
+  requestedStoreId?: string,
 ): Promise<GppScopeResolution> {
   const identity = await deps.authProvider.verify(context.req.raw);
   const memberships =

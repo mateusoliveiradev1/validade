@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type {
   GppDetailSnapshot,
   GppMutationResponse,
@@ -115,8 +115,12 @@ describe("Controle GPP route", () => {
     const socket = new FakeSocket();
     const first = queueSnapshot();
     const second = queueSnapshot("Banana atualizada");
+    const readQueue = vi
+      .fn<GppClient["readQueue"]>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
     const client = fakeClient({
-      readQueue: vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second),
+      readQueue,
     });
 
     render(
@@ -141,7 +145,7 @@ describe("Controle GPP route", () => {
     );
 
     expect(await screen.findByText("162 - Banana atualizada")).toBeTruthy();
-    expect(client.readQueue).toHaveBeenCalledTimes(2);
+    expect(readQueue).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -358,7 +362,7 @@ function queueSnapshot(productName = "Banana prata"): GppQueueSnapshot {
 
 function detailSnapshot(): GppDetailSnapshot {
   return {
-    group: queueSnapshot().avariaGroups[0]!,
+    group: queueSnapshot().avariaGroups[0],
     entries: [
       {
         avariaId: "avaria-001",
