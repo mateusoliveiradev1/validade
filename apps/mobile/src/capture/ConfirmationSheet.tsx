@@ -7,6 +7,8 @@ export function ConfirmationSheet({
   title = "Confirme antes de registrar",
   confirmLabel = "Confirmar registro",
   backLabel = "Voltar e revisar",
+  confirmDisabled = false,
+  backDisabled = false,
   onConfirm,
   onBack,
 }: {
@@ -14,6 +16,8 @@ export function ConfirmationSheet({
   title?: string;
   confirmLabel?: string;
   backLabel?: string;
+  confirmDisabled?: boolean;
+  backDisabled?: boolean;
   onConfirm: () => void;
   onBack: () => void;
 }) {
@@ -21,8 +25,8 @@ export function ConfirmationSheet({
     <View style={styles.sheet}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{summary}</Text>
-      <PrimaryAction label={confirmLabel} onPress={onConfirm} />
-      <SecondaryAction label={backLabel} onPress={onBack} />
+      <PrimaryAction label={confirmLabel} disabled={confirmDisabled} onPress={onConfirm} />
+      <SecondaryAction label={backLabel} disabled={backDisabled} onPress={onBack} />
     </View>
   );
 }

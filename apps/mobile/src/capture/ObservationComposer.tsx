@@ -47,6 +47,7 @@ export function ObservationComposer({
   const [correction, setCorrection] = useState(false);
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
   const needsQuantity = action === "present" || action === "moved";
@@ -85,6 +86,9 @@ export function ObservationComposer({
   }
 
   function submit(): void {
+    if (submitting) {
+      return;
+    }
     if (!canAppend || action === undefined) {
       setError("Revise os campos destacados antes de registrar a observação.");
       return;
@@ -101,7 +105,9 @@ export function ObservationComposer({
     }
   }
   async function append(): Promise<void> {
-    if (action === undefined) return;
+    if (action === undefined || submitting) return;
+    setSubmitting(true);
+    setError(undefined);
     const location = action === "moved" ? destination! : currentLocation;
     const input: PhysicalObservationInput = {
       status: action,
@@ -114,14 +120,23 @@ export function ObservationComposer({
       isCorrection: correction,
       ...(correction ? { correctionReason: reason } : {}),
     };
-    await repository.appendObservation(detail.id, input);
-    await onAfterSave?.();
-    onDone();
+    try {
+      await repository.appendObservation(detail.id, input);
+      onDone();
+      void Promise.resolve(onAfterSave?.()).catch(() => undefined);
+    } catch {
+      setSubmitting(false);
+      setConfirming(false);
+      setError("Não foi possível salvar agora. Tente novamente em instantes.");
+    }
   }
   if (confirming && action !== undefined)
     return (
       <ConfirmationSheet
         summary={`${detail.productDisplayName} — lote ${detail.identity.value}. ${actionLabel(action)} em ${formatLocation(action === "moved" ? destination! : currentLocation)}, ${notEstimable ? "Não foi possível estimar" : `${quantity} unidades`}.`}
+        confirmLabel={submitting ? "Salvando..." : "Confirmar registro"}
+        confirmDisabled={submitting}
+        backDisabled={submitting}
         onConfirm={() => void append()}
         onBack={() => setConfirming(false)}
       />
@@ -200,8 +215,12 @@ export function ObservationComposer({
         />
       ) : null}
       {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
-      <PrimaryAction label="Registrar observação" disabled={!canAppend} onPress={submit} />
-      <SecondaryAction label="Voltar e revisar" onPress={onBack} />
+      <PrimaryAction
+        label={submitting ? "Salvando..." : "Registrar observação"}
+        disabled={!canAppend || submitting}
+        onPress={submit}
+      />
+      <SecondaryAction label="Voltar e revisar" disabled={submitting} onPress={onBack} />
     </ScrollView>
   );
 }

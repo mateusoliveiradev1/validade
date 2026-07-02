@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat30-auto-sync-apk-160",
+  artifactLabel: "uat31-observation-feedback-apk-161",
   appVersion: "0.12.0",
-  build: "160",
+  build: "161",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

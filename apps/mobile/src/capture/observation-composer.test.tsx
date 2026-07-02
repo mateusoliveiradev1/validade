@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 import { describe, expect, it, vi } from "vitest";
 import { ObservationComposer } from "./ObservationComposer";
 import { createMemoryCaptureRepository } from "./memory-repository";
+import type { CaptureRepository } from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -55,12 +56,14 @@ async function renderObservationComposer(
   input: {
     onAfterSave?: () => Promise<void> | void;
     onDone?: () => void;
+    decorateRepository?: (repository: CaptureRepository) => CaptureRepository;
   } = {},
 ): Promise<ReactTestRenderer> {
-  const repository = createMemoryCaptureRepository({
+  const baseRepository = createMemoryCaptureRepository({
     clock: () => "2030-01-10T09:00:00.000Z",
     createId: () => "identificador-ficticio",
   });
+  const repository = input.decorateRepository?.(baseRepository) ?? baseRepository;
   const product = await repository.createProduct({
     displayName: "Produto Exemplo FICTICIO",
     categoryId: "categoria-ficticia",
@@ -131,7 +134,7 @@ describe("presence observation composer", () => {
     ).toBe(false);
   });
 
-  it("runs the post-save sync hook before closing the observation flow", async () => {
+  it("closes the observation flow before running the post-save sync hook", async () => {
     const events: string[] = [];
     const tree = await renderObservationComposer({
       onAfterSave: () => {
@@ -153,6 +156,43 @@ describe("presence observation composer", () => {
       await Promise.resolve();
     });
 
-    expect(events).toEqual(["sync", "done"]);
+    expect(events).toEqual(["done", "sync"]);
+  });
+
+  it("shows save feedback and blocks duplicate confirmation while the local save is pending", async () => {
+    let resolveSave: (() => void) | undefined;
+    const tree = await renderObservationComposer({
+      decorateRepository: (repository) => ({
+        ...repository,
+        appendObservation: async (...args) => {
+          await new Promise<void>((resolve) => {
+            resolveSave = resolve;
+          });
+          return repository.appendObservation(...args);
+        },
+      }),
+    });
+
+    act(() => {
+      press(tree, "Registrar perda");
+    });
+    act(() => {
+      press(tree, "Registrar observação");
+    });
+    await act(async () => {
+      press(tree, "Confirmar registro");
+      await Promise.resolve();
+    });
+
+    const savingButton = tree.root
+      .findAllByType("Pressable")
+      .find((candidate) => candidate.props.accessibilityLabel === "Salvando...");
+
+    expect(savingButton?.props.disabled).toBe(true);
+
+    await act(async () => {
+      resolveSave?.();
+      await Promise.resolve();
+    });
   });
 });
