@@ -497,6 +497,21 @@ export const shiftHandoffs = pgTable(
   ],
 );
 
+export const shiftTurnStarts = pgTable(
+  "shift_turn_starts",
+  {
+    startId: text("start_id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    storeId: text("store_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shift_turn_starts_idempotency_key_uidx").on(table.idempotencyKey),
+    index("shift_turn_starts_store_started_idx").on(table.storeId, table.startedAt),
+  ],
+);
+
 export const centralProducts = pgTable(
   "central_products",
   {

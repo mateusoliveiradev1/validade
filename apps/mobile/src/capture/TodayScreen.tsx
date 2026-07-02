@@ -71,6 +71,7 @@ export function TodayScreen({
   onOpenRecentLots,
   onOpenTask,
   onOpenShiftClose,
+  onPrepareNextTurn,
   onRequestCentralRefresh,
   onRegisterPushDevice,
   canCloseShift = false,
@@ -92,6 +93,7 @@ export function TodayScreen({
   onOpenTask?: (task: TodayTaskRecord) => void;
   onOpenShiftClose?: (() => void) | undefined;
   onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
+  onPrepareNextTurn?: (() => void) | undefined;
   onRequestCentralRefresh?: (() => void) | undefined;
   onRegisterPushDevice?: ((request: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   canCloseShift?: boolean | undefined;
@@ -409,7 +411,7 @@ export function TodayScreen({
   const syncPendingCount = syncQueue?.totalCount ?? 0;
   const hasSyncWork = syncPendingCount > 0;
   const hasSafeShiftClosed = shiftCloseCompletion?.verdict === "safe";
-  const canPrepareNextTurn = hasSafeShiftClosed && onRequestCentralRefresh !== undefined;
+  const canPrepareNextTurn = hasSafeShiftClosed && onPrepareNextTurn !== undefined;
   const defaultHeroPrimaryLabel =
     firstPriorityTask === undefined || onOpenTask === undefined
       ? todayCopy.registerLot
@@ -511,7 +513,7 @@ export function TodayScreen({
               label={heroPrimaryLabel}
               onPress={() => {
                 if (canPrepareNextTurn) {
-                  onRequestCentralRefresh?.();
+                  onPrepareNextTurn?.();
                   return;
                 }
                 if (firstPriorityTask !== undefined && onOpenTask !== undefined) {
@@ -551,10 +553,10 @@ export function TodayScreen({
               ? todayCopy.shiftClose.leadEntryBody
               : todayCopy.shiftClose.collaboratorEntryBody}
         </Text>
-        {hasSafeShiftClosed && onRequestCentralRefresh !== undefined ? (
+        {hasSafeShiftClosed && onPrepareNextTurn !== undefined ? (
           <SecondaryAction
             label={todayCopy.shiftClose.prepareNextTurn}
-            onPress={onRequestCentralRefresh}
+            onPress={onPrepareNextTurn}
           />
         ) : onOpenShiftClose !== undefined ? (
           <SecondaryAction

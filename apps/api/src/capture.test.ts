@@ -1,8 +1,10 @@
 import { createInMemoryCaptureRepository } from "@validade-zero/database/capture-repository";
+import { SHIFT_CLOSE_CHECKLIST_KEYS } from "@validade-zero/domain";
 import { describe, expect, it } from "vitest";
 import { createInMemoryAuditRepository } from "./audit";
 import { FakeAuthProvider, createInMemoryMembershipRepository } from "./auth";
 import { createApiApp } from "./index";
+import { createInMemoryShiftCloseRepository } from "./shift-close";
 
 const NOW = "2030-01-10T12:30:00.000Z";
 
@@ -60,6 +62,98 @@ describe("capture prepare-turn API", () => {
         source: "central",
       }),
     );
+  });
+
+  it("returns the active central shift close until the next turn is prepared", async () => {
+    const captureRepository = createInMemoryCaptureRepository({
+      products: [centralProduct("loja-piloto")],
+      lots: [
+        {
+          ...centralLot("loja-piloto"),
+          currentLocation: { kind: "retirada_perda" as const },
+          riskState: "safe" as const,
+          expiresAt: "2030-01-20",
+        },
+      ],
+      tasks: [],
+      resolvedHistory: [],
+      conflicts: [],
+    });
+    const shiftCloseRepository = createInMemoryShiftCloseRepository();
+    await shiftCloseRepository.createClosure({
+      closureId: "shift-close-prepare-turn-central",
+      idempotencyKey: "safe-close-prepare-turn-central",
+      storeId: "loja-piloto",
+      storeName: "Loja Piloto - Staging",
+      verdict: "safe",
+      eligibility: "eligible_safe",
+      blockers: [],
+      checklist: SHIFT_CLOSE_CHECKLIST_KEYS,
+      actorId: "lead-local",
+      actorDisplayName: "Lideranca local",
+      actorRoleSnapshot: "lead",
+      occurredAt: new Date("2030-01-10T18:00:00.000Z"),
+      receivedAt: new Date("2030-01-10T18:00:01.000Z"),
+      ruleVersion: "phase-10-central-v1",
+    });
+    const app = createApiApp({
+      authProvider: new FakeAuthProvider(),
+      membershipRepository: createInMemoryMembershipRepository([leadMembership("loja-piloto")]),
+      captureRepository,
+      shiftCloseRepository,
+      now: () => new Date(NOW),
+    });
+
+    const refresh = await app.request("/capture/prepare-turn", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        prepareTurnRequest({
+          requestedAt: "2030-01-10T18:05:00.000Z",
+          turnIntent: "refresh",
+        }),
+      ),
+    });
+    const refreshBody = (await refresh.json()) as { shiftClose?: { verdict?: string } };
+    expect(refresh.status).toBe(200);
+    expect(refreshBody.shiftClose).toMatchObject({ verdict: "safe" });
+
+    const nextTurn = await app.request("/capture/prepare-turn", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        prepareTurnRequest({
+          requestedAt: "2030-01-10T18:10:00.000Z",
+          turnIntent: "start_next_turn",
+        }),
+      ),
+    });
+    const nextTurnBody = (await nextTurn.json()) as { shiftClose?: unknown };
+    expect(nextTurn.status).toBe(200);
+    expect(nextTurnBody.shiftClose).toBeUndefined();
+
+    const laterRefresh = await app.request("/capture/prepare-turn", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fake:lead-local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        prepareTurnRequest({
+          requestedAt: "2030-01-10T18:11:00.000Z",
+          turnIntent: "refresh",
+        }),
+      ),
+    });
+    const laterRefreshBody = (await laterRefresh.json()) as { shiftClose?: unknown };
+    expect(laterRefresh.status).toBe(200);
+    expect(laterRefreshBody.shiftClose).toBeUndefined();
   });
 
   it("prefers the authenticated session store for multi-store prepare-turn without query scope", async () => {

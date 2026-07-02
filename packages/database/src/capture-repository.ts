@@ -808,6 +808,7 @@ export function createCaptureRepositoryFromQuery(
         "Leitura central servida para o aparelho autorizado.",
         JSON.stringify({
           deviceId: input.request.deviceId,
+          turnIntent: input.request.turnIntent ?? "refresh",
           readiness: response.store.readiness,
           activeTaskCount: response.activeTasks.length,
           conflictCount: response.conflicts.length,

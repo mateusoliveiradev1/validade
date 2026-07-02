@@ -310,6 +310,7 @@ async function renderTodayScreen(
   },
   options: {
     onConfirmCentralDeviceState?: (() => Promise<void>) | undefined;
+    onPrepareNextTurn?: (() => void) | undefined;
     onRequestCentralRefresh?: (() => void) | undefined;
     onRegisterLot?: (() => void) | undefined;
     onOpenShiftClose?: (() => void) | undefined;
@@ -331,6 +332,7 @@ async function renderTodayScreen(
         prepareTurnCacheStatus={prepareTurn?.status}
         prepareTurnSource={prepareTurn?.source}
         onConfirmCentralDeviceState={options.onConfirmCentralDeviceState}
+        onPrepareNextTurn={options.onPrepareNextTurn}
         onRequestCentralRefresh={options.onRequestCentralRefresh}
         onOpenShiftClose={options.onOpenShiftClose}
         canCloseShift={options.canCloseShift}
@@ -466,10 +468,10 @@ describe("TodayScreen", () => {
   });
 
   it("keeps Hoje visibly closed after a safe shift close and routes the next action to prepare turn", async () => {
-    const requestCentralRefresh = vi.fn();
+    const prepareNextTurn = vi.fn();
     const repository = createRepository(() => Promise.resolve(emptyRefresh()));
     const tree = await renderTodayScreen(repository, undefined, undefined, {
-      onRequestCentralRefresh: requestCentralRefresh,
+      onPrepareNextTurn: prepareNextTurn,
       canCloseShift: true,
       shiftCloseCompletion: {
         verdict: "safe",
@@ -492,7 +494,7 @@ describe("TodayScreen", () => {
       await Promise.resolve();
     });
 
-    expect(requestCentralRefresh).toHaveBeenCalledOnce();
+    expect(prepareNextTurn).toHaveBeenCalledOnce();
   });
 
   it("offers the no-leader handoff path without promising a safe close", async () => {

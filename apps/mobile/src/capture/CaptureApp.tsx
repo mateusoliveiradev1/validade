@@ -78,6 +78,7 @@ type CaptureRoute =
 
 const initialRouteStack: readonly CaptureRoute[] = [{ name: "today" }];
 type PrepareTurnMode = "manual" | "silent";
+type PrepareTurnIntent = NonNullable<PrepareTurnRequest["turnIntent"]>;
 type RegisterPushDeviceClient = (request: DevicePushRegistrationCommand) => Promise<void>;
 const PREPARE_TURN_DIAGNOSTIC_TIMEOUT_MS = 1500;
 type OnboardingProgressClient = {
@@ -228,6 +229,14 @@ export function CaptureApp({
     setRouteStack((current) => current.slice(0, -1));
   }, [routeStack.length]);
 
+  const rememberShiftCloseCompletion = useCallback(
+    (completion: ShiftCloseCompletion): void => {
+      setShiftCloseCompletion(completion);
+      void repository.saveShiftCloseCompletion?.(completion).catch(() => undefined);
+    },
+    [repository],
+  );
+
   const rememberFirstTurnOnboarding = useCallback(
     async (status: OnboardingProgressMutationRequest["status"]): Promise<void> => {
       const occurredAt = new Date().toISOString();
@@ -358,7 +367,10 @@ export function CaptureApp({
   }, [repository, resolvedAlertChannel]);
 
   const prepareTurn = useCallback(
-    async (mode: PrepareTurnMode = "manual"): Promise<void> => {
+    async (
+      mode: PrepareTurnMode = "manual",
+      turnIntent: PrepareTurnIntent = "refresh",
+    ): Promise<void> => {
       const isSilent = mode === "silent";
 
       if (prepareTurnClient === undefined) {
@@ -411,6 +423,7 @@ export function CaptureApp({
           deviceId: pushDeviceIdentity.deviceId,
           deviceLabel: pushDeviceIdentity.deviceLabel,
           requestedAt,
+          turnIntent,
           appVersion: resolvedBuildInfo.appVersion,
           appBuild: resolvedBuildInfo.appBuild,
           environment: resolvedBuildInfo.environment,
@@ -430,7 +443,16 @@ export function CaptureApp({
         });
 
         await hydratePrepareTurn(repository, response);
-        setShiftCloseCompletion(undefined);
+        const centralShiftCloseCompletion = shiftCloseCompletionFromPrepareTurn(response);
+        if (centralShiftCloseCompletion === undefined) {
+          setShiftCloseCompletion(undefined);
+          await repository.clearShiftCloseCompletion?.().catch(() => undefined);
+        } else {
+          setShiftCloseCompletion(centralShiftCloseCompletion);
+          await repository
+            .saveShiftCloseCompletion?.(centralShiftCloseCompletion)
+            .catch(() => undefined);
+        }
         setPrepareTurnCache(response.cache);
         setPrepareTurnSource("central");
 
@@ -486,9 +508,13 @@ export function CaptureApp({
     void repository
       .initialize()
       .then(async () => {
-        const cache = await loadPrepareTurnCache(repository);
+        const [cache, storedShiftCloseCompletion] = await Promise.all([
+          loadPrepareTurnCache(repository),
+          repository.loadShiftCloseCompletion?.() ?? Promise.resolve(null),
+        ]);
         if (!current) return;
         setPrepareTurnCache(cache);
+        setShiftCloseCompletion(storedShiftCloseCompletion ?? undefined);
         if (prepareTurnClient === undefined) {
           setPrepareTurnState("ready");
           return;
@@ -605,6 +631,7 @@ export function CaptureApp({
   async function startFirstStoreSetup(): Promise<void> {
     setPrepareTurnError(undefined);
     setShiftCloseCompletion(undefined);
+    await repository.clearShiftCloseCompletion?.().catch(() => undefined);
     setPrepareTurnSource("central");
     setPrepareTurnState("ready");
     const decision = await resolveFirstTurnOnboardingDecision({
@@ -635,7 +662,13 @@ export function CaptureApp({
   function requestCentralReprepare(): void {
     setPrepareTurnError(undefined);
     setRouteStack(initialRouteStack);
-    void prepareTurn("manual");
+    void prepareTurn("manual", "refresh");
+  }
+
+  function requestNextTurnPrepare(): void {
+    setPrepareTurnError(undefined);
+    setRouteStack(initialRouteStack);
+    void prepareTurn("manual", "start_next_turn");
   }
 
   async function loadMarkdownEntryStateFor(lotId: string): Promise<MarkdownEntryState | undefined> {
@@ -822,6 +855,7 @@ export function CaptureApp({
           }}
           onConfirmCentralDeviceState={() => prepareTurn("silent")}
           onRequestCentralRefresh={requestCentralReprepare}
+          onPrepareNextTurn={requestNextTurnPrepare}
           canCloseShift={canCloseShiftSafely}
           actorLabel={actorLabel}
           onOpenShiftClose={() => navigate({ name: "shift-close" })}
@@ -882,7 +916,7 @@ export function CaptureApp({
         buildInfo={resolvedBuildInfo}
         deviceAuthorization={shiftCloseDeviceAuthorization}
         onSafeClose={closeShiftClient}
-        onShiftCloseComplete={setShiftCloseCompletion}
+        onShiftCloseComplete={rememberShiftCloseCompletion}
         onBack={goBack}
       />,
     );
@@ -1142,6 +1176,31 @@ async function loadPrepareTurnCache(
   return repository.loadPrepareTurnCacheStatus === undefined
     ? null
     : repository.loadPrepareTurnCacheStatus();
+}
+
+function shiftCloseCompletionFromPrepareTurn(
+  response: PrepareTurnResponse,
+): ShiftCloseCompletion | undefined {
+  const close = response.shiftClose;
+
+  if (close === undefined) {
+    return undefined;
+  }
+
+  if (close.verdict === "safe") {
+    return {
+      verdict: "safe",
+      occurredAt: close.occurredAt,
+    };
+  }
+
+  return {
+    verdict: "unsafe",
+    occurredAt: close.occurredAt,
+    continuityOwner: close.continuityOwner ?? todayCopy.fallbackActor,
+    continuityDeadline: close.continuityDeadline ?? close.occurredAt,
+    pendingSync: false,
+  };
 }
 
 async function bestEffortPrepareTurnValue<T>(

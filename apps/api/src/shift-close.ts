@@ -62,6 +62,10 @@ export function createInMemoryShiftCloseRepository(): InMemoryShiftCloseReposito
   const closuresById = new Map<string, ShiftClosurePersistenceRecord>();
   const closuresByIdempotency = new Map<string, ShiftClosurePersistenceRecord>();
   const handoffsByIdempotency = new Map<string, ShiftHandoffPersistenceRecord>();
+  const turnStartsByIdempotency = new Map<
+    string,
+    { storeId: string; startedAt: Date; createdAt: Date }
+  >();
 
   return {
     createClosure(input) {
@@ -78,6 +82,33 @@ export function createInMemoryShiftCloseRepository(): InMemoryShiftCloseReposito
     findClosure(input) {
       const closure = closuresById.get(input.closureId);
       return Promise.resolve(closure?.storeId === input.storeId ? closure : undefined);
+    },
+    findActiveClosureForStore(input) {
+      const starts = [...turnStartsByIdempotency.values()].filter(
+        (start) => start.storeId === input.storeId,
+      );
+      const closure = [...closuresById.values()]
+        .filter((candidate) => candidate.storeId === input.storeId)
+        .filter(
+          (candidate) =>
+            !starts.some((start) => start.startedAt.getTime() > candidate.occurredAt.getTime()),
+        )
+        .sort(
+          (left, right) =>
+            right.occurredAt.getTime() - left.occurredAt.getTime() ||
+            right.receivedAt.getTime() - left.receivedAt.getTime(),
+        )[0];
+      return Promise.resolve(closure);
+    },
+    recordTurnStart(input) {
+      if (!turnStartsByIdempotency.has(input.idempotencyKey)) {
+        turnStartsByIdempotency.set(input.idempotencyKey, {
+          storeId: input.storeId,
+          startedAt: input.startedAt,
+          createdAt: input.createdAt,
+        });
+      }
+      return Promise.resolve();
     },
     async createHandoff(input) {
       const existing = handoffsByIdempotency.get(input.idempotencyKey);
@@ -499,6 +530,12 @@ function toSnapshot(record: ShiftClosurePersistenceRecord): ShiftClosureSnapshot
     ...(record.reopenReason === undefined ? {} : { reopenReason: record.reopenReason }),
     ...(record.reopenSummary === undefined ? {} : { reopenSummary: record.reopenSummary }),
   });
+}
+
+export function shiftClosureSnapshotFromRecord(
+  record: ShiftClosurePersistenceRecord,
+): ShiftClosureSnapshot {
+  return toSnapshot(record);
 }
 
 function toHandoffReceipt(record: ShiftHandoffPersistenceRecord): ShiftHandoffReceipt {

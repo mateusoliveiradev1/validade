@@ -2327,4 +2327,29 @@ describe("memory capture repository", () => {
       }),
     ]);
   });
+
+  it("persists shift close completion locally until the next turn clears it", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T18:00:00.000Z",
+    });
+
+    await expect(repository.loadShiftCloseCompletion?.()).resolves.toBeNull();
+    await expect(
+      repository.saveShiftCloseCompletion?.({
+        verdict: "safe",
+        occurredAt: "2030-01-10T18:00:00.000Z",
+      }),
+    ).resolves.toEqual({
+      verdict: "safe",
+      occurredAt: "2030-01-10T18:00:00.000Z",
+    });
+    await expect(repository.loadShiftCloseCompletion?.()).resolves.toEqual({
+      verdict: "safe",
+      occurredAt: "2030-01-10T18:00:00.000Z",
+    });
+
+    await repository.clearShiftCloseCompletion?.();
+
+    await expect(repository.loadShiftCloseCompletion?.()).resolves.toBeNull();
+  });
 });

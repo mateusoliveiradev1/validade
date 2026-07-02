@@ -60,6 +60,8 @@ import {
   CommandCenterProjectionSchema,
   type DevicePushRegistrationCommand,
   type PilotDeviceReadiness,
+  type PrepareTurnRequest,
+  type PrepareTurnResponse,
   type SafePushTestCommand,
   type SafePushTestResult,
   type SafePushTestTimelineItem,
@@ -152,6 +154,7 @@ import {
   createDatabaseShiftCloseRepository,
   createInMemoryShiftCloseRepository,
   createShiftCloseService,
+  shiftClosureSnapshotFromRecord,
   type ShiftCloseRevalidator,
   type ShiftCloseService,
 } from "./shift-close";
@@ -547,8 +550,16 @@ export function createApiApp(input?: {
         actorRoleSnapshot: roleSnapshotForAudit(actorContext.membership.role),
         request: parsed.data,
       });
+      const responseWithShiftState = await prepareTurnResponseWithShiftState({
+        response,
+        request: parsed.data,
+        requestId,
+        storeId: actorContext.membership.storeId,
+        shiftCloseRepository,
+        now,
+      });
 
-      return context.json(PrepareTurnResponseSchema.parse(response));
+      return context.json(PrepareTurnResponseSchema.parse(responseWithShiftState));
     } catch (error) {
       console.error(
         JSON.stringify(
@@ -2423,6 +2434,37 @@ function normalizeOptionalQueryValue(value: string | undefined): string | undefi
 function createPrepareTurnRequestId(deviceId: string): string {
   const devicePart = safeAuditIdentifier(deviceId).slice(0, 48);
   return `pt:${Date.now().toString(36)}:${devicePart}`.slice(0, 120);
+}
+
+async function prepareTurnResponseWithShiftState(input: {
+  response: PrepareTurnResponse;
+  request: PrepareTurnRequest;
+  requestId: string;
+  storeId: string;
+  shiftCloseRepository: ShiftCloseRepository;
+  now: () => Date;
+}): Promise<PrepareTurnResponse> {
+  if (input.request.turnIntent === "start_next_turn") {
+    await input.shiftCloseRepository.recordTurnStart({
+      storeId: input.storeId,
+      idempotencyKey: `turn-start:${input.requestId}`,
+      startedAt: new Date(input.request.requestedAt),
+      createdAt: input.now(),
+    });
+
+    return input.response;
+  }
+
+  const activeClosure = await input.shiftCloseRepository.findActiveClosureForStore({
+    storeId: input.storeId,
+  });
+
+  return activeClosure === undefined
+    ? input.response
+    : PrepareTurnResponseSchema.parse({
+        ...input.response,
+        shiftClose: shiftClosureSnapshotFromRecord(activeClosure),
+      });
 }
 
 function createProductCatalogRequestId(kind: string, value: string): string {

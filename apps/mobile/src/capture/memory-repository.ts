@@ -65,6 +65,7 @@ import type {
   OnboardingProgressKey,
   EvidenceUploadQueueRecord,
   QueueUnsafeShiftCloseInput,
+  ShiftCloseCompletionRecord,
   ShiftCloseOutboxRecord,
   QueueEvidenceUploadInput,
   SaveLocalOnboardingProgressInput,
@@ -132,6 +133,7 @@ import {
   parseSyncQueueSummary,
   parseSyncTransportResult,
   parseAuditTimelineItem,
+  parseShiftCloseCompletionRecord,
   parseTodayTaskRecord,
   shouldPreserveLocalResolutionProjection,
   shouldCreateSalesAreaRecheck,
@@ -160,6 +162,7 @@ export function createMemoryCaptureRepository(
   const syncConflicts = new Map<string, SyncConflictRecord>();
   const localAuditEvents = new Map<string, AuditTimelineItem & { idempotencyKey: string }>();
   const onboardingProgress = new Map<string, LocalOnboardingProgressRecord>();
+  let shiftCloseCompletion: ShiftCloseCompletionRecord | undefined;
   const alertAttempts: RecordAlertAttemptInput[] = [];
   const escalationReceipts: AcknowledgeEscalationInput[] = [];
   let offlineCacheStatus: OfflineCacheStatus | undefined;
@@ -1908,6 +1911,22 @@ export function createMemoryCaptureRepository(
     );
   }
 
+  function loadShiftCloseCompletion(): Promise<ShiftCloseCompletionRecord | null> {
+    return Promise.resolve(shiftCloseCompletion ?? null);
+  }
+
+  function saveShiftCloseCompletion(
+    completion: ShiftCloseCompletionRecord,
+  ): Promise<ShiftCloseCompletionRecord> {
+    shiftCloseCompletion = parseShiftCloseCompletionRecord(completion);
+    return Promise.resolve(shiftCloseCompletion);
+  }
+
+  function clearShiftCloseCompletion(): Promise<void> {
+    shiftCloseCompletion = undefined;
+    return Promise.resolve();
+  }
+
   function listSyncQueue(): Promise<SyncQueueSummary> {
     const queueCommands = sortSyncQueueItems(
       [...syncCommands.values()].filter(
@@ -2204,6 +2223,9 @@ export function createMemoryCaptureRepository(
     applyEvidenceUploadIntent,
     applyEvidenceUploadAck,
     markEvidenceUploadFailed,
+    loadShiftCloseCompletion,
+    saveShiftCloseCompletion,
+    clearShiftCloseCompletion,
     queueUnsafeShiftClose,
     listShiftCloseOutbox,
     listSyncQueue,

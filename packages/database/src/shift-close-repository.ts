@@ -42,10 +42,19 @@ export interface ShiftCloseRepository {
     closure: ShiftClosurePersistenceRecord;
     replayed: boolean;
   }>;
+  findActiveClosureForStore(input: {
+    storeId: string;
+  }): Promise<ShiftClosurePersistenceRecord | undefined>;
   findClosure(input: {
     closureId: string;
     storeId: string;
   }): Promise<ShiftClosurePersistenceRecord | undefined>;
+  recordTurnStart(input: {
+    storeId: string;
+    idempotencyKey: string;
+    startedAt: Date;
+    createdAt: Date;
+  }): Promise<void>;
   createHandoff(input: ShiftHandoffPersistenceRecord): Promise<{
     handoff: ShiftHandoffPersistenceRecord;
     replayed: boolean;
@@ -109,6 +118,30 @@ export function createNeonShiftCloseRepository(input: {
 export function createShiftCloseRepositoryFromQuery(
   sql: NeonQueryFunction<false, false>,
 ): ShiftCloseRepository {
+  let turnStartsTableEnsured: Promise<void> | undefined;
+
+  function ensureTurnStartsTable(): Promise<void> {
+    turnStartsTableEnsured ??= sql
+      .query(
+        `
+      create table if not exists shift_turn_starts (
+        start_id text primary key,
+        idempotency_key text not null,
+        store_id text not null,
+        started_at timestamptz not null,
+        created_at timestamptz not null default now()
+      );
+      create unique index if not exists shift_turn_starts_idempotency_key_uidx
+        on shift_turn_starts (idempotency_key);
+      create index if not exists shift_turn_starts_store_started_idx
+        on shift_turn_starts (store_id, started_at desc);
+    `,
+      )
+      .then(() => undefined);
+
+    return turnStartsTableEnsured;
+  }
+
   async function findClosure(input: { closureId: string; storeId: string }) {
     const rows = (await sql.query(
       `select ${SHIFT_CLOSURE_COLUMNS} from shift_closures where closure_id = $1 and store_id = $2 limit 1`,
@@ -168,7 +201,42 @@ export function createShiftCloseRepositoryFromQuery(
         throw new Error("Shift close snapshot was not persisted in the authorized store.");
       return { closure, replayed: false };
     },
+    async findActiveClosureForStore(input) {
+      await ensureTurnStartsTable();
+      const rows = (await sql.query(
+        `select ${SHIFT_CLOSURE_COLUMNS}
+        from shift_closures c
+        where c.store_id = $1
+          and not exists (
+            select 1 from shift_turn_starts s
+            where s.store_id = c.store_id
+              and s.started_at > c.occurred_at
+          )
+        order by c.occurred_at desc, c.received_at desc
+        limit 1`,
+        [input.storeId],
+      )) as ShiftClosureRow[];
+
+      return rows[0] === undefined ? undefined : mapClosure(rows[0]);
+    },
     findClosure,
+    async recordTurnStart(input) {
+      await ensureTurnStartsTable();
+      const startId = `shift-turn-start-${sanitizeIdentifier(input.idempotencyKey)}`;
+      await sql.query(
+        `insert into shift_turn_starts (
+          start_id, idempotency_key, store_id, started_at, created_at
+        ) values ($1, $2, $3, $4::timestamptz, $5::timestamptz)
+        on conflict (idempotency_key) do nothing`,
+        [
+          startId,
+          input.idempotencyKey,
+          input.storeId,
+          input.startedAt.toISOString(),
+          input.createdAt.toISOString(),
+        ],
+      );
+    },
     async createHandoff(input) {
       const existingRows = (await sql.query(
         `select ${SHIFT_HANDOFF_COLUMNS} from shift_handoffs where idempotency_key = $1 and store_id = $2 limit 1`,
@@ -204,6 +272,14 @@ export function createShiftCloseRepositoryFromQuery(
       return { handoff: mapHandoff(rows[0]), replayed: false };
     },
   };
+}
+
+function sanitizeIdentifier(value: string): string {
+  const sanitized = value.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 120);
+  if (sanitized.length === 0) {
+    throw new Error("Shift turn start identifier cannot be empty after sanitization.");
+  }
+  return sanitized;
 }
 
 function mapClosure(row: ShiftClosureRow): ShiftClosurePersistenceRecord {

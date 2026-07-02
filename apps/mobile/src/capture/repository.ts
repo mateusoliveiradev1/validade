@@ -394,6 +394,19 @@ export interface QueueUnsafeShiftCloseInput {
   request: ShiftCloseUnsafeRequest;
 }
 
+export type ShiftCloseCompletionRecord =
+  | {
+      verdict: "safe";
+      occurredAt: string;
+    }
+  | {
+      verdict: "unsafe";
+      occurredAt: string;
+      continuityOwner: string;
+      continuityDeadline: string;
+      pendingSync: boolean;
+    };
+
 export type MarkdownEntryState =
   | {
       status: "terminal_finalized";
@@ -527,6 +540,11 @@ export interface CaptureRepository {
     error: string,
     failedAt: string,
   ): Promise<EvidenceUploadQueueRecord>;
+  loadShiftCloseCompletion?: () => Promise<ShiftCloseCompletionRecord | null>;
+  saveShiftCloseCompletion?: (
+    completion: ShiftCloseCompletionRecord,
+  ) => Promise<ShiftCloseCompletionRecord>;
+  clearShiftCloseCompletion?: () => Promise<void>;
   queueUnsafeShiftClose?: (input: QueueUnsafeShiftCloseInput) => Promise<ShiftCloseOutboxRecord>;
   listShiftCloseOutbox?: () => Promise<readonly ShiftCloseOutboxRecord[]>;
   listSyncQueue(): Promise<SyncQueueSummary>;
@@ -801,6 +819,40 @@ export function matchesRecentLotLocation(
 
 export function parseTodayTaskRecord(input: unknown): TodayTaskRecord {
   return TodayTaskRecordSchema.parse(input);
+}
+
+export function parseShiftCloseCompletionRecord(input: unknown): ShiftCloseCompletionRecord {
+  if (typeof input !== "object" || input === null) {
+    throw new Error("Invalid shift close completion.");
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const verdict = candidate.verdict;
+  const occurredAt = candidate.occurredAt;
+
+  if ((verdict !== "safe" && verdict !== "unsafe") || typeof occurredAt !== "string") {
+    throw new Error("Invalid shift close completion.");
+  }
+
+  if (verdict === "safe") {
+    return { verdict, occurredAt };
+  }
+
+  if (
+    typeof candidate.continuityOwner !== "string" ||
+    typeof candidate.continuityDeadline !== "string" ||
+    typeof candidate.pendingSync !== "boolean"
+  ) {
+    throw new Error("Invalid unsafe shift close completion.");
+  }
+
+  return {
+    verdict,
+    occurredAt,
+    continuityOwner: candidate.continuityOwner,
+    continuityDeadline: candidate.continuityDeadline,
+    pendingSync: candidate.pendingSync,
+  };
 }
 
 export function parseTaskResolutionCommand(input: unknown): TaskResolutionCommand {

@@ -75,6 +75,7 @@ import type {
   SaveLotInput,
   SaveLocalOnboardingProgressInput,
   TodayTaskRefreshResult,
+  ShiftCloseCompletionRecord,
   ShiftCloseOutboxRecord,
 } from "./repository";
 import {
@@ -116,6 +117,7 @@ import {
   parseLocalOnboardingProgressRecord,
   parsePrepareTurnCacheStatus,
   parsePrepareTurnResponse,
+  parseShiftCloseCompletionRecord,
   parseProductDraftCreateRequest,
   parseLotId,
   parseLotInput,
@@ -396,6 +398,12 @@ interface ShiftCloseOutboxRow {
   attempt_count: number;
   server_closure_id: string | null;
   last_error: string | null;
+}
+
+interface ShiftCloseCompletionRow {
+  id: string;
+  completion_json: string;
+  updated_at: string;
 }
 
 interface SyncCommandRow {
@@ -2716,6 +2724,47 @@ export function createSQLiteCaptureRepository(
     return rows.map(mapShiftCloseOutbox);
   }
 
+  async function loadShiftCloseCompletion(): Promise<ShiftCloseCompletionRecord | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<ShiftCloseCompletionRow>(
+      "SELECT * FROM shift_close_completion WHERE id = 'current' LIMIT 1",
+    );
+
+    if (row === null) {
+      return null;
+    }
+
+    return parseShiftCloseCompletionRecord(parseJson(row.completion_json));
+  }
+
+  async function saveShiftCloseCompletion(
+    completion: ShiftCloseCompletionRecord,
+  ): Promise<ShiftCloseCompletionRecord> {
+    await initialize();
+    const parsed = parseShiftCloseCompletionRecord(completion);
+    const db = await getDatabase();
+    const updatedAt = dependencies.clock();
+
+    await db.runAsync(
+      `INSERT INTO shift_close_completion (id, completion_json, updated_at)
+       VALUES ('current', ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         completion_json = excluded.completion_json,
+         updated_at = excluded.updated_at`,
+      JSON.stringify(parsed),
+      updatedAt,
+    );
+
+    return parsed;
+  }
+
+  async function clearShiftCloseCompletion(): Promise<void> {
+    await initialize();
+    const db = await getDatabase();
+    await db.runAsync("DELETE FROM shift_close_completion WHERE id = 'current'");
+  }
+
   async function listSyncQueue(): Promise<SyncQueueSummary> {
     await initialize();
     const db = await getDatabase();
@@ -3397,6 +3446,9 @@ export function createSQLiteCaptureRepository(
     applyEvidenceUploadIntent,
     applyEvidenceUploadAck,
     markEvidenceUploadFailed,
+    loadShiftCloseCompletion,
+    saveShiftCloseCompletion,
+    clearShiftCloseCompletion,
     queueUnsafeShiftClose,
     listShiftCloseOutbox,
     listSyncQueue,
@@ -3585,6 +3637,11 @@ async function initializeDatabase(
       attempt_count INTEGER NOT NULL,
       server_closure_id TEXT,
       last_error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS shift_close_completion (
+      id TEXT PRIMARY KEY NOT NULL,
+      completion_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sync_commands (
       id TEXT PRIMARY KEY NOT NULL,

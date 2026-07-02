@@ -4,19 +4,9 @@ import {
   type ShiftCloseSafeRequest,
   type ShiftCloseUnsafeRequest,
 } from "@validade-zero/contracts";
+import type { ShiftCloseCompletionRecord } from "./repository";
 
-export type ShiftCloseCompletion =
-  | {
-      verdict: "safe";
-      occurredAt: string;
-    }
-  | {
-      verdict: "unsafe";
-      occurredAt: string;
-      continuityOwner: string;
-      continuityDeadline: string;
-      pendingSync: boolean;
-    };
+export type ShiftCloseCompletion = ShiftCloseCompletionRecord;
 
 export function createUnsafeShiftCloseRequest(
   input: ShiftCloseUnsafeRequest,

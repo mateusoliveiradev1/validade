@@ -4,6 +4,7 @@ import type {
   CaptureLotInput,
   OfflineCacheStatus,
   PrepareTurnCacheStatus,
+  PrepareTurnRequest,
   PrepareTurnResponse,
   SessionContextResponse,
   ShiftClosureSnapshot,
@@ -13,7 +14,13 @@ import type {
 } from "@validade-zero/contracts";
 import { AuthGate, type MobileAuthClient } from "../auth/AuthGate";
 import { MobileAuthError } from "../auth/auth-errors";
-import type { CaptureLotSnapshot, CaptureProductRecord, CaptureRepository } from "./repository";
+import type {
+  CaptureLotSnapshot,
+  CaptureProductRecord,
+  CaptureRepository,
+  LocalOnboardingProgressRecord,
+  ShiftCloseCompletionRecord,
+} from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -243,8 +250,10 @@ function emptySyncQueue(): SyncQueueSummary {
   };
 }
 
-function pilotPrepareTurnResponse(): PrepareTurnResponse {
-  return {
+function pilotPrepareTurnResponse(
+  overrides: Partial<PrepareTurnResponse> = {},
+): PrepareTurnResponse {
+  const response: PrepareTurnResponse = {
     requestId: "prepare-turn-release-journey",
     store: {
       storeId: "loja-ficticia",
@@ -296,6 +305,8 @@ function pilotPrepareTurnResponse(): PrepareTurnResponse {
     resolvedHistory: [],
     conflicts: [],
   };
+
+  return { ...response, ...overrides };
 }
 
 function firstStorePrepareTurnCache(): PrepareTurnCacheStatus {
@@ -339,6 +350,8 @@ function createPilotJourneyRepository(input: {
   refreshTodayTasks?: CaptureRepository["refreshTodayTasks"] | undefined;
 }): CaptureRepository {
   let prepareCache: PrepareTurnCacheStatus | null = null;
+  let shiftCloseCompletion: ShiftCloseCompletionRecord | undefined;
+  let onboardingProgress: LocalOnboardingProgressRecord | null = null;
 
   return {
     initialize: () => Promise.resolve(),
@@ -348,6 +361,16 @@ function createPilotJourneyRepository(input: {
       return Promise.resolve();
     },
     loadPrepareTurnCacheStatus: () => Promise.resolve(prepareCache),
+    loadOnboardingProgress: () => Promise.resolve(onboardingProgress),
+    saveOnboardingProgress: (progress) => {
+      onboardingProgress = {
+        ...progress,
+        ...(progress.status === "completed" ? { completedAt: progress.occurredAt } : {}),
+        ...(progress.status === "skipped" ? { skippedAt: progress.occurredAt } : {}),
+        updatedAt: progress.occurredAt,
+      };
+      return Promise.resolve(onboardingProgress);
+    },
     searchCentralProducts: () =>
       Promise.resolve({
         requestId: "product-search-release-journey",
@@ -439,6 +462,15 @@ function createPilotJourneyRepository(input: {
     applyEvidenceUploadIntent: () => Promise.reject(new Error("not used")),
     applyEvidenceUploadAck: () => Promise.reject(new Error("not used")),
     markEvidenceUploadFailed: () => Promise.reject(new Error("not used")),
+    loadShiftCloseCompletion: () => Promise.resolve(shiftCloseCompletion ?? null),
+    saveShiftCloseCompletion: (completion) => {
+      shiftCloseCompletion = completion;
+      return Promise.resolve(completion);
+    },
+    clearShiftCloseCompletion: () => {
+      shiftCloseCompletion = undefined;
+      return Promise.resolve();
+    },
     listShiftCloseOutbox: () => Promise.resolve([]),
     listSyncQueue: () => Promise.resolve(emptySyncQueue()),
     saveOfflineAction: () => Promise.reject(new Error("not used")),
@@ -966,6 +998,60 @@ describe("mobile release journeys", () => {
     expect(text).toContain("Turno encerrado, proximo turno ainda nao preparado");
     expect(text).toContain("Preparar proximo turno");
     expect(text).not.toContain("Nenhum bloqueio ativo na leitura central");
+
+    const prepareTurnAfterRestart = vi.fn((request: PrepareTurnRequest) =>
+      Promise.resolve(
+        pilotPrepareTurnResponse(
+          request.turnIntent === "start_next_turn"
+            ? {}
+            : { shiftClose: safeShiftClosureSnapshot() },
+        ),
+      ),
+    );
+
+    await act(async () => {
+      tree?.unmount();
+      tree = create(
+        <CaptureApp
+          repository={repository}
+          alertChannel={createFakePushAlertChannel()}
+          prepareTurnClient={prepareTurnAfterRestart}
+          closeShiftClient={closeShiftClient}
+          activeRole="lead"
+          actorLabel="Lideranca FICTICIA"
+          storeId="loja-ficticia"
+          buildInfo={{
+            appVersion: "0.12.0",
+            appBuild: "150",
+            environment: "staging",
+            apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
+            packageId: "com.validadezero.app",
+            approvedArtifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+            approvedAppVersion: "0.12.0",
+            approvedBuild: "150",
+            buildRef: "onboarding-shift-e2e-150",
+            buildCompatibility: "atual",
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    if (tree === undefined) throw new Error("Restarted safe close journey did not render.");
+    const restartedText = renderedText(tree);
+    expect(prepareTurnAfterRestart).toHaveBeenCalledWith(
+      expect.objectContaining({ turnIntent: "refresh" }),
+    );
+    expect(restartedText).toContain("Turno encerrado com area segura");
+    expect(restartedText).not.toContain("Nenhum bloqueio ativo na leitura central");
+
+    await press(tree, "Preparar proximo turno");
+
+    expect(prepareTurnAfterRestart).toHaveBeenLastCalledWith(
+      expect.objectContaining({ turnIntent: "start_next_turn" }),
+    );
+    expect(renderedText(tree)).toContain("Nenhum bloqueio ativo na leitura central");
   });
 
   it("guides an empty first-store central read into first lot registration", async () => {

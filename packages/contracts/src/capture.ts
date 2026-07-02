@@ -13,6 +13,7 @@ import {
   PilotDevicePushProviderStateSchema,
   PilotDeviceReadinessVerdictSchema,
 } from "./command-center";
+import { ShiftClosureSnapshotSchema } from "./shift-close";
 
 const RequiredTextSchema = z.string().trim().min(1).max(160);
 const IdentifierSchema = z.string().trim().min(1).max(120);
@@ -315,6 +316,7 @@ export const PrepareTurnRequestSchema = z
   .object({
     deviceId: IdentifierSchema,
     requestedAt: IsoDateTimeSchema,
+    turnIntent: z.enum(["refresh", "start_next_turn"]).optional(),
     appVersion: RequiredTextSchema.optional(),
     deviceLabel: RequiredTextSchema.optional(),
     appBuild: RequiredTextSchema.optional(),
@@ -873,6 +875,7 @@ export const PrepareTurnResponseSchema = z
     activeTasks: z.array(ActiveTaskSnippetSchema),
     resolvedHistory: z.array(ResolvedTaskHistorySnippetSchema),
     conflicts: z.array(CentralConflictSnippetSchema),
+    shiftClose: ShiftClosureSnapshotSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {
