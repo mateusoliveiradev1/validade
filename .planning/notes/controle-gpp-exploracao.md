@@ -237,6 +237,90 @@ Regras:
 - a baixa final e sempre do GPP;
 - tudo fica auditado.
 
+### Permissoes decididas
+
+Todas as permissoes precisam ser validadas no backend. A UI pode esconder ou mostrar botoes, mas a regra de permissao real fica na central.
+
+Regras por papel:
+
+- `colaborador`: cria lancamentos e corrige somente lancamentos que ele mesmo criou, enquanto ainda estao `Pendente`.
+- `lideranca`: corrige lancamentos do setor/loja sob responsabilidade.
+- `gpp`: marca `Baixado`, marca `Divergencia` e pode fazer correcao pequena somente com justificativa.
+- `admin`: audita, cancela, estorna e gerencia convites/papeis.
+
+Outro colaborador comum nao pode corrigir o lancamento de um colega. Isso preserva responsabilidade e evita que a auditoria vire "todo mundo mexe em tudo".
+
+Campos que o criador pode corrigir enquanto `Pendente`:
+
+- quantidade/peso;
+- unidade;
+- setor destino;
+- motivo;
+- observacao;
+- codigo/produto, com historico obrigatorio porque afeta a baixa do GPP.
+
+Depois que o lancamento esta `Baixado`, ninguem edita direto. Qualquer ajuste vira estorno/correcao administrativa com justificativa.
+
+### Cancelamento decidido
+
+Lancamento `Pendente` pode ser cancelado quando foi erro claro, sempre com motivo obrigatorio.
+
+Regras:
+
+- criador cancela o proprio lancamento pendente;
+- lideranca cancela pendente do setor/loja;
+- GPP evita cancelar como fluxo normal; quando algo nao bate, marca `Divergencia`;
+- admin pode cancelar ou estornar com justificativa;
+- lancamento `Baixado` nao cancela direto, apenas estorna/corrige administrativamente.
+
+### Evidencia decidida
+
+No MVP, foto nao deve ser obrigatoria para todo lancamento, para nao travar a velocidade operacional.
+
+Regras:
+
+- avaria normal: foto opcional;
+- reaproveitamento: foto opcional;
+- divergencia: observacao obrigatoria e foto opcional recomendada;
+- cancelamento/estorno: motivo obrigatorio e foto opcional;
+- vencido vindo do `Hoje`: pedir foto ou motivo sem foto, por ser mais critico.
+
+### Tempo real decidido como camada aditiva
+
+Tempo real e desejado para Controle GPP e, se provar estabilidade, tambem para `Hoje`.
+
+Principio:
+
+```text
+Tempo real acelera a visibilidade, mas a verdade continua sendo o banco central.
+```
+
+Arquitetura recomendada:
+
+1. mobile/web envia comando para API;
+2. API grava no banco central primeiro;
+3. somente depois do sucesso central, API publica evento para a sala da loja;
+4. web/mobile conectados recebem o evento;
+5. ao receber evento, a tela busca snapshot atualizado da central;
+6. se tempo real cair, a tela continua funcionando com refresh manual/polling fallback.
+
+Tecnologia candidata:
+
+- Cloudflare Durable Objects com WebSocket Hibernation, por loja/sala;
+- exemplo de sala: `store-room:loja-18`;
+- evento exemplo: `gpp_entries_changed`, `today_tasks_changed`;
+- mobile setor nao precisa manter socket sempre aberto; ele salva na central;
+- web GPP e mobile GPP conectam quando a tela esta aberta;
+- `Hoje` pode receber a mesma camada depois, sem reescrever a regra de sync.
+
+Essa camada precisa ser aditiva e reversivel:
+
+- nao mexer na build `0.12.0` build `170`;
+- nao alterar o contrato atual de salvar lote/tarefa em producao de teste;
+- nao substituir polling/refresh atual no primeiro corte;
+- nao marcar sucesso por evento em tempo real;
+- evento perdido nao pode perder dado, porque a tela sempre reconsulta a central.
+
 ### Sincronizacao e verdade central
 
 Requisito forte:
@@ -316,34 +400,27 @@ Acoes esperadas:
 
 ## Pontos ainda em aberto
 
-1. Permissoes finas:
-   - quem pode marcar baixado;
-   - quem pode marcar divergencia;
-   - quem pode corrigir quantidade/codigo;
-   - quem pode cancelar um lancamento.
-
-2. Fluxo de divergencia:
+1. Fluxo de divergencia:
    - se o GPP encontrar quantidade errada;
    - se codigo/produto estiver errado;
    - se o fisico nao estiver na caixa/caderno;
    - se o setor discordar.
 
-3. Evidencia:
-   - se foto da etiqueta/caixa deve ser opcional ou obrigatoria;
-   - se assinatura/confirmacao do setor entra depois.
-
-4. Atualizacao quase em tempo real:
-   - polling curto no web;
-   - SSE/WebSocket se justificar;
-   - como mostrar freshness sem criar ansiedade operacional.
-
-5. UI/UX final das telas:
+2. UI/UX final das telas:
    - tela web do GPP por setor;
    - detalhe lateral do lancamento;
    - fluxo mobile de registro rapido;
    - melhoria da UI de convites/equipe para incluir papel GPP.
 
-6. Ordem de implementacao:
+3. Contrato tecnico do backend:
+   - tabelas novas do Controle GPP;
+   - endpoints novos;
+   - idempotency key obrigatoria;
+   - audit events;
+   - feature flag;
+   - tempo real aditivo.
+
+4. Ordem de implementacao:
    - UI/UX web do GPP;
    - contratos e backend;
    - mobile entrada rapida;
@@ -352,6 +429,6 @@ Acoes esperadas:
 
 ## Proxima discussao recomendada
 
-Definir as permissoes finas e o fluxo de divergencia.
+Definir o fluxo de divergencia em detalhe.
 
-Pergunta aberta: quando o GPP encontra erro de quantidade, codigo, produto, setor ou etiqueta fisica, quais campos o setor/lideranca pode corrigir e quais correcoes precisam ficar restritas ao GPP com justificativa?
+Pergunta aberta: quando o GPP encontra erro de quantidade, codigo, produto, setor ou etiqueta fisica, qual deve ser a experiencia perfeita para corrigir sem atrasar a baixa e sem perder responsabilidade?
