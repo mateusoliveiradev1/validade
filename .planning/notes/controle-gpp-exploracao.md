@@ -26,6 +26,8 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 - Historicamente, quando havia reaproveitamento, uma etiqueta ia para o caderno de avaria e outra para o caderno do setor que recebeu, marcada com `R`.
 - O processo evoluiu para tres trilhas fisicas: caderno de avaria, caderno dos setores e caderno de reaproveitamento.
 - Mesmo assim, para ser reaproveitado, o produto primeiro precisa entrar como avaria. Reaproveitamento nao nasce sozinho.
+- Existe tambem o fluxo de **producao interna**. Exemplo: Hortifruti vai produzir salada de frutas, retira frutas, cola no caderno de avaria e escreve que e para producao.
+- Nesse caso, tambem nasce como avaria. A diferenca e a finalidade/destino: producao interna do proprio setor, nao necessariamente transferencia para outro setor.
 
 ## Decisoes ja alinhadas
 
@@ -33,7 +35,7 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 
 O nome recomendado para a nova area e **Controle GPP**.
 
-Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, reaproveitamento, transferencia para setor, pendencias, baixas e divergencias.
+Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, reaproveitamento, producao interna, transferencia para setor, pendencias, baixas e divergencias.
 
 ### Separacao do fluxo de validade
 
@@ -69,7 +71,7 @@ Convite GPP deve exigir loja obrigatoria e papel `GPP`. Setor pode ficar vazio, 
 
 Mobile do setor:
 
-- entrada rapida para registrar avaria, transferencia e reaproveitamento;
+- entrada rapida para registrar avaria, transferencia, reaproveitamento e producao interna;
 - fluxo grande, direto e usavel com uma mao;
 - comecar pelo codigo do produto;
 - busca por nome como plano B.
@@ -96,6 +98,7 @@ Dentro de cada setor, permitir filtro por tipo:
 - Avaria
 - Transferencia
 - Reaproveitamento
+- Producao
 - Divergencias
 - Baixados
 
@@ -131,11 +134,12 @@ Campos base:
 Campos condicionais:
 
 - setor destino obrigatorio para transferencia e reaproveitamento;
+- finalidade/producao obrigatoria quando a avaria for usada em producao interna;
 - motivo obrigatorio para avaria;
 - observacao opcional;
 - vinculo com lote de validade quando a movimentacao nasce do fluxo de validade.
 
-Regra decidida: para avaria, transferencia e reaproveitamento, bloquear finalizacao se faltar codigo, quantidade/peso ou destino obrigatorio. Evitar criar pendencia incompleta para o GPP.
+Regra decidida: para avaria, transferencia, reaproveitamento e producao interna, bloquear finalizacao se faltar codigo, quantidade/peso, finalidade ou destino obrigatorio. Evitar criar pendencia incompleta para o GPP.
 
 ### Avaria como registro principal
 
@@ -145,6 +149,7 @@ Modelo recomendado:
 
 - `Avaria` e o registro principal.
 - `Reaproveitamento` e uma movimentacao vinculada a uma avaria.
+- `Producao interna` e uma finalidade vinculada a uma avaria quando o proprio setor usa o produto para preparar outro item, como salada de frutas no Hortifruti.
 - `Transferencia para setor` pode existir como destino/movimento quando a avaria ou produto sai para outro setor.
 - `Baixa GPP` e o fechamento final feito pelo GPP.
 
@@ -160,6 +165,12 @@ Fluxo com reaproveitamento:
 Avaria registrada -> Reaproveitamento vinculado -> Baixada pelo GPP
 ```
 
+Fluxo com producao interna:
+
+```text
+Avaria registrada -> Producao interna vinculada -> Baixada pelo GPP
+```
+
 O reaproveitamento deve mostrar saldo:
 
 ```text
@@ -169,6 +180,17 @@ Saldo em avaria: 4,000kg
 ```
 
 Se o saldo restante tambem tiver destino depois, novas movimentacoes podem ser vinculadas a mesma avaria ate a baixa final.
+
+A producao interna deve ficar visivel como destino/finalidade da avaria. Exemplo:
+
+```text
+Avaria registrada: 4,000kg de frutas
+Destino: Producao interna - Salada de frutas
+Setor: Hortifruti
+Saldo em avaria: 0kg, se tudo foi usado
+```
+
+Ponto a confirmar com o GPP: se a producao interna precisa informar apenas `Producao` ou tambem o item produzido, como `Salada de frutas`.
 
 ### Integracao com validade
 
@@ -190,6 +212,8 @@ Ao confirmar:
 Produtos que nao estao no controle de validade tambem podem entrar pelo botao separado `Controle GPP`. Exemplo: tomate ruim retirado da venda sem lote monitorado. Nesse caso, o colaborador registra apenas a avaria no Controle GPP com codigo, quantidade, motivo e setor.
 
 Produtos que ja estao no controle de validade continuam normalmente no fluxo `Hoje`. Exemplo: cabotia cortada registrada para acompanhar validade. Se vencer, nao vender e ainda puder ser usada pela rotisserie/cozinha, o lote deve ter uma acao como `Enviar para reaproveitamento`.
+
+Outro exemplo: frutas registradas ou retiradas para produzir salada de frutas no proprio Hortifruti devem poder gerar uma avaria com finalidade `Producao interna`, sem obrigar transferencia para outro setor.
 
 Essa acao deve:
 
@@ -281,6 +305,7 @@ Regras:
 
 - avaria normal: foto opcional;
 - reaproveitamento: foto opcional;
+- producao interna: foto opcional;
 - divergencia: observacao obrigatoria e foto opcional recomendada;
 - cancelamento/estorno: motivo obrigatorio e foto opcional;
 - vencido vindo do `Hoje`: pedir foto ou motivo sem foto, por ser mais critico.
@@ -370,8 +395,8 @@ Fluxo recomendado:
    - campo principal: codigo do produto;
    - exemplo: digitar `162` preenche `Tomate`;
    - busca por nome como alternativa.
-2. Tipo
-   - avaria, perda, transferencia, reprocessamento.
+2. Tipo/finalidade
+   - avaria, transferencia, reaproveitamento, producao interna.
 3. Quantidade
    - valor e unidade.
 4. Destino
@@ -405,6 +430,7 @@ Acoes esperadas:
    - se codigo/produto estiver errado;
    - se o fisico nao estiver na caixa/caderno;
    - se o setor discordar.
+   - se producao interna foi marcada sem item/finalidade clara.
 
 2. UI/UX final das telas:
    - tela web do GPP por setor;
@@ -425,6 +451,7 @@ Acoes esperadas:
    - contratos e backend;
    - mobile entrada rapida;
    - integracao com avaria/reaproveitamento do fluxo de validade;
+   - integracao com producao interna;
    - papel GPP e melhoria da tela de convites/equipe.
 
 ## Proxima discussao recomendada
