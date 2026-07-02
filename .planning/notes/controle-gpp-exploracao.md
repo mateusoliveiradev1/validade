@@ -28,6 +28,8 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 - Mesmo assim, para ser reaproveitado, o produto primeiro precisa entrar como avaria. Reaproveitamento nao nasce sozinho.
 - Existe tambem o fluxo de **producao interna**. Exemplo: Hortifruti vai produzir salada de frutas, retira frutas, cola no caderno de avaria e escreve que e para producao.
 - Nesse caso, tambem nasce como avaria. A diferenca e a finalidade/destino: producao interna do proprio setor, nao necessariamente transferencia para outro setor.
+- Existe outro fluxo separado: **compras internas para setores**. Exemplo: Rotisserie precisa de tomate bom para pizza; o setor cria uma lista no papel e o GPP pega/compra dentro da propria loja.
+- Compras internas nao sao avaria, porque o produto esta proprio para uso. Devem virar uma aba/fluxo separado dentro do Controle GPP.
 
 ## Decisoes ja alinhadas
 
@@ -35,7 +37,7 @@ O objetivo nao e o app decidir sozinho a baixa oficial do GPP. O objetivo e regi
 
 O nome recomendado para a nova area e **Controle GPP**.
 
-Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, reaproveitamento, producao interna, transferencia para setor, pendencias, baixas e divergencias.
+Motivo: `Caderno GPP` remete demais ao papel, `Baixas GPP` e estreito demais, e `Movimentacoes GPP` e correto mas frio. `Controle GPP` cobre avaria, reaproveitamento, producao interna, transferencia para setor, compras internas, pendencias, baixas e divergencias.
 
 ### Separacao do fluxo de validade
 
@@ -82,6 +84,7 @@ Web do GPP:
 - visao agrupada para velocidade;
 - detalhe por lancamento para auditoria;
 - filtros por setor, tipo, data, status e produto/codigo.
+- aba separada para compras internas dos setores.
 
 Mobile do GPP:
 
@@ -225,6 +228,65 @@ Essa acao deve:
 
 Regra: reaproveitamento so pode resolver o `Hoje` se o produto saiu da area de venda. Se ainda esta exposto para venda, nao resolve.
 
+### Compras internas para setores
+
+Compras internas sao um fluxo separado de avaria.
+
+Exemplo real:
+
+- Rotisserie precisa de tomate bom para pizza.
+- O setor cria uma lista no papel.
+- O GPP pega/compra o produto dentro da propria loja.
+- Nao pode ser produto ruim, avariado ou reaproveitado.
+
+No app, isso deve virar uma aba propria dentro do Controle GPP:
+
+- `Avarias`
+- `Compras internas`
+- `Divergencias`
+- `Historico`
+
+Fluxo:
+
+```text
+Solicitado pelo setor -> Atendido pelo GPP
+```
+
+Fluxos de excecao:
+
+```text
+Solicitado -> Atendido parcial
+Solicitado -> Sem produto
+Solicitado -> Cancelado
+```
+
+Campos obrigatorios da solicitacao:
+
+- codigo do produto;
+- produto;
+- quantidade/peso;
+- unidade;
+- setor solicitante;
+- finalidade, como pizza, preparo, salada;
+- observacao opcional.
+
+Campos no atendimento GPP:
+
+- quantidade atendida;
+- status: `Atendido`, `Atendido parcial`, `Sem produto`, `Cancelado`;
+- observacao/motivo quando parcial, sem produto ou cancelado.
+
+Regras:
+
+- setor cria a solicitacao;
+- GPP ve a fila por setor;
+- GPP atende e finaliza;
+- isso nao gera avaria;
+- isso nao resolve lote de validade;
+- usa o mesmo cadastro de produto/codigo;
+- tambem deve seguir a regra de central primeiro quando online;
+- tempo real deve avisar o GPP quando uma nova solicitacao entrar.
+
 ### Piloto com redundancia fisica
 
 No inicio, manter caderno/caixa fisica como redundancia operacional.
@@ -337,6 +399,7 @@ Tecnologia candidata:
 - mobile setor nao precisa manter socket sempre aberto; ele salva na central;
 - web GPP e mobile GPP conectam quando a tela esta aberta;
 - `Hoje` pode receber a mesma camada depois, sem reescrever a regra de sync.
+- compras internas tambem podem usar evento como `gpp_purchase_requests_changed`.
 
 Essa camada precisa ser aditiva e reversivel:
 
@@ -409,7 +472,7 @@ Fluxo recomendado:
 Estrutura recomendada:
 
 - topo com loja, data e status de atualizacao;
-- abas: Pendentes, Baixados, Divergencias, Todos;
+- abas: Avarias, Compras internas, Divergencias, Historico;
 - filtros: setor, tipo, data, produto/codigo;
 - primeiro nivel por setor;
 - dentro do setor, agrupamento por codigo/produto;
@@ -436,6 +499,7 @@ Acoes esperadas:
    - tela web do GPP por setor;
    - detalhe lateral do lancamento;
    - fluxo mobile de registro rapido;
+   - aba de compras internas;
    - melhoria da UI de convites/equipe para incluir papel GPP.
 
 3. Contrato tecnico do backend:
@@ -452,6 +516,7 @@ Acoes esperadas:
    - mobile entrada rapida;
    - integracao com avaria/reaproveitamento do fluxo de validade;
    - integracao com producao interna;
+   - compras internas dos setores;
    - papel GPP e melhoria da tela de convites/equipe.
 
 ## Proxima discussao recomendada
