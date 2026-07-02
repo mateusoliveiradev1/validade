@@ -350,6 +350,15 @@ interface ResolvedSyncTaskRow extends SyncTaskRow {
   resolved_at: string | Date | null;
 }
 
+interface TerminalObservationSyncRow {
+  central_lot_id: string;
+  lot_identity: Record<string, unknown> | string;
+  current_location: Record<string, unknown> | string;
+  status: PhysicalObservationInput["status"];
+  actor_display_name: string;
+  occurred_at: string | Date;
+}
+
 interface ResolvedTaskRow {
   central_task_id: string;
   central_lot_id: string;
@@ -421,7 +430,10 @@ interface OnboardingProgressRow {
 type StoredProduct = CentralProductSnippet & { storeId: string; normalizedKey?: string };
 type StoredCategory = CentralCategoryCatalogItem;
 type StoredProductDraft = ProductDraftReviewState & { storeId: string };
-type StoredLot = CentralLotSnippet & { storeId: string };
+type StoredLot = CentralLotSnippet & {
+  storeId: string;
+  currentObservation?: CentralPhysicalObservation;
+};
 type StoredTask = ActiveTaskSnippet & {
   storeId: string;
   taskStatus?: "active" | "resolved" | "blocked";
@@ -1920,6 +1932,54 @@ export function createCaptureRepositoryFromQuery(
     return rows[0];
   }
 
+  async function selectTerminalObservationSyncAck(
+    input: CentralSyncCommandApplyInput,
+  ): Promise<TerminalObservationSyncRow | undefined> {
+    const action = commandResolutionAction(input.command);
+    const expectedStatus = observationStatusForCommandAction(action);
+    const expectedLocationKind = terminalLocationKindForCommandAction(action);
+
+    if (expectedStatus === undefined) {
+      return undefined;
+    }
+
+    const rows = (await sql.query(
+      `select
+        l.central_lot_id,
+        l.lot_identity,
+        l.current_location,
+        case when o.status = $3 then o.status else $3 end as status,
+        case when o.status = $3 then o.actor_display_name else $5 end as actor_display_name,
+        case when o.status = $3 then o.occurred_at else $6::timestamptz end as occurred_at
+      from central_lots l
+      left join lateral (
+        select status, actor_display_name, occurred_at
+        from central_observations o
+        where o.store_id = l.store_id
+          and o.central_lot_id = l.central_lot_id
+        order by o.occurred_at desc, o.created_at desc
+        limit 1
+      ) o on true
+      where l.store_id = $1
+        and l.central_lot_id = $2
+        and (
+          o.status = $3
+          or ($4::text is not null and l.current_location->>'kind' = $4)
+        )
+      limit 1`,
+      [
+        input.storeId,
+        input.command.lotId,
+        expectedStatus,
+        expectedLocationKind ?? null,
+        commandActorLabel(input.command),
+        commandOccurredAt(input.command),
+      ],
+    )) as TerminalObservationSyncRow[];
+
+    return rows[0];
+  }
+
   async function acknowledgeResolvedSyncCommand(
     input: CentralSyncCommandApplyInput,
     task: ResolvedSyncTaskRow,
@@ -1958,6 +2018,44 @@ export function createCaptureRepositoryFromQuery(
     );
   }
 
+  async function acknowledgeTerminalObservationSyncCommand(
+    input: CentralSyncCommandApplyInput,
+    observation: TerminalObservationSyncRow,
+    acceptedAt: string,
+  ): Promise<SyncTransportResult> {
+    await sql.query(
+      `update central_sync_commands
+      set state = 'resolved',
+        accepted_at = $1::timestamptz,
+        updated_at = $1::timestamptz
+      where store_id = $2 and idempotency_key = $3`,
+      [acceptedAt, input.storeId, input.command.idempotencyKey],
+    );
+    await sql.query(
+      `update central_sync_conflicts
+      set state = 'resolved',
+        resolved_at = $1::timestamptz,
+        resolution_reason = $2
+      where store_id = $3 and command_id = $4 and state = 'conflict'`,
+      [
+        acceptedAt,
+        "Comando reconciliado porque o estado central do lote ja confirma a mesma acao.",
+        input.storeId,
+        input.command.id,
+      ],
+    );
+
+    return buildCentralSyncAckResult(
+      input.command,
+      acceptedAt,
+      buildResolvedHistoryFromTerminalObservation({
+        command: input.command,
+        observation,
+        updatedAt: acceptedAt,
+      }),
+    );
+  }
+
   async function replayCentralSyncCommand(
     input: CentralSyncCommandApplyInput,
   ): Promise<SyncTransportResult> {
@@ -1965,6 +2063,15 @@ export function createCaptureRepositoryFromQuery(
 
     if (resolvedTask !== undefined && resolvedTaskMatchesCommand(resolvedTask, input.command)) {
       return acknowledgeResolvedSyncCommand(input, resolvedTask, input.receivedAt);
+    }
+
+    const terminalObservation = await selectTerminalObservationSyncAck(input);
+    if (terminalObservation !== undefined) {
+      return acknowledgeTerminalObservationSyncCommand(
+        input,
+        terminalObservation,
+        input.receivedAt,
+      );
     }
 
     const conflict = await selectStoredCentralSyncConflict(input);
@@ -2061,6 +2168,15 @@ export function createCaptureRepositoryFromQuery(
 
       if (resolvedTask !== undefined && resolvedTaskMatchesCommand(resolvedTask, input.command)) {
         return acknowledgeResolvedSyncCommand(input, resolvedTask, input.receivedAt);
+      }
+
+      const terminalObservation = await selectTerminalObservationSyncAck(input);
+      if (terminalObservation !== undefined) {
+        return acknowledgeTerminalObservationSyncCommand(
+          input,
+          terminalObservation,
+          input.receivedAt,
+        );
       }
 
       return persistCentralSyncConflict(
@@ -2474,7 +2590,7 @@ export function createInMemoryCaptureRepository(input?: {
       approximateQuantity: lot.approximateQuantity ?? 0,
       createdAt: lot.updatedAt,
       updatedAt: lot.updatedAt,
-      currentObservation: {
+      currentObservation: lot.currentObservation ?? {
         centralObservationId: createStableId("obs", storeId, `${lot.centralLotId}:memory`),
         centralLotId: lot.centralLotId,
         status: "present",
@@ -3039,6 +3155,7 @@ export function createInMemoryCaptureRepository(input?: {
       const nextLot: StoredLot = {
         ...currentLot,
         currentLocation: context.currentLocation,
+        currentObservation: observation,
         approximateQuantity: context.approximateQuantity,
         updatedAt: occurredAt,
       };
@@ -3115,6 +3232,36 @@ export function createInMemoryCaptureRepository(input?: {
           }
           syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
           auditEvents.push(syncAuditEvent(syncInput, "resolved", "Tarefa central ja resolvida."));
+
+          return Promise.resolve(result);
+        }
+
+        const terminalObservation = findTerminalObservationForSyncCommand(syncInput, lots);
+        if (terminalObservation !== undefined) {
+          const result = buildCentralSyncAckResult(
+            syncInput.command,
+            syncInput.receivedAt,
+            buildResolvedHistoryFromStoredLotObservation({
+              command: syncInput.command,
+              lot: terminalObservation.lot,
+              observation: terminalObservation.observation,
+              updatedAt: syncInput.receivedAt,
+            }),
+          );
+
+          for (let index = conflicts.length - 1; index >= 0; index -= 1) {
+            const conflict = conflicts[index];
+            if (
+              conflict?.storeId === syncInput.storeId &&
+              conflict.commandId === syncInput.command.id
+            ) {
+              conflicts.splice(index, 1);
+            }
+          }
+          syncResultsByIdempotencyKey.set(syncInput.command.idempotencyKey, result);
+          auditEvents.push(
+            syncAuditEvent(syncInput, "resolved", "Estado central do lote ja confirma esta acao."),
+          );
 
           return Promise.resolve(result);
         }
@@ -3889,11 +4036,138 @@ function buildResolvedHistoryFromResolvedSyncTask(input: {
   return result;
 }
 
+function buildResolvedHistoryFromTerminalObservation(input: {
+  command: SyncCommandRecord;
+  observation: TerminalObservationSyncRow;
+  updatedAt: string;
+}): CentralResolvedTaskHistory {
+  const action = commandResolutionAction(input.command);
+  const result = CentralResolvedTaskHistorySchema.parse({
+    centralTaskId: input.command.taskId,
+    activeKey: input.command.taskActiveKey,
+    lotId: input.command.lotId,
+    productDisplayName: input.command.productDisplayName,
+    lotIdentity: parseJson(input.observation.lot_identity) as CaptureLotInput["identity"],
+    currentLocation: parseJson(input.observation.current_location) as OperationalLocation,
+    action,
+    actorLabel: input.observation.actor_display_name,
+    occurredAt: toIso(input.observation.occurred_at),
+    resolutionState: resolutionStateForAction(action),
+    source: "central",
+    updatedAt: input.updatedAt,
+  });
+
+  return result;
+}
+
 function resolvedTaskMatchesCommand(
   task: Pick<ResolvedSyncTaskRow, "resolution_action">,
   command: SyncCommandRecord,
 ): boolean {
   return task.resolution_action === commandResolutionAction(command);
+}
+
+function observationStatusForCommandAction(
+  action: TaskResolutionAction,
+): PhysicalObservationInput["status"] | undefined {
+  if (action === "withdraw") return "withdrawn";
+  if (action === "record_loss") return "loss";
+  if (action === "confirm_presence") return "present";
+  if (action === "mark_not_found") return "not_found";
+  if (action === "mark_probably_sold_out") return "probably_sold_out";
+  if (action === "move_lot") return "moved";
+  return undefined;
+}
+
+function terminalLocationKindForCommandAction(
+  action: TaskResolutionAction,
+): OperationalLocation["kind"] | undefined {
+  if (action === "withdraw" || action === "record_loss") return "retirada_perda";
+  return undefined;
+}
+
+function findTerminalObservationForSyncCommand(
+  input: CentralSyncCommandApplyInput,
+  lots: readonly StoredLot[],
+):
+  | {
+      lot: StoredLot;
+      observation: CentralPhysicalObservation;
+    }
+  | undefined {
+  const action = commandResolutionAction(input.command);
+  const expectedStatus = observationStatusForCommandAction(action);
+  if (expectedStatus === undefined) return undefined;
+
+  const lot = lots.find(
+    (candidate) =>
+      candidate.storeId === input.storeId &&
+      candidate.centralLotId === input.command.lotId &&
+      (candidate.currentObservation?.status === expectedStatus ||
+        candidate.currentLocation.kind === terminalLocationKindForCommandAction(action)),
+  );
+
+  if (lot === undefined) return undefined;
+
+  if (lot.currentObservation?.status === expectedStatus) {
+    return {
+      lot,
+      observation: lot.currentObservation,
+    };
+  }
+
+  const base = {
+    centralObservationId: createStableId(
+      "obs",
+      input.storeId,
+      `${input.command.lotId}:${input.command.id}:terminal-state`,
+    ),
+    centralLotId: input.command.lotId,
+    status: expectedStatus,
+    actorLabel: commandActorLabel(input.command),
+    occurredAt: commandOccurredAt(input.command),
+    location: lot.currentLocation,
+    isCorrection: false,
+  };
+
+  return {
+    lot,
+    observation:
+      lot.approximateQuantity === undefined
+        ? {
+            ...base,
+            quantityState: "not_estimable",
+          }
+        : {
+            ...base,
+            quantityState: "estimated",
+            approximateQuantity: lot.approximateQuantity,
+          },
+  };
+}
+
+function buildResolvedHistoryFromStoredLotObservation(input: {
+  command: SyncCommandRecord;
+  lot: StoredLot;
+  observation: CentralPhysicalObservation;
+  updatedAt: string;
+}): CentralResolvedTaskHistory {
+  const action = commandResolutionAction(input.command);
+
+  return CentralResolvedTaskHistorySchema.parse({
+    centralTaskId: input.command.taskId,
+    activeKey: input.command.taskActiveKey,
+    lotId: input.command.lotId,
+    productDisplayName: input.command.productDisplayName,
+    lotIdentity: input.lot.lotIdentity,
+    currentLocation: input.observation.location,
+    action,
+    actorLabel: input.observation.actorLabel,
+    occurredAt: input.observation.occurredAt,
+    resolutionState: resolutionStateForAction(action),
+    source: "central",
+    updatedAt: input.updatedAt,
+  });
 }
 
 function buildResolvedHistoryFromStoredTask(input: {
@@ -4696,6 +4970,7 @@ function stripStoreId<TItem>(item: TItem): Omit<TItem, "storeId"> {
   const rest = { ...(item as Record<string, unknown>) };
   delete rest.storeId;
   delete rest.taskStatus;
+  delete rest.currentObservation;
 
   return rest as Omit<TItem, "storeId">;
 }

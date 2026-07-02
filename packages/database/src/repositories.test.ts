@@ -987,6 +987,77 @@ describe("database repositories", () => {
     ]);
   });
 
+  it("acks stale loss sync commands when the central lot is already out of sales area", async () => {
+    const lot = {
+      ...centralLot("store-1", "lot-terminal-loss-001"),
+      currentLocation: { kind: "retirada_perda" as const },
+      currentObservation: {
+        centralObservationId: "obs-terminal-present-001",
+        centralLotId: "lot-terminal-loss-001",
+        status: "present" as const,
+        actorLabel: "Colaborador local",
+        occurredAt: "2030-01-09T20:15:33.968Z",
+        location: { kind: "area_de_venda" as const },
+        isCorrection: false,
+        quantityState: "estimated" as const,
+        approximateQuantity: 4,
+      },
+    };
+    const command = syncCommandForTask({
+      taskId: "task-terminal-loss-001",
+      activeKey: "active-terminal-loss-001",
+      lotId: lot.centralLotId,
+      action: "record_loss",
+      requiredResolution: "repack_or_loss",
+      riskState: "expired",
+      idempotencyKey: "sync-terminal-loss-001",
+    });
+    const repository = createInMemoryCaptureRepository({
+      lots: [lot],
+      tasks: [],
+      conflicts: [
+        {
+          storeId: "store-1",
+          conflictId: "conflict-sync-terminal-loss-001",
+          commandId: command.id,
+          productDisplayName: command.productDisplayName,
+          lotIdentity: command.lotIdentity,
+          currentLocation: command.currentLocation,
+          reason: "A tarefa central ja foi resolvida ou mudou de chave ativa.",
+          createdAt: "2030-01-10T09:16:00.000Z",
+          state: "conflict",
+          source: "central",
+        },
+      ],
+    });
+
+    const result = await repository.applySyncCommand(syncApplyInput("store-1", command));
+    const prepared = await repository.prepareTurn(prepareTurnInput("store-1"));
+
+    expect(result).toMatchObject({
+      status: "ack",
+      centralResult: {
+        kind: "resolved_history",
+        history: {
+          centralTaskId: command.taskId,
+          action: "record_loss",
+          actorLabel: "Pessoa Piloto",
+          currentLocation: { kind: "retirada_perda" },
+          resolutionState: "resolved",
+        },
+      },
+    });
+    expect(prepared.conflicts).toEqual([]);
+    expect(repository.readAuditEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "resolve_task.resolved",
+          summary: "Estado central do lote ja confirma esta acao.",
+        }),
+      ]),
+    );
+  });
+
   it("keeps active central risk visible when a sync command conflicts", async () => {
     const task = centralTask("store-1", "task-conflict-001");
     const repository = createInMemoryCaptureRepository({
@@ -1480,7 +1551,7 @@ function syncCommandForTask(input: {
   taskId: string;
   activeKey: string;
   lotId: string;
-  action: "withdraw" | "confirm_presence";
+  action: "withdraw" | "confirm_presence" | "record_loss";
   requiredResolution: SyncCommandRecord["requiredResolution"];
   riskState: SyncCommandRecord["riskState"];
   idempotencyKey: string;
@@ -1498,7 +1569,7 @@ function syncCommandForTask(input: {
         action: input.action,
         actorLabel: "Pessoa Piloto",
         occurredAt: "2030-01-10T09:15:00.000Z",
-        ...(input.action === "withdraw"
+        ...(input.action === "withdraw" || input.action === "record_loss"
           ? {
               destination: { kind: "retirada_perda" },
               evidence: { kind: "no_photo_reason", reason: "Camera indisponivel" },
