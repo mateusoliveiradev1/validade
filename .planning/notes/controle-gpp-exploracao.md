@@ -563,6 +563,37 @@ Divergencia no web:
 - setor/lideranca corrige;
 - GPP revisa e baixa.
 
+### Fluxo de divergencia decidido
+
+Fluxo:
+
+```text
+Pendente -> Divergencia -> Corrigido -> Revisado pelo GPP -> Baixado
+```
+
+Regras:
+
+- GPP marca divergencia;
+- GPP escolhe motivo fechado;
+- observacao obrigatoria;
+- item sai da fila normal e entra em `Divergencias`;
+- criador e lideranca veem como `Precisa corrigir`;
+- quem corrige envia de volta como `Corrigido`;
+- GPP revisa;
+- se estiver certo, GPP pode baixar;
+- se ainda estiver errado, GPP mantem divergencia;
+- nao pode baixar enquanto estiver em divergencia;
+- tudo fica auditado.
+
+Dados por motivo:
+
+- quantidade diferente: registrar quantidade original e quantidade encontrada;
+- codigo/produto errado: registrar produto original e produto correto, se o GPP souber;
+- etiqueta fisica nao encontrada: observacao obrigatoria e foto opcional;
+- setor destino errado: registrar setor correto, se souber;
+- duplicado: vincular/indicar lancamento duplicado quando possivel;
+- producao sem finalidade clara: exigir finalidade/item produzido antes de liberar baixa.
+
 Aba `Compras internas`:
 
 - lista densa por setor solicitante;
@@ -612,24 +643,110 @@ Fluxo mobile de compra interna:
 - botao final: `Solicitar ao GPP`;
 - feedback precisa respeitar ack central.
 
+## Contrato tecnico decidido
+
+### Backend aditivo
+
+O Controle GPP deve nascer como backend aditivo, sem alterar o coracao do `Hoje` no primeiro corte e sem mexer na build `0.12.0` build `170`.
+
+Tabelas candidatas:
+
+- `gpp_avaria_entries`;
+- `gpp_avaria_movements`;
+- `gpp_purchase_requests`;
+- `gpp_audit_events`.
+
+Endpoints novos:
+
+- criar avaria;
+- vincular reaproveitamento/producao/transferencia;
+- listar avarias por loja/setor/status;
+- marcar baixado;
+- marcar divergencia;
+- corrigir divergencia;
+- criar compra interna;
+- atender compra interna;
+- listar compras internas.
+
+### Idempotencia
+
+Todo write vindo de mobile/web deve enviar `idempotencyKey`.
+
+Regras:
+
+- se o usuario apertar duas vezes, nao duplica;
+- se a rede reenviar, nao duplica;
+- backend responde o mesmo registro central para a mesma chave idempotente;
+- idempotencia vale para avaria, movimento, baixa, divergencia, correcao, cancelamento e compra interna.
+
+### Permissao no backend
+
+O backend precisa validar:
+
+- loja;
+- papel;
+- setor;
+- criador;
+- status atual;
+- acao permitida;
+- justificativa quando obrigatoria.
+
+A UI pode melhorar a experiencia, mas nao e fonte de autorizacao.
+
+### Auditoria
+
+Todo evento importante deve gerar historico/auditoria:
+
+- criado;
+- editado;
+- divergencia marcada;
+- corrigido;
+- revisado pelo GPP;
+- baixado;
+- cancelado;
+- estornado;
+- compra atendida;
+- compra parcial;
+- compra sem produto.
+
+### Tempo real
+
+Depois do banco confirmar:
+
+- API publica evento para sala da loja;
+- web/mobile recebem;
+- tela refaz consulta central;
+- evento nao marca nada como sucesso;
+- se o evento falhar mas o banco salvou, o registro continua salvo e o refresh/polling recupera;
+- se o banco falhar, nao ha sucesso.
+
+### Feature flag
+
+Usar feature flag:
+
+```text
+controle_gpp_enabled
+```
+
+Regras:
+
+- desligada para a build `0.12.0` build `170`;
+- ligada somente em ambiente/usuario/loja de teste;
+- permitir desenvolver web/API/mobile sem expor para a operacao atual antes da hora.
+
+### Regra anti-trauma
+
+Quando online:
+
+- se backend falhar, nao mostra sucesso;
+- se banco falhar, nao mostra sucesso;
+- se evento de tempo real falhar mas banco salvou, mostra salvo e a tela recupera pela consulta central;
+- se sem internet real, ai sim pode salvar local como pendente explicito;
+- local so sem internet.
+
 ## Pontos ainda em aberto
 
-1. Fluxo de divergencia:
-   - se o GPP encontrar quantidade errada;
-   - se codigo/produto estiver errado;
-   - se o fisico nao estiver na caixa/caderno;
-   - se o setor discordar.
-   - se producao interna foi marcada sem item/finalidade clara.
-
-2. Contrato tecnico do backend:
-   - tabelas novas do Controle GPP;
-   - endpoints novos;
-   - idempotency key obrigatoria;
-   - audit events;
-   - feature flag;
-   - tempo real aditivo.
-
-3. Ordem de implementacao:
+1. Ordem de implementacao:
    - UI/UX web do GPP;
    - contratos e backend;
    - mobile entrada rapida;
@@ -640,6 +757,6 @@ Fluxo mobile de compra interna:
 
 ## Proxima discussao recomendada
 
-Definir o fluxo de divergencia em detalhe.
+Definir a ordem de implementacao sem tocar na build `0.12.0` build `170`.
 
-Pergunta aberta: quando o GPP encontra erro de quantidade, codigo, produto, setor ou etiqueta fisica, qual deve ser a experiencia perfeita para corrigir sem atrasar a baixa e sem perder responsabilidade?
+Pergunta aberta: a primeira fase deve entregar somente web/API do Controle GPP com feature flag, ou ja incluir mobile de entrada rapida na mesma versao futura?
