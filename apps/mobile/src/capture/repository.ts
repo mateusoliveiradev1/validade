@@ -99,6 +99,14 @@ import {
   type MarkdownRequestReason,
   type SyncConflictResolutionAction,
 } from "@validade-zero/domain";
+import type {
+  DiscardGppPendingInput,
+  GppPendingRecord,
+  MarkGppPendingAttemptInput,
+  MarkGppPendingConfirmedInput,
+  MarkGppPendingConflictInput,
+  SaveGppPendingInput,
+} from "./gpp-offline-queue";
 
 export interface CaptureRepositoryDependencies {
   clock: () => string;
@@ -556,6 +564,15 @@ export interface CaptureRepository {
   applySyncTransportResult(result: SyncTransportResult): Promise<SyncCommandRecord>;
   resolveSyncConflict(input: ResolveSyncConflictInput): Promise<SyncConflictRecord>;
   loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null>;
+  saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord>;
+  listGppPending(): Promise<readonly GppPendingRecord[]>;
+  loadGppPending(localId: string): Promise<GppPendingRecord | null>;
+  markGppPendingAttempt(input: MarkGppPendingAttemptInput): Promise<GppPendingRecord>;
+  markGppPendingConfirmed(
+    input: MarkGppPendingConfirmedInput,
+  ): Promise<GppPendingRecord>;
+  markGppPendingConflict(input: MarkGppPendingConflictInput): Promise<GppPendingRecord>;
+  discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord>;
   listAuditTimeline?: (input: AuditTimelineQuery) => Promise<readonly AuditTimelineItem[]>;
 }
 
