@@ -54,7 +54,7 @@ describe("GPP mobile client", () => {
   });
 
   it("requires the avaria product code and accepts purchase requests without product code", async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn(() =>
       jsonResponse({
         response: {
           state: "central_confirmed",
@@ -65,7 +65,7 @@ describe("GPP mobile client", () => {
     );
     const client = createFetchGppClient({
       baseUrl: "https://api.example.test",
-      fetcher: fetcher as unknown as typeof fetch,
+      fetcher,
     });
 
     await expect(client.createGppAvaria(avariaRequest)).resolves.toMatchObject({
@@ -85,17 +85,17 @@ describe("GPP mobile client", () => {
   it("keeps validation, authorization, feature flag, and business-rule failures central", async () => {
     const statuses = [400, 422, 401, 403, 503] as const;
     for (const status of statuses) {
-      const fetcher = vi.fn(async () => jsonResponse({ error: "central recusou" }, status));
+      const fetcher = vi.fn(() => jsonResponse({ error: "central recusou" }, status));
       const client = createFetchGppClient({
         baseUrl: "https://api.example.test",
-        fetcher: fetcher as unknown as typeof fetch,
+        fetcher,
       });
       await expect(client.createGppAvaria(avariaRequest)).resolves.toMatchObject({
         state: "central_failure",
       });
     }
 
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn(() =>
       jsonResponse({
         response: {
           state: "central_failed",
@@ -108,7 +108,7 @@ describe("GPP mobile client", () => {
     );
     const client = createFetchGppClient({
       baseUrl: "https://api.example.test",
-      fetcher: fetcher as unknown as typeof fetch,
+      fetcher,
     });
     await expect(client.createGppAvaria(avariaRequest)).resolves.toMatchObject({
       state: "central_failure",
@@ -118,12 +118,12 @@ describe("GPP mobile client", () => {
   });
 
   it("returns an offline-pending candidate only for transport failures", async () => {
-    const fetcher = vi.fn(async () => {
+    const fetcher = vi.fn(() => {
       throw new TypeError("Network request failed");
     });
     const client = createFetchGppClient({
       baseUrl: "https://api.example.test",
-      fetcher: fetcher as unknown as typeof fetch,
+      fetcher,
     });
     await expect(client.createGppPurchaseRequest(purchaseRequest)).resolves.toMatchObject({
       state: "offline_pending_candidate",

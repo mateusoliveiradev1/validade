@@ -3065,112 +3065,110 @@ export function createSQLiteCaptureRepository(
     return resolvedConflict;
   }
 
-async function saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord> {
-await initialize();
-const db = await getDatabase();
-const existing = await db.getFirstAsync<GppPendingRow>(
-"SELECT * FROM gpp_pending_records WHERE idempotency_key = ? LIMIT 1",
-input.payload.idempotencyKey,
-);
-if (existing !== null) return mapGppPending(existing);
-const record = createGppPendingRecord({
-localId: input.localId ?? nextGeneratedId(dependencies),
-kind: input.kind,
-payload: input.payload,
-now: dependencies.clock(),
-});
-await upsertGppPending(db, record);
-return record;
-}
+  async function saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await db.getFirstAsync<GppPendingRow>(
+      "SELECT * FROM gpp_pending_records WHERE idempotency_key = ? LIMIT 1",
+      input.payload.idempotencyKey,
+    );
+    if (existing !== null) return mapGppPending(existing);
+    const record = createGppPendingRecord({
+      localId: input.localId ?? nextGeneratedId(dependencies),
+      kind: input.kind,
+      payload: input.payload,
+      now: dependencies.clock(),
+    });
+    await upsertGppPending(db, record);
+    return record;
+  }
 
-async function listGppPending(): Promise<readonly GppPendingRecord[]> {
-await initialize();
-const db = await getDatabase();
-const rows = await db.getAllAsync<GppPendingRow>(
-"SELECT * FROM gpp_pending_records WHERE state NOT IN ('central_confirmed', 'discarded') ORDER BY created_at ASC",
-);
-return sortGppPendingRecords(rows.map(mapGppPending));
-}
+  async function listGppPending(): Promise<readonly GppPendingRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<GppPendingRow>(
+      "SELECT * FROM gpp_pending_records WHERE state NOT IN ('central_confirmed', 'discarded') ORDER BY created_at ASC",
+    );
+    return sortGppPendingRecords(rows.map(mapGppPending));
+  }
 
-async function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
-await initialize();
-const db = await getDatabase();
-const row = await db.getFirstAsync<GppPendingRow>(
-"SELECT * FROM gpp_pending_records WHERE local_id = ? LIMIT 1",
-parseLotId(localId),
-);
-return row === null ? null : mapGppPending(row);
-}
+  async function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
+    await initialize();
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<GppPendingRow>(
+      "SELECT * FROM gpp_pending_records WHERE local_id = ? LIMIT 1",
+      parseLotId(localId),
+    );
+    return row === null ? null : mapGppPending(row);
+  }
 
-async function markGppPendingAttempt(
-input: MarkGppPendingAttemptInput,
-): Promise<GppPendingRecord> {
-await initialize();
-const db = await getDatabase();
-const existing = await requireGppPending(db, input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "retrying",
-attemptCount: existing.attemptCount + 1,
-updatedAt: input.attemptedAt,
-lastAttemptedAt: input.attemptedAt,
-...(input.failureReason === undefined ? {} : { conflictReason: input.failureReason }),
-};
-await upsertGppPending(db, updated);
-return updated;
-}
+  async function markGppPendingAttempt(
+    input: MarkGppPendingAttemptInput,
+  ): Promise<GppPendingRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireGppPending(db, input.localId);
+    const updated: GppPendingRecord = {
+      ...existing,
+      state: "retrying",
+      attemptCount: existing.attemptCount + 1,
+      updatedAt: input.attemptedAt,
+      lastAttemptedAt: input.attemptedAt,
+      ...(input.failureReason === undefined ? {} : { conflictReason: input.failureReason }),
+    };
+    await upsertGppPending(db, updated);
+    return updated;
+  }
 
-async function markGppPendingConfirmed(
-input: MarkGppPendingConfirmedInput,
-): Promise<GppPendingRecord> {
-await initialize();
-const db = await getDatabase();
-const existing = await requireGppPending(db, input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "central_confirmed",
-updatedAt: input.confirmedAt,
-confirmedAt: input.confirmedAt,
-...(input.centralRequestId === undefined
-? {}
-: { centralRequestId: input.centralRequestId }),
-};
-await upsertGppPending(db, updated);
-return updated;
-}
+  async function markGppPendingConfirmed(
+    input: MarkGppPendingConfirmedInput,
+  ): Promise<GppPendingRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireGppPending(db, input.localId);
+    const updated: GppPendingRecord = {
+      ...existing,
+      state: "central_confirmed",
+      updatedAt: input.confirmedAt,
+      confirmedAt: input.confirmedAt,
+      ...(input.centralRequestId === undefined ? {} : { centralRequestId: input.centralRequestId }),
+    };
+    await upsertGppPending(db, updated);
+    return updated;
+  }
 
-async function markGppPendingConflict(
-input: MarkGppPendingConflictInput,
-): Promise<GppPendingRecord> {
-await initialize();
-const db = await getDatabase();
-const existing = await requireGppPending(db, input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "conflict",
-updatedAt: input.occurredAt,
-conflictReason: input.reason,
-};
-await upsertGppPending(db, updated);
-return updated;
-}
+  async function markGppPendingConflict(
+    input: MarkGppPendingConflictInput,
+  ): Promise<GppPendingRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireGppPending(db, input.localId);
+    const updated: GppPendingRecord = {
+      ...existing,
+      state: "conflict",
+      updatedAt: input.occurredAt,
+      conflictReason: input.reason,
+    };
+    await upsertGppPending(db, updated);
+    return updated;
+  }
 
-async function discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord> {
-await initialize();
-const db = await getDatabase();
-const existing = await requireGppPending(db, input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "discarded",
-updatedAt: input.discardedAt,
-discardedAt: input.discardedAt,
-discardJustification: input.justification,
-};
-await upsertGppPending(db, updated);
-return updated;
-}
+  async function discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord> {
+    await initialize();
+    const db = await getDatabase();
+    const existing = await requireGppPending(db, input.localId);
+    const updated: GppPendingRecord = {
+      ...existing,
+      state: "discarded",
+      updatedAt: input.discardedAt,
+      discardedAt: input.discardedAt,
+      discardJustification: input.justification,
+    };
+    await upsertGppPending(db, updated);
+    return updated;
+  }
 
-async function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
+  async function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
     await initialize();
     const db = await getDatabase();
     const row = await db.getFirstAsync<SyncConflictRow>(
@@ -3590,17 +3588,17 @@ async function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord 
     saveOfflineAction,
     markSyncCommandAttempt,
     applySyncTransportResult,
-resolveSyncConflict,
-saveGppPending,
-listGppPending,
-loadGppPending,
-markGppPendingAttempt,
-markGppPendingConfirmed,
-markGppPendingConflict,
-discardGppPending,
-loadSyncConflict,
-listAuditTimeline,
-};
+    resolveSyncConflict,
+    saveGppPending,
+    listGppPending,
+    loadGppPending,
+    markGppPendingAttempt,
+    markGppPendingConfirmed,
+    markGppPendingConflict,
+    discardGppPending,
+    loadSyncConflict,
+    listAuditTimeline,
+  };
 }
 
 async function initializeDatabase(
@@ -6385,7 +6383,7 @@ function mapShiftCloseOutbox(row: ShiftCloseOutboxRow): ShiftCloseOutboxRecord {
 }
 
 function mapSyncCommand(row: SyncCommandRow): SyncCommandRecord {
-return parseSyncCommandRecord({
+  return parseSyncCommandRecord({
     id: row.id,
     idempotencyKey: row.idempotency_key,
     kind: row.kind,
@@ -6415,36 +6413,36 @@ return parseSyncCommandRecord({
     ...(row.conflict_id === null ? {} : { conflictId: row.conflict_id }),
     ...(row.discarded_at === null ? {} : { discardedAt: row.discarded_at }),
     ...(row.discard_reason === null ? {} : { discardReason: row.discard_reason }),
-});
+  });
 }
 
 function mapGppPending(row: GppPendingRow): GppPendingRecord {
-return {
-localId: row.local_id,
-kind: row.kind,
-payload: parseJson(row.payload_json) as GppPendingPayload,
-idempotencyKey: row.idempotency_key,
-state: row.state,
-attemptCount: row.attempt_count,
-createdAt: row.created_at,
-updatedAt: row.updated_at,
-...(row.last_attempted_at === null ? {} : { lastAttemptedAt: row.last_attempted_at }),
-...(row.confirmed_at === null ? {} : { confirmedAt: row.confirmed_at }),
-...(row.central_request_id === null ? {} : { centralRequestId: row.central_request_id }),
-...(row.conflict_reason === null ? {} : { conflictReason: row.conflict_reason }),
-...(row.discard_justification === null
-? {}
-: { discardJustification: row.discard_justification }),
-...(row.discarded_at === null ? {} : { discardedAt: row.discarded_at }),
-};
+  return {
+    localId: row.local_id,
+    kind: row.kind,
+    payload: parseJson(row.payload_json) as GppPendingPayload,
+    idempotencyKey: row.idempotency_key,
+    state: row.state,
+    attemptCount: row.attempt_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.last_attempted_at === null ? {} : { lastAttemptedAt: row.last_attempted_at }),
+    ...(row.confirmed_at === null ? {} : { confirmedAt: row.confirmed_at }),
+    ...(row.central_request_id === null ? {} : { centralRequestId: row.central_request_id }),
+    ...(row.conflict_reason === null ? {} : { conflictReason: row.conflict_reason }),
+    ...(row.discard_justification === null
+      ? {}
+      : { discardJustification: row.discard_justification }),
+    ...(row.discarded_at === null ? {} : { discardedAt: row.discarded_at }),
+  };
 }
 
 async function upsertGppPending(
-db: SQLite.SQLiteDatabase,
-record: GppPendingRecord,
+  db: SQLite.SQLiteDatabase,
+  record: GppPendingRecord,
 ): Promise<void> {
-await db.runAsync(
-`INSERT INTO gpp_pending_records (
+  await db.runAsync(
+    `INSERT INTO gpp_pending_records (
 local_id,
 kind,
 payload_json,
@@ -6473,35 +6471,35 @@ central_request_id = excluded.central_request_id,
 conflict_reason = excluded.conflict_reason,
 discard_justification = excluded.discard_justification,
 discarded_at = excluded.discarded_at`,
-record.localId,
-record.kind,
-JSON.stringify(record.payload),
-record.idempotencyKey,
-record.state,
-record.attemptCount,
-record.createdAt,
-record.updatedAt,
-record.lastAttemptedAt ?? null,
-record.confirmedAt ?? null,
-record.centralRequestId ?? null,
-record.conflictReason ?? null,
-record.discardJustification ?? null,
-record.discardedAt ?? null,
-);
+    record.localId,
+    record.kind,
+    JSON.stringify(record.payload),
+    record.idempotencyKey,
+    record.state,
+    record.attemptCount,
+    record.createdAt,
+    record.updatedAt,
+    record.lastAttemptedAt ?? null,
+    record.confirmedAt ?? null,
+    record.centralRequestId ?? null,
+    record.conflictReason ?? null,
+    record.discardJustification ?? null,
+    record.discardedAt ?? null,
+  );
 }
 
 async function requireGppPending(
-db: SQLite.SQLiteDatabase,
-localId: string,
+  db: SQLite.SQLiteDatabase,
+  localId: string,
 ): Promise<GppPendingRecord> {
-const row = await db.getFirstAsync<GppPendingRow>(
-"SELECT * FROM gpp_pending_records WHERE local_id = ? LIMIT 1",
-parseLotId(localId),
-);
-if (row === null) {
-throw new Error(`Cannot load unknown GPP pending record: ${localId}`);
-}
-return mapGppPending(row);
+  const row = await db.getFirstAsync<GppPendingRow>(
+    "SELECT * FROM gpp_pending_records WHERE local_id = ? LIMIT 1",
+    parseLotId(localId),
+  );
+  if (row === null) {
+    throw new Error(`Cannot load unknown GPP pending record: ${localId}`);
+  }
+  return mapGppPending(row);
 }
 
 function mapSyncConflict(row: SyncConflictRow): SyncConflictRecord {

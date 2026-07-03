@@ -2163,114 +2163,106 @@ export function createMemoryCaptureRepository(
     });
   }
 
-function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
-return Promise.resolve(syncConflicts.get(parseLotId(conflictId)) ?? null);
-}
+  function loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null> {
+    return Promise.resolve(syncConflicts.get(parseLotId(conflictId)) ?? null);
+  }
 
-function saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord> {
-return Promise.resolve().then(() => {
-const existing = [...gppPendingRecords.values()].find(
-(record) => record.idempotencyKey === input.payload.idempotencyKey,
-);
-if (existing !== undefined) return existing;
-const record = createGppPendingRecord({
-localId: input.localId ?? nextGeneratedId(dependencies),
-kind: input.kind,
-payload: input.payload,
-now: dependencies.clock(),
-});
-gppPendingRecords.set(record.localId, record);
-return record;
-});
-}
+  function saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord> {
+    return Promise.resolve().then(() => {
+      const existing = [...gppPendingRecords.values()].find(
+        (record) => record.idempotencyKey === input.payload.idempotencyKey,
+      );
+      if (existing !== undefined) return existing;
+      const record = createGppPendingRecord({
+        localId: input.localId ?? nextGeneratedId(dependencies),
+        kind: input.kind,
+        payload: input.payload,
+        now: dependencies.clock(),
+      });
+      gppPendingRecords.set(record.localId, record);
+      return record;
+    });
+  }
 
-function listGppPending(): Promise<readonly GppPendingRecord[]> {
-return Promise.resolve(sortGppPendingRecords(gppPendingRecords.values()));
-}
+  function listGppPending(): Promise<readonly GppPendingRecord[]> {
+    return Promise.resolve(sortGppPendingRecords(gppPendingRecords.values()));
+  }
 
-function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
-return Promise.resolve(gppPendingRecords.get(localId) ?? null);
-}
+  function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
+    return Promise.resolve(gppPendingRecords.get(localId) ?? null);
+  }
 
-function markGppPendingAttempt(
-input: MarkGppPendingAttemptInput,
-): Promise<GppPendingRecord> {
-return Promise.resolve().then(() => {
-const existing = requireGppPending(input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "retrying",
-attemptCount: existing.attemptCount + 1,
-updatedAt: input.attemptedAt,
-lastAttemptedAt: input.attemptedAt,
-...(input.failureReason === undefined
-? {}
-: { conflictReason: input.failureReason }),
-};
-gppPendingRecords.set(updated.localId, updated);
-return updated;
-});
-}
+  function markGppPendingAttempt(input: MarkGppPendingAttemptInput): Promise<GppPendingRecord> {
+    return Promise.resolve().then(() => {
+      const existing = requireGppPending(input.localId);
+      const updated: GppPendingRecord = {
+        ...existing,
+        state: "retrying",
+        attemptCount: existing.attemptCount + 1,
+        updatedAt: input.attemptedAt,
+        lastAttemptedAt: input.attemptedAt,
+        ...(input.failureReason === undefined ? {} : { conflictReason: input.failureReason }),
+      };
+      gppPendingRecords.set(updated.localId, updated);
+      return updated;
+    });
+  }
 
-function markGppPendingConfirmed(
-input: MarkGppPendingConfirmedInput,
-): Promise<GppPendingRecord> {
-return Promise.resolve().then(() => {
-const existing = requireGppPending(input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "central_confirmed",
-updatedAt: input.confirmedAt,
-confirmedAt: input.confirmedAt,
-...(input.centralRequestId === undefined
-? {}
-: { centralRequestId: input.centralRequestId }),
-};
-gppPendingRecords.set(updated.localId, updated);
-return updated;
-});
-}
+  function markGppPendingConfirmed(input: MarkGppPendingConfirmedInput): Promise<GppPendingRecord> {
+    return Promise.resolve().then(() => {
+      const existing = requireGppPending(input.localId);
+      const updated: GppPendingRecord = {
+        ...existing,
+        state: "central_confirmed",
+        updatedAt: input.confirmedAt,
+        confirmedAt: input.confirmedAt,
+        ...(input.centralRequestId === undefined
+          ? {}
+          : { centralRequestId: input.centralRequestId }),
+      };
+      gppPendingRecords.set(updated.localId, updated);
+      return updated;
+    });
+  }
 
-function markGppPendingConflict(
-input: MarkGppPendingConflictInput,
-): Promise<GppPendingRecord> {
-return Promise.resolve().then(() => {
-const existing = requireGppPending(input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "conflict",
-updatedAt: input.occurredAt,
-conflictReason: input.reason,
-};
-gppPendingRecords.set(updated.localId, updated);
-return updated;
-});
-}
+  function markGppPendingConflict(input: MarkGppPendingConflictInput): Promise<GppPendingRecord> {
+    return Promise.resolve().then(() => {
+      const existing = requireGppPending(input.localId);
+      const updated: GppPendingRecord = {
+        ...existing,
+        state: "conflict",
+        updatedAt: input.occurredAt,
+        conflictReason: input.reason,
+      };
+      gppPendingRecords.set(updated.localId, updated);
+      return updated;
+    });
+  }
 
-function discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord> {
-return Promise.resolve().then(() => {
-const existing = requireGppPending(input.localId);
-const updated: GppPendingRecord = {
-...existing,
-state: "discarded",
-updatedAt: input.discardedAt,
-discardedAt: input.discardedAt,
-discardJustification: input.justification,
-};
-gppPendingRecords.set(updated.localId, updated);
-return updated;
-});
-}
+  function discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord> {
+    return Promise.resolve().then(() => {
+      const existing = requireGppPending(input.localId);
+      const updated: GppPendingRecord = {
+        ...existing,
+        state: "discarded",
+        updatedAt: input.discardedAt,
+        discardedAt: input.discardedAt,
+        discardJustification: input.justification,
+      };
+      gppPendingRecords.set(updated.localId, updated);
+      return updated;
+    });
+  }
 
-function requireGppPending(localId: string): GppPendingRecord {
-const record = gppPendingRecords.get(localId);
-if (record === undefined) {
-throw new Error(`Cannot load unknown GPP pending record: ${localId}`);
-}
-return record;
-}
+  function requireGppPending(localId: string): GppPendingRecord {
+    const record = gppPendingRecords.get(localId);
+    if (record === undefined) {
+      throw new Error(`Cannot load unknown GPP pending record: ${localId}`);
+    }
+    return record;
+  }
 
-function listAuditTimeline(input: {
+  function listAuditTimeline(input: {
     targetType: AuditTimelineItem["target"]["type"];
     targetId: string;
     limit?: number;
@@ -2347,16 +2339,16 @@ function listAuditTimeline(input: {
     markSyncCommandAttempt,
     applySyncTransportResult,
     resolveSyncConflict,
-loadSyncConflict,
-saveGppPending,
-listGppPending,
-loadGppPending,
-markGppPendingAttempt,
-markGppPendingConfirmed,
-markGppPendingConflict,
-discardGppPending,
-listAuditTimeline,
-};
+    loadSyncConflict,
+    saveGppPending,
+    listGppPending,
+    loadGppPending,
+    markGppPendingAttempt,
+    markGppPendingConfirmed,
+    markGppPendingConflict,
+    discardGppPending,
+    listAuditTimeline,
+  };
 
   function centralProductToLocal(product: CentralProductSnippet): CaptureProductRecord {
     return {

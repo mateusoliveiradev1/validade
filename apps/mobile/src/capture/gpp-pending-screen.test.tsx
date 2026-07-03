@@ -17,6 +17,7 @@ vi.mock("react-native", async () => {
       React.createElement("View", props, children),
     ScrollView: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("ScrollView", props, children),
+    TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
   };
@@ -63,6 +64,43 @@ describe("GppPendingScreen", () => {
     );
     expect(renderedText(sent)).toContain("Nenhum envio confirmado hoje");
     expect(renderedText(sent)).not.toContain("Pendente neste aparelho");
+  });
+
+  it("renders manual sync and requires discard justification for conflicts", () => {
+    const onSyncPending = vi.fn();
+    const onDiscardConflict = vi.fn();
+    const conflict = { ...pendingRecord(), state: "conflict" as const, conflictReason: "Recusado" };
+    const tree = render(
+      <GppPendingScreen
+        onBack={() => undefined}
+        localPending={[conflict]}
+        onSyncPending={onSyncPending}
+        onDiscardConflict={onDiscardConflict}
+      />,
+    );
+    expect(renderedText(tree)).toContain("Sincronizar pendencias GPP");
+    expect(renderedText(tree)).toContain("Conflito de GPP");
+    expect(renderedText(tree)).toContain(
+      "Informe o motivo para descartar. Este registro nao sera enviado ao GPP.",
+    );
+    const discard = tree.root.findByProps({
+      accessibilityLabel: "Descartar registro deste aparelho",
+    });
+    expect(discard.props.accessibilityState.disabled).toBe(true);
+    act(() => {
+      tree.root
+        .findByProps({ accessibilityLabel: "Motivo para descartar" })
+        .props.onChangeText("Duplicado na conferencia fisica");
+    });
+    const enabledDiscard = tree.root.findByProps({
+      accessibilityLabel: "Descartar registro deste aparelho",
+    });
+    expect(enabledDiscard.props.accessibilityState.disabled).toBe(false);
+    enabledDiscard.props.onPress();
+    expect(onDiscardConflict).toHaveBeenCalledWith(
+      conflict.localId,
+      "Duplicado na conferencia fisica",
+    );
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { applyGppRetryResult, sendGppPendingRecord } from "./gpp-offline-queue";
 import { createMemoryCaptureRepository } from "./memory-repository";
 
 const avariaPayload = {
@@ -112,6 +113,63 @@ describe("GPP offline queue", () => {
     ).resolves.toMatchObject({
       state: "central_confirmed",
       centralRequestId: "gpp-purchase:idem-gpp-002",
+    });
+  });
+
+  it("retries original payloads with original idempotency keys and maps retry outcomes", async () => {
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "gpp-local-retry",
+    });
+    const record = await repository.saveGppPending({
+      kind: "purchase",
+      payload: purchasePayload,
+    });
+    const client = {
+      createGppAvaria: () => Promise.reject(new Error("not used")),
+      createGppPurchaseRequest: (request: typeof purchasePayload) =>
+        Promise.resolve({
+          state: "central_success" as const,
+          copy: "Confirmado no Controle GPP." as const,
+          response: {
+            state: "central_confirmed" as const,
+            requestId: `central:${request.idempotencyKey}`,
+            confirmedAt: "2030-01-10T09:20:00.000Z",
+          },
+        }),
+    };
+
+    const result = await sendGppPendingRecord(client, record);
+    expect(result).toMatchObject({
+      state: "central_success",
+      response: { requestId: `central:${purchasePayload.idempotencyKey}` },
+    });
+    expect(
+      applyGppRetryResult({
+        record,
+        result,
+        attemptedAt: "2030-01-10T09:20:00.000Z",
+      }),
+    ).toMatchObject({
+      state: "central_confirmed",
+      idempotencyKey: purchasePayload.idempotencyKey,
+      attemptCount: 1,
+    });
+
+    expect(
+      applyGppRetryResult({
+        record,
+        result: {
+          state: "central_failure",
+          reason: "business_rule",
+          message: "Produto recusado pela central",
+          retryable: false,
+        },
+        attemptedAt: "2030-01-10T09:21:00.000Z",
+      }),
+    ).toMatchObject({
+      state: "conflict",
+      conflictReason: "Produto recusado pela central",
     });
   });
 });

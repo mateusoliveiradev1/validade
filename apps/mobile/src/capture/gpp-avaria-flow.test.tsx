@@ -30,7 +30,9 @@ describe("GppAvariaFlow", () => {
 
     expect(renderedText(tree)).toContain("Codigo do produto");
     await press(tree, "Continuar avaria");
-    expect(renderedText(tree)).toContain("Informe o codigo do produto para enviar a avaria ao GPP.");
+    expect(renderedText(tree)).toContain(
+      "Informe o codigo do produto para enviar a avaria ao GPP.",
+    );
 
     await fill(tree, "Codigo do produto", "789000000001");
     await press(tree, "Continuar avaria");
@@ -150,7 +152,9 @@ describe("GppAvariaFlow", () => {
     await press(tree, "Continuar avaria");
     await press(tree, "Enviar avaria para central");
 
-    expect(renderedText(tree)).toContain("Seu acesso nao permite registrar esta acao no Controle GPP.");
+    expect(renderedText(tree)).toContain(
+      "Seu acesso nao permite registrar esta acao no Controle GPP.",
+    );
     await expect(repository.listGppPending()).resolves.toHaveLength(0);
   });
 });
@@ -200,9 +204,9 @@ async function fillValidAvaria(tree: ReactTestRenderer): Promise<void> {
 }
 
 async function fill(tree: ReactTestRenderer, label: string, value: string): Promise<void> {
-  const input = tree.root.findAllByType("TextInput").find(
-    (candidate) => candidate.props.accessibilityLabel === label,
-  );
+  const input = tree.root
+    .findAllByType("TextInput")
+    .find((candidate) => candidate.props.accessibilityLabel === label);
   if (input === undefined || typeof input.props.onChangeText !== "function") {
     throw new Error(`Expected input ${label}.`);
   }

@@ -23,7 +23,12 @@ export type GppCentralSuccess = {
 export type GppCentralFailure = {
   state: "central_failure";
   status?: number;
-  reason: "validation" | "authorization" | "feature_disabled" | "business_rule" | "central_reachable_failure";
+  reason:
+    | "validation"
+    | "authorization"
+    | "feature_disabled"
+    | "business_rule"
+    | "central_reachable_failure";
   message: string;
   retryable: boolean;
   response?: Extract<GppMutationResponse, { state: "central_failed" }>;
@@ -38,10 +43,7 @@ export type GppOfflinePendingCandidate = {
   error: Error;
 };
 
-export type GppCreateResult =
-  | GppCentralSuccess
-  | GppCentralFailure
-  | GppOfflinePendingCandidate;
+export type GppCreateResult = GppCentralSuccess | GppCentralFailure | GppOfflinePendingCandidate;
 
 export interface GppClient {
   createGppAvaria(request: GppAvariaCreateRequest): Promise<GppCreateResult>;
@@ -161,7 +163,7 @@ async function postGppMutation(input: {
       },
       body: JSON.stringify(input.request),
     });
-    const payload = await response.json().catch(() => undefined);
+    const payload: unknown = await response.json().catch(() => undefined);
     if (!response.ok) {
       return classifyGppHttpFailure({ status: response.status, payload });
     }
@@ -180,8 +182,7 @@ async function postGppMutation(input: {
 }
 
 function parseMutationPayload(payload: unknown): GppMutationResponse {
-  const candidate =
-    isRecord(payload) && "response" in payload ? payload.response : payload;
+  const candidate = isRecord(payload) && "response" in payload ? payload.response : payload;
   return GppMutationResponseSchema.parse(candidate);
 }
 
@@ -194,9 +195,7 @@ async function resolveHeaders(
 function centralFailureMessage(payload: unknown): string | undefined {
   if (!isRecord(payload)) return undefined;
   const value = payload.message ?? payload.error ?? payload.reason;
-  return typeof value === "string" && value.trim().length > 0
-    ? value.slice(0, 280)
-    : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value.slice(0, 280) : undefined;
 }
 
 function normalizeTransportError(error: unknown): Error {

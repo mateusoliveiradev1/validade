@@ -12,7 +12,14 @@ import {
   validateGppAvariaDraft,
   type GppAvariaDraft,
 } from "./gpp-flow-state";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, SelectionRow, StatusNotice } from "./capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  SelectionRow,
+  StatusNotice,
+} from "./capture-ui";
 import { captureColors, captureSpacing } from "./capture-theme";
 
 type SubmissionState =
@@ -77,12 +84,13 @@ export function GppAvariaFlow({
       idempotencyKey: createIdempotencyKey(),
     });
     setSubmission({ kind: "submitting" });
-    const result = client === undefined
-      ? {
-          state: "central_failure" as const,
-          message: "Cliente GPP indisponivel neste aparelho.",
-        }
-      : await client.createGppAvaria(request);
+    const result =
+      client === undefined
+        ? {
+            state: "central_failure" as const,
+            message: "Cliente GPP indisponivel neste aparelho.",
+          }
+        : await client.createGppAvaria(request);
     if (result.state === "central_success") {
       setSubmission({
         kind: "central_confirmed",
@@ -163,9 +171,7 @@ export function GppAvariaFlow({
               <SelectionRow
                 key={option.value}
                 label={option.label}
-                onPress={() =>
-                  setDraft((current) => ({ ...current, finality: option.value }))
-                }
+                onPress={() => setDraft((current) => ({ ...current, finality: option.value }))}
                 selected={draft.finality === option.value}
               />
             ))}
@@ -183,11 +189,14 @@ export function GppAvariaFlow({
           <Text style={styles.reviewTitle}>Revisar avaria</Text>
           <Text style={styles.reviewLine}>Codigo: {draft.productCode}</Text>
           <Text style={styles.reviewLine}>Produto: {draft.productName || draft.productCode}</Text>
-          <Text style={styles.reviewLine}>Quantidade: {draft.quantity} {draft.unit}</Text>
+          <Text style={styles.reviewLine}>
+            Quantidade: {draft.quantity} {draft.unit}
+          </Text>
           <Text style={styles.reviewLine}>Finalidade: {selectedFinalityLabel}</Text>
           <Text style={styles.reviewLine}>Destino: {draft.destination}</Text>
           <StatusNotice title="Confirmacao central">
-            Sucesso aparece somente depois que o Controle GPP central confirmar ou reconhecer replay.
+            Sucesso aparece somente depois que o Controle GPP central confirmar ou reconhecer
+            replay.
           </StatusNotice>
           <PrimaryAction
             disabled={submission.kind === "submitting"}

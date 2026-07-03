@@ -58,13 +58,13 @@ import { deviceIdForStore } from "./device-identity";
 import { operationalDateKey } from "./operational-date";
 
 export type CaptureRoute =
-| { name: "today" }
-| { name: "gpp-control" }
-| { name: "gpp-avaria" }
-| { name: "gpp-purchase" }
-| { name: "gpp-pending" }
-| { name: "gpp-sent-today" }
-| { name: "onboarding"; mode?: "review" | "first_turn" }
+  | { name: "today" }
+  | { name: "gpp-control" }
+  | { name: "gpp-avaria" }
+  | { name: "gpp-purchase" }
+  | { name: "gpp-pending" }
+  | { name: "gpp-sent-today" }
+  | { name: "onboarding"; mode?: "review" | "first_turn" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
       name: "product-form";
@@ -103,13 +103,10 @@ type PushDeviceIdentity = Pick<
 >;
 type MobileActiveRole = SessionContextResponse["activeRole"];
 
-export function canUseControleGppSession(
-  session: SessionContextResponse | undefined,
-): boolean {
+export function canUseControleGppSession(session: SessionContextResponse | undefined): boolean {
   return (
     session?.featureFlags?.controle_gpp_enabled === true &&
-    (session.actions?.canCreateGppEntry === true ||
-      session.actions?.canReadGppQueue === true)
+    (session.actions?.canCreateGppEntry === true || session.actions?.canReadGppQueue === true)
   );
 }
 
@@ -158,9 +155,9 @@ export function CaptureApp({
   deviceId?: string | undefined;
   storeOperatingHours?: StoreOperatingHours | undefined;
 }) {
-const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(() => [
-initialRouteForSession(session, activeRole),
-]);
+  const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(() => [
+    initialRouteForSession(session, activeRole),
+  ]);
   const [initializationError, setInitializationError] = useState<string | undefined>();
   const [prepareTurnState, setPrepareTurnState] = useState<
     "checking" | "needs_prepare" | "preparing" | "ready" | "needs_review" | "cache_only" | "error"
@@ -204,8 +201,8 @@ initialRouteForSession(session, activeRole),
     }),
     [actorLabel, session?.actor.subjectId, session?.store.storeId, storeId],
   );
-const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
-const canUseControleGpp = canUseControleGppSession(session);
+  const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+  const canUseControleGpp = canUseControleGppSession(session);
   const shiftCloseDeviceAuthorization = shiftCloseDeviceAuthorizationFor({
     activeRole,
     session,
@@ -788,9 +785,9 @@ const canUseControleGpp = canUseControleGppSession(session);
     navigate({ name: "task-resolution", task });
   }
 
-function withSessionBar(content: ReactNode): ReactNode {
-return (
-<View style={styles.appShell}>
+  function withSessionBar(content: ReactNode): ReactNode {
+    return (
+      <View style={styles.appShell}>
         <CaptureSessionBar
           actorLabel={session?.actor.displayName ?? actorLabel}
           canUseControleGpp={canUseControleGpp}
@@ -804,7 +801,7 @@ return (
     );
   }
 
-if (currentRoute.name === "settings") {
+  if (currentRoute.name === "settings") {
     return withSessionBar(
       <AjustesScreen
         alertChannel={resolvedAlertChannel}
@@ -825,50 +822,50 @@ if (currentRoute.name === "settings") {
           : { onRegisterPushDevice: registerPushDeviceClient })}
       />,
     );
-}
+  }
 
-if (currentRoute.name === "gpp-control") {
-return withSessionBar(
-<ControleGppScreen
-  onBack={resetToToday}
-  onRegisterAvaria={() => navigate({ name: "gpp-avaria" })}
-  onRequestPurchase={() => navigate({ name: "gpp-purchase" })}
-  onOpenPending={() => navigate({ name: "gpp-pending" })}
-  onOpenSentToday={() => navigate({ name: "gpp-sent-today" })}
-/>,
-);
-}
+  if (currentRoute.name === "gpp-control") {
+    return withSessionBar(
+      <ControleGppScreen
+        onBack={resetToToday}
+        onRegisterAvaria={() => navigate({ name: "gpp-avaria" })}
+        onRequestPurchase={() => navigate({ name: "gpp-purchase" })}
+        onOpenPending={() => navigate({ name: "gpp-pending" })}
+        onOpenSentToday={() => navigate({ name: "gpp-sent-today" })}
+      />,
+    );
+  }
 
-if (currentRoute.name === "gpp-avaria") {
-return withSessionBar(
-<GppAvariaFlow
-  repository={repository}
-  storeId={session?.store.storeId ?? storeId}
-  onBack={() => replace({ name: "gpp-control" })}
-/>,
-);
-}
+  if (currentRoute.name === "gpp-avaria") {
+    return withSessionBar(
+      <GppAvariaFlow
+        repository={repository}
+        storeId={session?.store.storeId ?? storeId}
+        onBack={() => replace({ name: "gpp-control" })}
+      />,
+    );
+  }
 
-if (currentRoute.name === "gpp-purchase") {
-return withSessionBar(
-<GppPurchaseFlow
-  repository={repository}
-  storeId={session?.store.storeId ?? storeId}
-  onBack={() => replace({ name: "gpp-control" })}
-/>,
-);
-}
+  if (currentRoute.name === "gpp-purchase") {
+    return withSessionBar(
+      <GppPurchaseFlow
+        repository={repository}
+        storeId={session?.store.storeId ?? storeId}
+        onBack={() => replace({ name: "gpp-control" })}
+      />,
+    );
+  }
 
-if (currentRoute.name === "gpp-pending" || currentRoute.name === "gpp-sent-today") {
-return withSessionBar(
-<GppPendingScreen
-  mode={currentRoute.name === "gpp-sent-today" ? "sent" : "pending"}
-  onBack={() => replace({ name: "gpp-control" })}
-/>,
-);
-}
+  if (currentRoute.name === "gpp-pending" || currentRoute.name === "gpp-sent-today") {
+    return withSessionBar(
+      <GppPendingScreen
+        mode={currentRoute.name === "gpp-sent-today" ? "sent" : "pending"}
+        onBack={() => replace({ name: "gpp-control" })}
+      />,
+    );
+  }
 
-if (prepareTurnState !== "ready") {
+  if (prepareTurnState !== "ready") {
     return withSessionBar(
       <PrepareTurnScreen
         cache={prepareTurnCache}
@@ -1151,19 +1148,19 @@ if (prepareTurnState !== "ready") {
 }
 
 function CaptureSessionBar({
-actorLabel,
-canUseControleGpp,
-onOpenControleGpp,
-role,
-storeName,
-onOpenSettings,
+  actorLabel,
+  canUseControleGpp,
+  onOpenControleGpp,
+  role,
+  storeName,
+  onOpenSettings,
 }: {
-actorLabel: string;
-canUseControleGpp: boolean;
-onOpenControleGpp: () => void;
-role: MobileActiveRole;
-storeName: string;
-onOpenSettings: () => void;
+  actorLabel: string;
+  canUseControleGpp: boolean;
+  onOpenControleGpp: () => void;
+  role: MobileActiveRole;
+  storeName: string;
+  onOpenSettings: () => void;
 }) {
   return (
     <View style={styles.sessionBar}>

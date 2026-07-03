@@ -568,9 +568,7 @@ export interface CaptureRepository {
   listGppPending(): Promise<readonly GppPendingRecord[]>;
   loadGppPending(localId: string): Promise<GppPendingRecord | null>;
   markGppPendingAttempt(input: MarkGppPendingAttemptInput): Promise<GppPendingRecord>;
-  markGppPendingConfirmed(
-    input: MarkGppPendingConfirmedInput,
-  ): Promise<GppPendingRecord>;
+  markGppPendingConfirmed(input: MarkGppPendingConfirmedInput): Promise<GppPendingRecord>;
   markGppPendingConflict(input: MarkGppPendingConflictInput): Promise<GppPendingRecord>;
   discardGppPending(input: DiscardGppPendingInput): Promise<GppPendingRecord>;
   listAuditTimeline?: (input: AuditTimelineQuery) => Promise<readonly AuditTimelineItem[]>;

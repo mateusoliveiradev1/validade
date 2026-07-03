@@ -4,6 +4,7 @@ import {
   type GppAvariaCreateRequest,
   type GppPurchaseCreateRequest,
 } from "@validade-zero/contracts";
+import type { GppClient, GppCreateResult } from "./gpp-client";
 
 export type GppPendingKind = "avaria" | "purchase";
 export type GppPendingState =
@@ -13,9 +14,7 @@ export type GppPendingState =
   | "conflict"
   | "discarded";
 
-export type GppPendingPayload =
-  | GppAvariaCreateRequest
-  | GppPurchaseCreateRequest;
+export type GppPendingPayload = GppAvariaCreateRequest | GppPurchaseCreateRequest;
 
 export interface GppPendingRecord {
   localId: string;
@@ -113,12 +112,52 @@ export function upsertGppPendingByIdempotency(
   return records.map((record, index) => (index === existingIndex ? record : record));
 }
 
-export function sortGppPendingRecords(
-  records: Iterable<GppPendingRecord>,
-): GppPendingRecord[] {
+export function sortGppPendingRecords(records: Iterable<GppPendingRecord>): GppPendingRecord[] {
   return [...records].sort((left, right) =>
     left.createdAt === right.createdAt
       ? left.localId.localeCompare(right.localId)
       : left.createdAt.localeCompare(right.createdAt),
   );
+}
+
+export async function sendGppPendingRecord(
+  client: GppClient,
+  record: GppPendingRecord,
+): Promise<GppCreateResult> {
+  return record.kind === "avaria"
+    ? client.createGppAvaria(GppAvariaCreateRequestSchema.parse(record.payload))
+    : client.createGppPurchaseRequest(GppPurchaseCreateRequestSchema.parse(record.payload));
+}
+
+export function applyGppRetryResult(input: {
+  record: GppPendingRecord;
+  result: GppCreateResult;
+  attemptedAt: string;
+}): GppPendingRecord {
+  const attempted = {
+    ...input.record,
+    attemptCount: input.record.attemptCount + 1,
+    lastAttemptedAt: input.attemptedAt,
+    updatedAt: input.attemptedAt,
+  };
+  if (input.result.state === "central_success") {
+    return {
+      ...attempted,
+      state: "central_confirmed",
+      confirmedAt: input.attemptedAt,
+      centralRequestId: input.result.response.requestId,
+    };
+  }
+  if (input.result.state === "offline_pending_candidate") {
+    return {
+      ...attempted,
+      state: "pending_retry",
+      conflictReason: input.result.error.message,
+    };
+  }
+  return {
+    ...attempted,
+    state: "conflict",
+    conflictReason: input.result.message,
+  };
 }

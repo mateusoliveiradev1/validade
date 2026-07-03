@@ -30,7 +30,9 @@ describe("GppPurchaseFlow", () => {
 
     expect(renderedText(tree)).toContain("Codigo do produto (opcional)");
     await press(tree, "Continuar compra");
-    expect(renderedText(tree)).toContain("Descreva o produto para o GPP localizar ou confirmar o codigo.");
+    expect(renderedText(tree)).toContain(
+      "Descreva o produto para o GPP localizar ou confirmar o codigo.",
+    );
 
     await fill(tree, "Nome ou descricao do produto", "Banana prata FICTICIA");
     await press(tree, "Continuar compra");
@@ -114,7 +116,9 @@ describe("GppPurchaseFlow", () => {
       }),
     });
     await submitValid(failed);
-    expect(renderedText(failed)).toContain("Seu acesso nao permite registrar esta acao no Controle GPP.");
+    expect(renderedText(failed)).toContain(
+      "Seu acesso nao permite registrar esta acao no Controle GPP.",
+    );
     await expect(centralFailureRepository.listGppPending()).resolves.toHaveLength(0);
   });
 });
@@ -147,7 +151,9 @@ async function renderFlow(input: Partial<Parameters<typeof GppPurchaseFlow>[0]> 
   return tree;
 }
 
-function clientReturning(result: Awaited<ReturnType<GppClient["createGppPurchaseRequest"]>>): GppClient {
+function clientReturning(
+  result: Awaited<ReturnType<GppClient["createGppPurchaseRequest"]>>,
+): GppClient {
   return {
     createGppAvaria: vi.fn(() => Promise.reject(new Error("not used"))),
     createGppPurchaseRequest: vi.fn(() => Promise.resolve(result)),
@@ -164,9 +170,9 @@ async function submitValid(tree: ReactTestRenderer): Promise<void> {
 }
 
 async function fill(tree: ReactTestRenderer, label: string, value: string): Promise<void> {
-  const input = tree.root.findAllByType("TextInput").find(
-    (candidate) => candidate.props.accessibilityLabel === label,
-  );
+  const input = tree.root
+    .findAllByType("TextInput")
+    .find((candidate) => candidate.props.accessibilityLabel === label);
   if (input === undefined || typeof input.props.onChangeText !== "function") {
     throw new Error(`Expected input ${label}.`);
   }

@@ -53,9 +53,7 @@ vi.mock("expo-constants", () => ({
   },
 }));
 
-function activeSession(
-  overrides: Partial<SessionContextResponse> = {},
-): SessionContextResponse {
+function activeSession(overrides: Partial<SessionContextResponse> = {}): SessionContextResponse {
   const base: SessionContextResponse = {
     actor: { subjectId: "usuario-gpp-ficticio", displayName: "Usuario GPP FICTICIO" },
     store: { storeId: "loja-18", storeName: "Loja 18 FICTICIA" },
@@ -134,9 +132,7 @@ describe("mobile Controle GPP navigation", () => {
 
     expect(text).not.toContain("Registrar avaria");
     expect(text).not.toContain("Solicitar compra interna");
-    expect(
-      tree.root.findAllByProps({ accessibilityLabel: "Abrir Controle GPP" }),
-    ).toHaveLength(0);
+    expect(tree.root.findAllByProps({ accessibilityLabel: "Abrir Controle GPP" })).toHaveLength(0);
   });
 
   it("lets eligible non-GPP roles open Controle GPP through a separate entry", async () => {

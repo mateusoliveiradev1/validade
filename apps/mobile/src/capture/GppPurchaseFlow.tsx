@@ -11,7 +11,14 @@ import {
   validateGppPurchaseDraft,
   type GppPurchaseDraft,
 } from "./gpp-flow-state";
-import { Field, PrimaryAction, ScreenHeader, SecondaryAction, SelectionRow, StatusNotice } from "./capture-ui";
+import {
+  Field,
+  PrimaryAction,
+  ScreenHeader,
+  SecondaryAction,
+  SelectionRow,
+  StatusNotice,
+} from "./capture-ui";
 import { captureColors, captureSpacing } from "./capture-theme";
 
 type SubmissionState =
@@ -72,12 +79,13 @@ export function GppPurchaseFlow({
       idempotencyKey: createIdempotencyKey(),
     });
     setSubmission({ kind: "submitting" });
-    const result = client === undefined
-      ? {
-          state: "central_failure" as const,
-          message: "Cliente GPP indisponivel neste aparelho.",
-        }
-      : await client.createGppPurchaseRequest(request);
+    const result =
+      client === undefined
+        ? {
+            state: "central_failure" as const,
+            message: "Cliente GPP indisponivel neste aparelho.",
+          }
+        : await client.createGppPurchaseRequest(request);
     if (result.state === "central_success") {
       setSubmission({
         kind: "central_confirmed",
@@ -163,13 +171,17 @@ export function GppPurchaseFlow({
           <Text style={styles.reviewTitle}>Revisar compra interna</Text>
           <Text style={styles.reviewLine}>Produto: {draft.productName}</Text>
           <Text style={styles.reviewLine}>
-            Codigo: {draft.productCode.trim().length === 0 ? "opcional nao informado" : draft.productCode}
+            Codigo:{" "}
+            {draft.productCode.trim().length === 0 ? "opcional nao informado" : draft.productCode}
           </Text>
-          <Text style={styles.reviewLine}>Quantidade: {draft.quantity} {draft.unit}</Text>
+          <Text style={styles.reviewLine}>
+            Quantidade: {draft.quantity} {draft.unit}
+          </Text>
           <Text style={styles.reviewLine}>Finalidade: {draft.finality}</Text>
           <Text style={styles.reviewLine}>Setor solicitante: {sector}</Text>
           <StatusNotice title="Confirmacao central">
-            Sucesso aparece somente depois que o Controle GPP central confirmar ou reconhecer replay.
+            Sucesso aparece somente depois que o Controle GPP central confirmar ou reconhecer
+            replay.
           </StatusNotice>
           <PrimaryAction
             disabled={submission.kind === "submitting"}
