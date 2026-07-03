@@ -27,7 +27,7 @@
     "expo-constants": "^56.0.18",
     "expo-modules-core": "56.0.17",
     "expo-notifications": "^56.0.18",
-    "expo-sqlite": "~56.0.5",
+    "expo-sqlite": "~57.0.0",
     "react": "^19.2.7",
     "react-native": "^0.86.0",
     "react-native-web": "^0.21.2"
