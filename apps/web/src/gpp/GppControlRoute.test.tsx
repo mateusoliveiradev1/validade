@@ -144,7 +144,7 @@ describe("Controle GPP route", () => {
     expect(screen.getByLabelText("Confirmar codigo do produto")).toHaveProperty("value", "");
   });
 
-  it("keeps completed purchase rows read-only", async () => {
+  it("moves completed purchase requests out of the active queue", async () => {
     const queue = queueWithCodedPurchase("atendido");
     const client = fakeClient({
       readHistory: vi.fn(() => Promise.resolve(queue.history)),
@@ -156,15 +156,17 @@ describe("Controle GPP route", () => {
     await screen.findByText("162 - Banana prata");
     fireEvent.click(screen.getByRole("tab", { name: "Compras internas" }));
 
-    expect(await screen.findByText("410 - Queijo minas")).toBeTruthy();
-    expect(screen.getByText(/Pedido atendido em/)).toBeTruthy();
+    expect(await screen.findByText("Nenhuma compra interna pendente")).toBeTruthy();
+    expect(screen.getByText(/1 pedido encerrado saiu da fila ativa/)).toBeTruthy();
+    expect(screen.queryByText("410 - Queijo minas")).toBeNull();
     expect(screen.queryByRole("button", { name: "Atendido" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Detalhes" }));
-    const dialog = await screen.findByRole("dialog", { name: "Detalhes da compra interna GPP" });
+    fireEvent.click(screen.getByRole("button", { name: "Ver historico de compras" }));
 
-    expect(within(dialog).queryByRole("button", { name: "Atendido" })).toBeNull();
-    expect(within(dialog).getAllByRole("button", { name: "Fechar" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("tab", { name: "Historico" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(screen.getByText(/Compra atendida - 410 - Queijo minas/)).toBeTruthy();
   });
 
   it("closes stale purchase actions after a conflict and refreshes the queue", async () => {

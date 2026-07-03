@@ -31,6 +31,7 @@ import {
   GPP_TABS,
   actorLabel,
   buildAvariaSectorPanels,
+  buildPurchaseQueueSummary,
   buildPurchaseSectorPanels,
   centralFreshnessLabel,
   divergenceReasonLabel,
@@ -220,6 +221,13 @@ export function GppControlRoute({
   );
   const purchasePanels = React.useMemo(
     () => (snapshot === undefined ? [] : buildPurchaseSectorPanels(snapshot, query)),
+    [query, snapshot],
+  );
+  const purchaseSummary = React.useMemo(
+    () =>
+      snapshot === undefined
+        ? { closedCount: 0, pendingCount: 0, totalCount: 0 }
+        : buildPurchaseQueueSummary(snapshot, query),
     [query, snapshot],
   );
   const divergenceEntries = React.useMemo(
@@ -683,6 +691,11 @@ export function GppControlRoute({
                 onOpenDetails={(request, openerId) => setPurchaseDetail({ openerId, request })}
                 panels={purchasePanels}
                 rowRefs={rowRefs}
+                summary={purchaseSummary}
+                onOpenPurchaseHistory={() => {
+                  setHistoryFilters({ event: "compras" });
+                  setActiveTab("historico");
+                }}
               />
             ) : null}
 
@@ -961,8 +974,10 @@ function PurchasesTab({
   canAttend,
   onAction,
   onOpenDetails,
+  onOpenPurchaseHistory,
   panels,
   rowRefs,
+  summary,
 }: {
   canActOnCentral: boolean;
   canAttend: boolean;
@@ -972,31 +987,53 @@ function PurchasesTab({
     openerId: string,
   ) => void;
   onOpenDetails: (request: GppPurchaseRequest, openerId: string) => void;
+  onOpenPurchaseHistory: () => void;
   panels: ReturnType<typeof buildPurchaseSectorPanels>;
   rowRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>;
+  summary: ReturnType<typeof buildPurchaseQueueSummary>;
 }) {
   if (panels.length === 0) {
     return (
-      <EmptyState
-        body="Quando um setor pedir produto ao GPP, o pedido aparece aqui para atendimento."
-        title="Nenhuma compra interna pendente agora"
-      />
+      <div className="grid gap-3 rounded-lg border border-border bg-card p-6">
+        <div className="grid gap-2">
+          <p className="text-xl font-semibold leading-6">Nenhuma compra interna pendente</p>
+          <p className="max-w-[75ch] text-sm leading-5 text-muted-foreground">
+            {summary.closedCount > 0
+              ? `${closedPurchaseQueueCopy(summary.closedCount)} Consulte o Historico quando precisar conferir o que ja foi atendido, cancelado ou marcado sem produto.`
+              : "Quando um setor pedir produto ao GPP, o pedido aparece aqui ate ser atendido, cancelado ou marcado como sem produto."}
+          </p>
+        </div>
+        {summary.closedCount > 0 ? (
+          <div>
+            <Button type="button" variant="outline" onClick={onOpenPurchaseHistory}>
+              Ver historico de compras
+            </Button>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
   return (
     <div className="grid gap-4">
+      {summary.closedCount > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-sm leading-5">
+          <p className="text-muted-foreground">{closedPurchaseQueueCopy(summary.closedCount)}</p>
+          <Button type="button" variant="outline" onClick={onOpenPurchaseHistory}>
+            Ver historico de compras
+          </Button>
+        </div>
+      ) : null}
       {panels.map((panel) => (
         <section key={panel.sector} className="rounded-lg border border-border bg-card">
           <div className="flex flex-wrap items-start justify-between gap-3 p-4">
             <div className="grid gap-1">
               <h2 className="text-xl font-semibold leading-6">{panel.sector}</h2>
               <p className="text-sm text-muted-foreground">
-                {countLabel(panel.requestCount, "pedido", "pedidos")},{" "}
-                {countLabel(panel.pendingCount, "pendente", "pendentes")}
+                {countLabel(panel.pendingCount, "pedido pendente", "pedidos pendentes")}
               </p>
             </div>
-            <Badge tone={panel.pendingCount === 0 ? "success" : "warning"}>Compras internas</Badge>
+            <Badge tone="warning">Fila ativa</Badge>
           </div>
           {panel.requests.map((request) => {
             const baseId = `${request.purchaseRequestId}:purchase`;
@@ -2086,6 +2123,12 @@ function divergenceNextAction(entry: GppAvariaEntry, canReview: boolean): string
 
 function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function closedPurchaseQueueCopy(count: number): string {
+  return `${countLabel(count, "pedido encerrado", "pedidos encerrados")} ${
+    count === 1 ? "saiu" : "sairam"
+  } da fila ativa.`;
 }
 
 function groupSituationLabel(group: GppAvariaGroupSummary): string {

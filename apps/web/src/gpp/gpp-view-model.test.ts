@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { GppQueueSnapshot } from "@validade-zero/contracts";
 import {
   buildAvariaSectorPanels,
+  buildPurchaseQueueSummary,
+  buildPurchaseSectorPanels,
   filterHistoryRows,
   initialOpenAvariaSector,
   toAvariaGroupRow,
@@ -52,6 +54,26 @@ describe("GPP view model", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.summary).toContain("Banana");
+  });
+
+  it("keeps completed purchase requests out of the active purchase queue", () => {
+    const snapshot = queueSnapshot();
+    const pending = purchaseRequest("purchase-open", "FLV", "Tomate salada", "solicitado");
+    const closed = purchaseRequest("purchase-done", "FLV", "Queijo minas", "atendido");
+    const canceled = purchaseRequest("purchase-canceled", "Padaria", "Pao frances", "cancelado");
+
+    const nextSnapshot: GppQueueSnapshot = {
+      ...snapshot,
+      purchaseRequests: [pending, closed, canceled],
+    };
+
+    const panels = buildPurchaseSectorPanels(nextSnapshot, "");
+    const summary = buildPurchaseQueueSummary(nextSnapshot, "");
+
+    expect(summary).toEqual({ closedCount: 2, pendingCount: 1, totalCount: 3 });
+    expect(panels).toHaveLength(1);
+    expect(panels[0]?.sector).toBe("FLV");
+    expect(panels[0]?.requests).toEqual([pending]);
   });
 });
 
@@ -131,5 +153,29 @@ function queueSnapshot(): GppQueueSnapshot {
         summary: "Pao registrado",
       },
     ],
+  };
+}
+
+function purchaseRequest(
+  purchaseRequestId: string,
+  sector: string,
+  productName: string,
+  status: GppQueueSnapshot["purchaseRequests"][number]["status"],
+): GppQueueSnapshot["purchaseRequests"][number] {
+  return {
+    purchaseRequestId,
+    store: { storeId: "loja-ficticia", storeName: "Loja Ficticia Piloto" },
+    sector,
+    product: { code: "410", name: productName },
+    requestedQuantity: { value: 1, unit: "kg" },
+    finality: "Teste",
+    requester: {
+      actorId: "lead-local",
+      displayName: "Lideranca Loja",
+      roleSnapshot: "lead",
+    },
+    status,
+    requestedAt: "2030-01-10T10:30:00.000Z",
+    updatedAt: "2030-01-10T10:30:00.000Z",
   };
 }

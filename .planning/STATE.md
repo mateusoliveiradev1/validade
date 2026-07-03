@@ -125,6 +125,7 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 | 260701-ed0 | Gerar APK Android staging build 147 e fazer deploy staging da API e web | 2026-07-01 | 187824eb | Verified | [260701-ed0-gerar-apk-android-staging-build-147-e-fa](./quick/260701-ed0-gerar-apk-android-staging-build-147-e-fa/) |
 | 260701-f3d | Implementar onboarding guiado no app mobile e publicar build 148 | 2026-07-01 | ffe60e10 | Verified | [260701-f3d-implementar-onboarding-guiado-no-app-mob](./quick/260701-f3d-implementar-onboarding-guiado-no-app-mob/) |
 | 260702-gpl | Corrigir login local para testar Controle GPP web | 2026-07-02 | pending | Verified | [260702-gpl-fix-local-gpp-login](./quick/260702-gpl-fix-local-gpp-login/) |
+| 260702-th2 | Polir Controle GPP web com Impeccable critique audit e polish | 2026-07-03 | pending | Verified | [260702-th2-gpp-web-impeccable-polish](./quick/260702-th2-gpp-web-impeccable-polish/) |
 
 ## Performance Metrics
 

@@ -44,6 +44,12 @@ export interface GppPurchaseSectorPanel {
   requests: readonly GppPurchaseRequest[];
 }
 
+export interface GppPurchaseQueueSummary {
+  pendingCount: number;
+  closedCount: number;
+  totalCount: number;
+}
+
 export type GppHistoryEventGroup = "baixas" | "divergencias" | "compras";
 export type GppHistoryEventFilter = GppHistoryRow["event"] | GppHistoryEventGroup | "";
 
@@ -131,6 +137,8 @@ export function buildPurchaseSectorPanels(
   for (const request of snapshot.purchaseRequests.filter((item) =>
     purchaseMatchesQuery(item, query),
   )) {
+    if (request.status !== "solicitado") continue;
+
     requestsBySector.set(request.sector, [
       ...(requestsBySector.get(request.sector) ?? []),
       request,
@@ -141,10 +149,26 @@ export function buildPurchaseSectorPanels(
     .map(([sector, requests]) => ({
       sector,
       requestCount: requests.length,
-      pendingCount: requests.filter((request) => request.status === "solicitado").length,
+      pendingCount: requests.length,
       requests: requests.slice().sort(comparePurchaseRequests),
     }))
     .sort((left, right) => collator.compare(left.sector, right.sector));
+}
+
+export function buildPurchaseQueueSummary(
+  snapshot: GppQueueSnapshot,
+  query: string,
+): GppPurchaseQueueSummary {
+  const matchingRequests = snapshot.purchaseRequests.filter((request) =>
+    purchaseMatchesQuery(request, query),
+  );
+  const pendingCount = matchingRequests.filter((request) => request.status === "solicitado").length;
+
+  return {
+    closedCount: matchingRequests.length - pendingCount,
+    pendingCount,
+    totalCount: matchingRequests.length,
+  };
 }
 
 export function filterDivergenceEntries(
