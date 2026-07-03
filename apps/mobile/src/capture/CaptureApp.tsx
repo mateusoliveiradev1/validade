@@ -26,6 +26,7 @@ import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import { AjustesScreen } from "./AjustesScreen";
 import { ControleGppScreen } from "./ControleGppScreen";
+import { GppAvariaFlow } from "./GppAvariaFlow";
 import type { ShiftCloseCompletion } from "./shift-close";
 import type {
   PrepareTurnCacheStatus,
@@ -57,6 +58,7 @@ import { operationalDateKey } from "./operational-date";
 export type CaptureRoute =
 | { name: "today" }
 | { name: "gpp-control" }
+| { name: "gpp-avaria" }
 | { name: "onboarding"; mode?: "review" | "first_turn" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
@@ -822,7 +824,20 @@ if (currentRoute.name === "settings") {
 
 if (currentRoute.name === "gpp-control") {
 return withSessionBar(
-<ControleGppScreen onBack={resetToToday} />,
+<ControleGppScreen
+  onBack={resetToToday}
+  onRegisterAvaria={() => navigate({ name: "gpp-avaria" })}
+/>,
+);
+}
+
+if (currentRoute.name === "gpp-avaria") {
+return withSessionBar(
+<GppAvariaFlow
+  repository={repository}
+  storeId={session?.store.storeId ?? storeId}
+  onBack={() => replace({ name: "gpp-control" })}
+/>,
 );
 }
 
