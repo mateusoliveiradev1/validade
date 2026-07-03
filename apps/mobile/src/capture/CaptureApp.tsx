@@ -27,6 +27,8 @@ import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import { AjustesScreen } from "./AjustesScreen";
 import { ControleGppScreen } from "./ControleGppScreen";
 import { GppAvariaFlow } from "./GppAvariaFlow";
+import { GppPurchaseFlow } from "./GppPurchaseFlow";
+import { GppPendingScreen } from "./GppPendingScreen";
 import type { ShiftCloseCompletion } from "./shift-close";
 import type {
   PrepareTurnCacheStatus,
@@ -59,6 +61,9 @@ export type CaptureRoute =
 | { name: "today" }
 | { name: "gpp-control" }
 | { name: "gpp-avaria" }
+| { name: "gpp-purchase" }
+| { name: "gpp-pending" }
+| { name: "gpp-sent-today" }
 | { name: "onboarding"; mode?: "review" | "first_turn" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
@@ -827,6 +832,9 @@ return withSessionBar(
 <ControleGppScreen
   onBack={resetToToday}
   onRegisterAvaria={() => navigate({ name: "gpp-avaria" })}
+  onRequestPurchase={() => navigate({ name: "gpp-purchase" })}
+  onOpenPending={() => navigate({ name: "gpp-pending" })}
+  onOpenSentToday={() => navigate({ name: "gpp-sent-today" })}
 />,
 );
 }
@@ -836,6 +844,25 @@ return withSessionBar(
 <GppAvariaFlow
   repository={repository}
   storeId={session?.store.storeId ?? storeId}
+  onBack={() => replace({ name: "gpp-control" })}
+/>,
+);
+}
+
+if (currentRoute.name === "gpp-purchase") {
+return withSessionBar(
+<GppPurchaseFlow
+  repository={repository}
+  storeId={session?.store.storeId ?? storeId}
+  onBack={() => replace({ name: "gpp-control" })}
+/>,
+);
+}
+
+if (currentRoute.name === "gpp-pending" || currentRoute.name === "gpp-sent-today") {
+return withSessionBar(
+<GppPendingScreen
+  mode={currentRoute.name === "gpp-sent-today" ? "sent" : "pending"}
   onBack={() => replace({ name: "gpp-control" })}
 />,
 );
