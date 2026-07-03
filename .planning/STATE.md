@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 18
-status: executing
-stopped_at: Completed 18-04-PLAN.md
-last_updated: "2026-07-03T05:44:58.468Z"
+status: verifying
+stopped_at: Completed 18-05-PLAN.md
+last_updated: "2026-07-03T05:58:44.850Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 8
@@ -208,8 +208,8 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Session
 
-**Last session:** 2026-07-03T05:44:58.463Z
-**Stopped at:** Completed 18-04-PLAN.md
+**Last session:** 2026-07-03T05:58:44.844Z
+**Stopped at:** Completed 18-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -290,16 +290,16 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Current Position
 
-Phase: 18 (controle-gpp-mobile-para-avaria-e-compras-internas) — EXECUTING
+Phase: 18 (controle-gpp-mobile-para-avaria-e-compras-internas) — VERIFYING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-03
 
 ## Operator Next Steps
 
-- Continue validating `artifacts\validade-zero-staging-0.12.0-170.apk` separately from GPP planning/execution.
-- Execute Phase 17 only when ready to start additive web/API GPP work behind `controle_gpp_enabled`.
-- Preserve the Phase 17 boundary: no mobile Controle GPP, no Hoje integration, no build 170 behavior change.
+- Run Phase 18 verification against `18-01-SUMMARY.md` through `18-05-SUMMARY.md`.
+- Preserve the Phase 18 boundary: mobile Controle GPP is separate from `Hoje`.
+- Keep Android physical/network/provider proof as manual UAT until it is actually performed.
 
 ## Deferred Items
 

@@ -124,7 +124,7 @@ Plans:
 **Goal:** Add the mobile Controle GPP entry for sector operators to register avarias and request internal purchases with central-confirmed feedback, while keeping local-only behavior restricted to real offline use.
 
 **Requirements:** GPP-08
-**Status:** Planned
+**Status:** Ready for verification
 **Depends on:** Phase 17
 
 **Success criteria:**
@@ -135,7 +135,7 @@ Plans:
 4. Role-aware navigation opens GPP users directly into Controle GPP while collaborators keep Hoje as the daily validation surface.
 5. Online mobile actions show success only after central acknowledgement; offline actions remain explicitly pending on this device.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans executed
 
 Plans:
 
@@ -237,6 +237,6 @@ Phase execution directories from v1.0 were cleared from `.planning/phases/` when
 | Operational Focus | OPS-01..OPS-04 | Phase 15 | Pending |
 | Loja 18 Validation | VAL-01..VAL-04 | Phase 16 | Pending |
 | GPP Web/API Realtime | GPP-01..GPP-07 | Phase 17 | Pending |
-| GPP Mobile | GPP-08 | Phase 18 | Pending |
+| GPP Mobile | GPP-08 | Phase 18 | Pending verification |
 | GPP + Hoje Integration | GPP-09 | Phase 19 | Pending |
 | Hoje Realtime | GPP-10 | Phase 20 | Pending |
