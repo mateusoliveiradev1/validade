@@ -25,7 +25,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 import { Skeleton } from "../components/ui/skeleton";
-import { createFetchGppClient, type GppClient } from "./gpp-client";
+import { createFetchGppClient, isGppMutationConflict, type GppClient } from "./gpp-client";
 import { useGppRealtime, type GppRealtimeSocket } from "./gpp-realtime";
 import {
   GPP_TABS,
@@ -43,6 +43,7 @@ import {
   purchaseStatusLabel,
   quantityLabel,
   toAvariaGroupRow,
+  type GppHistoryEventFilter,
   type GppHistoryFilters,
   type GppTab,
 } from "./gpp-view-model";
@@ -120,6 +121,13 @@ const HISTORY_EVENTS = [
   "purchase_without_product",
   "administrative_correction",
 ] as const satisfies readonly GppHistoryRow["event"][];
+
+const HISTORY_FILTERS = [
+  { label: "Tudo", value: "" },
+  { label: "Baixas", value: "baixas" },
+  { label: "Divergencias", value: "divergencias" },
+  { label: "Compras", value: "compras" },
+] as const satisfies readonly { label: string; value: GppHistoryEventFilter }[];
 
 function defaultNow(): Date {
   return new Date();
@@ -330,7 +338,15 @@ export function GppControlRoute({
       setBaixaTarget(undefined);
       closeAndRestoreFocus(current.openerId);
       await loadSnapshot();
-    } catch {
+    } catch (error) {
+      if (isGppMutationConflict(error)) {
+        setBaixaTarget(undefined);
+        closeAndRestoreFocus(current.openerId);
+        await loadSnapshot();
+        setFeedback(error.message);
+        return;
+      }
+
       setBaixaTarget({
         ...current,
         feedback: "Nao conseguimos salvar a baixa. Tente de novo antes de retirar da fila.",
@@ -340,6 +356,14 @@ export function GppControlRoute({
   }
 
   async function openDivergence(group: GppAvariaGroupSummary, openerId: string): Promise<void> {
+    if (group.divergenceCount > 0) {
+      setFeedback(
+        "Esse produto ja tem divergencia aberta. Corrija e revise antes de marcar outra.",
+      );
+      closeAndRestoreFocus(openerId);
+      return;
+    }
+
     setDivergenceTarget({ group, openerId, status: "loading" });
 
     try {
@@ -382,7 +406,15 @@ export function GppControlRoute({
       setDivergenceTarget(undefined);
       closeAndRestoreFocus(divergenceTarget.openerId);
       await loadSnapshot();
-    } catch {
+    } catch (error) {
+      if (isGppMutationConflict(error)) {
+        setDivergenceTarget(undefined);
+        closeAndRestoreFocus(divergenceTarget.openerId);
+        await loadSnapshot();
+        setFeedback(error.message);
+        return;
+      }
+
       setDivergenceTarget({
         ...divergenceTarget,
         feedback:
@@ -424,7 +456,15 @@ export function GppControlRoute({
       setReviewTarget(undefined);
       closeAndRestoreFocus(current.openerId);
       await loadSnapshot();
-    } catch {
+    } catch (error) {
+      if (isGppMutationConflict(error)) {
+        setReviewTarget(undefined);
+        closeAndRestoreFocus(current.openerId);
+        await loadSnapshot();
+        setFeedback(error.message);
+        return;
+      }
+
       setReviewTarget({
         ...current,
         feedback: "Nao conseguimos salvar a revisao. Tente de novo antes de considerar revisado.",
@@ -499,7 +539,15 @@ export function GppControlRoute({
       setPurchaseAction(undefined);
       closeAndRestoreFocus(current.openerId);
       await loadSnapshot();
-    } catch {
+    } catch (error) {
+      if (isGppMutationConflict(error)) {
+        setPurchaseAction(undefined);
+        closeAndRestoreFocus(current.openerId);
+        await loadSnapshot();
+        setFeedback(error.message);
+        return;
+      }
+
       setPurchaseAction({
         ...current,
         feedback: "Nao conseguimos salvar agora. Tente de novo antes de considerar concluido.",
@@ -855,6 +903,7 @@ function AvariaGroupRow({
     : !canBaixar
       ? "Acao indisponivel para este papel"
       : row.baixa.reason;
+  const canOpenDivergence = canActOnCentral && canMarkDivergence && row.group.divergenceCount === 0;
 
   return (
     <div className="grid gap-3 border-t border-border px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -894,13 +943,13 @@ function AvariaGroupRow({
         </Button>
         <Button
           ref={(node) => setButtonRef(rowRefs, divergenceId, node)}
-          disabled={!canActOnCentral || !canMarkDivergence}
+          disabled={!canOpenDivergence}
           type="button"
-          variant="destructive"
+          variant={row.group.divergenceCount > 0 ? "outline" : "destructive"}
           onClick={() => onOpenDivergence(row.group, divergenceId)}
         >
           <AlertTriangle className="size-4" aria-hidden="true" />
-          Marcar divergencia
+          {row.group.divergenceCount > 0 ? "Divergencia aberta" : "Marcar divergencia"}
         </Button>
       </div>
     </div>
@@ -951,7 +1000,8 @@ function PurchasesTab({
           </div>
           {panel.requests.map((request) => {
             const baseId = `${request.purchaseRequestId}:purchase`;
-            const disabled = !canActOnCentral || !canAttend || request.status !== "solicitado";
+            const canAttendRequest =
+              canActOnCentral && canAttend && request.status === "solicitado";
 
             return (
               <div
@@ -973,40 +1023,49 @@ function PurchasesTab({
                     {quantityLabel(request.requestedQuantity)} para {request.finality}; pedido por{" "}
                     {actorLabel(request.requester)} em {formatActivityLabel(request.requestedAt)}
                   </p>
-                  {request.product.code === undefined ? (
+                  {request.status === "solicitado" && request.product.code === undefined ? (
                     <p className="text-sm text-warning-foreground">
                       Confirme o codigo do produto antes de finalizar como atendido.
                     </p>
                   ) : null}
+                  {request.status === "solicitado" ? null : (
+                    <p className="text-sm leading-5 text-muted-foreground">
+                      {purchaseClosedCopy(request)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    ref={(node) => setButtonRef(rowRefs, `${baseId}:atendido`, node)}
-                    disabled={disabled}
-                    type="button"
-                    onClick={() => onAction(request, "atendido", `${baseId}:atendido`)}
-                  >
-                    <CheckCircle2 className="size-4" aria-hidden="true" />
-                    Atendido
-                  </Button>
-                  <Button
-                    ref={(node) => setButtonRef(rowRefs, `${baseId}:parcial`, node)}
-                    disabled={disabled}
-                    type="button"
-                    variant="outline"
-                    onClick={() => onAction(request, "atendido_parcial", `${baseId}:parcial`)}
-                  >
-                    Parcial
-                  </Button>
-                  <Button
-                    ref={(node) => setButtonRef(rowRefs, `${baseId}:sem-produto`, node)}
-                    disabled={disabled}
-                    type="button"
-                    variant="outline"
-                    onClick={() => onAction(request, "sem_produto", `${baseId}:sem-produto`)}
-                  >
-                    Sem produto
-                  </Button>
+                  {request.status === "solicitado" ? (
+                    <>
+                      <Button
+                        ref={(node) => setButtonRef(rowRefs, `${baseId}:atendido`, node)}
+                        disabled={!canAttendRequest}
+                        type="button"
+                        onClick={() => onAction(request, "atendido", `${baseId}:atendido`)}
+                      >
+                        <CheckCircle2 className="size-4" aria-hidden="true" />
+                        Atendido
+                      </Button>
+                      <Button
+                        ref={(node) => setButtonRef(rowRefs, `${baseId}:parcial`, node)}
+                        disabled={!canAttendRequest}
+                        type="button"
+                        variant="outline"
+                        onClick={() => onAction(request, "atendido_parcial", `${baseId}:parcial`)}
+                      >
+                        Parcial
+                      </Button>
+                      <Button
+                        ref={(node) => setButtonRef(rowRefs, `${baseId}:sem-produto`, node)}
+                        disabled={!canAttendRequest}
+                        type="button"
+                        variant="outline"
+                        onClick={() => onAction(request, "sem_produto", `${baseId}:sem-produto`)}
+                      >
+                        Sem produto
+                      </Button>
+                    </>
+                  ) : null}
                   <Button
                     ref={(node) => setButtonRef(rowRefs, `${baseId}:detail`, node)}
                     type="button"
@@ -1137,47 +1196,103 @@ function HistoryTab({
   rows: readonly GppHistoryRow[];
   setFilters: React.Dispatch<React.SetStateAction<GppHistoryFilters>>;
 }) {
+  const eventValue = filters.event ?? "";
+  const hasFilters = hasHistoryFilters(filters);
+
+  function updateFilters(patch: Partial<GppHistoryFilters>): void {
+    setFilters((current) => normalizeHistoryFilters({ ...current, ...patch }));
+  }
+
   return (
     <div className="grid gap-4">
-      <form
+      <section
         className="grid gap-3 rounded-lg border border-border bg-card p-4"
         aria-label="Filtros do historico GPP"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          setFilters({
-            actor: formValue(form, "actor"),
-            event: formValue(form, "event") as GppHistoryRow["event"] | "",
-            from: formValue(form, "from"),
-            query: formValue(form, "query"),
-            sector: formValue(form, "sector"),
-            to: formValue(form, "to"),
-          });
-        }}
       >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-1">
+            <h2 className="text-lg font-semibold leading-6">Historico</h2>
+            <p className="text-sm leading-5 text-muted-foreground">
+              {countLabel(rows.length, "registro encontrado", "registros encontrados")}
+            </p>
+          </div>
+          <Button
+            disabled={!hasFilters}
+            type="button"
+            variant="outline"
+            onClick={() => setFilters({})}
+          >
+            Limpar filtros
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2" aria-label="Recortes rapidos do historico">
+          {HISTORY_FILTERS.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              variant={eventValue === option.value ? "secondary" : "outline"}
+              onClick={() => updateFilters({ event: option.value })}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="grid gap-1 text-sm font-semibold">
-            Periodo inicial
-            <Input name="from" type="datetime-local" defaultValue={filters.from ?? ""} />
+            De
+            <Input
+              name="from"
+              type="datetime-local"
+              value={filters.from ?? ""}
+              onChange={(event) => updateFilters({ from: optionalFilterValue(event.target.value) })}
+            />
           </label>
           <label className="grid gap-1 text-sm font-semibold">
-            Periodo final
-            <Input name="to" type="datetime-local" defaultValue={filters.to ?? ""} />
+            Ate
+            <Input
+              name="to"
+              type="datetime-local"
+              value={filters.to ?? ""}
+              onChange={(event) => updateFilters({ to: optionalFilterValue(event.target.value) })}
+            />
           </label>
           <label className="grid gap-1 text-sm font-semibold">
             Setor
-            <Input name="sector" defaultValue={filters.sector ?? ""} />
+            <Input
+              name="sector"
+              placeholder="Ex.: FLV"
+              value={filters.sector ?? ""}
+              onChange={(event) =>
+                updateFilters({ sector: optionalFilterValue(event.target.value) })
+              }
+            />
           </label>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="grid gap-1 text-sm font-semibold">
-            Produto ou codigo
-            <Input name="query" defaultValue={filters.query ?? ""} />
+            Buscar no historico
+            <Input
+              name="query"
+              placeholder="Produto, codigo ou motivo"
+              value={filters.query ?? ""}
+              onChange={(event) =>
+                updateFilters({ query: optionalFilterValue(event.target.value) })
+              }
+            />
           </label>
           <label className="grid gap-1 text-sm font-semibold">
-            Tipo/status
-            <Select name="event" defaultValue={filters.event ?? ""}>
+            Tipo de registro
+            <Select
+              name="event"
+              value={eventValue}
+              onChange={(event) =>
+                updateFilters({ event: event.target.value as GppHistoryEventFilter })
+              }
+            >
               <option value="">Todos</option>
+              <option value="baixas">Baixas</option>
+              <option value="divergencias">Divergencias</option>
+              <option value="compras">Compras</option>
               {HISTORY_EVENTS.map((event) => (
                 <option key={event} value={event}>
                   {historyEventLabel(event)}
@@ -1187,21 +1302,27 @@ function HistoryTab({
           </label>
           <label className="grid gap-1 text-sm font-semibold">
             Pessoa
-            <Input name="actor" defaultValue={filters.actor ?? ""} />
+            <Input
+              name="actor"
+              placeholder="Nome de quem registrou"
+              value={filters.actor ?? ""}
+              onChange={(event) =>
+                updateFilters({ actor: optionalFilterValue(event.target.value) })
+              }
+            />
           </label>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit">Aplicar filtros</Button>
-          <Button type="button" variant="outline" onClick={() => setFilters({})}>
-            Limpar filtros
-          </Button>
-        </div>
-      </form>
+        {hasFilters ? (
+          <p className="text-sm leading-5 text-muted-foreground">
+            Mostrando {historyFilterSummary(filters)}.
+          </p>
+        ) : null}
+      </section>
 
       {rows.length === 0 ? (
         <EmptyState
-          body="Ajuste os filtros ou consulte outro periodo para ver baixas, correcoes e atendimentos."
-          title="Nenhum registro no periodo selecionado"
+          body="Ajuste a busca ou limpe os filtros para voltar a ver as baixas, divergencias e compras da loja."
+          title="Nenhum registro encontrado"
         />
       ) : (
         <div className="rounded-lg border border-border bg-card">
@@ -1221,13 +1342,63 @@ function HistoryTab({
                 </p>
                 <p className="text-sm leading-5">{historySummaryLabel(row)}</p>
               </div>
-              <Badge tone={historyTone(row.event)}>{historyEventLabel(row.event)}</Badge>
+              <Badge className="self-start justify-self-end" tone={historyTone(row.event)}>
+                {historyEventLabel(row.event)}
+              </Badge>
             </div>
           ))}
         </div>
       )}
     </div>
   );
+}
+
+function normalizeHistoryFilters(filters: GppHistoryFilters): GppHistoryFilters {
+  return {
+    actor: optionalFilterValue(filters.actor),
+    event: filters.event === "" ? undefined : filters.event,
+    from: optionalFilterValue(filters.from),
+    query: optionalFilterValue(filters.query),
+    sector: optionalFilterValue(filters.sector),
+    to: optionalFilterValue(filters.to),
+  };
+}
+
+function hasHistoryFilters(filters: GppHistoryFilters): boolean {
+  return Object.values(normalizeHistoryFilters(filters)).some((value) => value !== undefined);
+}
+
+function historyFilterSummary(filters: GppHistoryFilters): string {
+  const normalized = normalizeHistoryFilters(filters);
+  const parts = [
+    normalized.event === undefined ? undefined : `tipo ${historyFilterLabel(normalized.event)}`,
+    normalized.query === undefined ? undefined : `busca "${normalized.query}"`,
+    normalized.sector === undefined ? undefined : `setor ${normalized.sector}`,
+    normalized.actor === undefined ? undefined : `pessoa ${normalized.actor}`,
+    normalized.from === undefined ? undefined : `de ${formatFilterDate(normalized.from)}`,
+    normalized.to === undefined ? undefined : `ate ${formatFilterDate(normalized.to)}`,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length === 0 ? "todos os registros" : parts.join(", ");
+}
+
+function historyFilterLabel(filter: GppHistoryEventFilter): string {
+  if (filter === "") return "todos";
+  if (filter === "baixas") return "baixas";
+  if (filter === "divergencias") return "divergencias";
+  if (filter === "compras") return "compras";
+  return historyEventLabel(filter);
+}
+
+function formatFilterDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return formatActivityLabel(date.toISOString());
+}
+
+function optionalFilterValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length === 0 ? undefined : trimmed;
 }
 
 function DetailsSheet({
@@ -1365,12 +1536,12 @@ function DetailsSheet({
                 Baixar
               </Button>
               <Button
-                disabled={!canMarkDivergence}
+                disabled={!canMarkDivergence || target.group.divergenceCount > 0}
                 type="button"
-                variant="destructive"
+                variant={target.group.divergenceCount > 0 ? "outline" : "destructive"}
                 onClick={() => onOpenDivergence(target.group, target.openerId)}
               >
-                Marcar divergencia
+                {target.group.divergenceCount > 0 ? "Divergencia aberta" : "Marcar divergencia"}
               </Button>
               <Button type="button" variant="outline" onClick={onClose}>
                 Fechar
@@ -1598,44 +1769,54 @@ function PurchaseDetailSheet({
               />
             </DetailSection>
 
-            {target.request.product.code === undefined ? (
+            {target.request.status === "solicitado" && target.request.product.code === undefined ? (
               <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm leading-5">
                 Confirme o codigo do produto antes de finalizar como atendido.
               </div>
             ) : null}
 
+            {target.request.status === "solicitado" ? null : (
+              <div className="rounded-lg border border-border bg-card p-3 text-sm leading-5">
+                {purchaseClosedCopy(target.request)}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 border-t border-border bg-popover py-4">
-              <Button
-                disabled={disabled || target.request.status !== "solicitado"}
-                type="button"
-                onClick={() => onAction(target.request, "atendido", target.openerId)}
-              >
-                Atendido
-              </Button>
-              <Button
-                disabled={disabled || target.request.status !== "solicitado"}
-                type="button"
-                variant="outline"
-                onClick={() => onAction(target.request, "atendido_parcial", target.openerId)}
-              >
-                Parcial
-              </Button>
-              <Button
-                disabled={disabled || target.request.status !== "solicitado"}
-                type="button"
-                variant="outline"
-                onClick={() => onAction(target.request, "sem_produto", target.openerId)}
-              >
-                Sem produto
-              </Button>
-              <Button
-                disabled={disabled || target.request.status !== "solicitado"}
-                type="button"
-                variant="destructive"
-                onClick={() => onAction(target.request, "cancelado", target.openerId)}
-              >
-                Cancelar
-              </Button>
+              {target.request.status === "solicitado" ? (
+                <>
+                  <Button
+                    disabled={disabled}
+                    type="button"
+                    onClick={() => onAction(target.request, "atendido", target.openerId)}
+                  >
+                    Atendido
+                  </Button>
+                  <Button
+                    disabled={disabled}
+                    type="button"
+                    variant="outline"
+                    onClick={() => onAction(target.request, "atendido_parcial", target.openerId)}
+                  >
+                    Parcial
+                  </Button>
+                  <Button
+                    disabled={disabled}
+                    type="button"
+                    variant="outline"
+                    onClick={() => onAction(target.request, "sem_produto", target.openerId)}
+                  >
+                    Sem produto
+                  </Button>
+                  <Button
+                    disabled={disabled}
+                    type="button"
+                    variant="destructive"
+                    onClick={() => onAction(target.request, "cancelado", target.openerId)}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              ) : null}
               <Button type="button" variant="outline" onClick={onClose}>
                 Fechar
               </Button>
@@ -2021,6 +2202,22 @@ function purchaseSuccessCopy(action: GppPurchaseAttendanceRequest["action"]): st
   return "Pedido cancelado.";
 }
 
+function purchaseClosedCopy(request: GppPurchaseRequest): string {
+  if (request.status === "atendido") {
+    return `Pedido atendido em ${formatActivityLabel(request.updatedAt)}.`;
+  }
+
+  if (request.status === "atendido_parcial") {
+    return `Pedido atendido parcialmente em ${formatActivityLabel(request.updatedAt)}.`;
+  }
+
+  if (request.status === "sem_produto") {
+    return `Pedido encerrado sem produto em ${formatActivityLabel(request.updatedAt)}.`;
+  }
+
+  return `Pedido cancelado em ${formatActivityLabel(request.updatedAt)}.`;
+}
+
 function quantityFromForm(formData: FormData, fallback: GppQuantity): GppQuantity {
   const value = Number(formString(formData, "quantity", String(fallback.value)));
   const unit = formString(formData, "unit", fallback.unit) as GppQuantity["unit"];
@@ -2050,13 +2247,6 @@ function historyTone(
   if (event === "canceled" || event === "estornado" || event === "administrative_correction")
     return "critical";
   return "neutral";
-}
-
-function formValue(form: FormData, key: string): string | undefined {
-  const value = form.get(key);
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
 }
 
 function createUiId(prefix: string): string {

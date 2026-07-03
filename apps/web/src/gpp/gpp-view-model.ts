@@ -44,12 +44,15 @@ export interface GppPurchaseSectorPanel {
   requests: readonly GppPurchaseRequest[];
 }
 
+export type GppHistoryEventGroup = "baixas" | "divergencias" | "compras";
+export type GppHistoryEventFilter = GppHistoryRow["event"] | GppHistoryEventGroup | "";
+
 export interface GppHistoryFilters {
   from?: string | undefined;
   to?: string | undefined;
   sector?: string | undefined;
   query?: string | undefined;
-  event?: GppHistoryRow["event"] | "" | undefined;
+  event?: GppHistoryEventFilter | undefined;
   actor?: string | undefined;
 }
 
@@ -65,6 +68,18 @@ const quantityFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 3,
   minimumFractionDigits: 0,
 });
+const HISTORY_BAIXA_EVENTS: readonly GppHistoryRow["event"][] = ["baixado", "estornado"];
+const HISTORY_DIVERGENCE_EVENTS: readonly GppHistoryRow["event"][] = [
+  "divergence_marked",
+  "corrected",
+  "reviewed_by_gpp",
+];
+const HISTORY_PURCHASE_EVENTS: readonly GppHistoryRow["event"][] = [
+  "purchase_attended",
+  "purchase_partial",
+  "purchase_without_product",
+  "canceled",
+];
 
 export function buildAvariaSectorPanels(
   snapshot: GppQueueSnapshot,
@@ -160,7 +175,7 @@ export function filterHistoryRows(
       const occurredAt = new Date(row.occurredAt).getTime();
       if (from !== undefined && occurredAt < from.getTime()) return false;
       if (to !== undefined && occurredAt > to.getTime()) return false;
-      if (event !== undefined && row.event !== event) return false;
+      if (!historyEventMatchesFilter(row.event, event)) return false;
       if (sector.length > 0 && !normalize(row.sector).includes(sector)) return false;
       if (actor.length > 0 && !normalize(actorLabel(row.actor)).includes(actor)) return false;
       if (query.length > 0 && !historyMatchesQuery(row, query)) return false;
@@ -170,6 +185,17 @@ export function filterHistoryRows(
     .sort(
       (left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
     );
+}
+
+function historyEventMatchesFilter(
+  event: GppHistoryRow["event"],
+  filter: GppHistoryEventFilter | undefined,
+): boolean {
+  if (filter === undefined || filter === "") return true;
+  if (filter === "baixas") return HISTORY_BAIXA_EVENTS.includes(event);
+  if (filter === "divergencias") return HISTORY_DIVERGENCE_EVENTS.includes(event);
+  if (filter === "compras") return HISTORY_PURCHASE_EVENTS.includes(event);
+  return event === filter;
 }
 
 export function toAvariaGroupRow(group: GppAvariaGroupSummary): GppAvariaGroupRow {

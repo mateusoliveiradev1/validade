@@ -34,6 +34,22 @@ export interface GppReviewCorrectionRequest {
   idempotencyKey: string;
 }
 
+export class GppMutationError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(message: string, input: { status: number; code?: string | undefined }) {
+    super(message);
+    this.name = "GppMutationError";
+    this.status = input.status;
+    this.code = input.code;
+  }
+}
+
+export function isGppMutationConflict(error: unknown): error is GppMutationError {
+  return error instanceof GppMutationError && error.status === 409;
+}
+
 export function createFetchGppClient(fetcher: WebFetcher = fetch): GppClient {
   return {
     async readQueue(input) {
@@ -118,10 +134,41 @@ async function postMutation(
   }
 
   if (!response.ok) {
-    throw new Error("Nao conseguimos salvar agora.");
+    throw mutationErrorFromPayload(response.status, payload);
   }
 
   throw new Error("Resposta GPP invalida.");
+}
+
+function mutationErrorFromPayload(status: number, payload: unknown): GppMutationError {
+  const code = isRecord(payload) && typeof payload.error === "string" ? payload.error : undefined;
+  const rawMessage =
+    isRecord(payload) && typeof payload.message === "string" ? payload.message : undefined;
+
+  return new GppMutationError(mutationErrorMessage(status, rawMessage), { code, status });
+}
+
+function mutationErrorMessage(status: number, rawMessage: string | undefined): string {
+  if (status === 409 && rawMessage !== undefined) {
+    if (/Only requested GPP purchases can be attended/i.test(rawMessage)) {
+      return "Esse pedido ja foi finalizado. Atualizei a fila para conferir o estado atual.";
+    }
+
+    if (/Divergent GPP avarias must be corrected and reviewed before baixa/i.test(rawMessage)) {
+      return "Esse produto tem divergencia aberta. Corrija e revise antes da baixa.";
+    }
+
+    if (/GPP avaria has no saldo remaining for baixa/i.test(rawMessage)) {
+      return "Esse item ja foi baixado ou nao tem quantidade em aberto. Atualizei a fila.";
+    }
+
+    if (/Only corrected GPP avarias can be reviewed/i.test(rawMessage)) {
+      return "Essa correcao ja foi revisada ou nao esta mais aguardando revisao.";
+    }
+  }
+
+  if (status === 409) return "Essa acao nao esta mais disponivel. Atualizei a fila.";
+  return "Nao conseguimos salvar agora. Tente novamente em instantes.";
 }
 
 function mutationResponseFromPayload(payload: unknown): GppMutationResponse | undefined {

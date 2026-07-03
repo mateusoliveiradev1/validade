@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type {
   GppDetailSnapshot,
   GppMutationResponse,
@@ -7,7 +7,7 @@ import type {
 } from "@validade-zero/contracts";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GppClient } from "./gpp-client";
+import { GppMutationError, type GppClient } from "./gpp-client";
 import { GppControlRoute } from "./GppControlRoute";
 import type { GppRealtimeSocket } from "./gpp-realtime";
 
@@ -83,6 +83,49 @@ describe("Controle GPP route", () => {
     );
   });
 
+  it("refreshes and explains when baixa conflicts with the current central state", async () => {
+    const readQueue = vi.fn<GppClient["readQueue"]>().mockResolvedValue(queueSnapshot());
+    const client = fakeClient({
+      baixarAvarias: vi.fn(() =>
+        Promise.reject(
+          new GppMutationError(
+            "Esse produto tem divergencia aberta. Corrija e revise antes da baixa.",
+            {
+              status: 409,
+            },
+          ),
+        ),
+      ),
+      readQueue,
+    });
+
+    render(<GppControlRoute client={client} now={() => NOW} session={gppSession()} />);
+
+    await screen.findByText("162 - Banana prata");
+    fireEvent.click(enabledButton("Baixar"));
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar baixa" }));
+
+    expect(
+      await screen.findByText(
+        "Esse produto tem divergencia aberta. Corrija e revise antes da baixa.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(readQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks duplicate divergence actions when a product already has an open divergence", async () => {
+    render(<GppControlRoute client={fakeClient()} now={() => NOW} session={gppSession()} />);
+
+    await screen.findByText("163 - Maca gala");
+
+    expect(screen.getByRole("button", { name: "Divergencia aberta" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+  });
+
   it("shows purchase attendance flows and blocks final attendance without product code", async () => {
     render(<GppControlRoute client={fakeClient()} now={() => NOW} session={gppSession()} />);
 
@@ -101,6 +144,63 @@ describe("Controle GPP route", () => {
     expect(screen.getByLabelText("Confirmar codigo do produto")).toHaveProperty("value", "");
   });
 
+  it("keeps completed purchase rows read-only", async () => {
+    const queue = queueWithCodedPurchase("atendido");
+    const client = fakeClient({
+      readHistory: vi.fn(() => Promise.resolve(queue.history)),
+      readQueue: vi.fn(() => Promise.resolve(queue)),
+    });
+
+    render(<GppControlRoute client={client} now={() => NOW} session={gppSession()} />);
+
+    await screen.findByText("162 - Banana prata");
+    fireEvent.click(screen.getByRole("tab", { name: "Compras internas" }));
+
+    expect(await screen.findByText("410 - Queijo minas")).toBeTruthy();
+    expect(screen.getByText(/Pedido atendido em/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Atendido" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Detalhes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Detalhes da compra interna GPP" });
+
+    expect(within(dialog).queryByRole("button", { name: "Atendido" })).toBeNull();
+    expect(within(dialog).getAllByRole("button", { name: "Fechar" }).length).toBeGreaterThan(0);
+  });
+
+  it("closes stale purchase actions after a conflict and refreshes the queue", async () => {
+    const queue = queueWithCodedPurchase("solicitado");
+    const readQueue = vi.fn<GppClient["readQueue"]>().mockResolvedValue(queue);
+    const client = fakeClient({
+      attendPurchase: vi.fn(() =>
+        Promise.reject(
+          new GppMutationError(
+            "Esse pedido ja foi finalizado. Atualizei a fila para conferir o estado atual.",
+            { status: 409 },
+          ),
+        ),
+      ),
+      readHistory: vi.fn(() => Promise.resolve(queue.history)),
+      readQueue,
+    });
+
+    render(<GppControlRoute client={client} now={() => NOW} session={gppSession()} />);
+
+    await screen.findByText("162 - Banana prata");
+    fireEvent.click(screen.getByRole("tab", { name: "Compras internas" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Atendido" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Atendimento de compra interna" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Atendido" }));
+
+    expect(
+      await screen.findByText(
+        "Esse pedido ja foi finalizado. Atualizei a fila para conferir o estado atual.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Atendimento de compra interna" })).toBeNull();
+    expect(readQueue).toHaveBeenCalledTimes(2);
+  });
+
   it("filters the dense Historico list", async () => {
     render(<GppControlRoute client={fakeClient()} now={() => NOW} session={gppSession()} />);
 
@@ -108,13 +208,21 @@ describe("Controle GPP route", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Historico" }));
     expect(screen.getByText("Baixa confirmada.")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Produto ou codigo"), {
+    fireEvent.change(screen.getByLabelText("Buscar no historico"), {
       target: { value: "pao" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
     expect(screen.queryByText("Baixa confirmada.")).toBeNull();
     expect(screen.getByText(/900 - Pao frances/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Compras" }));
+
+    expect(screen.getByText("Nenhum registro encontrado")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    fireEvent.click(screen.getByRole("button", { name: "Compras" }));
+
+    expect(screen.getByText(/Compra atendida - 410 - Queijo minas/)).toBeTruthy();
+    expect(screen.getByText("Compra interna atendida.")).toBeTruthy();
   });
 
   it("applies realtime refresh hints only after a central re-read", async () => {
@@ -281,6 +389,22 @@ function queueSnapshot(productName = "Banana prata"): GppQueueSnapshot {
       occurredAt: "2030-01-10T10:00:00.000Z",
       summary: "Pao registrado",
     },
+    {
+      historyId: "hist-003",
+      event: "purchase_attended" as const,
+      targetType: "purchase_request" as const,
+      targetId: "purchase-final",
+      productCode: "410",
+      productName: "Queijo minas",
+      sector: "Laticinios",
+      actor: {
+        actorId: "gpp-local",
+        displayName: "GPP Loja",
+        roleSnapshot: "gpp" as const,
+      },
+      occurredAt: "2030-01-10T09:45:00.000Z",
+      summary: "Pedido atendido",
+    },
   ];
 
   return {
@@ -364,6 +488,27 @@ function queueSnapshot(productName = "Banana prata"): GppQueueSnapshot {
       },
     ],
     history,
+  };
+}
+
+function queueWithCodedPurchase(
+  status: GppQueueSnapshot["purchaseRequests"][number]["status"],
+): GppQueueSnapshot {
+  const queue = queueSnapshot();
+  const request = queue.purchaseRequests[0];
+  if (request === undefined) return queue;
+
+  return {
+    ...queue,
+    purchaseRequests: [
+      {
+        ...request,
+        purchaseRequestId: "purchase-final",
+        product: { code: "410", name: "Queijo minas" },
+        status,
+        updatedAt: "2030-01-10T09:45:00.000Z",
+      },
+    ],
   };
 }
 
