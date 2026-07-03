@@ -135,7 +135,7 @@ Plans:
 4. Role-aware navigation opens GPP users directly into Controle GPP while collaborators keep Hoje as the daily validation surface.
 5. Online mobile actions show success only after central acknowledgement; offline actions remain explicitly pending on this device.
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 
