@@ -24,7 +24,7 @@
     "expo": "^56.0.12",
     "expo-application": "56.0.3",
     "expo-camera": "~56.0.8",
-    "expo-constants": "^56.0.18",
+    "expo-constants": "^57.0.3",
     "expo-modules-core": "56.0.17",
     "expo-notifications": "^56.0.18",
     "expo-sqlite": "~56.0.5",
