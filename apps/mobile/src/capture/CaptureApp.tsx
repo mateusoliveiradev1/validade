@@ -25,6 +25,7 @@ import { OperationalOnboardingScreen } from "./OperationalOnboardingScreen";
 import { TaskResolutionPanel } from "./TaskResolutionPanel";
 import { ShiftCloseScreen } from "./ShiftCloseScreen";
 import { AjustesScreen } from "./AjustesScreen";
+import { ControleGppScreen } from "./ControleGppScreen";
 import type { ShiftCloseCompletion } from "./shift-close";
 import type {
   PrepareTurnCacheStatus,
@@ -53,9 +54,10 @@ import type { AuthGateReadyControls } from "../auth/AuthGate";
 import { deviceIdForStore } from "./device-identity";
 import { operationalDateKey } from "./operational-date";
 
-type CaptureRoute =
-  | { name: "today" }
-  | { name: "onboarding"; mode?: "review" | "first_turn" }
+export type CaptureRoute =
+| { name: "today" }
+| { name: "gpp-control" }
+| { name: "onboarding"; mode?: "review" | "first_turn" }
   | { name: "discovery"; initialLookup?: string | undefined; initialLookupSource?: "scan" }
   | {
       name: "product-form";
@@ -94,6 +96,26 @@ type PushDeviceIdentity = Pick<
 >;
 type MobileActiveRole = SessionContextResponse["activeRole"];
 
+export function canUseControleGppSession(
+  session: SessionContextResponse | undefined,
+): boolean {
+  return (
+    session?.featureFlags?.controle_gpp_enabled === true &&
+    (session.actions?.canCreateGppEntry === true ||
+      session.actions?.canReadGppQueue === true)
+  );
+}
+
+export function initialRouteForSession(
+  session: SessionContextResponse | undefined,
+  activeRole: MobileActiveRole | undefined,
+): CaptureRoute {
+  const resolvedRole = session?.activeRole ?? activeRole;
+  return resolvedRole === "gpp" && canUseControleGppSession(session)
+    ? { name: "gpp-control" }
+    : { name: "today" };
+}
+
 export function CaptureApp({
   repository,
   alertChannel,
@@ -129,7 +151,9 @@ export function CaptureApp({
   deviceId?: string | undefined;
   storeOperatingHours?: StoreOperatingHours | undefined;
 }) {
-  const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(initialRouteStack);
+const [routeStack, setRouteStack] = useState<readonly CaptureRoute[]>(() => [
+initialRouteForSession(session, activeRole),
+]);
   const [initializationError, setInitializationError] = useState<string | undefined>();
   const [prepareTurnState, setPrepareTurnState] = useState<
     "checking" | "needs_prepare" | "preparing" | "ready" | "needs_review" | "cache_only" | "error"
@@ -173,7 +197,8 @@ export function CaptureApp({
     }),
     [actorLabel, session?.actor.subjectId, session?.store.storeId, storeId],
   );
-  const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
+const canUseControleGpp = canUseControleGppSession(session);
   const shiftCloseDeviceAuthorization = shiftCloseDeviceAuthorizationFor({
     activeRole,
     session,
@@ -756,11 +781,13 @@ export function CaptureApp({
     navigate({ name: "task-resolution", task });
   }
 
-  function withSessionBar(content: ReactNode): ReactNode {
-    return (
-      <View style={styles.appShell}>
+function withSessionBar(content: ReactNode): ReactNode {
+return (
+<View style={styles.appShell}>
         <CaptureSessionBar
           actorLabel={session?.actor.displayName ?? actorLabel}
+          canUseControleGpp={canUseControleGpp}
+          onOpenControleGpp={() => navigate({ name: "gpp-control" })}
           role={session?.activeRole ?? activeRole}
           storeName={session?.store.storeName ?? storeId}
           onOpenSettings={() => navigate({ name: "settings" })}
@@ -770,7 +797,7 @@ export function CaptureApp({
     );
   }
 
-  if (currentRoute.name === "settings") {
+if (currentRoute.name === "settings") {
     return withSessionBar(
       <AjustesScreen
         alertChannel={resolvedAlertChannel}
@@ -791,9 +818,15 @@ export function CaptureApp({
           : { onRegisterPushDevice: registerPushDeviceClient })}
       />,
     );
-  }
+}
 
-  if (prepareTurnState !== "ready") {
+if (currentRoute.name === "gpp-control") {
+return withSessionBar(
+<ControleGppScreen onBack={resetToToday} />,
+);
+}
+
+if (prepareTurnState !== "ready") {
     return withSessionBar(
       <PrepareTurnScreen
         cache={prepareTurnCache}
@@ -1076,15 +1109,19 @@ export function CaptureApp({
 }
 
 function CaptureSessionBar({
-  actorLabel,
-  role,
-  storeName,
-  onOpenSettings,
+actorLabel,
+canUseControleGpp,
+onOpenControleGpp,
+role,
+storeName,
+onOpenSettings,
 }: {
-  actorLabel: string;
-  role: MobileActiveRole;
-  storeName: string;
-  onOpenSettings: () => void;
+actorLabel: string;
+canUseControleGpp: boolean;
+onOpenControleGpp: () => void;
+role: MobileActiveRole;
+storeName: string;
+onOpenSettings: () => void;
 }) {
   return (
     <View style={styles.sessionBar}>
@@ -1095,6 +1132,19 @@ function CaptureSessionBar({
           {actorLabel} - {roleLabel(role)}
         </Text>
       </View>
+      {canUseControleGpp ? (
+        <Pressable
+          accessibilityLabel="Abrir Controle GPP"
+          accessibilityRole="button"
+          onPress={onOpenControleGpp}
+          style={({ pressed }) => [
+            styles.settingsAction,
+            pressed ? styles.settingsActionPressed : null,
+          ]}
+        >
+          <Text style={styles.settingsActionLabel}>Controle GPP</Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityLabel="Abrir Ajustes do aparelho"
         accessibilityRole="button"
