@@ -30,6 +30,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Status:** Complete - verified 2026-06-29
 
 **Success criteria:**
+
 1. Command Center first scan answers the operational safety question without verbose pilot/UAT/build panels in the daily flow.
 2. A compact device-readiness summary is always visible from the web operational shell or Command Center header.
 3. A dedicated Aparelhos view shows per-device readiness, last central read, last sync, push/camera state, build compatibility, safe push-test status, and next action.
@@ -37,6 +38,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 5. A dedicated Validacao / Go-No-Go view carries Loja 18 UAT and rollout blockers without competing with the daily Command Center.
 
 **Plans:**
+
 - **Wave 1:** `13-01-PLAN.md` - Route foundation, shell navigation, shared `/command-center` projection host, and fail-closed access.
 - **Wave 2:** `13-02-PLAN.md` - Operacao daily safety route and compact device-readiness strip.
 - **Wave 3:** `13-03-PLAN.md` - Aparelhos device readiness route and diagnostic safe push-test action.
@@ -51,6 +53,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Status:** Complete - ready for verification
 
 **Success criteria:**
+
 1. Operators can open Ajustes from the mobile app shell without losing the active store, role, session, or current operational route.
 2. Push/lembretes controls show permission state, provider/local reminder state, test action, disable path, and copy that never treats push as physical execution.
 3. Sync health shows last central read, last sync, pending local commands, conflicts, retry/discard path, and whether the state blocks safe close.
@@ -65,6 +68,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Status:** Not started
 
 **Success criteria:**
+
 1. Hoje shows sync, push, and build/update health compactly when healthy and promotes them to blocking cards only when they affect execution, safe close, or validation.
 2. Preparar turno guides an empty real store from first central read into product creation/reuse and lot registration without making an expected empty catalog look fatal.
 3. Fechamento do turno summarizes active tasks, unresolved sync, stale central read, device/update blockers, and the physical checklist before safe-close can be accepted.
@@ -78,6 +82,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Status:** Not started
 
 **Success criteria:**
+
 1. A store lead can run a guided Loja 18 validation path covering first real product, real lot, task projection, task resolution, second-device visibility, update/build status, and shift close.
 2. Validation records pass, blocked, and external-blocked outcomes public-safely without real product names, photos, tokens, private URLs, or personal data in repository artifacts.
 3. APK install, provider push, camera/evidence, second-device proof, and physical Loja 18 UAT remain explicit gates rather than being inferred from repo tests or mocks.
@@ -92,6 +97,7 @@ The milestone is not a physical rollout claim. Installed Android, real provider 
 **Depends on:** Phase 16
 
 **Success criteria:**
+
 1. New GPP contracts, tables, endpoints, idempotency keys, and audit events are additive and do not alter the tested build 170 mobile flow.
 2. The web GPP surface exposes Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped and detail views.
 3. Backend permissions enforce store, role, sector, creator, status, and mandatory justification rules for every GPP write.
@@ -118,20 +124,30 @@ Plans:
 **Goal:** Add the mobile Controle GPP entry for sector operators to register avarias and request internal purchases with central-confirmed feedback, while keeping local-only behavior restricted to real offline use.
 
 **Requirements:** GPP-08
-**Status:** Not started
+**Status:** Planned
 **Depends on:** Phase 17
 
 **Success criteria:**
+
 1. Mobile shows a separate Controle GPP entry with Registrar avaria, Solicitar compra interna, Minhas pendencias, and Enviadas hoje.
 2. Avaria registration requires product code, quantity/unit, and destination/finality fields for baixa GPP, reaproveitamento, producao interna, or transferencia.
 3. Internal purchase requests can start from product name/description plus quantity and finality, with product code optional until GPP service.
 4. Role-aware navigation opens GPP users directly into Controle GPP while collaborators keep Hoje as the daily validation surface.
 5. Online mobile actions show success only after central acknowledgement; offline actions remain explicitly pending on this device.
 
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-discuss-phase 18 after Phase 17 verification)
+
+- **Wave 1:** `18-01-PLAN.md` - Mobile GPP client, local pending queue, central/offline error classification, and idempotency foundation.
+- **Wave 2 (blocked on Wave 1 completion):** `18-02-PLAN.md` - Controle GPP route, role-aware entry, hub, feature-flag/capability gating, and Hoje boundary.
+- **Wave 3 (blocked on Wave 2 completion):** `18-03-PLAN.md` - Registrar avaria guided flow with required product code, quantity/unit, finality/destination, and central feedback.
+- **Wave 4 (blocked on Wave 2 completion):** `18-04-PLAN.md` - Solicitar compra interna flow, Minhas pendencias, Enviadas hoje, and sector-facing statuses.
+- **Wave 5 (blocked on Waves 3-4 completion):** `18-05-PLAN.md` - GPP retry/conflict review, Today non-regression proof, UAT/testing docs, and release evidence.
+
+**Cross-cutting constraints:**
+
+- D-13: Online purchase submission shows success only after central acknowledgement.
 
 ### Phase 19: Integracao do Controle GPP com Hoje
 
@@ -142,6 +158,7 @@ Plans:
 **Depends on:** Phase 18
 
 **Success criteria:**
+
 1. Hoje offers Registrar avaria por vencimento, Enviar para reaproveitamento, Enviar para producao interna, and Confirmar esgotado in the correct terminal contexts.
 2. GPP-linked Hoje actions confirm the product left the sales area before resolving sales-area risk.
 3. Hoje-created GPP records preserve lot linkage, product code, quantity/unit, destination/finality, actor, and central acknowledgement state.
@@ -151,6 +168,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-discuss-phase 19 after Phase 18 verification)
 
 ### Phase 20: Tempo real do Hoje
@@ -162,6 +180,7 @@ Plans:
 **Depends on:** Phase 19
 
 **Success criteria:**
+
 1. Hoje task/lot changes publish store-scoped events only after central database success.
 2. Web/mobile clients treat realtime events as refresh hints and re-read central snapshots instead of mutating task truth from socket payloads.
 3. Manual refresh and existing polling/fallback paths still work when realtime is paused, disconnected, or disabled.
@@ -171,6 +190,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-discuss-phase 20 after Phase 19 verification)
 
 ## Milestone Outcome
