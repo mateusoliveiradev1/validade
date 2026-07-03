@@ -47,7 +47,7 @@
 - [x] **GPP-05**: The GPP flow supports divergencia, correcao, revisao pelo GPP, baixa, cancelamento, estorno, and append-only audit events without allowing a divergent or baixado item to be silently edited.
 - [x] **GPP-06**: Realtime store-room events can notify web/mobile GPP clients after central database success while clients re-read central snapshots and continue to work with manual refresh/fallback if realtime fails.
 - [x] **GPP-07**: The web GPP surface can show Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped baixa, detail drilldown, confirmation, and no decorative dashboard noise.
-- [ ] **GPP-08**: Mobile can add a separate Controle GPP entry for Registrar avaria and Solicitar compra interna with central-ack feedback and local-pending only during real offline use.
+- [x] **GPP-08**: Mobile can add a separate Controle GPP entry for Registrar avaria and Solicitar compra interna with central-ack feedback and local-pending only during real offline use.
 - [ ] **GPP-09**: Hoje can create GPP-linked avaria por vencimento, reaproveitamento, or producao interna records only after confirming the product left the sales area, while Confirmar esgotado remains separate from baixa GPP.
 - [ ] **GPP-10**: Hoje can use the proven realtime layer for store-scoped task/lot refresh hints without weakening central acknowledgement, conflict handling, or offline-pending truth.
 
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GPP-05 | Phase 17 | Complete |
 | GPP-06 | Phase 17 | Complete |
 | GPP-07 | Phase 17 | Complete |
-| GPP-08 | Phase 18 | Pending |
+| GPP-08 | Phase 18 | Complete |
 | GPP-09 | Phase 19 | Pending |
 | GPP-10 | Phase 20 | Pending |
 
