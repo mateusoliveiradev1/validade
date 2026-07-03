@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 18
-status: verifying
+status: human_needed
 stopped_at: Completed 18-05-PLAN.md
 last_updated: "2026-07-03T05:58:44.850Z"
 last_activity: 2026-07-03
@@ -290,16 +290,16 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Current Position
 
-Phase: 18 (controle-gpp-mobile-para-avaria-e-compras-internas) — VERIFYING
+Phase: 18 (controle-gpp-mobile-para-avaria-e-compras-internas) — HUMAN UAT REQUIRED
 Plan: 5 of 5
-Status: Phase complete — ready for verification
+Status: Automated gates passed — manual UAT pending
 Last activity: 2026-07-03
 
 ## Operator Next Steps
 
-- Run Phase 18 verification against `18-01-SUMMARY.md` through `18-05-SUMMARY.md`.
+- Run the pending checks in `18-HUMAN-UAT.md` on Android/provider surfaces.
+- If approved, rerun `$gsd-execute-phase 18` or `$gsd-verify-work 18` to close verification.
 - Preserve the Phase 18 boundary: mobile Controle GPP is separate from `Hoje`.
-- Keep Android physical/network/provider proof as manual UAT until it is actually performed.
 
 ## Deferred Items
 
