@@ -999,7 +999,9 @@ export function CaptureApp({
         mode={currentRoute.name === "gpp-sent-today" ? "sent" : "pending"}
         syncNotice={gppSyncNotice}
         onBack={() => replace({ name: "gpp-control" })}
-        onDiscardConflict={discardGppConflict}
+        onDiscardConflict={(localId, justification) => {
+          void discardGppConflict(localId, justification);
+        }}
         onSyncPending={() => void syncGppPendingNow()}
       />,
     );
