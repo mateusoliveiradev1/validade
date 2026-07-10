@@ -56,6 +56,7 @@ completed: 2026-07-10
 - Added a defensive route-level `onDiscardConflict` handler that trims justification, persists `discardedAt`, and refreshes GPP projections.
 - Added an integration regression that seeds a central conflict, enters a reason, discards through the routed screen, and verifies the active conflict disappears while the discarded record remains auditable.
 - Proved the discard path does not call either central GPP mutation method.
+- Cleared the stale critical sync notice after discard with explicit device-local success copy.
 - Updated Test 5 in `18-UAT.md` with the fixed-path evidence and the explicit build 170 boundary.
 
 ## Task Commits
@@ -63,6 +64,7 @@ completed: 2026-07-10
 Each task was committed atomically:
 
 1. **Task 1: Wire justified conflict discard through the repository** — `0849a02` (`fix`)
+2. **Review fix: Clear stale conflict notice after discard** — `d37a3ef` (`fix`)
 
 ## Files Created/Modified
 
@@ -95,10 +97,18 @@ Each task was committed atomically:
 - **Verification:** focused tests, mobile typecheck, staged diff review, and Prettier check passed.
 - **Committed in:** `0849a02`
 
+**2. [Rule 1 - Bug] Cleared stale critical conflict feedback after successful discard**
+- **Found during:** required standard code review
+- **Issue:** A conflict created by manual sync left `gppSyncNotice` critical after the active record had been discarded, so the screen could continue saying `Conflito de GPP` after successful resolution.
+- **Fix:** Replaced the stale notice with explicit device-local success copy and strengthened the routed test to create the conflict through `Sincronizar pendencias GPP` before discarding.
+- **Files modified:** `apps/mobile/src/capture/CaptureApp.tsx`, `apps/mobile/src/capture/mobile-gpp-navigation.test.tsx`
+- **Verification:** focused 3-file suite passed with 11 tests; mobile typecheck passed.
+- **Committed in:** `d37a3ef`
+
 ---
 
-**Total deviations:** 1 auto-fixed blocking prerequisite.
-**Impact on plan:** The commit remains within Phase 18 GPP pending/conflict behavior and leaves unrelated visual work untouched.
+**Total deviations:** 2 auto-fixed (1 blocking prerequisite, 1 correctness bug).
+**Impact on plan:** Both fixes remain within Phase 18 GPP pending/conflict behavior and leave unrelated visual work untouched.
 
 ## Issues Encountered
 

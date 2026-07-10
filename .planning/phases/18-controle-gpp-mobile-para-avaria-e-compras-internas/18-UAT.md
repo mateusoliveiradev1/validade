@@ -41,7 +41,7 @@ note: "Correlated local end-to-end evidence: `Cenoura UAT central - 5 kg` became
 
 expected: Central rejection becomes visible `Conflito de GPP`; discard requires local justification.
 result: pass
-note: "Phase 18 Plan 06 routed regression: the conflict remains visible, empty justification keeps discard disabled, one justified press persists `state: discarded`, the exact reason and `discardedAt`, refreshes the route, and removes the item from the active queue without calling the central GPP client. The installed build 170 was not overwritten; native proof of this new code waits for a deliberate later build."
+note: "Phase 18 Plan 06 routed regression: manual sync produces the visible central conflict, empty justification keeps discard disabled, one justified press persists `state: discarded`, the exact reason and `discardedAt`, refreshes the route, replaces stale critical feedback with device-local discard confirmation, and does not issue a second central mutation. The installed build 170 was not overwritten; native proof of this new code waits for a deliberate later build."
 
 ## Summary
 
@@ -68,6 +68,7 @@ blocked: 0
 - Emulator UAT reproduced a real 401 central rejection after a controlled local API restart; the item became `Conflito de GPP` with the authorization reason visible.
 - Empty discard justification kept the destructive action disabled; entering a justification enabled it, but pressing it did not discard the item.
 - Phase 18 Plan 06 fixed the missing route callback and added a routed regression proving one justified press persists the discarded record and refreshes it out of the active queue.
+- Required code review found and fixed stale `Conflito de GPP` feedback after successful discard; the regression now starts from a central rejection produced by manual sync.
 - Focused Plan 06 verification passed: 3 mobile test files / 11 tests, mobile typecheck, and Prettier checks for the touched source/test files.
 - Android AVD `ValidadeZeroApi36` was available, but the installed package remained the approved build 170. It was intentionally not replaced with an unapproved build for this code-only gap retest.
 - Correlated GPP queue proof: `Cenoura UAT central`, `5 kg`, status `solicitado`; replay state `replayed`; matching purchase count remained `1`.
