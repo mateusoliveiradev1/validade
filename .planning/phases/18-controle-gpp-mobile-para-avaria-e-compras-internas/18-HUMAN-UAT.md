@@ -1,53 +1,39 @@
 ---
 status: partial
 phase: 18-controle-gpp-mobile-para-avaria-e-compras-internas
-source: [18-VERIFICATION.md, 18-UAT.md]
-started: 2026-07-03T03:05:00-03:00
-updated: 2026-07-03T03:05:00-03:00
+source: [18-VERIFICATION.md, 18-UAT.md, 18-06-SUMMARY.md]
+started: 2026-07-10T07:40:00-03:00
+updated: 2026-07-10T07:40:00-03:00
 ---
 
-# Phase 18 Human UAT - Controle GPP Mobile
+# Phase 18 Human UAT - Post-170 Conflict Discard
 
 ## Current Test
 
-Awaiting physical Android and provider/web validation.
+Awaiting an intentionally built post-170 Android artifact. Build 170 remains installed and untouched.
 
 ## Tests
 
-### 1. One-hand avaria registration
+### 1. Native justified conflict discard
 
-expected: GPP user opens Controle GPP, registers avaria with product code, quantity/unit, finality/destination, reviews, and sees success only after central acknowledgement.
+expected: On an approved post-170 Android build, a central rejection appears as `Conflito de GPP`; empty justification keeps discard disabled; after a reason is entered, one press on `Descartar registro deste aparelho` removes the active conflict, shows device-local discard confirmation, and does not claim central success.
 result: pending
 
-### 2. Offline avaria pending return online
+## Existing Evidence
 
-expected: Network unavailable avaria becomes `Pendente neste aparelho`; connectivity returns; `Sincronizar pendencias GPP` retries the same idempotency key.
-result: pending
-
-### 3. Code-optional purchase request
-
-expected: Sector user submits purchase with product description, no product code, quantity/unit, and finality; central acknowledgement shows success.
-result: pending
-
-### 4. Offline purchase pending GPP web perception
-
-expected: Offline purchase becomes `Pendente neste aparelho`; after sync, GPP web queue shows the purchase without duplicate records.
-result: pending
-
-### 5. Conflict review
-
-expected: Central rejection retry appears as `Conflito de GPP`, offers correction/retry, and requires justification before `Descartar registro deste aparelho`.
-result: pending
+- Prior Android/local-central UAT passed avaria, offline retry, code-optional purchase, and GPP web perception.
+- The exact conflict-discard route now passes the integrated renderer regression and repository persistence assertions.
+- The remaining item is native proof of the new code, not a known repository implementation gap.
 
 ## Summary
 
-total: 5
+total: 1
 passed: 0
 issues: 0
-pending: 5
+pending: 1
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-None reported yet.
+None reported. Native verification is pending because no deliberate post-170 build has been produced.

@@ -65,6 +65,7 @@ Each task was committed atomically:
 
 1. **Task 1: Wire justified conflict discard through the repository** — `0849a02` (`fix`)
 2. **Review fix: Clear stale conflict notice after discard** — `d37a3ef` (`fix`)
+3. **Gate fix: Honor the void callback contract for async discard** — `7788fa8` (`fix`)
 
 ## Files Created/Modified
 
@@ -76,8 +77,10 @@ Each task was committed atomically:
 
 - `pnpm.cmd exec vitest run --config vitest.config.ts --project mobile apps/mobile/src/capture/gpp-pending-screen.test.tsx apps/mobile/src/capture/mobile-gpp-navigation.test.tsx apps/mobile/src/capture/gpp-offline-queue.test.ts` — passed, 3 files / 11 tests.
 - `pnpm.cmd --filter @validade-zero/mobile typecheck` — passed.
+- `pnpm.cmd exec eslint apps/mobile/src/capture/CaptureApp.tsx apps/mobile/src/capture/mobile-gpp-navigation.test.tsx` — passed.
 - `pnpm.cmd exec prettier --check apps/mobile/src/capture/CaptureApp.tsx apps/mobile/src/capture/mobile-gpp-navigation.test.tsx` — passed.
 - Acceptance criteria — all passed: non-optional route handler, blank-reason defense, discarded-state persistence, removal from active queue/render, and no central GPP call.
+- `pnpm.cmd check` — typecheck passed, then the repository-wide lint stopped on the pre-existing untracked `apps/api/local-memory-api.ts` project-service configuration. The Plan 18-06 source/test files pass direct ESLint.
 
 ## Decisions Made
 
@@ -105,14 +108,23 @@ Each task was committed atomically:
 - **Verification:** focused 3-file suite passed with 11 tests; mobile typecheck passed.
 - **Committed in:** `d37a3ef`
 
+**3. [Rule 1 - Bug] Honored the synchronous UI callback contract**
+- **Found during:** repository-wide regression gate
+- **Issue:** Passing the async discard handler directly to a callback typed as returning `void` violated `@typescript-eslint/no-misused-promises`.
+- **Fix:** Added a synchronous wrapper that explicitly launches the already-tested async handler with `void`.
+- **Files modified:** `apps/mobile/src/capture/CaptureApp.tsx`
+- **Verification:** focused tests, mobile typecheck, and direct ESLint passed.
+- **Committed in:** `7788fa8`
+
 ---
 
-**Total deviations:** 2 auto-fixed (1 blocking prerequisite, 1 correctness bug).
+**Total deviations:** 3 auto-fixed (1 blocking prerequisite, 2 correctness bugs).
 **Impact on plan:** Both fixes remain within Phase 18 GPP pending/conflict behavior and leave unrelated visual work untouched.
 
 ## Issues Encountered
 
 - The Android AVD was initially stopped and was started successfully. Its installed package is build 170, so it was not overwritten with unapproved code. The exact routed behavior is covered by the new integration regression; installed post-170 proof remains a deliberate later release check.
+- The full monorepo gate reached lint and stopped on the pre-existing untracked `apps/api/local-memory-api.ts`, which is outside the Plan 18-06 file set and absent from the TypeScript project-service allowlist. The touched Plan 18-06 files pass direct ESLint.
 
 ## User Setup Required
 

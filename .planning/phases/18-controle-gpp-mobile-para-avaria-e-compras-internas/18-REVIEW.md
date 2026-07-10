@@ -4,7 +4,7 @@ phase_name: controle-gpp-mobile-para-avaria-e-compras-internas
 status: clean
 depth: standard
 files_reviewed: 2
-commits_reviewed: [0849a02, d37a3ef]
+commits_reviewed: [0849a02, d37a3ef, 7788fa8]
 findings:
   critical: 0
   warning: 0
@@ -43,12 +43,20 @@ The first implementation refreshed the active queue but retained the critical sy
 
 Resolved in `d37a3ef` by replacing the stale notice with explicit device-local success feedback. The integration test now creates the conflict through manual sync and proves the critical copy disappears without an additional central call.
 
+### WR-02 — Promise-returning handler passed to a void callback
+
+The repository regression gate detected `@typescript-eslint/no-misused-promises` on the direct async `onDiscardConflict` assignment.
+
+Resolved in `7788fa8` with a synchronous prop wrapper that explicitly starts the async route handler via `void`. Direct ESLint, focused tests, and mobile typecheck pass after the fix.
+
 ## Verification
 
 - Focused Vitest suite: 3 files / 11 tests passed.
 - Mobile TypeScript check passed.
+- Direct ESLint passed for both reviewed files.
 - Prettier check passed for the touched source and regression test.
 - `git diff --check` passed for committed changes.
+- Repository-wide `pnpm.cmd check` passed typecheck and then stopped on the pre-existing untracked `apps/api/local-memory-api.ts`, which is outside this review scope and absent from the ESLint project-service allowlist.
 
 ## Boundary Review
 
