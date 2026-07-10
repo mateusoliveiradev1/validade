@@ -167,12 +167,12 @@ describe("mobile Controle GPP navigation", () => {
         idempotencyKey: "idem-gpp-conflict-route",
       },
     });
-    await repository.markGppPendingConflict({
-      localId: pending.localId,
-      occurredAt: "2030-01-10T09:12:00.000Z",
-      reason: "Registro recusado pela central",
+    const createGppAvaria = vi.fn<GppClient["createGppAvaria"]>().mockResolvedValue({
+      state: "central_failure",
+      reason: "authorization",
+      message: "Registro recusado pela central",
+      retryable: false,
     });
-    const createGppAvaria = vi.fn<GppClient["createGppAvaria"]>();
     const createGppPurchaseRequest = vi.fn<GppClient["createGppPurchaseRequest"]>();
     const tree = await renderCaptureApp(
       activeSession({
@@ -187,7 +187,9 @@ describe("mobile Controle GPP navigation", () => {
 
     await press(tree, "Abrir Controle GPP");
     await press(tree, "Abrir Minhas pendencias do Controle GPP");
+    await press(tree, "Sincronizar pendencias GPP");
     expect(renderedText(tree)).toContain("Conflito de GPP");
+    expect(createGppAvaria).toHaveBeenCalledTimes(1);
 
     await changeText(tree, "Motivo para descartar", "Duplicado na conferencia fisica");
     await press(tree, "Descartar registro deste aparelho");
@@ -199,7 +201,8 @@ describe("mobile Controle GPP navigation", () => {
       discardedAt: expect.any(String),
     });
     expect(renderedText(tree)).not.toContain("Conflito de GPP");
-    expect(createGppAvaria).not.toHaveBeenCalled();
+    expect(renderedText(tree)).toContain("Conflito descartado neste aparelho");
+    expect(createGppAvaria).toHaveBeenCalledTimes(1);
     expect(createGppPurchaseRequest).not.toHaveBeenCalled();
   });
 });

@@ -243,6 +243,11 @@ export function CaptureApp({
         discardedAt: new Date().toISOString(),
       });
       await refreshGppLists();
+      setGppSyncNotice({
+        tone: "success",
+        title: "Conflito descartado neste aparelho",
+        body: "O registro local saiu da fila ativa com justificativa. Nenhuma baixa foi enviada para a central.",
+      });
     },
     [refreshGppLists, repository],
   );
