@@ -1,6 +1,8 @@
+import type { SessionContextResponse } from "@validade-zero/contracts";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { SessionContextResponse } from "@validade-zero/contracts";
+import type { GppClient } from "./gpp-client";
+import type { CaptureRepository } from "./repository";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -17,6 +19,7 @@ vi.mock("react-native", async () => {
       React.createElement("ScrollView", props, children),
     Pressable: ({ children, ...props }: { children: React.ReactNode }) =>
       React.createElement("Pressable", props, children),
+    TextInput: (props: Record<string, unknown>) => React.createElement("TextInput", props),
     Platform: { OS: "android" },
     BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
   };
@@ -142,30 +145,106 @@ describe("mobile Controle GPP navigation", () => {
 
     expect(renderedText(tree)).toContain("Controle GPP");
     expect(renderedText(tree)).toContain("Registrar avaria");
+    expect(renderedText(tree)).toContain("Solicitar compra interna");
+  });
+
+  it("discards a justified conflict through the routed pending screen", async () => {
+    const { createMemoryCaptureRepository } = await import("./memory-repository");
+    const repository = createMemoryCaptureRepository({
+      clock: () => "2030-01-10T09:00:00.000Z",
+      createId: () => "gpp-conflict-route",
+    });
+    const pending = await repository.saveGppPending({
+      kind: "avaria",
+      payload: {
+        storeId: "loja-18",
+        sector: "FLV",
+        product: { code: "789000000001", name: "Maca FICTICIA" },
+        quantity: { value: 2, unit: "kg" },
+        finality: "baixa_gpp",
+        destination: "Controle GPP",
+        occurredAt: "2030-01-10T09:00:00.000Z",
+        idempotencyKey: "idem-gpp-conflict-route",
+      },
+    });
+    await repository.markGppPendingConflict({
+      localId: pending.localId,
+      occurredAt: "2030-01-10T09:12:00.000Z",
+      reason: "Registro recusado pela central",
+    });
+    const createGppAvaria = vi.fn<GppClient["createGppAvaria"]>();
+    const createGppPurchaseRequest = vi.fn<GppClient["createGppPurchaseRequest"]>();
+    const tree = await renderCaptureApp(
+      activeSession({
+        activeRole: "collaborator",
+        actions: { canCreateGppEntry: true, canReadGppQueue: false, canActOnTask: true },
+      }),
+      {
+        repository,
+        gppClient: { createGppAvaria, createGppPurchaseRequest },
+      },
+    );
+
+    await press(tree, "Abrir Controle GPP");
+    await press(tree, "Abrir Minhas pendencias do Controle GPP");
+    expect(renderedText(tree)).toContain("Conflito de GPP");
+
+    await changeText(tree, "Motivo para descartar", "Duplicado na conferencia fisica");
+    await press(tree, "Descartar registro deste aparelho");
+
+    await expect(repository.listGppPending()).resolves.toEqual([]);
+    await expect(repository.loadGppPending(pending.localId)).resolves.toMatchObject({
+      state: "discarded",
+      discardJustification: "Duplicado na conferencia fisica",
+      discardedAt: expect.any(String),
+    });
+    expect(renderedText(tree)).not.toContain("Conflito de GPP");
+    expect(createGppAvaria).not.toHaveBeenCalled();
+    expect(createGppPurchaseRequest).not.toHaveBeenCalled();
   });
 });
 
-async function renderCaptureApp(session: SessionContextResponse): Promise<ReactTestRenderer> {
+async function renderCaptureApp(
+  session: SessionContextResponse,
+  options: {
+    repository?: CaptureRepository | undefined;
+    gppClient?: GppClient | undefined;
+  } = {},
+): Promise<ReactTestRenderer> {
   const { CaptureApp } = await import("./CaptureApp");
   const { createFakePushAlertChannel } = await import("./alert-channel");
   const { createMemoryCaptureRepository } = await import("./memory-repository");
   let tree: ReactTestRenderer | undefined;
+
   await act(async () => {
     tree = create(
       <CaptureApp
-        repository={createMemoryCaptureRepository({
-          clock: () => "2030-01-10T09:00:00.000Z",
-          createId: () => "id-ficticio-gpp",
-        })}
+        repository={
+          options.repository ??
+          createMemoryCaptureRepository({
+            clock: () => "2030-01-10T09:00:00.000Z",
+            createId: () => "id-ficticio-gpp",
+          })
+        }
         alertChannel={createFakePushAlertChannel()}
+        gppClient={options.gppClient}
         session={session}
       />,
     );
     await Promise.resolve();
     await Promise.resolve();
   });
+
   if (tree === undefined) throw new Error("CaptureApp did not render.");
   return tree;
+}
+
+async function changeText(tree: ReactTestRenderer, label: string, value: string): Promise<void> {
+  const input = tree.root.findByProps({ accessibilityLabel: label });
+  await act(async () => {
+    input.props.onChangeText(value);
+    await Promise.resolve();
+  });
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {
@@ -178,7 +257,7 @@ async function press(tree: ReactTestRenderer, label: string): Promise<void> {
     throw new Error(`Expected an action named ${label}.`);
   }
   await act(async () => {
-    action.props.onPress();
+    await action.props.onPress();
     await Promise.resolve();
   });
 }

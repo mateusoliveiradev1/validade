@@ -29,6 +29,12 @@ import { ControleGppScreen } from "./ControleGppScreen";
 import { GppAvariaFlow } from "./GppAvariaFlow";
 import { GppPurchaseFlow } from "./GppPurchaseFlow";
 import { GppPendingScreen } from "./GppPendingScreen";
+import type { GppClient } from "./gpp-client";
+import {
+  sendGppPendingRecord,
+  type GppPendingRecord,
+  type GppSentTodayRecord,
+} from "./gpp-offline-queue";
 import type { ShiftCloseCompletion } from "./shift-close";
 import type {
   PrepareTurnCacheStatus,
@@ -123,6 +129,7 @@ export function initialRouteForSession(
 export function CaptureApp({
   repository,
   alertChannel,
+  gppClient,
   syncEngine,
   prepareTurnClient,
   onboardingClient,
@@ -139,6 +146,7 @@ export function CaptureApp({
 }: {
   repository: CaptureRepository;
   alertChannel?: PushAlertChannel;
+  gppClient?: GppClient | undefined;
   syncEngine?: SyncEngine | undefined;
   prepareTurnClient?: ((request: PrepareTurnRequest) => Promise<PrepareTurnResponse>) | undefined;
   onboardingClient?: OnboardingProgressClient | undefined;
@@ -178,6 +186,11 @@ export function CaptureApp({
   const [shiftCloseCompletion, setShiftCloseCompletion] = useState<
     ShiftCloseCompletion | undefined
   >();
+  const [gppPendingRecords, setGppPendingRecords] = useState<readonly GppPendingRecord[]>([]);
+  const [gppSentToday, setGppSentToday] = useState<readonly GppSentTodayRecord[]>([]);
+  const [gppSyncNotice, setGppSyncNotice] = useState<
+    { tone: "info" | "success" | "warning" | "critical"; title: string; body: string } | undefined
+  >();
   const autoPrepareTurnAttemptedRef = useRef(false);
   const autoSyncAttemptedRef = useRef(false);
   const resolvedAlertChannel = useMemo(
@@ -210,6 +223,123 @@ export function CaptureApp({
   });
   const canCloseShiftSafely =
     session === undefined ? activeRole === "lead" : shiftCloseDeviceAuthorization === "valid";
+  const refreshGppLists = useCallback(async (): Promise<void> => {
+    const [localPending, sentToday] = await Promise.all([
+      repository.listGppPending(),
+      repository.listGppSentToday?.() ?? Promise.resolve([]),
+    ]);
+    setGppPendingRecords(localPending);
+    setGppSentToday(sentToday);
+  }, [repository]);
+
+  const discardGppConflict = useCallback(
+    async (localId: string, justification: string): Promise<void> => {
+      const trimmedJustification = justification.trim();
+      if (trimmedJustification.length === 0) return;
+
+      await repository.discardGppPending({
+        localId,
+        justification: trimmedJustification,
+        discardedAt: new Date().toISOString(),
+      });
+      await refreshGppLists();
+    },
+    [refreshGppLists, repository],
+  );
+
+  const syncGppPendingNow = useCallback(async (): Promise<void> => {
+    if (gppClient === undefined) {
+      setGppSyncNotice({
+        tone: "warning",
+        title: "Sincronizacao GPP indisponivel",
+        body: "Este app ainda nao recebeu o cliente GPP central. As pendencias continuam neste aparelho.",
+      });
+      return;
+    }
+
+    const pending = await repository.listGppPending();
+    if (pending.length === 0) {
+      setGppSyncNotice({
+        tone: "success",
+        title: "Sem pendencias GPP",
+        body: "Nao ha registros locais aguardando envio para a central.",
+      });
+      await refreshGppLists();
+      return;
+    }
+
+    setGppSyncNotice({
+      tone: "info",
+      title: "Sincronizando pendencias GPP",
+      body: "Tentando enviar os registros locais para a central.",
+    });
+
+    let confirmedCount = 0;
+    let conflictCount = 0;
+    let stillPendingCount = 0;
+
+    for (const record of pending) {
+      const attemptedAt = new Date().toISOString();
+      try {
+        const result = await sendGppPendingRecord(gppClient, record);
+        if (result.state === "central_success") {
+          await repository.markGppPendingConfirmed({
+            localId: record.localId,
+            confirmedAt:
+              result.response.state === "replayed"
+                ? result.response.replayedAt
+                : result.response.confirmedAt,
+            centralRequestId: result.response.requestId,
+          });
+          confirmedCount += 1;
+        } else if (result.state === "central_failure") {
+          await repository.markGppPendingConflict({
+            localId: record.localId,
+            occurredAt: attemptedAt,
+            reason: result.message,
+          });
+          conflictCount += 1;
+        } else {
+          stillPendingCount += 1;
+        }
+      } catch {
+        stillPendingCount += 1;
+      }
+    }
+
+    await refreshGppLists();
+    if (conflictCount > 0) {
+      setGppSyncNotice({
+        tone: "critical",
+        title: "Conflito de GPP",
+        body: `${conflictCount} registro(s) foram recusados pela central e precisam de revisao.`,
+      });
+      return;
+    }
+    if (stillPendingCount > 0) {
+      setGppSyncNotice({
+        tone: "warning",
+        title: "Ainda pendente neste aparelho",
+        body: `${stillPendingCount} registro(s) nao chegaram na central. Tente novamente com internet estavel.`,
+      });
+      return;
+    }
+    setGppSyncNotice({
+      tone: "success",
+      title: "Pendencias sincronizadas",
+      body: `${confirmedCount} registro(s) confirmados pela central e movidos para Enviadas hoje.`,
+    });
+  }, [gppClient, refreshGppLists, repository]);
+
+  useEffect(() => {
+    if (
+      currentRoute.name === "gpp-control" ||
+      currentRoute.name === "gpp-pending" ||
+      currentRoute.name === "gpp-sent-today"
+    ) {
+      void refreshGppLists();
+    }
+  }, [currentRoute.name, refreshGppLists]);
 
   useEffect(() => {
     void refreshLocalPushRegistration(
@@ -859,8 +989,13 @@ export function CaptureApp({
   if (currentRoute.name === "gpp-pending" || currentRoute.name === "gpp-sent-today") {
     return withSessionBar(
       <GppPendingScreen
+        localPending={gppPendingRecords}
+        sentToday={gppSentToday}
         mode={currentRoute.name === "gpp-sent-today" ? "sent" : "pending"}
+        syncNotice={gppSyncNotice}
         onBack={() => replace({ name: "gpp-control" })}
+        onDiscardConflict={discardGppConflict}
+        onSyncPending={() => void syncGppPendingNow()}
       />,
     );
   }
