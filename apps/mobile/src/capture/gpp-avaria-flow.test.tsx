@@ -45,7 +45,7 @@ describe("GppAvariaFlow", () => {
 
     await fill(tree, "Quantidade", "2");
     await press(tree, "Continuar avaria");
-    expect(renderedText(tree)).toContain("Escolha a finalidade e o destino antes de enviar.");
+    expect(renderedText(tree)).toContain("Revisar avaria");
   });
 
   it("shows approved finality options and review before central submission", async () => {
@@ -55,22 +55,30 @@ describe("GppAvariaFlow", () => {
     expect(renderedText(tree)).toContain("Reaproveitamento");
     expect(renderedText(tree)).toContain("Producao interna");
     expect(renderedText(tree)).toContain("Transferencia");
+    expect(renderedText(tree)).toContain("Encaminha para Controle GPP");
 
     await fillValidAvaria(tree);
     await press(tree, "Continuar avaria");
 
     const text = renderedText(tree);
     expect(text).toContain("Enviar avaria para central");
-    expect(text).toContain("Codigo: 789000000001");
-    expect(text).toContain("Produto: Maca FICTICIA");
-    expect(text).toContain("Quantidade: 2 kg");
-    expect(text).toContain("Finalidade: Baixa GPP");
-    expect(text).toContain("Destino: Controle GPP");
+    expect(text).toContain("Codigo");
+    expect(text).toContain("789000000001");
+    expect(text).toContain("Produto");
+    expect(text).toContain("Maca FICTICIA");
+    expect(text).toContain("Quantidade");
+    expect(text).toContain("2 kg");
+    expect(text).toContain("Finalidade");
+    expect(text).toContain("Baixa GPP");
+    expect(text).toContain("Encaminhamento");
+    expect(text).toContain("Controle GPP");
     expect(text).toContain("Sucesso aparece somente depois que o Controle GPP central confirmar");
   });
 
   it("shows central confirmed and replayed success only after client acknowledgement", async () => {
+    const confirmedRepository = createRepository();
     const confirmed = await renderFlow({
+      repository: confirmedRepository,
       client: clientReturning({
         state: "central_success",
         copy: "Confirmado no Controle GPP.",
@@ -85,8 +93,18 @@ describe("GppAvariaFlow", () => {
     await press(confirmed, "Continuar avaria");
     await press(confirmed, "Enviar avaria para central");
     expect(renderedText(confirmed)).toContain("Registrado na central");
+    await expect(confirmedRepository.listGppPending()).resolves.toHaveLength(0);
+    await expect(confirmedRepository.listGppSentToday?.()).resolves.toMatchObject([
+      {
+        id: "req-1",
+        item: "Avaria - Maca FICTICIA - 2 kg",
+        confirmedAt: "2030-01-10T09:00:00.000Z",
+      },
+    ]);
 
+    const replayedRepository = createRepository();
     const replayed = await renderFlow({
+      repository: replayedRepository,
       client: clientReturning({
         state: "central_success",
         copy: "Ja confirmado no Controle GPP.",
@@ -131,6 +149,24 @@ describe("GppAvariaFlow", () => {
     await press(tree, "Enviar avaria para central");
 
     expect(renderedText(tree)).toContain("Pendente neste aparelho");
+    expect(renderedText(tree)).toContain("Voltar para Controle GPP");
+    expect(renderedText(tree)).not.toContain("Voltar sem enviar");
+    await expect(repository.listGppPending()).resolves.toMatchObject([
+      { kind: "avaria", idempotencyKey: "idem-avaria-001" },
+    ]);
+  });
+
+  it("keeps avaria pending locally when GPP client is unavailable", async () => {
+    const repository = createRepository();
+    const tree = await renderFlow({ repository });
+
+    await fillValidAvaria(tree);
+    await press(tree, "Continuar avaria");
+    await press(tree, "Enviar avaria para central");
+
+    expect(renderedText(tree)).toContain("Pendente neste aparelho");
+    expect(renderedText(tree)).toContain("Voltar para Controle GPP");
+    expect(renderedText(tree)).not.toContain("Voltar sem enviar");
     await expect(repository.listGppPending()).resolves.toMatchObject([
       { kind: "avaria", idempotencyKey: "idem-avaria-001" },
     ]);
@@ -200,7 +236,6 @@ async function fillValidAvaria(tree: ReactTestRenderer): Promise<void> {
   await fill(tree, "Quantidade", "2");
   await press(tree, "kg");
   await press(tree, "Baixa GPP");
-  await fill(tree, "Destino", "Controle GPP");
 }
 
 async function fill(tree: ReactTestRenderer, label: string, value: string): Promise<void> {

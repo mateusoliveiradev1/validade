@@ -6,9 +6,9 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat40-sold-out-expiry-alert-apk-170",
+  artifactLabel: "uat41-visual-flow-polish-apk-171",
   appVersion: "0.12.0",
-  build: "170",
+  build: "171",
 } as const;
 
 interface ExpoApplicationPort {
@@ -97,7 +97,7 @@ export function readMobileBuildInfo(
     approvedBuild,
     buildRef: publicLabel(
       extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "sold-out-expiry-alert-170",
+      "visual-flow-polish-171",
       24,
     ),
     buildCompatibility: resolvePilotBuildCompatibility({

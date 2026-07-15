@@ -80,11 +80,14 @@ import type {
 } from "./repository";
 import {
   createGppPendingRecord,
+  gppSentTodayRecordFromPending,
   sortGppPendingRecords,
+  sortGppSentTodayRecords,
   type DiscardGppPendingInput,
   type GppPendingKind,
   type GppPendingPayload,
   type GppPendingRecord,
+  type GppSentTodayRecord,
   type GppPendingState,
   type MarkGppPendingAttemptInput,
   type MarkGppPendingConfirmedInput,
@@ -3092,6 +3095,22 @@ export function createSQLiteCaptureRepository(
     return sortGppPendingRecords(rows.map(mapGppPending));
   }
 
+  async function listGppSentToday(): Promise<readonly GppSentTodayRecord[]> {
+    await initialize();
+    const db = await getDatabase();
+    const today = dependencies.clock().slice(0, 10);
+    const rows = await db.getAllAsync<GppPendingRow>(
+      "SELECT * FROM gpp_pending_records WHERE state = 'central_confirmed' AND confirmed_at IS NOT NULL AND substr(confirmed_at, 1, 10) = ? ORDER BY confirmed_at DESC",
+      today,
+    );
+    return sortGppSentTodayRecords(
+      rows
+        .map(mapGppPending)
+        .map(gppSentTodayRecordFromPending)
+        .filter((record): record is GppSentTodayRecord => record !== undefined),
+    );
+  }
+
   async function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
     await initialize();
     const db = await getDatabase();
@@ -3591,6 +3610,7 @@ export function createSQLiteCaptureRepository(
     resolveSyncConflict,
     saveGppPending,
     listGppPending,
+    listGppSentToday,
     loadGppPending,
     markGppPendingAttempt,
     markGppPendingConfirmed,

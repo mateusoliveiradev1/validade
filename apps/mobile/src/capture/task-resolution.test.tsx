@@ -325,7 +325,7 @@ describe("TaskResolutionPanel", () => {
     const rendered = JSON.stringify(tree.toJSON());
 
     expect(rendered).toContain(
-      "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
+      "Este lote esta vencido. Marque se vendeu/esgotou, retire fisicamente ou registre perda real.",
     );
     expect(resolveTodayTask).not.toHaveBeenCalled();
     expect(rendered).not.toContain("Confirme antes de registrar");
@@ -407,6 +407,27 @@ describe("TaskResolutionPanel", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Equipe do turno");
   });
 
+  it("shows sold-out and label-change choices for store-labeled expiry tasks", async () => {
+    const task = {
+      ...expiredTask(),
+      id: "tarefa-suco-etiqueta-ficticia",
+      activeKey: "lote-suco:expired:repack_or_loss:root",
+      productDisplayName: "Suco FICTICIO",
+      lotIdentity: { identitySource: "printed", value: "SUCO-ONTEM" },
+      requiredResolution: "repack_or_loss",
+    } satisfies TodayTaskRecord;
+
+    const tree = await renderPanel(createRepository(), task);
+    const serialized = JSON.stringify(tree.toJSON());
+
+    expect(serialized).toContain("Etiqueta, venda ou perda");
+    expect(serialized).not.toContain("Reembalar ou avariar");
+    expect(serialized).toContain("Etiqueta ou validade trocada");
+    expect(serialized).toContain("Produto vendeu/esgotou");
+    expect(serialized).toContain("Marcar como nao encontrado");
+    expect(serialized).toContain("Registrar perda");
+  });
+
   it("allows sold-out resolution for an expiring-today withdrawal task", async () => {
     const resolveTodayTask = vi.fn((command: TaskResolutionCommand) =>
       Promise.resolve({ ...expiredTask(), status: "resolved", resolvedAt: command.occurredAt }),
@@ -433,7 +454,7 @@ describe("TaskResolutionPanel", () => {
     }
 
     const soldOut = tree.root.findByProps({
-      accessibilityLabel: "Registrar como provavelmente esgotado",
+      accessibilityLabel: "Produto vendeu/esgotou",
     });
 
     await act(async () => {
@@ -441,7 +462,7 @@ describe("TaskResolutionPanel", () => {
       await Promise.resolve();
     });
 
-    const submit = findEnabledButton(tree, "Confirmar provavelmente esgotado");
+    const submit = findEnabledButton(tree, "Confirmar vendido/esgotado");
 
     await act(async () => {
       submit.props.onPress();
@@ -453,7 +474,7 @@ describe("TaskResolutionPanel", () => {
       "A area de venda continuara bloqueada ate a reconferencia ser concluida.",
     );
 
-    const confirm = findEnabledButton(tree, "Confirmar provavelmente esgotado");
+    const confirm = findEnabledButton(tree, "Confirmar vendido/esgotado");
 
     await act(async () => {
       confirm.props.onPress();

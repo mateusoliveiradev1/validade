@@ -46,13 +46,13 @@ vi.mock("@react-native-community/datetimepicker", () => ({
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: () => Promise.resolve({ status: "denied" }),
   getExpoPushTokenAsync: () => Promise.resolve({ data: "ExpoPushToken-FICTICIO-GPP" }),
-  addNotificationResponseReceivedListener: () => ({ remove: () => undefined }),
 }));
 
 vi.mock("expo-constants", () => ({
   default: {
     expoConfig: { extra: {} },
-    manifest2: { extra: {} },
+    executionEnvironment: "storeClient",
+    platform: { android: {} },
   },
 }));
 
@@ -61,7 +61,7 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
     actor: { subjectId: "usuario-gpp-ficticio", displayName: "Usuario GPP FICTICIO" },
     store: { storeId: "loja-18", storeName: "Loja 18 FICTICIA" },
     activeRole: "gpp",
-    capabilities: ["gpp.queue.read", "gpp.avaria.create"],
+    capabilities: ["gpp.queue.read"],
     sessionExpiresAt: "2030-01-11T12:00:00.000Z",
     accountStatus: "active",
     canRequestRecovery: true,
@@ -69,14 +69,14 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
     featureFlags: { controle_gpp_enabled: true },
     actions: {
       canReadCommandCenter: false,
-      canActOnTask: true,
+      canActOnTask: false,
       canReviewProductDrafts: false,
       canCloseShift: false,
       canReadStoreAudit: false,
       canManageUsers: false,
       canSendPilotPushTest: false,
       canReadGppQueue: true,
-      canCreateGppEntry: true,
+      canCreateGppEntry: false,
       canCorrectOwnPendingGppEntry: false,
       canMarkGppDivergence: false,
       canReviewGppCorrection: false,
@@ -85,6 +85,7 @@ function activeSession(overrides: Partial<SessionContextResponse> = {}): Session
       canReadGppHistory: false,
     },
   };
+
   return {
     ...base,
     ...overrides,
@@ -101,7 +102,10 @@ describe("mobile Controle GPP navigation", () => {
     const missingAction = activeSession({
       actions: { canCreateGppEntry: false, canReadGppQueue: false },
     });
-    const collaborator = activeSession({ activeRole: "collaborator" });
+    const collaborator = activeSession({
+      activeRole: "collaborator",
+      actions: { canCreateGppEntry: true, canReadGppQueue: false, canActOnTask: true },
+    });
 
     expect(canUseControleGppSession(enabled)).toBe(true);
     expect(initialRouteForSession(enabled, "gpp")).toEqual({ name: "gpp-control" });
@@ -110,18 +114,28 @@ describe("mobile Controle GPP navigation", () => {
     expect(initialRouteForSession(collaborator, "collaborator")).toEqual({ name: "today" });
   });
 
-  it("opens GPP users directly into the Controle GPP hub", async () => {
+  it("opens GPP users into a truthful central placeholder without sector actions", async () => {
     const tree = await renderCaptureApp(activeSession());
     const text = renderedText(tree);
 
-    expect(text).toContain("Controle GPP");
-    expect(text).toContain(
-      "Registre avarias e compras internas sem misturar com Hoje. A central confirma o que foi recebido.",
-    );
-    expect(text).toContain("Registrar avaria");
-    expect(text).toContain("Solicitar compra interna");
-    expect(text).toContain("Minhas pendencias");
-    expect(text).toContain("Enviadas hoje");
+    expect(text).toContain("Fila GPP");
+    expect(text).toContain("Fila central em preparacao");
+    expect(text).toContain("Fila recebida");
+    expect(text).toContain("Acoes do GPP");
+    expect(text).toContain("Aguardando integracao da fila central");
+    expect(text).not.toContain("Respondidas hoje");
+    expect(text).not.toContain("envio(s) confirmados");
+    expect(text).not.toContain("Registrar avaria");
+    expect(text).not.toContain("Solicitar compra interna");
+    expect(tree.root.findAllByProps({ accessibilityLabel: "Abrir Controle GPP" })).toHaveLength(0);
+    expect(
+      tree.root.findByProps({ accessibilityLabel: "Abrir Minhas pendencias do Controle GPP" }).props
+        .disabled,
+    ).toBe(true);
+    expect(
+      tree.root.findByProps({ accessibilityLabel: "Abrir Enviadas hoje do Controle GPP" }).props
+        .disabled,
+    ).toBe(true);
   });
 
   it("keeps Hoje free of GPP actions and hides shell entry when disabled", async () => {
@@ -129,6 +143,7 @@ describe("mobile Controle GPP navigation", () => {
       activeSession({
         activeRole: "collaborator",
         featureFlags: { controle_gpp_enabled: false },
+        actions: { canCreateGppEntry: true, canReadGppQueue: false, canActOnTask: true },
       }),
     );
     const text = renderedText(tree);
@@ -138,8 +153,13 @@ describe("mobile Controle GPP navigation", () => {
     expect(tree.root.findAllByProps({ accessibilityLabel: "Abrir Controle GPP" })).toHaveLength(0);
   });
 
-  it("lets eligible non-GPP roles open Controle GPP through a separate entry", async () => {
-    const tree = await renderCaptureApp(activeSession({ activeRole: "lead" }));
+  it("lets eligible sector users open Controle GPP through a separate entry", async () => {
+    const tree = await renderCaptureApp(
+      activeSession({
+        activeRole: "collaborator",
+        actions: { canCreateGppEntry: true, canReadGppQueue: false, canActOnTask: true },
+      }),
+    );
 
     await press(tree, "Abrir Controle GPP");
 
@@ -251,14 +271,15 @@ async function changeText(tree: ReactTestRenderer, label: string, value: string)
 }
 
 async function press(tree: ReactTestRenderer, label: string): Promise<void> {
-  const action = tree.root.findAllByType("Pressable").find((candidate) =>
-    String(candidate.props.accessibilityLabel ?? "")
-      .toLocaleLowerCase("pt-BR")
-      .includes(label.toLocaleLowerCase("pt-BR")),
-  );
-  if (action === undefined || typeof action.props.onPress !== "function") {
-    throw new Error(`Expected an action named ${label}.`);
-  }
+  const action = tree.root
+    .findAllByType("Pressable")
+    .find((candidate) =>
+      String(candidate.props.accessibilityLabel)
+        .toLocaleLowerCase("pt-BR")
+        .includes(label.toLocaleLowerCase("pt-BR")),
+    );
+  if (action === undefined) throw new Error(`Button not found: ${label}`);
+
   await act(async () => {
     await action.props.onPress();
     await Promise.resolve();

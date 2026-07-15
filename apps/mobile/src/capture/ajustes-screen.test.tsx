@@ -742,6 +742,8 @@ describe("AjustesScreen sync controls", () => {
 describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
   it("renders public-safe installed and approved build truth", async () => {
     const { tree } = await renderAjustes({ buildInfo: buildInfo() });
+    await press(tree, "Abrir Sistema");
+
     const text = renderedText(tree);
 
     expect(text).toContain("Atualizacao do app");
@@ -758,6 +760,7 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
       buildInfo: buildInfo({ buildCompatibility: "desatualizado" }),
     });
 
+    await press(tree, "Abrir Sistema");
     await press(tree, "Ver passo de atualizacao");
 
     const rendered = JSON.stringify(tree.toJSON());
@@ -772,6 +775,8 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
       authControls: { openPrivacyCenter, requestLogout },
       session: activeSession(),
     });
+    await press(tree, "Abrir Conta");
+
     const text = renderedText(tree);
 
     expect(text).toContain("Conta e loja");
@@ -780,7 +785,9 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
     expect(text).toContain("loja-ficticia");
     expect(text).toContain("Lideranca");
     expect(text).toContain("Conta ativa");
-    expect(text).toContain("2030-01-11T12:00:00.000Z");
+    expect(text).toContain("11/01/2030");
+    expect(text).toContain("09:00");
+    expect(text).not.toContain("2030-01-11T12:00:00.000Z");
     expect(text).toContain(
       "Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao troca loja manualmente.",
     );
@@ -823,6 +830,7 @@ describe("AjustesScreen account, build, privacy, and sign-out controls", () => {
       syncEngine: { syncPendingCommands },
     });
 
+    await press(tree, "Abrir Conta");
     await press(tree, "Sair da conta");
 
     expect(requestLogout).not.toHaveBeenCalled();

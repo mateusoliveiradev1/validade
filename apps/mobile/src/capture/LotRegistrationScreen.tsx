@@ -178,12 +178,17 @@ export function LotRegistrationScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader title={captureCopy.registerLot} body={productLotFlowCopy.lotRegistrationBody} />
+      <ScreenHeader
+        title={captureCopy.registerLot}
+        body="Registre o lote fisico encontrado agora. Validade, quantidade e local definem a cobranca em Hoje."
+      />
       <View style={styles.productSummary}>
         <Text style={styles.productName}>{product.displayName}</Text>
         <Text style={styles.metadata}>Categoria: {product.categoryId}</Text>
       </View>
-      <StatusNotice title="Politica do lote">{lotPolicySummary(product, policy)}</StatusNotice>
+      <StatusNotice title="Como este lote sera tratado">
+        {lotPolicySummary(product, policy)}
+      </StatusNotice>
       {product.reviewStatus === "pending_review" ? (
         <StatusNotice title={productLotFlowCopy.draftProductTitle} tone="warning">
           {productLotFlowCopy.draftProductBody}
@@ -217,7 +222,7 @@ export function LotRegistrationScreen({
             : undefined
         }
       />
-      <Text style={styles.sectionLabel}>Local inicial</Text>
+      <Text style={styles.sectionLabel}>Onde este lote esta agora?</Text>
       <View style={styles.locationList}>
         {operationalLocations.map((option) => (
           <SelectionRow

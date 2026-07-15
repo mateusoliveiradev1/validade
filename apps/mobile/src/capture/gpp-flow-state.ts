@@ -8,11 +8,12 @@ import type {
 export const GPP_AVARIA_FINALITIES: readonly {
   value: GppAvariaFinality;
   label: string;
+  destination: string;
 }[] = [
-  { value: "baixa_gpp", label: "Baixa GPP" },
-  { value: "reaproveitamento", label: "Reaproveitamento" },
-  { value: "producao_interna", label: "Producao interna" },
-  { value: "transferencia", label: "Transferencia" },
+  { value: "baixa_gpp", label: "Baixa GPP", destination: "Controle GPP" },
+  { value: "reaproveitamento", label: "Reaproveitamento", destination: "Reaproveitamento" },
+  { value: "producao_interna", label: "Producao interna", destination: "Producao interna" },
+  { value: "transferencia", label: "Transferencia", destination: "Transferencia" },
 ] as const;
 
 export const GPP_QUANTITY_UNITS: readonly GppQuantityUnit[] = [
@@ -42,7 +43,7 @@ export type GppAvariaValidationError =
 export const GPP_AVARIA_VALIDATION_COPY: Record<GppAvariaValidationError, string> = {
   missing_product_code: "Informe o codigo do produto para enviar a avaria ao GPP.",
   missing_quantity_unit: "Informe quantidade e unidade antes de continuar.",
-  missing_finality_destination: "Escolha a finalidade e o destino antes de enviar.",
+  missing_finality_destination: "Escolha a finalidade antes de enviar.",
 };
 
 export function validateGppAvariaDraft(
@@ -53,10 +54,16 @@ export function validateGppAvariaDraft(
   if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0 || draft.unit === undefined) {
     return "missing_quantity_unit";
   }
-  if (draft.finality === undefined || draft.destination.trim().length === 0) {
+  if (draft.finality === undefined) {
     return "missing_finality_destination";
   }
   return undefined;
+}
+
+export function gppAvariaDestinationForFinality(finality: GppAvariaFinality): string {
+  return (
+    GPP_AVARIA_FINALITIES.find((option) => option.value === finality)?.destination ?? "Controle GPP"
+  );
 }
 
 export function buildGppAvariaRequest(input: {
@@ -79,7 +86,7 @@ export function buildGppAvariaRequest(input: {
       unit: input.draft.unit ?? "un",
     },
     finality: input.draft.finality ?? "baixa_gpp",
-    destination: input.draft.destination.trim(),
+    destination: gppAvariaDestinationForFinality(input.draft.finality ?? "baixa_gpp"),
     occurredAt: input.occurredAt,
     idempotencyKey: input.idempotencyKey,
   };

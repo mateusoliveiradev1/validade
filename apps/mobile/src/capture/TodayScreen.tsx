@@ -1071,11 +1071,11 @@ const styles = StyleSheet.create({
   },
   safetyHeader: {
     backgroundColor: captureColors.surface,
-    borderColor: captureColors.border,
+    borderColor: captureColors.borderStrong,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
     gap: captureSpacing.large,
-    minHeight: 176,
+    minHeight: 168,
     padding: captureSpacing.large,
   },
   safetyHeaderCritical: {
@@ -1084,15 +1084,15 @@ const styles = StyleSheet.create({
   },
   safetyVerdict: {
     color: captureColors.ink,
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "600",
-    lineHeight: 34,
+    lineHeight: 33,
   },
   heroKicker: {
-    color: captureColors.accent,
-    fontSize: 14,
+    color: captureColors.mutedInk,
+    fontSize: 13,
     fontWeight: "600",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   safetyBody: {
     color: captureColors.mutedInk,
@@ -1105,20 +1105,20 @@ const styles = StyleSheet.create({
     gap: captureSpacing.small,
   },
   heroMetric: {
-    backgroundColor: captureColors.surfaceMuted,
+    backgroundColor: captureColors.surfaceRaised,
     borderColor: captureColors.border,
     borderRadius: captureRadii.small,
     borderWidth: 1,
     flexGrow: 1,
     minWidth: 92,
-    paddingHorizontal: captureSpacing.small,
+    paddingHorizontal: captureSpacing.medium,
     paddingVertical: captureSpacing.small,
   },
   heroMetricValue: {
     color: captureColors.ink,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "600",
-    lineHeight: 25,
+    lineHeight: 28,
   },
   heroMetricLabel: {
     color: captureColors.mutedInk,
@@ -1262,7 +1262,7 @@ const styles = StyleSheet.create({
   },
   taskRowCritical: {
     backgroundColor: captureColors.criticalSurface,
-    borderColor: captureColors.criticalBorder,
+    borderColor: captureColors.critical,
   },
   taskRowWarning: {
     backgroundColor: captureColors.warningSurface,
@@ -1274,6 +1274,7 @@ const styles = StyleSheet.create({
   },
   taskRowPressed: {
     backgroundColor: captureColors.surfacePressed,
+    borderColor: captureColors.borderStrong,
   },
   taskRowCriticalPressed: {
     backgroundColor: captureColors.criticalSurfacePressed,

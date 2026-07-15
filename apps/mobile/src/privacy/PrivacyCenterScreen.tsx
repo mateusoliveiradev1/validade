@@ -236,17 +236,16 @@ const styles = StyleSheet.create({
   },
   heroKicker: {
     color: "#BBF7D0",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0,
     lineHeight: 18,
-    textTransform: "uppercase",
   },
   heroTitle: {
     color: captureColors.onAccent,
     fontSize: 28,
     fontWeight: "700",
-    letterSpacing: -0.8,
+    letterSpacing: 0,
     lineHeight: 33,
   },
   heroBody: {

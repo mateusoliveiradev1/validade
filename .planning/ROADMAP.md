@@ -2,7 +2,7 @@
 
 **Mode:** Vertical MVP
 **Granularity:** Fine
-**Requirements covered:** 28/28
+**Requirements covered:** 29/29
 **Current status:** Phase 16 validation/testing active; v1.2 Controle GPP phases drafted
 
 ## Milestones
@@ -135,7 +135,7 @@ Plans:
 4. Role-aware navigation opens GPP users directly into Controle GPP while collaborators keep Hoje as the daily validation surface.
 5. Online mobile actions show success only after central acknowledgement; offline actions remain explicitly pending on this device.
 
-**Plans:** 5/5 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -144,6 +144,7 @@ Plans:
 - **Wave 3 (blocked on Wave 2 completion):** `18-03-PLAN.md` - Registrar avaria guided flow with required product code, quantity/unit, finality/destination, and central feedback.
 - **Wave 4 (blocked on Wave 2 completion):** `18-04-PLAN.md` - Solicitar compra interna flow, Minhas pendencias, Enviadas hoje, and sector-facing statuses.
 - **Wave 5 (blocked on Waves 3-4 completion):** `18-05-PLAN.md` - GPP retry/conflict review, Today non-regression proof, UAT/testing docs, and release evidence.
+- **Wave 6 (gap closure, blocked on UAT):** `18-06-PLAN.md` - Wire justified local conflict discard through CaptureApp and prove the routed repository refresh.
 
 **Cross-cutting constraints:**
 
@@ -169,15 +170,37 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd-discuss-phase 19 after Phase 18 verification)
+- [ ] TBD (run /gsd-ui-phase 19 after Phase 18 verification)
 
-### Phase 20: Tempo real do Hoje
+### Phase 20: Mobile GPP Central Operacional
 
-**Goal:** Extend the proven store-room realtime layer from Controle GPP to Hoje so active tasks/lots refresh across web/mobile quickly while central snapshots remain the source of truth.
+**Goal:** Turn the GPP mobile account into a real central work queue, so GPP users can receive, inspect, baixar, attend, diverge, justify, and review avarias and internal purchases without seeing sector-only send actions.
 
 **Requirements:** GPP-10
 **Status:** Not started
 **Depends on:** Phase 19
+
+**Success criteria:**
+
+1. GPP mobile opens a real store-scoped `Fila recebida` with avarias, compras internas, divergencias, and history from central truth.
+2. GPP users can baixar avaria, attend or partially attend internal purchase, mark/respond to divergence, and provide mandatory justifications where required.
+3. Queue items show store, sector, product, code/lot when available, quantity/unit, destination/finality, actor, timestamps, status, and central acknowledgement state.
+4. GPP mobile never shows sector-only send actions such as `Registrar avaria` or `Solicitar compra interna`.
+5. Offline, permission, empty, conflict, and central failure states remain explicit; local sector sent receipts are not counted as GPP responses.
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-discuss-phase 20 after Phase 19 verification)
+
+### Phase 21: Tempo real do Hoje
+
+**Goal:** Extend the proven store-room realtime layer from Controle GPP to Hoje so active tasks/lots refresh across web/mobile quickly while central snapshots remain the source of truth.
+
+**Requirements:** GPP-11
+**Status:** Not started
+**Depends on:** Phase 20
 
 **Success criteria:**
 
@@ -191,7 +214,7 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd-discuss-phase 20 after Phase 19 verification)
+- [ ] TBD (run /gsd-discuss-phase 21 after Phase 20 verification)
 
 ## Milestone Outcome
 
@@ -239,4 +262,5 @@ Phase execution directories from v1.0 were cleared from `.planning/phases/` when
 | GPP Web/API Realtime | GPP-01..GPP-07 | Phase 17 | Pending |
 | GPP Mobile | GPP-08 | Phase 18 | Human verification required |
 | GPP + Hoje Integration | GPP-09 | Phase 19 | Pending |
-| Hoje Realtime | GPP-10 | Phase 20 | Pending |
+| Mobile GPP Central | GPP-10 | Phase 20 | Pending |
+| Hoje Realtime | GPP-11 | Phase 21 | Pending |

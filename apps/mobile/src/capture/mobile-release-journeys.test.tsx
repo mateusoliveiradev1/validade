@@ -733,14 +733,19 @@ describe("mobile release journeys", () => {
 
     await press(tree, "Abrir Ajustes do aparelho");
 
+    expectTextInOrder(renderedText(tree), ["Painel do aparelho", "Operacao", "Push e lembretes"]);
+
+    await press(tree, "Abrir Conta");
+
     expectTextInOrder(renderedText(tree), [
       "Conta e loja",
-      "Push e lembretes",
-      "Sincronizacao",
-      "Atualizacao do app",
       "Privacidade",
       "Sair com pendencias visiveis",
     ]);
+
+    await press(tree, "Abrir Sistema");
+
+    expect(renderedText(tree)).toContain("Atualizacao do app");
 
     await press(tree, "Voltar para operacao");
 
@@ -753,6 +758,7 @@ describe("mobile release journeys", () => {
     expect(renderedText(tree)).toContain("Iogurte FICTICIO");
 
     await press(tree, "Abrir Ajustes do aparelho");
+    await press(tree, "Abrir Conta");
 
     expect(renderedText(tree)).toContain("Sair com pendencias visiveis");
 
@@ -1007,14 +1013,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "150",
+            appBuild: "171",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+            approvedArtifactLabel: "uat41-visual-flow-polish-apk-171",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "150",
-            buildRef: "onboarding-shift-e2e-150",
+            approvedBuild: "171",
+            buildRef: "visual-flow-polish-171",
             buildCompatibility: "atual",
           }}
         />,
@@ -1066,14 +1072,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "150",
+            appBuild: "171",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "uat20-onboarding-shift-e2e-apk-150",
+            approvedArtifactLabel: "uat41-visual-flow-polish-apk-171",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "150",
-            buildRef: "onboarding-shift-e2e-150",
+            approvedBuild: "171",
+            buildRef: "visual-flow-polish-171",
             buildCompatibility: "atual",
           }}
         />,

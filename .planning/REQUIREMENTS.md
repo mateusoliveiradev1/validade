@@ -49,7 +49,8 @@
 - [x] **GPP-07**: The web GPP surface can show Avarias, Compras internas, Divergencias, and Historico by store/sector with grouped baixa, detail drilldown, confirmation, and no decorative dashboard noise.
 - [x] **GPP-08**: Mobile can add a separate Controle GPP entry for Registrar avaria and Solicitar compra interna with central-ack feedback and local-pending only during real offline use.
 - [ ] **GPP-09**: Hoje can create GPP-linked avaria por vencimento, reaproveitamento, or producao interna records only after confirming the product left the sales area, while Confirmar esgotado remains separate from baixa GPP.
-- [ ] **GPP-10**: Hoje can use the proven realtime layer for store-scoped task/lot refresh hints without weakening central acknowledgement, conflict handling, or offline-pending truth.
+- [ ] **GPP-10**: Mobile GPP central users can operate a real store-scoped queue for received avarias, internal purchases, divergences, history, baixa, attendance, and justified responses without showing sector-only send actions.
+- [ ] **GPP-11**: Hoje can use the proven realtime layer for store-scoped task/lot refresh hints without weakening central acknowledgement, conflict handling, or offline-pending truth.
 
 ## Future Requirements
 
@@ -107,13 +108,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GPP-08 | Phase 18 | Complete |
 | GPP-09 | Phase 19 | Pending |
 | GPP-10 | Phase 20 | Pending |
+| GPP-11 | Phase 21 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 18 total
-- v1.2 requirements: 10 total
-- Mapped to phases: 28
+- v1.2 requirements: 11 total
+- Mapped to phases: 29
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-29*
-*Last updated: 2026-07-02 after Controle GPP v1.2 phase definition*
+*Last updated: 2026-07-03 after adding explicit Mobile GPP central operational phase*

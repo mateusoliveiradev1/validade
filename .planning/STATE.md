@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 18
-status: human_needed
-stopped_at: Completed 18-05-PLAN.md
-last_updated: "2026-07-03T05:58:44.850Z"
-last_activity: 2026-07-03
+status: Plan 18-06 code gap closed — post-170 native conflict-discard proof pending
+stopped_at: Phase 18 gap code closed; post-170 native conflict-discard proof pending
+last_updated: "2026-07-10T10:39:37.386Z"
+last_activity: 2026-07-10
 progress:
-  total_phases: 8
-  completed_phases: 5
-  total_plans: 32
-  completed_plans: 32
-  percent: 63
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 33
+  completed_plans: 35
+  percent: 67
 ---
 
 # Project State: Validade Zero
@@ -22,7 +22,7 @@ progress:
 **Workflow mode:** yolo
 **Execution:** sequential
 **Project mode:** mvp
-**Last activity:** 2026-07-03
+**Last activity:** 2026-07-10
 
 ## Project Reference
 
@@ -42,7 +42,8 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 | 17 | Planned | Controle GPP Web API com tempo real - 6 plans ready; build 170 untouched |
 | 18 | Pending | Controle GPP Mobile para avaria e compras internas - future v1.2 Phase 2 |
 | 19 | Pending | Integracao do Controle GPP com Hoje - future v1.2 Phase 3 |
-| 20 | Pending | Tempo real do Hoje - future v1.2 Phase 4 |
+| 20 | Pending | Mobile GPP Central Operacional - future v1.2 Phase 4 |
+| 21 | Pending | Tempo real do Hoje - future v1.2 Phase 5 |
 
 ## Active Constraints
 
@@ -95,7 +96,8 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 - Phase 17 added: Controle GPP Web API com tempo real for additive web/API, permissions, audit, idempotency, feature flag, and realtime-after-central-success.
 - Phase 18 added: Controle GPP Mobile para avaria e compras internas for store operator avaria records, internal purchase requests, role-aware entry, and central-ack feedback.
 - Phase 19 added: Integracao do Controle GPP com Hoje for future Hoje actions that create GPP-linked avaria/reaproveitamento/producao records only after product leaves the sales area.
-- Phase 20 added: Tempo real do Hoje to reuse the proven GPP realtime layer as refresh hints without weakening central truth, conflict, or offline-pending semantics.
+- Phase 20 added: Mobile GPP Central Operacional so the GPP mobile account has a real received queue, baixa, attendance, divergence, history, and honest empty/offline states.
+- Phase 21 added: Tempo real do Hoje to reuse the proven GPP realtime layer as refresh hints without weakening central truth, conflict, or offline-pending semantics.
 
 ### Quick Tasks Completed
 
@@ -126,6 +128,7 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 | 260701-f3d | Implementar onboarding guiado no app mobile e publicar build 148 | 2026-07-01 | ffe60e10 | Verified | [260701-f3d-implementar-onboarding-guiado-no-app-mob](./quick/260701-f3d-implementar-onboarding-guiado-no-app-mob/) |
 | 260702-gpl | Corrigir login local para testar Controle GPP web | 2026-07-02 | pending | Verified | [260702-gpl-fix-local-gpp-login](./quick/260702-gpl-fix-local-gpp-login/) |
 | 260702-th2 | Polir Controle GPP web com Impeccable critique audit e polish | 2026-07-03 | pending | Verified | [260702-th2-gpp-web-impeccable-polish](./quick/260702-th2-gpp-web-impeccable-polish/) |
+| 260703-rdt | Polir UI UX visual mobile do app inteiro com Impeccable | 2026-07-03 | local | Verified | [260703-rdt-polir-ui-ux-visual-mobile-do-app-inteiro](./quick/260703-rdt-polir-ui-ux-visual-mobile-do-app-inteiro/) |
 
 ## Performance Metrics
 
@@ -205,12 +208,13 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 | Phase 17 P04 | 28min | 4 tasks | 12 files |
 | Phase 17 P05 | 24min | 5 tasks | 11 files |
 | Phase 17 P06 | 55min | 4 tasks | 20 files |
+| Phase 18 P06 | 10 min | 1 tasks | 3 files |
 
 ## Session
 
-**Last session:** 2026-07-03T05:58:44.844Z
-**Stopped at:** Completed 18-05-PLAN.md
-**Resume file:** None
+**Last session:** 2026-07-10T10:39:37.381Z
+**Stopped at:** Phase 18 gap code closed; post-170 native conflict-discard proof pending
+**Resume file:** .planning/phases/18-controle-gpp-mobile-para-avaria-e-compras-internas/18-HUMAN-UAT.md
 
 ## Decisions
 
@@ -291,14 +295,15 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 ## Current Position
 
 Phase: 18 (controle-gpp-mobile-para-avaria-e-compras-internas) — HUMAN UAT REQUIRED
-Plan: 5 of 5
-Status: Automated gates passed — manual UAT pending
-Last activity: 2026-07-03
+Plan: 6 of 6
+Status: Plan 18-06 code gap closed — post-170 native conflict-discard proof pending
+Last activity: 2026-07-10
 
 ## Operator Next Steps
 
-- Run the pending checks in `18-HUMAN-UAT.md` on Android/provider surfaces.
-- If approved, rerun `$gsd-execute-phase 18` or `$gsd-verify-work 18` to close verification.
+- Produce a deliberate post-170 Android build only when the GPP release is approved, then exercise the justified conflict-discard path.
+- Run `$gsd-verify-work 18` after that native proof to close the remaining human verification item.
+- Keep the unrelated local-memory ESLint helper and Registrar lote copy-test debt with their owning work.
 - Preserve the Phase 18 boundary: mobile Controle GPP is separate from `Hoje`.
 
 ## Deferred Items

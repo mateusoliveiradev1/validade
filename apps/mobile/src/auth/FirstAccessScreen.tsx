@@ -6,6 +6,7 @@ import {
   Field,
   PrimaryAction,
   ScreenHeader,
+  ScreenSection,
   SecondaryAction,
   StatusNotice,
 } from "../capture/capture-ui";
@@ -44,7 +45,7 @@ export function FirstAccessScreen({
           : "Convite invalido ou expirado. Peca um novo convite a lideranca.",
       );
     } catch {
-      setError("Nao foi possivel validar o convite agora. Confira a conexao e tente novamente.");
+      setError("Nao foi possivel validar o convite agora. Confira conexao e tente novamente.");
     } finally {
       setSubmitting(false);
     }
@@ -52,7 +53,7 @@ export function FirstAccessScreen({
 
   async function activate(): Promise<void> {
     if (invite?.status !== "valid") {
-      setError("Valide o convite antes de ativar a conta.");
+      setError("Valide o convite antes de ativar conta.");
       return;
     }
     if (passwordError !== undefined) {
@@ -64,9 +65,9 @@ export function FirstAccessScreen({
       await onActivate({ token: token.trim(), password });
     } catch (reason) {
       setError(
-        reason instanceof MobileAuthError && reason.code === "invalid_invite"
-          ? "Convite invalido ou expirado. Peca um novo convite a lideranca."
-          : "Nao foi possivel ativar a conta agora. Tente novamente.",
+        reason instanceof MobileAuthError && reason.code === "network"
+          ? "Nao foi possivel ativar conta agora. Confira a conexao e tente novamente."
+          : "Nao foi possivel ativar conta agora.",
       );
     } finally {
       setSubmitting(false);
@@ -74,48 +75,58 @@ export function FirstAccessScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader
-        title="Ativar conta da loja piloto"
-        body="Confirme o convite antes de criar sua senha de acesso."
-      />
-      {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
-      <Field
-        label="Codigo do convite"
-        value={token}
-        onChangeText={setToken}
-        placeholder="Cole o codigo recebido"
-        error={error === undefined ? undefined : tokenError}
-        editable={!submitting}
-      />
-      <PrimaryAction
-        label={submitting ? "Validando convite..." : "Validar convite da conta"}
-        onPress={() => void validate()}
-        disabled={submitting}
-      />
-      {invite?.status !== "valid" || invite.invite === undefined ? null : (
-        <View style={styles.inviteSummary}>
-          <Text style={styles.inviteTitle}>Conta vinculada a esta operacao</Text>
-          <Text style={styles.inviteCopy}>
-            {invite.invite.storeName} - {invite.invite.role}
-          </Text>
-          <Field
-            label="Crie sua senha"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Minimo de 10 caracteres"
-            error={error === undefined ? undefined : passwordError}
-            secureTextEntry
-            editable={!submitting}
-          />
-          <PrimaryAction
-            label={submitting ? "Ativando conta..." : "Ativar conta"}
-            onPress={() => void activate()}
-            disabled={submitting}
-          />
-        </View>
-      )}
-      <SecondaryAction label="Voltar para entrar" onPress={onBack} disabled={submitting} />
+    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+      <ScreenSection>
+        <ScreenHeader
+          title="Ativar conta"
+          body="Confirme o convite da lideranca antes de criar sua senha."
+        />
+
+        {error === undefined ? null : <StatusNotice tone="error">{error}</StatusNotice>}
+
+        <Field
+          label="Codigo do convite"
+          value={token}
+          onChangeText={setToken}
+          placeholder="Cole o codigo recebido"
+          error={error === undefined ? undefined : tokenError}
+          editable={!submitting}
+          returnKeyType="go"
+          onSubmitEditing={() => void validate()}
+        />
+        <PrimaryAction
+          label={submitting ? "Validando convite..." : "Validar convite da conta"}
+          onPress={() => void validate()}
+          disabled={submitting}
+        />
+
+        {invite?.status !== "valid" || invite.invite === undefined ? null : (
+          <View style={styles.inviteSummary}>
+            <Text style={styles.inviteTitle}>Conta vinculada a esta operacao</Text>
+            <Text style={styles.inviteCopy}>
+              {invite.invite.storeName} - {invite.invite.role}
+            </Text>
+            <Field
+              label="Crie sua senha"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Minimo de 10 caracteres"
+              error={error === undefined ? undefined : passwordError}
+              secureTextEntry
+              editable={!submitting}
+              returnKeyType="go"
+              onSubmitEditing={() => void activate()}
+            />
+            <PrimaryAction
+              label={submitting ? "Ativando conta..." : "Ativar conta"}
+              onPress={() => void activate()}
+              disabled={submitting}
+            />
+          </View>
+        )}
+
+        <SecondaryAction label="Voltar para entrar" onPress={onBack} disabled={submitting} />
+      </ScreenSection>
     </ScrollView>
   );
 }
@@ -125,11 +136,12 @@ const styles = StyleSheet.create({
     backgroundColor: captureColors.background,
     flexGrow: 1,
     gap: captureSpacing.large,
+    justifyContent: "center",
     padding: captureSpacing.large,
   },
   inviteSummary: {
-    backgroundColor: captureColors.accentSoft,
-    borderColor: captureColors.border,
+    backgroundColor: captureColors.accentSurface,
+    borderColor: captureColors.accent,
     borderRadius: 8,
     borderWidth: 1,
     gap: captureSpacing.medium,
@@ -138,8 +150,8 @@ const styles = StyleSheet.create({
   inviteTitle: {
     color: captureColors.ink,
     fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 24,
+    fontWeight: "700",
+    lineHeight: 22,
   },
   inviteCopy: {
     color: captureColors.mutedInk,

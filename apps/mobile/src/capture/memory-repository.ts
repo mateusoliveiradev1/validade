@@ -141,9 +141,12 @@ import {
 } from "./repository";
 import {
   createGppPendingRecord,
+  gppSentTodayRecordFromPending,
   sortGppPendingRecords,
+  sortGppSentTodayRecords,
   type DiscardGppPendingInput,
   type GppPendingRecord,
+  type GppSentTodayRecord,
   type MarkGppPendingAttemptInput,
   type MarkGppPendingConfirmedInput,
   type MarkGppPendingConflictInput,
@@ -2185,7 +2188,25 @@ export function createMemoryCaptureRepository(
   }
 
   function listGppPending(): Promise<readonly GppPendingRecord[]> {
-    return Promise.resolve(sortGppPendingRecords(gppPendingRecords.values()));
+    return Promise.resolve(
+      sortGppPendingRecords(
+        [...gppPendingRecords.values()].filter(
+          (record) => record.state !== "central_confirmed" && record.state !== "discarded",
+        ),
+      ),
+    );
+  }
+
+  function listGppSentToday(): Promise<readonly GppSentTodayRecord[]> {
+    const today = dependencies.clock().slice(0, 10);
+    return Promise.resolve(
+      sortGppSentTodayRecords(
+        [...gppPendingRecords.values()]
+          .map(gppSentTodayRecordFromPending)
+          .filter((record): record is GppSentTodayRecord => record !== undefined)
+          .filter((record) => record.confirmedAt.slice(0, 10) === today),
+      ),
+    );
   }
 
   function loadGppPending(localId: string): Promise<GppPendingRecord | null> {
@@ -2342,6 +2363,7 @@ export function createMemoryCaptureRepository(
     loadSyncConflict,
     saveGppPending,
     listGppPending,
+    listGppSentToday,
     loadGppPending,
     markGppPendingAttempt,
     markGppPendingConfirmed,

@@ -5,6 +5,7 @@ import {
   Field,
   PrimaryAction,
   ScreenHeader,
+  ScreenSection,
   SecondaryAction,
   StatusNotice,
 } from "../capture/capture-ui";
@@ -39,8 +40,8 @@ export function RecoveryScreen({
     } catch (reason) {
       setFeedback(
         reason instanceof MobileAuthError && reason.code === "network"
-          ? "Nao foi possivel solicitar a recuperacao agora. Confira a conexao e tente novamente."
-          : "Nao foi possivel solicitar a recuperacao agora.",
+          ? "Nao foi possivel solicitar recuperacao agora. Confira a conexao e tente novamente."
+          : "Nao foi possivel solicitar recuperacao agora.",
       );
     } finally {
       setSubmitting(false);
@@ -48,26 +49,32 @@ export function RecoveryScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <ScreenHeader
-        title="Recuperar acesso da conta"
-        body="Informe seu identificador. Esta tela nao confirma se uma conta existe."
-      />
-      {feedback === undefined ? null : <StatusNotice>{feedback}</StatusNotice>}
-      <Field
-        label="E-mail ou identificador do convite"
-        value={identifier}
-        onChangeText={setIdentifier}
-        placeholder="Seu identificador"
-        error={feedback === identifierError ? identifierError : undefined}
-        editable={!submitting}
-      />
-      <PrimaryAction
-        label={submitting ? "Solicitando recuperacao..." : "Solicitar recuperacao da conta"}
-        onPress={() => void request()}
-        disabled={submitting}
-      />
-      <SecondaryAction label="Voltar para entrar" onPress={onBack} disabled={submitting} />
+    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+      <ScreenSection>
+        <ScreenHeader
+          title="Recuperar acesso"
+          body="Informe seu identificador. Esta tela nao confirma se uma conta existe."
+        />
+
+        {feedback === undefined ? null : <StatusNotice>{feedback}</StatusNotice>}
+
+        <Field
+          label="E-mail ou identificador do convite"
+          value={identifier}
+          onChangeText={setIdentifier}
+          placeholder="Seu identificador"
+          error={feedback === identifierError ? identifierError : undefined}
+          editable={!submitting}
+          returnKeyType="go"
+          onSubmitEditing={() => void request()}
+        />
+        <PrimaryAction
+          label={submitting ? "Solicitando recuperacao..." : "Solicitar recuperacao da conta"}
+          onPress={() => void request()}
+          disabled={submitting}
+        />
+        <SecondaryAction label="Voltar para entrar" onPress={onBack} disabled={submitting} />
+      </ScreenSection>
     </ScrollView>
   );
 }

@@ -39,10 +39,6 @@ const STANDARD_RESOLUTION_ACTIONS = [
 ] as const satisfies readonly TaskResolutionAction[];
 
 const RECHECK_ACTIONS = ["complete_recheck"] as const satisfies readonly TaskResolutionAction[];
-const REPACK_OR_LOSS_ACTIONS = [
-  "repack",
-  "record_loss",
-] as const satisfies readonly TaskResolutionAction[];
 const MARKDOWN_STAGE_RESOLUTIONS = [
   "approve_markdown",
   "apply_markdown",
@@ -570,7 +566,7 @@ export function TaskResolutionPanel({
             <SelectionRow
               key={action}
               label={todayCopy.resolutionOptions[action]}
-              detail={actionCompatible ? "Compativel com este risco" : "Nao resolve este risco"}
+              detail={actionCompatible ? actionDetailFor(action) : "Nao resolve este risco"}
               selected={selectedAction === action}
               onPress={() => selectAction(action)}
             />
@@ -737,11 +733,35 @@ function actionsForTask(task: TodayTaskRecord): readonly TaskResolutionAction[] 
     return RECHECK_ACTIONS;
   }
 
-  if (task.requiredResolution === "repack_or_loss") {
-    return REPACK_OR_LOSS_ACTIONS;
+  return STANDARD_RESOLUTION_ACTIONS;
+}
+
+function actionDetailFor(action: TaskResolutionAction): string {
+  if (action === "repack") {
+    return "Use quando a etiqueta foi trocada ou a validade do preparado mudou.";
   }
 
-  return STANDARD_RESOLUTION_ACTIONS;
+  if (action === "mark_probably_sold_out") {
+    return "Use quando o lote vendeu ou esgotou antes da retirada.";
+  }
+
+  if (action === "mark_not_found") {
+    return "Use quando o lote nao foi encontrado no local esperado.";
+  }
+
+  if (action === "record_loss") {
+    return "Use somente quando houve perda ou avaria real.";
+  }
+
+  if (action === "withdraw") {
+    return "Use quando o lote foi retirado fisicamente da area de venda.";
+  }
+
+  if (action === "move_lot") {
+    return "Use quando o lote continua na loja, mas mudou de local.";
+  }
+
+  return "Compativel com este risco.";
 }
 
 function isMarkdownStageTask(task: TodayTaskRecord): task is TodayTaskRecord & {
@@ -879,7 +899,7 @@ function confirmationSummary(
   }
 
   if (action === "repack") {
-    lines.push("Destino: reembalagem com nova identificacao do processado.");
+    lines.push("Destino: etiqueta ou validade nova registrada para este lote.");
   }
 
   return lines.join("\n");
@@ -911,6 +931,10 @@ function consequenceSummary(task: TodayTaskRecord, action: TaskResolutionAction)
 
   if (action === "mark_not_found" || action === "mark_probably_sold_out") {
     return "Consequencia: presenca incerta continua exigindo revisao fisica.";
+  }
+
+  if (action === "repack") {
+    return "Consequencia: registra que a etiqueta ou validade foi trocada, sem marcar perda.";
   }
 
   if (action === "complete_recheck") {

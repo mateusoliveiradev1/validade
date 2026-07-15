@@ -22,6 +22,9 @@ import {
 } from "./membership-repository";
 import { createMaintenanceRepositoryFromQuery } from "./maintenance-repository";
 
+const PREPARE_TURN_SQL_SUBREQUEST_BUDGET = 12;
+const PREPARE_TURN_MAX_REFRESH_LOTS = 150;
+
 describe("database repositories", () => {
   it("runs retention cleanup only against technical auth tables", async () => {
     const captured: Array<{ query: string; values: unknown[] }> = [];
@@ -525,7 +528,20 @@ describe("database repositories", () => {
         }
 
         if (query.includes("from central_lots l") && query.includes("join central_products p")) {
-          return Promise.resolve([centralLotProjectionRow()]);
+          return Promise.resolve([
+            centralLotProjectionRow(),
+            {
+              ...centralLotProjectionRow(),
+              central_lot_id: "lote-seguro",
+              lot_identity: {
+                identitySource: "printed",
+                value: "LOTE-SEGURO-FICTICIO",
+              },
+              lot_identity_key: "printed:lote-seguro-ficticio",
+              risk_state: null,
+              expires_at: "2040-01-10",
+            },
+          ]);
         }
 
         if (query.includes("insert into central_projected_tasks")) {
@@ -555,15 +571,46 @@ describe("database repositories", () => {
         String(query).includes("from central_projected_tasks") &&
         String(query).includes("status = 'active'"),
     );
+    const resolutionBatch = captured.find(([query]) =>
+      String(query).includes("with projected_lots"),
+    );
+    const activeTaskBatch = captured.find(([query]) => String(query).includes("with active_tasks"));
+    const resolutionInputs = JSON.parse(String(resolutionBatch?.[1])) as Array<{
+      central_lot_id: string;
+      active_key: string | null;
+    }>;
+    const activeTaskInputs = JSON.parse(String(activeTaskBatch?.[1])) as Array<{
+      central_lot_id: string;
+    }>;
 
     expect(projectionInsertIndex).toBeGreaterThan(-1);
     expect(taskSelectIndex).toBeGreaterThan(projectionInsertIndex);
+    expect(String(resolutionBatch?.[0])).toContain("projection_cleared");
+    expect(String(resolutionBatch?.[0])).toContain("projection_replaced");
+    expect(resolutionInputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          central_lot_id: "lote-expira-hoje",
+          active_key: expect.any(String),
+        }),
+        expect.objectContaining({ central_lot_id: "lote-seguro", active_key: null }),
+      ]),
+    );
+    expect(activeTaskInputs.map((item) => item.central_lot_id)).toEqual(["lote-expira-hoje"]);
     expect(response.activeTasks).toHaveLength(1);
     expect(response.activeTasks[0]).toMatchObject({
       centralLotId: "lote-expira-hoje",
       riskState: "expired",
       requiredResolution: "withdraw_or_loss",
     });
+  });
+
+  it("keeps SQL prepare-turn within a constant subrequest budget as lots grow", async () => {
+    const positiveLotCounts = [1, 25, PREPARE_TURN_MAX_REFRESH_LOTS];
+    const queryCounts = await Promise.all(positiveLotCounts.map(countPrepareTurnQueries));
+
+    expect.soft(new Set(queryCounts).size).toBe(1);
+    expect(Math.max(...queryCounts)).toBeLessThanOrEqual(PREPARE_TURN_SQL_SUBREQUEST_BUDGET);
   });
 
   it("uses store-scoped SQL and writes sanitized prepare-turn audit rows", async () => {
@@ -585,7 +632,7 @@ describe("database repositories", () => {
       .map(([query]) => String(query))
       .filter((query) => query.trimStart().startsWith("select"));
     expect(selectQueries).toHaveLength(6);
-    expect(selectQueries.every((query) => /where\s+((t|p)\.)?store_id = \$1/.test(query))).toBe(
+    expect(selectQueries.every((query) => /where\s+((t|p|l)\.)?store_id = \$1/.test(query))).toBe(
       true,
     );
     const resolvedHistoryQuery = selectQueries.find(
@@ -1832,6 +1879,51 @@ function prepareTurnInput(storeId: string) {
       },
     },
   };
+}
+
+async function countPrepareTurnQueries(lotCount: number): Promise<number> {
+  const centralLotIds = Array.from(
+    { length: lotCount },
+    (_, index) => `lote-orcamento-${String(index + 1).padStart(3, "0")}`,
+  );
+  let queryCount = 0;
+  const sql = {
+    query(query: string, values?: unknown[]) {
+      queryCount += 1;
+
+      if (
+        query.includes("select central_lot_id") &&
+        query.includes("from central_lots") &&
+        !query.includes("central_product_id")
+      ) {
+        return Promise.resolve(centralLotIds.map((central_lot_id) => ({ central_lot_id })));
+      }
+
+      if (query.includes("from central_lots l") && query.includes("join central_products p")) {
+        const requestedLotId = values?.[1];
+        const selectedLotIds =
+          typeof requestedLotId === "string" ? [requestedLotId] : centralLotIds;
+        return Promise.resolve(
+          selectedLotIds.map((centralLotId) => ({
+            ...centralLotProjectionRow(),
+            central_lot_id: centralLotId,
+            lot_identity: {
+              identitySource: "printed",
+              value: centralLotId.toUpperCase(),
+            },
+            lot_identity_key: `printed:${centralLotId}`,
+          })),
+        );
+      }
+
+      return Promise.resolve([]);
+    },
+  };
+  const repository = createCaptureRepositoryFromQuery(sql as never);
+
+  await repository.prepareTurn(prepareTurnInput("store-1"));
+
+  return queryCount;
 }
 
 function productDraftInput(storeId: string, overrides: Partial<ProductDraftCreateRequest> = {}) {

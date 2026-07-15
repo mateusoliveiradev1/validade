@@ -13,6 +13,7 @@ import {
   type MobileAuthClient,
 } from "./src/auth/AuthGate";
 import { createFetchSyncTransport } from "./src/capture/http-sync-transport";
+import { createFetchGppClient } from "./src/capture/gpp-client";
 import { createNetInfoNetworkStateProvider } from "./src/capture/network-state";
 import { createSyncEngine } from "./src/capture/sync-engine";
 import { readMobileBuildInfo } from "./src/build-info";
@@ -186,6 +187,14 @@ function AuthenticatedCaptureApp({
     [authClient],
   );
   const closeShiftClient = useMemo(() => authClient.closeShift.bind(authClient), [authClient]);
+  const gppClient = useMemo(
+    () =>
+      createFetchGppClient({
+        baseUrl: apiBaseUrl,
+        headers: () => authClient.authHeaders(),
+      }),
+    [apiBaseUrl, authClient],
+  );
   const registerPushDeviceClient = useMemo(
     () =>
       authClient.registerPushDevice === undefined
@@ -206,6 +215,7 @@ function AuthenticatedCaptureApp({
     <CaptureApp
       repository={repository}
       authControls={authControls}
+      gppClient={gppClient}
       session={session}
       activeRole={session.activeRole}
       actorLabel={session.actor.displayName ?? "Pessoa da operacao"}

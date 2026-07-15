@@ -84,6 +84,7 @@ type GateScreen =
   | "ready";
 
 export interface MobileAuthClient {
+  baseUrl?: string | undefined;
   authHeaders(): Record<string, string>;
   readSession(): Promise<SessionContextResponse>;
   login(input: { identifier: string; password: string }): Promise<SessionContextResponse>;
@@ -171,6 +172,7 @@ export function createMobileAuthClient(input?: { baseUrl?: string }): MobileAuth
   }
 
   return {
+    baseUrl,
     authHeaders() {
       return sessionToken === undefined ? {} : { Authorization: `Bearer ${sessionToken}` };
     },
@@ -379,7 +381,7 @@ export function AuthGate({
       setScreen("blocked");
       return;
     }
-    if (!nextSession.actions.canActOnTask) {
+    if (!canAccessMobileOperation(nextSession)) {
       setSession(nextSession);
       setScreen("no_permission");
       return;
@@ -539,6 +541,7 @@ export function AuthGate({
   return (
     <LoginScreen
       {...(error === undefined ? {} : { error })}
+      {...localTestHintFor(authClient.baseUrl ?? configuredApiBaseUrl())}
       onFirstAccess={() => setScreen("first_access")}
       onLogin={login}
       onOpenPrivacy={() => {
@@ -566,6 +569,25 @@ function SessionLoadingScreen() {
       </StatusNotice>
     </ScrollView>
   );
+}
+
+function canAccessMobileOperation(session: SessionContextResponse): boolean {
+  if (session.actions.canActOnTask) return true;
+  return (
+    session.activeRole === "gpp" &&
+    session.featureFlags?.controle_gpp_enabled === true &&
+    (session.actions.canCreateGppEntry === true || session.actions.canReadGppQueue === true)
+  );
+}
+
+function localTestHintFor(baseUrl: string): { localTestHint?: string | undefined } {
+  if (!baseUrl.includes("10.0.2.2:8790") && !baseUrl.includes("127.0.0.1:8790")) {
+    return {};
+  }
+  return {
+    localTestHint:
+      "Setor: setor@example.invalid. GPP: gpp@example.invalid. Senha: senha-piloto-forte-123.",
+  };
 }
 
 function GateMessage({

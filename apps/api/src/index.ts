@@ -1967,8 +1967,14 @@ export function createApiApp(input?: {
           canManageUsers: userManagementDecision.allowed,
           canSendPilotPushTest: pushTestDecision.allowed,
           canReadGppQueue: controleGppEnabled && gppQueueReadDecision.allowed,
-          canCreateGppEntry: controleGppEnabled && gppCreateDecision.allowed,
-          canCorrectOwnPendingGppEntry: controleGppEnabled && gppCorrectOwnPendingDecision.allowed,
+          canCreateGppEntry:
+            controleGppEnabled &&
+            sessionContext.activeRole === "collaborator" &&
+            gppCreateDecision.allowed,
+          canCorrectOwnPendingGppEntry:
+            controleGppEnabled &&
+            sessionContext.activeRole === "collaborator" &&
+            gppCorrectOwnPendingDecision.allowed,
           canMarkGppDivergence: controleGppEnabled && gppDivergenceDecision.allowed,
           canReviewGppCorrection: controleGppEnabled && gppCorrectionReviewDecision.allowed,
           canBaixarGppAvaria: controleGppEnabled && gppBaixaDecision.allowed,
@@ -2279,7 +2285,10 @@ function actionsForRoles(
     canManageUsers: rolesAllowCapability(roles, "user.manage"),
     canSendPilotPushTest: rolesAllowCapability(roles, "pilot.push_test.send"),
     canReadGppQueue: controleGppEnabled && rolesAllowCapability(roles, "gpp.queue.read"),
-    canCreateGppEntry: controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.create"),
+    canCreateGppEntry:
+      controleGppEnabled &&
+      roles.includes("collaborator") &&
+      rolesAllowCapability(roles, "gpp.avaria.create"),
     canCorrectOwnPendingGppEntry:
       controleGppEnabled && rolesAllowCapability(roles, "gpp.avaria.correct_own_pending"),
     canMarkGppDivergence: controleGppEnabled && rolesAllowCapability(roles, "gpp.divergence.mark"),

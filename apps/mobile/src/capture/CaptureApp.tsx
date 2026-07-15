@@ -216,6 +216,7 @@ export function CaptureApp({
   );
   const currentRoute = routeStack[routeStack.length - 1] ?? { name: "today" };
   const canUseControleGpp = canUseControleGppSession(session);
+  const isCentralGpp = (session?.activeRole ?? activeRole) === "gpp";
   const shiftCloseDeviceAuthorization = shiftCloseDeviceAuthorizationFor({
     activeRole,
     session,
@@ -924,6 +925,7 @@ export function CaptureApp({
     return (
       <View style={styles.appShell}>
         <CaptureSessionBar
+          activeRouteName={currentRoute.name}
           actorLabel={session?.actor.displayName ?? actorLabel}
           canUseControleGpp={canUseControleGpp}
           onOpenControleGpp={() => navigate({ name: "gpp-control" })}
@@ -962,6 +964,10 @@ export function CaptureApp({
   if (currentRoute.name === "gpp-control") {
     return withSessionBar(
       <ControleGppScreen
+        mode={isCentralGpp ? "central" : "sector"}
+        pendingCount={gppPendingRecords.length}
+        sentTodayCount={gppSentToday.length}
+        lastCentralAckAt={gppSentToday[0]?.confirmedAt}
         onBack={resetToToday}
         onRegisterAvaria={() => navigate({ name: "gpp-avaria" })}
         onRequestPurchase={() => navigate({ name: "gpp-purchase" })}
@@ -974,6 +980,7 @@ export function CaptureApp({
   if (currentRoute.name === "gpp-avaria") {
     return withSessionBar(
       <GppAvariaFlow
+        client={gppClient}
         repository={repository}
         storeId={session?.store.storeId ?? storeId}
         onBack={() => replace({ name: "gpp-control" })}
@@ -984,6 +991,7 @@ export function CaptureApp({
   if (currentRoute.name === "gpp-purchase") {
     return withSessionBar(
       <GppPurchaseFlow
+        client={gppClient}
         repository={repository}
         storeId={session?.store.storeId ?? storeId}
         onBack={() => replace({ name: "gpp-control" })}
@@ -992,6 +1000,12 @@ export function CaptureApp({
   }
 
   if (currentRoute.name === "gpp-pending" || currentRoute.name === "gpp-sent-today") {
+    if (isCentralGpp) {
+      return withSessionBar(
+        <GppCentralUnavailableScreen onBack={() => replace({ name: "gpp-control" })} />,
+      );
+    }
+
     return withSessionBar(
       <GppPendingScreen
         localPending={gppPendingRecords}
@@ -1289,7 +1303,25 @@ export function CaptureApp({
   );
 }
 
+function GppCentralUnavailableScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <ScreenHeader
+        title="Fila central em preparacao"
+        body="Esta conta GPP ainda nao tem a tela completa de atendimento neste aparelho."
+      />
+      <StatusNotice title="Nada para atender aqui por enquanto" tone="info">
+        Envios confirmados pelo setor continuam aparecendo em Enviadas hoje no aparelho do setor. A
+        baixa de avaria, atendimento de compra e resposta de divergencia entram na proxima tela
+        central.
+      </StatusNotice>
+      <SecondaryAction label="Voltar para Fila GPP" onPress={onBack} />
+    </ScrollView>
+  );
+}
+
 function CaptureSessionBar({
+  activeRouteName,
   actorLabel,
   canUseControleGpp,
   onOpenControleGpp,
@@ -1297,6 +1329,7 @@ function CaptureSessionBar({
   storeName,
   onOpenSettings,
 }: {
+  activeRouteName: CaptureRoute["name"];
   actorLabel: string;
   canUseControleGpp: boolean;
   onOpenControleGpp: () => void;
@@ -1304,48 +1337,99 @@ function CaptureSessionBar({
   storeName: string;
   onOpenSettings: () => void;
 }) {
+  const isGppRoute = isControleGppRoute(activeRouteName);
+  const isSettingsRoute = activeRouteName === "settings";
+  const areaLabel = sessionAreaLabel(activeRouteName, role);
+
+  const sessionSubtitle = `${roleLabel(role)}: ${actorLabel}`;
+
   return (
     <View style={styles.sessionBar}>
-      <View style={styles.sessionIdentity}>
-        <Text style={styles.sessionKicker}>Sessao ativa</Text>
-        <Text style={styles.sessionStore}>{storeName}</Text>
-        <Text style={styles.sessionLabel}>
-          {actorLabel} - {roleLabel(role)}
-        </Text>
+      <View style={styles.sessionTopRow}>
+        <View style={styles.sessionIdentity}>
+          <Text numberOfLines={1} style={styles.sessionStore}>
+            {storeName}
+          </Text>
+          <View style={styles.sessionMetaRow}>
+            <Text numberOfLines={1} style={styles.sessionArea}>
+              {areaLabel}
+            </Text>
+            <View style={styles.sessionMetaDivider} />
+            <Text numberOfLines={1} style={styles.sessionLabel}>
+              {sessionSubtitle}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.sessionActions}>
+          {canUseControleGpp && !isGppRoute ? (
+            <Pressable
+              accessibilityLabel="Abrir Controle GPP"
+              accessibilityRole="button"
+              hitSlop={4}
+              onPress={onOpenControleGpp}
+              style={({ pressed }) => [
+                styles.sessionSecondaryAction,
+                pressed ? styles.sessionActionPressed : null,
+              ]}
+            >
+              <Text style={styles.sessionSecondaryActionLabel}>GPP</Text>
+            </Pressable>
+          ) : null}
+
+          {isSettingsRoute ? null : (
+            <Pressable
+              accessibilityLabel="Abrir Ajustes do aparelho"
+              accessibilityRole="button"
+              hitSlop={4}
+              onPress={onOpenSettings}
+              style={({ pressed }) => [
+                styles.sessionIconAction,
+                pressed ? styles.sessionActionPressed : null,
+              ]}
+            >
+              <Text
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+                style={styles.sessionIconActionLabel}
+              >
+                ⚙
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
-      {canUseControleGpp ? (
-        <Pressable
-          accessibilityLabel="Abrir Controle GPP"
-          accessibilityRole="button"
-          onPress={onOpenControleGpp}
-          style={({ pressed }) => [
-            styles.settingsAction,
-            pressed ? styles.settingsActionPressed : null,
-          ]}
-        >
-          <Text style={styles.settingsActionLabel}>Controle GPP</Text>
-        </Pressable>
-      ) : null}
-      <Pressable
-        accessibilityLabel="Abrir Ajustes do aparelho"
-        accessibilityRole="button"
-        onPress={onOpenSettings}
-        style={({ pressed }) => [
-          styles.settingsAction,
-          pressed ? styles.settingsActionPressed : null,
-        ]}
-      >
-        <Text style={styles.settingsActionLabel}>Ajustes</Text>
-      </Pressable>
     </View>
   );
+}
+
+function isControleGppRoute(routeName: CaptureRoute["name"]): boolean {
+  return (
+    routeName === "gpp-control" ||
+    routeName === "gpp-avaria" ||
+    routeName === "gpp-purchase" ||
+    routeName === "gpp-pending" ||
+    routeName === "gpp-sent-today"
+  );
+}
+
+function sessionAreaLabel(routeName: CaptureRoute["name"], role: MobileActiveRole): string {
+  if (routeName === "gpp-control") return role === "gpp" ? "Fila GPP" : "Controle GPP";
+  if (routeName === "gpp-avaria") return "Avaria GPP";
+  if (routeName === "gpp-purchase") return "Compra interna";
+  if (routeName === "gpp-pending") return "Pendencias GPP";
+  if (routeName === "gpp-sent-today") return "Enviadas GPP";
+  if (routeName === "settings") return "Ajustes";
+  if (routeName === "today") return "Turno";
+  if (routeName === "shift-close") return "Fechamento";
+  return "Turno";
 }
 
 function roleLabel(role: MobileActiveRole): string {
   if (role === "gpp") return "GPP";
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
-  return "Operacao";
+  return "Setor";
 }
 
 function FirstTurnOnboardingLoadingScreen() {
@@ -1893,12 +1977,22 @@ function prepareTurnDetailFor(
   const lastRead =
     cache.lastCentralReadAt === undefined
       ? "sem leitura central confirmada"
-      : cache.lastCentralReadAt;
+      : formatOperationalTimestamp(cache.lastCentralReadAt);
   if (state === "cache_only") {
     return `Ultima leitura local: ${lastRead}. Entrar com leitura local nao e leitura central segura. Nao declare area segura.`;
   }
 
   return `Ultima leitura central: ${lastRead}. Estado do cache: ${cache.state}.`;
+}
+
+function formatOperationalTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
 }
 
 const styles = StyleSheet.create({
@@ -1910,55 +2004,96 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sessionBar: {
-    alignItems: "flex-start",
     backgroundColor: captureColors.surface,
     borderBottomColor: captureColors.border,
     borderBottomWidth: 1,
-    gap: captureSpacing.medium,
     paddingHorizontal: captureSpacing.large,
     paddingVertical: captureSpacing.small,
   },
-  sessionIdentity: {
-    gap: 2,
-    width: "100%",
+  sessionTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: captureSpacing.small,
+    minHeight: 52,
   },
-  sessionKicker: {
-    color: captureColors.accent,
+  sessionIdentity: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  sessionActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    gap: captureSpacing.xsmall,
+  },
+  sessionMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 6,
+    minWidth: 0,
+  },
+  sessionArea: {
+    color: captureColors.ink,
+    flexShrink: 0,
     fontSize: 12,
     fontWeight: "600",
     lineHeight: 16,
+  },
+  sessionMetaDivider: {
+    backgroundColor: captureColors.borderStrong,
+    borderRadius: 2,
+    height: 3,
+    width: 3,
   },
   sessionStore: {
     color: captureColors.ink,
     fontSize: 16,
     fontWeight: "600",
-    lineHeight: 22,
+    lineHeight: 21,
   },
   sessionLabel: {
     color: captureColors.mutedInk,
-    fontSize: 14,
-    lineHeight: 20,
+    flexShrink: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  settingsAction: {
+  sessionIconAction: {
     alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: captureColors.surfaceMuted,
-    borderColor: captureColors.border,
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.borderStrong,
     borderRadius: captureRadii.small,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 48,
-    paddingHorizontal: captureSpacing.large,
-    paddingVertical: captureSpacing.small,
+    minHeight: 40,
+    minWidth: 40,
   },
-  settingsActionPressed: {
+  sessionSecondaryAction: {
+    alignItems: "center",
+    backgroundColor: captureColors.accentSurface,
+    borderColor: captureColors.accent,
+    borderRadius: captureRadii.small,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    minWidth: 48,
+    paddingHorizontal: captureSpacing.small,
+  },
+  sessionActionPressed: {
     backgroundColor: captureColors.surfacePressed,
   },
-  settingsActionLabel: {
+  sessionIconActionLabel: {
     color: captureColors.ink,
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: "600",
-    lineHeight: 24,
+    lineHeight: 22,
+  },
+  sessionSecondaryActionLabel: {
+    color: captureColors.accent,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   screen: {
     backgroundColor: captureColors.background,

@@ -43,6 +43,7 @@ interface ExpoNotificationsPort {
 
 interface ExpoConstantsPort {
   default: {
+    appOwnership?: string;
     easConfig?: { projectId?: string } | null;
     expoConfig?: {
       extra?: {
@@ -454,6 +455,15 @@ function runtimeModuleFailureReason(error: unknown): string {
 
 function loadExpoNotificationsModule(): Promise<ExpoNotificationsPort> {
   try {
+    const expoConstants = require("expo-constants") as ExpoConstantsPort;
+    if (expoConstants.default.appOwnership === "expo") {
+      return Promise.reject(
+        new Error(
+          "Expo Go does not support remote push notifications in this SDK. Use a development build for push.",
+        ),
+      );
+    }
+
     const expoModulesCore = require("expo-modules-core") as ExpoModulesCorePort;
 
     if (expoModulesCore.requireOptionalNativeModule("ExpoPushTokenManager") === null) {

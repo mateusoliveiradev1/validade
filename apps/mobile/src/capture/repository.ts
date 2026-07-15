@@ -102,6 +102,7 @@ import {
 import type {
   DiscardGppPendingInput,
   GppPendingRecord,
+  GppSentTodayRecord,
   MarkGppPendingAttemptInput,
   MarkGppPendingConfirmedInput,
   MarkGppPendingConflictInput,
@@ -566,6 +567,7 @@ export interface CaptureRepository {
   loadSyncConflict(conflictId: string): Promise<SyncConflictRecord | null>;
   saveGppPending(input: SaveGppPendingInput): Promise<GppPendingRecord>;
   listGppPending(): Promise<readonly GppPendingRecord[]>;
+  listGppSentToday?: () => Promise<readonly GppSentTodayRecord[]>;
   loadGppPending(localId: string): Promise<GppPendingRecord | null>;
   markGppPendingAttempt(input: MarkGppPendingAttemptInput): Promise<GppPendingRecord>;
   markGppPendingConfirmed(input: MarkGppPendingConfirmedInput): Promise<GppPendingRecord>;

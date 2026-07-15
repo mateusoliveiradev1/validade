@@ -570,5 +570,39 @@ describe("mobile auth flow", () => {
     expect(JSON.stringify(noPermissionTree.toJSON())).toContain(
       "Voce nao tem permissao para esta area nesta loja.",
     );
+
+    const gppTree = await renderGate(
+      client({
+        readSession: () =>
+          Promise.resolve(
+            activeSession({
+              activeRole: "gpp",
+              capabilities: ["gpp.queue.read"],
+              featureFlags: { controle_gpp_enabled: true },
+              actions: {
+                canReadCommandCenter: false,
+                canActOnTask: false,
+                canReviewProductDrafts: false,
+                canCloseShift: false,
+                canReadStoreAudit: false,
+                canManageUsers: false,
+                canSendPilotPushTest: false,
+                canReadGppQueue: true,
+                canCreateGppEntry: false,
+                canCorrectOwnPendingGppEntry: false,
+                canMarkGppDivergence: true,
+                canReviewGppCorrection: true,
+                canBaixarGppAvaria: true,
+                canAttendGppPurchase: true,
+                canReadGppHistory: true,
+              },
+            }),
+          ),
+      }),
+    );
+    expect(JSON.stringify(gppTree.toJSON())).toContain("Hoje autenticado");
+    expect(JSON.stringify(gppTree.toJSON())).not.toContain(
+      "Voce nao tem permissao para esta area nesta loja.",
+    );
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AlertChannelState } from "@validade-zero/domain";
 import type {
   DevicePushRegistrationCommand,
@@ -24,6 +24,7 @@ import {
   DestructiveAction,
   PrimaryAction,
   ScreenHeader,
+  ScreenSection,
   SecondaryAction,
   StatusNotice,
 } from "./capture-ui";
@@ -36,6 +37,8 @@ type PushDeviceIdentity = Pick<
   DevicePushRegistrationCommand,
   "deviceId" | "deviceLabel" | "audienceRole"
 >;
+
+type AjustesPanel = "operacao" | "conta" | "sistema";
 
 const defaultPushDeviceIdentity: PushDeviceIdentity = {
   deviceId: "validade-zero-mobile:local",
@@ -88,6 +91,7 @@ export function AjustesScreen({
   const [isSyncing, setIsSyncing] = useState(false);
   const [showUpdateStep, setShowUpdateStep] = useState(false);
   const [showSignOutConfirmation, setShowSignOutConfirmation] = useState(false);
+  const [activePanel, setActivePanel] = useState<AjustesPanel>("operacao");
   const readiness = pushReadinessFor({ channelState: pushState, storedPermissionStatus });
   const syncReadiness = syncReadinessFor({
     prepareTurnCacheStatus,
@@ -103,6 +107,20 @@ export function AjustesScreen({
     syncReadiness.pendingCount > 0 || syncReadiness.conflictCount > 0
       ? "Sincronizar pendencias"
       : "Conferir fila local";
+  const deviceReadiness = worstReadiness(readiness.verdict, syncReadiness.verdict);
+  const readinessNoticeTone = statusNoticeToneFor(deviceReadiness);
+  const readinessTitle =
+    deviceReadiness === "Apto"
+      ? "Pronto para operar"
+      : deviceReadiness === "Bloqueado"
+        ? "Acao necessaria"
+        : "Revisar antes de fechar";
+  const readinessNoticeBody =
+    deviceReadiness === "Apto"
+      ? "Este aparelho esta pronto para seguir a operacao. Alertas ajudam, mas Hoje continua sendo a fila de trabalho."
+      : deviceReadiness === "Bloqueado"
+        ? "Ha bloqueio operacional que precisa de acao antes de declarar area segura."
+        : "Ha um ponto que precisa de revisao, mas as tarefas continuam visiveis em Hoje.";
 
   async function refreshPushState(): Promise<void> {
     const [registration, permission] = await Promise.all([
@@ -351,205 +369,293 @@ export function AjustesScreen({
     <ScrollView contentContainerStyle={styles.screen}>
       <ScreenHeader
         title="Ajustes"
-        body="Confira se este aparelho, a conta e a sincronizacao estao prontos antes de voltar para a operacao."
+        body="Controle este aparelho sem misturar com a fila de Hoje."
       />
 
-      <View style={styles.identityCard}>
-        <Text style={styles.cardTitle}>Conta e loja</Text>
-        <Text style={styles.body}>
-          {session?.actor.displayName ?? "Pessoa da operacao"} -{" "}
-          {session?.store.storeName ?? "Loja local"}
-        </Text>
-        <View style={styles.metricGrid}>
-          <ReadinessRow label="Loja" value={session?.store.storeName ?? "Loja local"} />
-          <ReadinessRow label="ID da loja" value={session?.store.storeId ?? "local-device"} />
-          <ReadinessRow label="Papel" value={roleLabel(session?.activeRole)} />
-          <ReadinessRow label="Conta" value={accountStatusLabel(session?.accountStatus)} />
-          <ReadinessRow label="Sessao expira" value={session?.sessionExpiresAt ?? "Sessao local"} />
+      <ScreenSection
+        title="Painel do aparelho"
+        body="Veja o estado do turno e escolha o que precisa ajustar."
+      >
+        <View style={styles.readinessHero}>
+          <View style={styles.readinessHeroCopy}>
+            <Text style={styles.readinessEyebrow}>Status agora</Text>
+            <Text style={styles.readinessTitle}>{readinessTitle}</Text>
+          </View>
+          <ReadinessBadge status={deviceReadiness} />
         </View>
-        <Text style={styles.metadata}>
-          Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao troca
-          loja manualmente.
-        </Text>
-      </View>
+        <View style={styles.overviewGrid}>
+          <CompactMetric
+            value={syncReadiness.pendingCount}
+            label="pendencias locais"
+            tone={syncReadiness.pendingCount > 0 ? "warning" : "success"}
+          />
+          <CompactMetric
+            value={syncReadiness.conflictCount}
+            label="conflitos"
+            tone={syncReadiness.conflictCount > 0 ? "critical" : "success"}
+          />
+        </View>
+      </ScreenSection>
 
-      <StatusNotice title="Este aparelho esta pronto para operar?" tone="warning">
-        Ha um ponto que precisa de revisao, mas as tarefas continuam visiveis em Hoje.
-      </StatusNotice>
-
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{ajustesPushCopy.title}</Text>
-          <ReadinessBadge status={readiness.verdict} />
-        </View>
-        <Text style={styles.body}>{ajustesPushCopy.safeBody}</Text>
-        <Text style={styles.body}>{readiness.body}</Text>
-        {pushFeedback === undefined ? null : <StatusNotice>{pushFeedback}</StatusNotice>}
-        <View style={styles.actionStack}>
-          <PrimaryAction
-            disabled={isUpdatingPush || alertChannel === undefined}
-            label={
-              readiness.primaryActionLabel === ajustesPushCopy.activate
-                ? ajustesPushCopy.activate
-                : readiness.primaryActionLabel
-            }
-            onPress={() => {
-              if (readiness.primaryActionLabel === ajustesPushCopy.activate) {
-                void activateAlerts();
-                return;
-              }
-              if (readiness.primaryActionLabel === ajustesPushCopy.testThisDevice) {
-                void sendThisDeviceTest();
-                return;
-              }
-              void activateAlerts();
-            }}
-          />
-          {readiness.secondaryActionLabel === undefined ? null : (
-            <SecondaryAction
-              disabled={isUpdatingPush}
-              label={readiness.secondaryActionLabel}
-              onPress={() => void disableAlerts()}
-            />
-          )}
-        </View>
-      </View>
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{ajustesSyncCopy.title}</Text>
-          <ReadinessBadge status={syncReadiness.verdict} />
-        </View>
-        <Text style={styles.body}>{syncReadiness.body}</Text>
-        <View style={styles.metricGrid}>
-          <ReadinessRow
-            label={ajustesSyncCopy.centralReadLabel}
-            value={syncReadiness.lastCentralReadValue}
-          />
-          <ReadinessRow
-            label={ajustesSyncCopy.syncSendLabel}
-            value={syncReadiness.lastSyncSendValue}
-          />
-          <ReadinessRow label="Pendencias neste aparelho" value={`${syncReadiness.pendingCount}`} />
-          <ReadinessRow label="Conflitos" value={`${syncReadiness.conflictCount}`} />
-        </View>
-        <Text style={styles.metadata}>
-          {syncReadiness.safeCloseBlocked
-            ? ajustesSyncCopy.blockedSafeClose
-            : ajustesSyncCopy.clearSafeClose}
-        </Text>
-        {syncFeedback === undefined ? null : <StatusNotice>{syncFeedback}</StatusNotice>}
-        <View style={styles.actionStack}>
-          {syncReadiness.centralRefreshRequired && onRequestCentralRefresh !== undefined ? (
-            <PrimaryAction
-              label={ajustesSyncCopy.refreshCentralRead}
-              onPress={onRequestCentralRefresh}
-            />
-          ) : (
-            <PrimaryAction
-              disabled={
-                isSyncing ||
-                (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
-              }
-              label={isSyncing ? "Conferindo fila local" : syncActionLabel}
-              onPress={() => void manualSync()}
-            />
-          )}
-          {firstConflictId === undefined ? null : (
-            <SecondaryAction
-              label="Revisar conflito"
-              onPress={() => void reviewConflict(firstConflictId)}
-            />
-          )}
-        </View>
-      </View>
-      {selectedConflict === undefined ? null : (
-        <SyncConflictPanel
-          conflict={selectedConflict}
-          onClose={() => setSelectedConflict(undefined)}
-          onResolve={(input) => void resolveConflict(input)}
+      <View style={styles.panelTabs}>
+        <PanelTab
+          label="Operacao"
+          selected={activePanel === "operacao"}
+          onPress={() => setActivePanel("operacao")}
         />
-      )}
-      <SyncQueueSummary
-        disabled={
-          isSyncing || (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
-        }
-        queue={syncQueue}
-        showRetryAction={false}
-        title="Fila local neste aparelho"
-        onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
-      />
-      <BuildUpdateCard
-        buildInfo={buildInfo}
-        showUpdateStep={showUpdateStep}
-        onToggleUpdateStep={() => setShowUpdateStep((current) => !current)}
-      />
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Privacidade</Text>
-          <ReadinessBadge status="Apto" />
-        </View>
-        <Text style={styles.body}>
-          O app usa dados de conta, loja, papel, acoes operacionais, evidencias, sync, permissoes do
-          aparelho, build instalado e auditoria para manter riscos visiveis e responder direitos.
-        </Text>
-        <SecondaryAction
-          disabled={authControls === undefined}
-          label="Abrir Centro de Privacidade"
-          onPress={() => authControls?.openPrivacyCenter()}
+        <PanelTab
+          label="Conta"
+          selected={activePanel === "conta"}
+          onPress={() => setActivePanel("conta")}
+        />
+        <PanelTab
+          label="Sistema"
+          selected={activePanel === "sistema"}
+          onPress={() => setActivePanel("sistema")}
         />
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Primeiros passos</Text>
-          <ReadinessBadge status="Apto" />
-        </View>
-        <Text style={styles.body}>
-          Reabra o primeiro turno assistido para treinar a equipe ou revisar o caminho de lote, Hoje
-          e fechamento seguro.
-        </Text>
-        <SecondaryAction
-          disabled={onOpenOnboarding === undefined}
-          label="Rever primeiros passos"
-          onPress={() => onOpenOnboarding?.()}
-        />
-      </View>
-
-      <View style={[styles.card, styles.signOutCard]}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Sair com pendencias visiveis</Text>
-          <ReadinessBadge status={syncReadiness.pendingCount > 0 ? "Atencao" : "Apto"} />
-        </View>
-        <Text style={styles.body}>
-          Sair nao sincroniza, nao resolve tarefas e nao limpa conflitos deste aparelho.
-        </Text>
-        <Text style={styles.metadata}>
-          Pendencias: {syncReadiness.pendingCount}. Conflitos: {syncReadiness.conflictCount}.
-        </Text>
-        {showSignOutConfirmation ? (
-          <View style={styles.confirmationPanel}>
-            <StatusNotice tone="warning">
-              Sair encerra a sessao neste aparelho. Pendencias locais ou conflitos continuam
-              pendentes e nenhuma tarefa sera resolvida.
-            </StatusNotice>
-            <SecondaryAction
-              label="Continuar nos Ajustes"
-              onPress={() => setShowSignOutConfirmation(false)}
-            />
-            <DestructiveAction
-              disabled={authControls === undefined}
-              label="Confirmar saida da conta"
-              onPress={() => authControls?.requestLogout()}
+      {activePanel === "conta" ? (
+        <View style={styles.identityCard}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderCopy}>
+              <Text style={styles.cardTitle}>Conta e loja</Text>
+              <Text style={styles.metadata}>
+                {session?.actor.displayName ?? "Pessoa da operacao"} -{" "}
+                {session?.store.storeName ?? "Loja local"}
+              </Text>
+            </View>
+            <ReadinessBadge status="Apto" />
+          </View>
+          <View style={styles.metricGrid}>
+            <ReadinessRow label="Loja" value={session?.store.storeName ?? "Loja local"} />
+            <ReadinessRow label="ID da loja" value={session?.store.storeId ?? "local-device"} />
+            <ReadinessRow label="Papel" value={roleLabel(session?.activeRole)} />
+            <ReadinessRow label="Conta" value={accountStatusLabel(session?.accountStatus)} />
+            <ReadinessRow
+              label="Sessao expira"
+              value={formatSessionExpiresAt(session?.sessionExpiresAt)}
             />
           </View>
-        ) : (
-          <DestructiveAction
-            disabled={authControls === undefined}
-            label="Sair da conta"
-            onPress={() => setShowSignOutConfirmation(true)}
+          <Text style={styles.metadata}>
+            Se loja ou papel estiver errado, fale com lideranca ou administracao. Esta fase nao
+            troca loja manualmente.
+          </Text>
+        </View>
+      ) : null}
+
+      {activePanel === "operacao" ? (
+        <>
+          <View style={styles.readinessList}>
+            <ReadinessLine
+              label="Sincronizacao"
+              status={syncReadiness.verdict}
+              detail={
+                syncReadiness.safeCloseBlocked
+                  ? "Bloqueia fechamento seguro"
+                  : "Nao bloqueia fechamento seguro"
+              }
+            />
+            <ReadinessLine label="Alertas" status={readiness.verdict} detail={readiness.body} />
+            <ReadinessLine
+              label="Operacao"
+              status={deviceReadiness}
+              detail="Hoje continua sendo a fila de trabalho."
+            />
+          </View>
+
+          <StatusNotice title={readinessTitle} tone={readinessNoticeTone}>
+            {readinessNoticeBody}
+          </StatusNotice>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{ajustesPushCopy.title}</Text>
+              <ReadinessBadge status={readiness.verdict} />
+            </View>
+            <Text style={styles.body}>{ajustesPushCopy.safeBody}</Text>
+            <Text style={styles.body}>{readiness.body}</Text>
+            {pushFeedback === undefined ? null : <StatusNotice>{pushFeedback}</StatusNotice>}
+            <View style={styles.actionStack}>
+              <PrimaryAction
+                disabled={isUpdatingPush || alertChannel === undefined}
+                label={
+                  readiness.primaryActionLabel === ajustesPushCopy.activate
+                    ? ajustesPushCopy.activate
+                    : readiness.primaryActionLabel
+                }
+                onPress={() => {
+                  if (readiness.primaryActionLabel === ajustesPushCopy.activate) {
+                    void activateAlerts();
+                    return;
+                  }
+                  if (readiness.primaryActionLabel === ajustesPushCopy.testThisDevice) {
+                    void sendThisDeviceTest();
+                    return;
+                  }
+                  void activateAlerts();
+                }}
+              />
+              {readiness.secondaryActionLabel === undefined ? null : (
+                <SecondaryAction
+                  disabled={isUpdatingPush}
+                  label={readiness.secondaryActionLabel}
+                  onPress={() => void disableAlerts()}
+                />
+              )}
+            </View>
+          </View>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{ajustesSyncCopy.title}</Text>
+              <ReadinessBadge status={syncReadiness.verdict} />
+            </View>
+            <Text style={styles.body}>{syncReadiness.body}</Text>
+            <View style={styles.metricGrid}>
+              <ReadinessRow
+                label={ajustesSyncCopy.centralReadLabel}
+                value={syncReadiness.lastCentralReadValue}
+              />
+              <ReadinessRow
+                label={ajustesSyncCopy.syncSendLabel}
+                value={syncReadiness.lastSyncSendValue}
+              />
+              <ReadinessRow
+                label="Pendencias neste aparelho"
+                value={`${syncReadiness.pendingCount}`}
+              />
+              <ReadinessRow label="Conflitos" value={`${syncReadiness.conflictCount}`} />
+            </View>
+            <Text style={styles.metadata}>
+              {syncReadiness.safeCloseBlocked
+                ? ajustesSyncCopy.blockedSafeClose
+                : ajustesSyncCopy.clearSafeClose}
+            </Text>
+            {syncFeedback === undefined ? null : <StatusNotice>{syncFeedback}</StatusNotice>}
+            <View style={styles.actionStack}>
+              {syncReadiness.centralRefreshRequired && onRequestCentralRefresh !== undefined ? (
+                <PrimaryAction
+                  label={ajustesSyncCopy.refreshCentralRead}
+                  onPress={onRequestCentralRefresh}
+                />
+              ) : (
+                <PrimaryAction
+                  disabled={
+                    isSyncing ||
+                    (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+                  }
+                  label={isSyncing ? "Conferindo fila local" : syncActionLabel}
+                  onPress={() => void manualSync()}
+                />
+              )}
+              {firstConflictId === undefined ? null : (
+                <SecondaryAction
+                  label="Revisar conflito"
+                  onPress={() => void reviewConflict(firstConflictId)}
+                />
+              )}
+            </View>
+          </View>
+          {selectedConflict === undefined ? null : (
+            <SyncConflictPanel
+              conflict={selectedConflict}
+              onClose={() => setSelectedConflict(undefined)}
+              onResolve={(input) => void resolveConflict(input)}
+            />
+          )}
+          <SyncQueueSummary
+            disabled={
+              isSyncing ||
+              (syncEngine === undefined && repository.syncPendingCentralLots === undefined)
+            }
+            queue={syncQueue}
+            showRetryAction={false}
+            title="Fila local neste aparelho"
+            onReviewConflict={(conflictId) => void reviewConflict(conflictId)}
           />
-        )}
-      </View>
+        </>
+      ) : null}
+
+      {activePanel === "sistema" ? (
+        <BuildUpdateCard
+          buildInfo={buildInfo}
+          showUpdateStep={showUpdateStep}
+          onToggleUpdateStep={() => setShowUpdateStep((current) => !current)}
+        />
+      ) : null}
+
+      {activePanel === "conta" ? (
+        <>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Privacidade</Text>
+              <ReadinessBadge status="Apto" />
+            </View>
+            <Text style={styles.body}>
+              O app usa dados de conta, loja, papel, acoes operacionais, evidencias, sync,
+              permissoes do aparelho, build instalado e auditoria para manter riscos visiveis e
+              responder direitos.
+            </Text>
+            <SecondaryAction
+              disabled={authControls === undefined}
+              label="Abrir Centro de Privacidade"
+              onPress={() => authControls?.openPrivacyCenter()}
+            />
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Primeiros passos</Text>
+              <ReadinessBadge status="Apto" />
+            </View>
+            <Text style={styles.body}>
+              Reabra o primeiro turno assistido para treinar a equipe ou revisar o caminho de lote,
+              Hoje e fechamento seguro.
+            </Text>
+            <SecondaryAction
+              disabled={onOpenOnboarding === undefined}
+              label="Rever primeiros passos"
+              onPress={() => onOpenOnboarding?.()}
+            />
+          </View>
+
+          <View style={[styles.card, styles.signOutCard]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Sair com pendencias visiveis</Text>
+              <ReadinessBadge status={syncReadiness.pendingCount > 0 ? "Atencao" : "Apto"} />
+            </View>
+            <Text style={styles.body}>
+              Sair nao sincroniza, nao resolve tarefas e nao limpa conflitos deste aparelho.
+            </Text>
+            <Text style={styles.metadata}>
+              Pendencias: {syncReadiness.pendingCount}. Conflitos: {syncReadiness.conflictCount}.
+            </Text>
+            {showSignOutConfirmation ? (
+              <View style={styles.confirmationPanel}>
+                <StatusNotice tone="warning">
+                  Sair encerra a sessao neste aparelho. Pendencias locais ou conflitos continuam
+                  pendentes e nenhuma tarefa sera resolvida.
+                </StatusNotice>
+                <SecondaryAction
+                  label="Continuar nos Ajustes"
+                  onPress={() => setShowSignOutConfirmation(false)}
+                />
+                <DestructiveAction
+                  disabled={authControls === undefined}
+                  label="Confirmar saida da conta"
+                  onPress={() => authControls?.requestLogout()}
+                />
+              </View>
+            ) : (
+              <DestructiveAction
+                disabled={authControls === undefined}
+                label="Sair da conta"
+                onPress={() => setShowSignOutConfirmation(true)}
+              />
+            )}
+          </View>
+        </>
+      ) : null}
 
       <SecondaryAction label="Voltar para operacao" onPress={onBack} />
     </ScrollView>
@@ -584,7 +690,7 @@ function BuildUpdateCard({
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat20-onboarding-shift-e2e-apk-150"}
+          value={buildInfo?.approvedArtifactLabel ?? "uat41-visual-flow-polish-apk-171"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />
@@ -610,6 +716,88 @@ function ReadinessRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PanelTab({
+  label,
+  onPress,
+  selected,
+}: {
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={`Abrir ${label}`}
+      accessibilityState={{ selected }}
+      android_ripple={{ color: captureColors.surfacePressed }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.panelTab,
+        selected ? styles.panelTabSelected : undefined,
+        pressed ? styles.panelTabPressed : undefined,
+      ]}
+    >
+      <Text style={[styles.panelTabLabel, selected ? styles.panelTabLabelSelected : undefined]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function CompactMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "success" | "warning" | "critical";
+  value: number;
+}) {
+  return (
+    <View
+      style={[
+        styles.compactMetric,
+        tone === "success" ? styles.compactMetricSuccess : undefined,
+        tone === "warning" ? styles.compactMetricWarning : undefined,
+        tone === "critical" ? styles.compactMetricCritical : undefined,
+      ]}
+    >
+      <Text
+        style={[
+          styles.compactMetricValue,
+          tone === "success" ? styles.compactMetricSuccessText : undefined,
+          tone === "warning" ? styles.compactMetricWarningText : undefined,
+          tone === "critical" ? styles.compactMetricCriticalText : undefined,
+        ]}
+      >
+        {value}
+      </Text>
+      <Text style={styles.compactMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ReadinessLine({
+  detail,
+  label,
+  status,
+}: {
+  detail: string;
+  label: string;
+  status: "Apto" | "Atencao" | "Bloqueado";
+}) {
+  return (
+    <View style={styles.readinessLine}>
+      <View style={styles.readinessLineCopy}>
+        <Text style={styles.readinessLineLabel}>{label}</Text>
+        <Text style={styles.readinessLineDetail}>{detail}</Text>
+      </View>
+      <ReadinessBadge status={status} />
+    </View>
+  );
+}
+
 function todayLocalOnlyFeedback(): string {
   return "Lembretes locais do turno ativos neste aparelho. O push remoto ainda precisa do APK aprovado.";
 }
@@ -618,7 +806,13 @@ function ajustesSafePushFeedback(reason: string | undefined): string {
   return operatorSafePushFeedback(reason).replace(/Firebase/gi, "provedor de push");
 }
 
-function ReadinessBadge({ status }: { status: "Apto" | "Atencao" | "Bloqueado" }) {
+function ReadinessBadge({
+  labelPrefix,
+  status,
+}: {
+  labelPrefix?: string | undefined;
+  status: "Apto" | "Atencao" | "Bloqueado";
+}) {
   return (
     <Text
       style={[
@@ -627,7 +821,7 @@ function ReadinessBadge({ status }: { status: "Apto" | "Atencao" | "Bloqueado" }
         status === "Bloqueado" ? styles.statusBlocked : undefined,
       ]}
     >
-      {status}
+      {labelPrefix === undefined ? status : `${labelPrefix}: ${status}`}
     </Text>
   );
 }
@@ -636,7 +830,7 @@ function roleLabel(role: SessionContextResponse["activeRole"] | undefined): stri
   if (role === "gpp") return "GPP";
   if (role === "admin") return "Administracao";
   if (role === "lead") return "Lideranca";
-  if (role === "collaborator") return "Operacao";
+  if (role === "collaborator") return "Setor";
   return "Sessao ativa";
 }
 
@@ -648,6 +842,17 @@ function accountStatusLabel(status: SessionContextResponse["accountStatus"] | un
   return "Conta local";
 }
 
+function formatSessionExpiresAt(value: string | undefined): string {
+  if (value === undefined) return "Sessao local";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
+}
+
 function buildReadinessStatus(
   compatibility: MobileBuildInfo["buildCompatibility"] | "desconhecido",
 ): "Apto" | "Atencao" | "Bloqueado" {
@@ -656,12 +861,179 @@ function buildReadinessStatus(
   return "Atencao";
 }
 
+function worstReadiness(
+  first: "Apto" | "Atencao" | "Bloqueado",
+  second: "Apto" | "Atencao" | "Bloqueado",
+): "Apto" | "Atencao" | "Bloqueado" {
+  if (first === "Bloqueado" || second === "Bloqueado") return "Bloqueado";
+  if (first === "Atencao" || second === "Atencao") return "Atencao";
+  return "Apto";
+}
+
+function statusNoticeToneFor(
+  status: "Apto" | "Atencao" | "Bloqueado",
+): "success" | "warning" | "critical" {
+  if (status === "Apto") return "success";
+  if (status === "Bloqueado") return "critical";
+  return "warning";
+}
+
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: captureColors.background,
     flexGrow: 1,
     gap: captureSpacing.large,
     padding: captureSpacing.large,
+    paddingBottom: captureSpacing.xxlarge * 3,
+  },
+  overviewGrid: {
+    flexDirection: "row",
+    gap: captureSpacing.small,
+  },
+  panelTabs: {
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: captureSpacing.xsmall,
+    padding: captureSpacing.xsmall,
+  },
+  panelTab: {
+    alignItems: "center",
+    borderRadius: captureRadii.small,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: captureSpacing.small,
+    paddingVertical: captureSpacing.small,
+  },
+  panelTabPressed: {
+    backgroundColor: captureColors.surfacePressed,
+  },
+  panelTabSelected: {
+    backgroundColor: captureColors.accent,
+  },
+  panelTabLabel: {
+    color: captureColors.mutedInk,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  panelTabLabelSelected: {
+    color: captureColors.onAccent,
+  },
+  compactMetric: {
+    alignItems: "center",
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: captureSpacing.small,
+    minHeight: 52,
+    paddingHorizontal: captureSpacing.medium,
+    paddingVertical: captureSpacing.small,
+  },
+  compactMetricSuccess: {
+    backgroundColor: captureColors.accentSurface,
+    borderColor: captureColors.accent,
+  },
+  compactMetricWarning: {
+    backgroundColor: captureColors.warningSurface,
+    borderColor: captureColors.warningBorder,
+  },
+  compactMetricCritical: {
+    backgroundColor: captureColors.criticalSurface,
+    borderColor: captureColors.criticalBorder,
+  },
+  compactMetricValue: {
+    color: captureColors.ink,
+    fontSize: 24,
+    fontWeight: "700",
+    lineHeight: 30,
+  },
+  compactMetricLabel: {
+    color: captureColors.mutedInk,
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  compactMetricSuccessText: {
+    color: captureColors.accent,
+  },
+  compactMetricWarningText: {
+    color: captureColors.warningInk,
+  },
+  compactMetricCriticalText: {
+    color: captureColors.critical,
+  },
+  readinessHero: {
+    alignItems: "center",
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: captureSpacing.medium,
+    justifyContent: "space-between",
+    padding: captureSpacing.medium,
+  },
+  readinessHeroCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  readinessEyebrow: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  readinessTitle: {
+    color: captureColors.ink,
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+  },
+  readinessList: {
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  readinessLine: {
+    alignItems: "center",
+    borderBottomColor: captureColors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: captureSpacing.medium,
+    justifyContent: "space-between",
+    paddingHorizontal: captureSpacing.medium,
+    paddingVertical: captureSpacing.small,
+  },
+  readinessLineCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  readinessLineLabel: {
+    color: captureColors.ink,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21,
+  },
+  readinessLineDetail: {
+    color: captureColors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  badgeRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: captureSpacing.small,
   },
   identityCard: {
     backgroundColor: captureColors.surface,
@@ -676,7 +1048,7 @@ const styles = StyleSheet.create({
     borderColor: captureColors.border,
     borderRadius: captureRadii.medium,
     borderWidth: 1,
-    gap: captureSpacing.small,
+    gap: captureSpacing.medium,
     padding: captureSpacing.large,
   },
   signOutCard: {
@@ -684,13 +1056,19 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     alignItems: "flex-start",
-    gap: captureSpacing.small,
+    flexDirection: "row",
+    gap: captureSpacing.medium,
+    justifyContent: "space-between",
+  },
+  cardHeaderCopy: {
+    flex: 1,
+    gap: 2,
   },
   cardTitle: {
     color: captureColors.ink,
-    fontSize: 20,
-    fontWeight: "600",
-    lineHeight: 25,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 23,
   },
   status: {
     alignSelf: "flex-start",
@@ -699,9 +1077,9 @@ const styles = StyleSheet.create({
     borderRadius: captureRadii.small,
     borderWidth: 1,
     color: captureColors.warningInk,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
     paddingHorizontal: captureSpacing.small,
     paddingVertical: captureSpacing.xsmall,
   },
@@ -722,15 +1100,20 @@ const styles = StyleSheet.create({
     gap: captureSpacing.small,
   },
   metricGrid: {
-    gap: captureSpacing.small,
+    backgroundColor: captureColors.surfaceRaised,
+    borderColor: captureColors.border,
+    borderRadius: captureRadii.medium,
+    borderWidth: 1,
+    overflow: "hidden",
   },
   metricRow: {
-    backgroundColor: captureColors.surfaceMuted,
-    borderColor: captureColors.border,
-    borderRadius: captureRadii.small,
-    borderWidth: 1,
-    gap: captureSpacing.xsmall,
-    paddingHorizontal: captureSpacing.small,
+    alignItems: "flex-start",
+    borderBottomColor: captureColors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: captureSpacing.medium,
+    justifyContent: "space-between",
+    paddingHorizontal: captureSpacing.medium,
     paddingVertical: captureSpacing.small,
   },
   metricLabel: {
@@ -738,16 +1121,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
+    minWidth: 96,
   },
   metricValue: {
     color: captureColors.ink,
+    flex: 1,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: "right",
   },
   body: {
     color: captureColors.ink,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
   },
   metadata: {
     color: captureColors.mutedInk,

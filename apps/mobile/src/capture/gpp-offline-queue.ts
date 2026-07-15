@@ -33,6 +33,13 @@ export interface GppPendingRecord {
   discardedAt?: string | undefined;
 }
 
+export interface GppSentTodayRecord {
+  id: string;
+  item: string;
+  confirmedAt: string;
+  replayed?: boolean | undefined;
+}
+
 export interface SaveGppPendingInput {
   localId?: string | undefined;
   kind: GppPendingKind;
@@ -117,6 +124,34 @@ export function sortGppPendingRecords(records: Iterable<GppPendingRecord>): GppP
     left.createdAt === right.createdAt
       ? left.localId.localeCompare(right.localId)
       : left.createdAt.localeCompare(right.createdAt),
+  );
+}
+
+export function gppSentTodayRecordFromPending(
+  record: GppPendingRecord,
+): GppSentTodayRecord | undefined {
+  if (record.state !== "central_confirmed" || record.confirmedAt === undefined) {
+    return undefined;
+  }
+
+  const quantity =
+    "quantity" in record.payload ? record.payload.quantity : record.payload.requestedQuantity;
+  const itemKind = record.kind === "avaria" ? "Avaria" : "Compra interna";
+
+  return {
+    id: record.centralRequestId ?? record.idempotencyKey,
+    item: `${itemKind} - ${record.payload.product.name} - ${quantity.value} ${quantity.unit}`,
+    confirmedAt: record.confirmedAt,
+  };
+}
+
+export function sortGppSentTodayRecords(
+  records: Iterable<GppSentTodayRecord>,
+): GppSentTodayRecord[] {
+  return [...records].sort((left, right) =>
+    left.confirmedAt === right.confirmedAt
+      ? left.id.localeCompare(right.id)
+      : right.confirmedAt.localeCompare(left.confirmedAt),
   );
 }
 

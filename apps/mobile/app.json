@@ -13,19 +13,25 @@
       "backgroundColor": "#F7F9F8"
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
-      "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "uat40-sold-out-expiry-alert-apk-170",
+      "EXPO_PUBLIC_API_URL": "http://10.0.2.2:8790",
+      "VALIDADE_ZERO_APP_ENV": "local-uat",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "local-gpp-memory-api-apk-170",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
       "VALIDADE_ZERO_APPROVED_BUILD": "170",
-      "VALIDADE_ZERO_BUILD_REF": "sold-out-expiry-alert-170",
+      "VALIDADE_ZERO_BUILD_REF": "local-gpp-memory-api-170",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
     },
     "plugins": [
       "expo-sqlite",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#166534"
+        }
+      ],
       [
         "expo-camera",
         {
@@ -39,7 +45,7 @@
       "versionCode": 170,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F7F9F8"
+        "backgroundColor": "#0B3D2E"
       }
     },
     "owner": "liiiraak1ng"

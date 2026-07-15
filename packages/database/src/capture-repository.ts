@@ -319,8 +319,10 @@ interface LotProjectionRow extends LotRow {
   observation_occurred_at: string | Date | null;
 }
 
-interface ProjectionRefreshLotRow {
-  central_lot_id: string;
+interface PrepareTurnProjectionRefresh {
+  context: CentralLotProjectionContext;
+  result: CentralLotProjectionResult;
+  riskState: CentralLotSnippet["riskState"] | null;
 }
 
 interface TaskRow {
@@ -1108,50 +1110,183 @@ export function createCaptureRepositoryFromQuery(
     input: PrepareTurnInput,
   ): Promise<void> {
     const rows = (await sql.query(
-      `select central_lot_id
-      from central_lots
-      where store_id = $1
-        and state <> 'discarded'
+      `select l.store_id, l.central_lot_id, l.central_product_id, l.product_display_name,
+        l.lot_identity, l.lot_identity_key, l.mode, l.current_location, l.state, l.source,
+        l.risk_state, l.expires_at, l.received_at, l.quality_inspection_due_at,
+        l.approximate_quantity, l.created_at, l.updated_at,
+        p.category_id, p.category_name, p.category_rule_profile,
+        o.observation_id, o.actor_display_name as observation_actor_display_name,
+        o.status as observation_status, o.location as observation_location,
+        o.quantity as observation_quantity, o.occurred_at as observation_occurred_at
+      from central_lots l
+      join central_products p
+        on p.store_id = l.store_id and p.central_product_id = l.central_product_id
+      left join lateral (
+        select observation_id, actor_display_name, status, location, quantity, occurred_at
+        from central_observations
+        where store_id = l.store_id and central_lot_id = l.central_lot_id
+        order by occurred_at desc, created_at desc
+        limit 1
+      ) o on true
+      where l.store_id = $1
+        and l.state <> 'discarded'
         and (
-          expires_at is not null
-          or received_at is not null
-          or quality_inspection_due_at is not null
+          l.expires_at is not null
+          or l.received_at is not null
+          or l.quality_inspection_due_at is not null
         )
-      order by updated_at desc
+      order by l.updated_at desc
       limit 150`,
       [input.storeId],
-    )) as ProjectionRefreshLotRow[];
-
-    for (const row of rows) {
-      const context = await selectLotProjectionContext({
-        storeId: input.storeId,
-        centralLotId: row.central_lot_id,
-      });
-
-      if (context === undefined) continue;
-
-      const result = await upsertCentralTaskProjection({
+    )) as LotProjectionRow[];
+    const projections: PrepareTurnProjectionRefresh[] = rows.map((row) => {
+      const context = mapLotProjectionRow(row);
+      const result = buildCentralLotProjectionResult({
         context,
         requestId: createStableId(
           "prepare-projection",
           input.storeId,
-          `${input.requestId}:${row.central_lot_id}`,
+          `${input.requestId}:${context.centralLotId}`,
         ),
         updatedAt: input.request.requestedAt,
       });
-      const riskState = centralRiskStateFromAssessment(result.assessment);
+      return { context, result, riskState: centralRiskStateFromAssessment(result.assessment) };
+    });
 
-      await sql.query(
-        `update central_lots
-        set risk_state = $1,
-          version = version + 1,
-          updated_at = $2::timestamptz
-        where store_id = $3
-          and central_lot_id = $4
-          and risk_state is distinct from $1`,
-        [riskState, input.request.requestedAt, input.storeId, row.central_lot_id],
-      );
-    }
+    await sql.query(
+      `with projected_lots as (
+        select *
+        from jsonb_to_recordset($1::jsonb) as projection(
+          central_lot_id text,
+          actor_label text,
+          active_key text
+        )
+      )
+      update central_projected_tasks as task
+      set status = 'resolved',
+        resolved_at = $2::timestamptz,
+        resolution_reason = case
+          when projection.active_key is null then 'projection_cleared'
+          else 'projection_replaced'
+        end,
+        actor_label = projection.actor_label,
+        updated_at = $2::timestamptz
+      from projected_lots as projection
+      where task.store_id = $3
+        and task.central_lot_id = projection.central_lot_id
+        and task.status = 'active'
+        and (projection.active_key is null or task.active_key <> projection.active_key)`,
+      [
+        JSON.stringify(
+          projections.map(({ context, result }) => ({
+            central_lot_id: context.centralLotId,
+            actor_label: context.currentObservation.actorLabel,
+            active_key: result.activeTask?.activeKey ?? null,
+          })),
+        ),
+        input.request.requestedAt,
+        input.storeId,
+      ],
+    );
+
+    await sql.query(
+      `with active_tasks as (
+        select *
+        from jsonb_to_recordset($1::jsonb) as projection(
+          central_task_id text,
+          active_key text,
+          central_lot_id text,
+          product_display_name text,
+          current_location jsonb,
+          risk_state text,
+          severity text,
+          required_resolution text,
+          owner_label text,
+          due_at timestamptz
+        )
+      )
+      insert into central_projected_tasks (
+        central_task_id, active_key, store_id, central_lot_id, product_display_name,
+        current_location, risk_state, severity, required_resolution, status, state,
+        owner_label, due_at, version, created_at, updated_at
+      )
+      select projection.central_task_id, projection.active_key, $2,
+        projection.central_lot_id, projection.product_display_name, projection.current_location,
+        projection.risk_state, projection.severity, projection.required_resolution, 'active',
+        'synchronized', projection.owner_label, projection.due_at, 1,
+        $3::timestamptz, $3::timestamptz
+      from active_tasks as projection
+      on conflict (store_id, active_key) do update set
+        central_lot_id = excluded.central_lot_id,
+        product_display_name = excluded.product_display_name,
+        current_location = excluded.current_location,
+        risk_state = excluded.risk_state,
+        severity = excluded.severity,
+        required_resolution = excluded.required_resolution,
+        status = 'active',
+        state = 'synchronized',
+        owner_label = excluded.owner_label,
+        due_at = excluded.due_at,
+        resolved_at = null,
+        resolution_action = null,
+        resolution_reason = null,
+        actor_label = null,
+        version = central_projected_tasks.version + 1,
+        updated_at = excluded.updated_at
+      where central_projected_tasks.status <> 'resolved'`,
+      [
+        JSON.stringify(
+          projections.flatMap(({ context, result }) =>
+            result.activeTask === undefined
+              ? []
+              : [
+                  {
+                    central_task_id: result.activeTask.centralTaskId,
+                    active_key: result.activeTask.activeKey,
+                    central_lot_id: context.centralLotId,
+                    product_display_name: context.productDisplayName,
+                    current_location: context.currentLocation,
+                    risk_state: result.activeTask.riskState,
+                    severity: result.activeTask.severity,
+                    required_resolution: result.activeTask.requiredResolution,
+                    owner_label: result.activeTask.ownerLabel,
+                    due_at: result.activeTask.dueAt ?? null,
+                  },
+                ],
+          ),
+        ),
+        input.storeId,
+        input.request.requestedAt,
+      ],
+    );
+
+    await sql.query(
+      `with lot_risks as (
+        select *
+        from jsonb_to_recordset($1::jsonb) as projection(
+          central_lot_id text,
+          risk_state text
+        )
+      )
+      update central_lots as lot
+      set risk_state = projection.risk_state,
+        version = lot.version + 1,
+        updated_at = $2::timestamptz
+      from lot_risks as projection
+      where lot.store_id = $3
+        and lot.central_lot_id = projection.central_lot_id
+        and lot.risk_state is distinct from projection.risk_state`,
+      [
+        JSON.stringify(
+          projections.map(({ context, riskState }) => ({
+            central_lot_id: context.centralLotId,
+            risk_state: riskState,
+          })),
+        ),
+        input.request.requestedAt,
+        input.storeId,
+      ],
+    );
   }
 
   async function selectCatalogProducts(input: {

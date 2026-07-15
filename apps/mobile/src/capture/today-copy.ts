@@ -119,9 +119,10 @@ export const todayCopy = {
   },
   incompatibleAction:
     "Esta acao nao resolve este risco. Escolha a acao indicada para manter a area de venda segura.",
-  expiredAction: "Este lote esta vencido. Para proteger a area de venda, retire ou registre perda.",
+  expiredAction:
+    "Este lote esta vencido. Marque se vendeu/esgotou, retire fisicamente ou registre perda real.",
   processedExpiredAction:
-    "Este processado esta vencido. Reembale com nova identificacao ou registre avaria/perda.",
+    "Este processado esta vencido. Confirme etiqueta/validade nova, marque vendido/esgotado ou registre perda real.",
   fallbackActor: "Pessoa da operacao",
   destinationLoss: "Destino: Retirada/perda",
   confirmationTitle: "Confirme antes de registrar",
@@ -170,7 +171,7 @@ export const todayCopy = {
   customNoPhotoReason: "Descreva o motivo sem foto",
   confirmLabels: {
     withdraw: "Confirmar retirada",
-    repack: "Confirmar reembalagem",
+    repack: "Confirmar etiqueta/validade nova",
     record_loss: "Registrar perda",
     confirm_presence: "Confirmar presenca",
     request_markdown: "Solicitar rebaixa",
@@ -179,13 +180,13 @@ export const todayCopy = {
     apply_markdown: "Registrar etiqueta aplicada",
     confirm_markdown_on_shelf: "Confirmar etiqueta na area de venda",
     mark_not_found: "Confirmar nao encontrado",
-    mark_probably_sold_out: "Confirmar provavelmente esgotado",
+    mark_probably_sold_out: "Confirmar vendido/esgotado",
     move_lot: "Confirmar movimentacao",
     complete_recheck: "Confirmar reconferencia",
   },
   resolutionOptions: {
     withdraw: "Retirar agora",
-    repack: "Reembalar lote",
+    repack: "Etiqueta ou validade trocada",
     record_loss: "Registrar perda",
     confirm_presence: "Conferir presenca",
     request_markdown: "Solicitar rebaixa",
@@ -194,7 +195,7 @@ export const todayCopy = {
     apply_markdown: "Aplicar rebaixa",
     confirm_markdown_on_shelf: "Conferir etiqueta na area de venda",
     mark_not_found: "Marcar como nao encontrado",
-    mark_probably_sold_out: "Registrar como provavelmente esgotado",
+    mark_probably_sold_out: "Produto vendeu/esgotou",
     move_lot: "Mover lote",
     complete_recheck: "Confirmar reconferencia",
   },
@@ -206,7 +207,7 @@ export function todayActionLabel(task: TodayTaskRecord): string {
   }
 
   if (task.requiredResolution === "repack_or_loss") {
-    return "Reembalar ou avariar";
+    return "Etiqueta, venda ou perda";
   }
 
   if (task.requiredResolution === "check_presence") {

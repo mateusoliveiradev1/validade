@@ -15,6 +15,7 @@ import {
   Field,
   PrimaryAction,
   ScreenHeader,
+  ScreenSection,
   SecondaryAction,
   SelectionRow,
   StatusNotice,
@@ -131,7 +132,10 @@ export function GppPurchaseFlow({
       {error === undefined ? null : <StatusNotice tone="critical">{error}</StatusNotice>}
 
       {!reviewing ? (
-        <View style={styles.section}>
+        <ScreenSection
+          title="Pedido de compra"
+          body="Informe o produto e a quantidade para o GPP localizar sem depender de outro sistema."
+        >
           <Field
             label="Nome ou descricao do produto"
             onChangeText={(productName) => setDraft((current) => ({ ...current, productName }))}
@@ -149,6 +153,7 @@ export function GppPurchaseFlow({
             value={draft.quantity}
           />
           <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Unidade</Text>
             {GPP_QUANTITY_UNITS.map((unit) => (
               <SelectionRow
                 key={unit}
@@ -165,10 +170,12 @@ export function GppPurchaseFlow({
           />
           <PrimaryAction label="Continuar compra" onPress={continuePurchase} />
           <SecondaryAction label="Voltar para Controle GPP" onPress={onBack} />
-        </View>
+        </ScreenSection>
       ) : (
-        <View style={styles.section}>
-          <Text style={styles.reviewTitle}>Revisar compra interna</Text>
+        <ScreenSection
+          title="Revisar compra interna"
+          body="Confirme antes de enviar para a central."
+        >
           <Text style={styles.reviewLine}>Produto: {draft.productName}</Text>
           <Text style={styles.reviewLine}>
             Codigo:{" "}
@@ -190,15 +197,26 @@ export function GppPurchaseFlow({
           />
           <SecondaryAction label="Editar compra" onPress={() => setReviewing(false)} />
           <SecondaryAction label="Voltar para Controle GPP" onPress={onBack} />
-        </View>
+        </ScreenSection>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { gap: captureSpacing.large, padding: captureSpacing.large },
+  screen: {
+    backgroundColor: captureColors.background,
+    gap: captureSpacing.large,
+    padding: captureSpacing.large,
+    paddingBottom: captureSpacing.xxlarge * 3,
+  },
   section: { gap: captureSpacing.medium },
+  sectionLabel: {
+    color: captureColors.ink,
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
   reviewTitle: {
     color: captureColors.ink,
     fontSize: 20,

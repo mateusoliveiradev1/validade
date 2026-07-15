@@ -296,7 +296,10 @@ export function createSessionContext(
       canManageUsers: roleAllowsCapability(role, "user.manage"),
       canSendPilotPushTest: roleAllowsCapability(role, "pilot.push_test.send"),
       canReadGppQueue: controleGppEnabled && roleAllowsCapability(role, "gpp.queue.read"),
-      canCreateGppEntry: controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.create"),
+      canCreateGppEntry:
+        controleGppEnabled &&
+        role === "collaborator" &&
+        roleAllowsCapability(role, "gpp.avaria.create"),
       canCorrectOwnPendingGppEntry:
         controleGppEnabled && roleAllowsCapability(role, "gpp.avaria.correct_own_pending"),
       canMarkGppDivergence: controleGppEnabled && roleAllowsCapability(role, "gpp.divergence.mark"),

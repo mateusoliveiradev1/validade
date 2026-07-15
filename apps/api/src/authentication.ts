@@ -686,6 +686,11 @@ async function sessionResponse(
       ).allowed;
   }
 
+  if (base.activeRole !== "collaborator") {
+    actions.canCreateGppEntry = false;
+    actions.canCorrectOwnPendingGppEntry = false;
+  }
+
   return AuthenticatedSessionResponseSchema.parse({
     status,
     sessionToken: token,
