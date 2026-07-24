@@ -26,7 +26,7 @@
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/database": "workspace:*",
     "@validade-zero/domain": "workspace:*",
-    "hono": "^4.12.26",
+    "hono": "^4.12.27",
     "zod": "3.25.76"
   },
   "devDependencies": {
