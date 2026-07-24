@@ -20,6 +20,6 @@
     "security": "node -e \"console.log('No package-level security checks yet')\""
   },
   "devDependencies": {
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
