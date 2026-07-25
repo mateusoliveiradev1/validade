@@ -10,6 +10,13 @@ describe("mobile build info", () => {
       build: String(appConfig.expo.android.versionCode),
     });
     expect(appConfig.expo.extra.VALIDADE_ZERO_APPROVED_BUILD).toBe(APPROVED_PILOT_BUILD.build);
+    expect(appConfig.expo.extra.VALIDADE_ZERO_APP_ENV).toBe("staging");
+    expect(appConfig.expo.extra.EXPO_PUBLIC_API_URL).toBe(
+      "https://validade-zero-api-staging.validadezero.workers.dev",
+    );
+    expect(appConfig.expo.extra.EXPO_PUBLIC_API_URL).not.toMatch(
+      /10\.0\.2\.2|127\.0\.0\.1|localhost/,
+    );
   });
 
   it("prefers native Android build metadata and compares it to the approved staging artifact", () => {
@@ -57,7 +64,7 @@ describe("mobile build info", () => {
       constants: {
         expoConfig: {
           version: "0.12.0",
-          android: { package: "com.validadezero.app", versionCode: 171 },
+          android: { package: "com.validadezero.app", versionCode: 172 },
           extra: {},
         },
       },
@@ -65,7 +72,7 @@ describe("mobile build info", () => {
 
     expect(info).toMatchObject({
       appVersion: "0.12.0",
-      appBuild: "171",
+      appBuild: "172",
       packageId: "com.validadezero.app",
       buildCompatibility: "atual",
     });
@@ -103,8 +110,8 @@ describe("mobile build info", () => {
     expect(oldBuild.buildCompatibility).toBe("desatualizado");
     expect(futureBuild.buildCompatibility).toBe("incompativel");
     expect(unknownBuild.buildCompatibility).toBe("desconhecido");
-    expect(unknownBuild.approvedArtifactLabel).toBe("phase-18-gpp-conflict-discard-apk-171");
-    expect(unknownBuild.approvedBuild).toBe("171");
+    expect(unknownBuild.approvedArtifactLabel).toBe("phase-18-gpp-physical-staging-apk-172");
+    expect(unknownBuild.approvedBuild).toBe("172");
     expect(unknownBuild.buildRef).not.toBe(longRef);
     expect(unknownBuild.buildRef).toMatch(/^abcdef123\.\.\./);
     expect(JSON.stringify(unknownBuild)).not.toMatch(/token|segredo|expo\.dev|abcdef1234567890/i);
