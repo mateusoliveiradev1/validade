@@ -4,9 +4,9 @@ milestone: v1.1
 milestone_name: Operacao Real de Loja e Diagnostico
 current_phase: 18
 status: Plan 18-06 code gap closed — post-170 native conflict-discard proof pending
-stopped_at: Phase 18 gap code closed; post-170 native conflict-discard proof pending
-last_updated: "2026-07-10T10:39:37.386Z"
-last_activity: 2026-07-10
+stopped_at: Phase 19 UI-SPEC approved; planning gated by Phase 18 18-06 physical UAT
+last_updated: "2026-07-25T15:38:28.096Z"
+last_activity: "2026-07-25 - Completed quick task 260725-cxt: Validar e integrar lote npm minor e patch do Dependabot"
 progress:
   total_phases: 9
   completed_phases: 6
@@ -214,9 +214,9 @@ Continue Loja 18 build 170 validation/testing. When ready to start the GPP track
 
 ## Session
 
-**Last session:** 2026-07-10T10:39:37.381Z
-**Stopped at:** Phase 18 gap code closed; post-170 native conflict-discard proof pending
-**Resume file:** .planning/phases/18-controle-gpp-mobile-para-avaria-e-compras-internas/18-HUMAN-UAT.md
+**Last session:** 2026-07-25T15:38:28.091Z
+**Stopped at:** Phase 19 UI-SPEC approved; planning gated by Phase 18 18-06 physical UAT
+**Resume file:** .planning/phases/19-integracao-do-controle-gpp-com-hoje/19-UI-SPEC.md
 
 ## Decisions
 
