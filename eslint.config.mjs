@@ -41,6 +41,7 @@ export default tseslint.config(
       parserOptions: {
         projectService: {
           allowDefaultProject: [
+            "apps/api/local-memory-api.ts",
             "apps/api/src/alerts.test.ts",
             "apps/api/src/audit.test.ts",
             "apps/api/src/authorization.test.ts",
@@ -151,7 +152,7 @@ export default tseslint.config(
             "playwright.config.ts",
             "vitest.config.ts",
           ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 120,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 121,
         },
         tsconfigRootDir: import.meta.dirname,
       },

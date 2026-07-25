@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "http://10.0.2.2:8790",
       "VALIDADE_ZERO_APP_ENV": "local-uat",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "local-gpp-memory-api-apk-170",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "phase-18-gpp-conflict-discard-apk-171",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "170",
-      "VALIDADE_ZERO_BUILD_REF": "local-gpp-memory-api-170",
+      "VALIDADE_ZERO_APPROVED_BUILD": "171",
+      "VALIDADE_ZERO_BUILD_REF": "phase-18-gpp-conflict-171",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -42,7 +42,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 170,
+      "versionCode": 171,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B3D2E"
