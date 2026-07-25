@@ -690,7 +690,7 @@ function BuildUpdateCard({
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "uat41-visual-flow-polish-apk-171"}
+          value={buildInfo?.approvedArtifactLabel ?? "phase-18-gpp-conflict-discard-apk-171"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />

@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { Buffer } from "node:buffer";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createInMemoryAuthRepository } from "@validade-zero/database/auth-repository";
@@ -62,11 +64,15 @@ const app = createApiApp({
   now: () => new Date(),
 });
 
-const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
+const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+  void handleRequest(request, response);
+});
+
+async function handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
-    const chunks: Buffer[] = [];
+    const chunks: Uint8Array[] = [];
     for await (const chunk of request) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      chunks.push(chunk as Uint8Array);
     }
 
     const origin = `http://${request.headers.host ?? `127.0.0.1:${PORT}`}`;
@@ -90,7 +96,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
     response.end(JSON.stringify({ error: "local_memory_api_failed" }));
     console.error(error);
   }
-});
+}
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[phase-18] API local em http://127.0.0.1:${PORT}`);

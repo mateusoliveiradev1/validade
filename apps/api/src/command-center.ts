@@ -19,9 +19,9 @@ export interface CommandCenterService {
 }
 
 export const DEFAULT_APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat40-sold-out-expiry-alert-apk-170",
+  artifactLabel: "phase-18-gpp-conflict-discard-apk-171",
   appVersion: "0.12.0",
-  build: "170",
+  build: "171",
 } as const;
 
 export function createInMemoryCommandCenterService(input?: {

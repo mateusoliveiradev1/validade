@@ -6,7 +6,7 @@ import {
 const STAGING_API_BASE_URL = "https://validade-zero-api-staging.validadezero.workers.dev";
 
 export const APPROVED_PILOT_BUILD = {
-  artifactLabel: "uat41-visual-flow-polish-apk-171",
+  artifactLabel: "phase-18-gpp-conflict-discard-apk-171",
   appVersion: "0.12.0",
   build: "171",
 } as const;
@@ -97,7 +97,7 @@ export function readMobileBuildInfo(
     approvedBuild,
     buildRef: publicLabel(
       extraText(extra, "VALIDADE_ZERO_BUILD_REF"),
-      "visual-flow-polish-171",
+      "phase-18-gpp-conflict-171",
       24,
     ),
     buildCompatibility: resolvePilotBuildCompatibility({

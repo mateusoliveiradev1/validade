@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { readMobileBuildInfo } from "./build-info";
+import appConfig from "../app.json";
+import { APPROVED_PILOT_BUILD, readMobileBuildInfo } from "./build-info";
 
 describe("mobile build info", () => {
+  it("keeps the tracked Android artifact aligned with the approved fallback", () => {
+    expect(APPROVED_PILOT_BUILD).toEqual({
+      artifactLabel: appConfig.expo.extra.VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL,
+      appVersion: appConfig.expo.version,
+      build: String(appConfig.expo.android.versionCode),
+    });
+    expect(appConfig.expo.extra.VALIDADE_ZERO_APPROVED_BUILD).toBe(APPROVED_PILOT_BUILD.build);
+  });
+
   it("prefers native Android build metadata and compares it to the approved staging artifact", () => {
     const info = readMobileBuildInfo({
       application: {
@@ -93,7 +103,7 @@ describe("mobile build info", () => {
     expect(oldBuild.buildCompatibility).toBe("desatualizado");
     expect(futureBuild.buildCompatibility).toBe("incompativel");
     expect(unknownBuild.buildCompatibility).toBe("desconhecido");
-    expect(unknownBuild.approvedArtifactLabel).toBe("uat41-visual-flow-polish-apk-171");
+    expect(unknownBuild.approvedArtifactLabel).toBe("phase-18-gpp-conflict-discard-apk-171");
     expect(unknownBuild.approvedBuild).toBe("171");
     expect(unknownBuild.buildRef).not.toBe(longRef);
     expect(unknownBuild.buildRef).toMatch(/^abcdef123\.\.\./);

@@ -98,7 +98,12 @@ function renderLotScreen(
 
   act(() => {
     tree = create(
-      <LotRegistrationScreen repository={repository} product={product} onBack={() => undefined} />,
+      <LotRegistrationScreen
+        repository={repository}
+        product={product}
+        onBack={() => undefined}
+        now={() => new Date("2026-06-30T12:00:00-03:00")}
+      />,
     );
   });
 

@@ -229,7 +229,7 @@ describe("ShiftCloseScreen", () => {
     expect(queueUnsafeShiftClose).toHaveBeenCalledWith(
       expect.objectContaining({
         request: expect.objectContaining({
-          continuityDeadline: "2030-01-10T22:00:00.000Z",
+          continuityDeadline: new Date(2030, 0, 10, 19).toISOString(),
         }),
       }),
     );
