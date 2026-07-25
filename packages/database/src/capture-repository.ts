@@ -91,10 +91,7 @@ export interface PrepareTurnDeniedInput {
   actorDisplayName: string;
   actorRoleSnapshot: CaptureActorRoleSnapshot;
   reason:
-    | "unauthenticated"
-    | "inactive_membership"
-    | "capability_not_allowed"
-    | "outside_store_scope";
+    "unauthenticated" | "inactive_membership" | "capability_not_allowed" | "outside_store_scope";
   occurredAt: Date;
 }
 
@@ -447,8 +444,7 @@ type ActiveCentralTaskProjection = Extract<
   { attention: "active_task" }
 >["task"];
 type CentralObservationQuantity =
-  | { quantityState: "estimated"; approximateQuantity: number }
-  | { quantityState: "not_estimable" };
+  { quantityState: "estimated"; approximateQuantity: number } | { quantityState: "not_estimable" };
 
 interface CentralLotProjectionContext {
   storeId: string;

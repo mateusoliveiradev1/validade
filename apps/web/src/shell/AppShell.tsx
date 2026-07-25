@@ -15,13 +15,7 @@ import { Button } from "../components/ui/button";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 
 export type AppRoute =
-  | "operacao"
-  | "controle-gpp"
-  | "aparelhos"
-  | "atualizacoes"
-  | "validacao"
-  | "access"
-  | "audit";
+  "operacao" | "controle-gpp" | "aparelhos" | "atualizacoes" | "validacao" | "access" | "audit";
 
 interface NavItemState {
   allowed: boolean;

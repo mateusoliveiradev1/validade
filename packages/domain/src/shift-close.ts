@@ -80,10 +80,7 @@ export interface ShiftCloseCentralState {
 }
 
 export type ShiftCloseBuildCompatibility =
-  | "atual"
-  | "desatualizado"
-  | "desconhecido"
-  | "incompativel";
+  "atual" | "desatualizado" | "desconhecido" | "incompativel";
 
 export type ShiftCloseDeviceAuthorization = "valid" | "invalid" | "unknown";
 

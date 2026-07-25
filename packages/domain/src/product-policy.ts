@@ -15,18 +15,12 @@ export const STORE_PRESENTATION_KINDS = [
 export type StorePresentationKind = (typeof STORE_PRESENTATION_KINDS)[number];
 
 export type ProductPolicyRequiredLotField =
-  | "expiresAt"
-  | "receivedAt"
-  | "qualityWindowDays"
-  | "qualityInspectionDueAt";
+  "expiresAt" | "receivedAt" | "qualityWindowDays" | "qualityInspectionDueAt";
 
 export type ProductPolicyTerminalAction = "withdraw_or_loss" | "repack_or_loss" | "check_presence";
 
 export type ProductPolicyKey =
-  | "printed_validity"
-  | "quality_inspection"
-  | "internal_repack_loss"
-  | "conservative_review";
+  "printed_validity" | "quality_inspection" | "internal_repack_loss" | "conservative_review";
 
 export interface ProductOperationalPolicyInput {
   storePresentation: StorePresentationKind;

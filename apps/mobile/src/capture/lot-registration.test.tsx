@@ -113,8 +113,7 @@ function renderLotScreen(
 function selectDate(tree: ReactTestRenderer, label: string, value: Date): void {
   press(tree, label);
   const options = datePicker.open.mock.calls.at(-1)?.[0] as
-    | { onValueChange: (event: object, nextDate: Date) => void }
-    | undefined;
+    { onValueChange: (event: object, nextDate: Date) => void } | undefined;
 
   if (options === undefined) {
     throw new Error("Expected the native date picker to open.");

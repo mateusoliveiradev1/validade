@@ -116,9 +116,7 @@ export type CentralTerminalResolutionPolicy =
   | {
       status: "rejected";
       reason:
-        | "incompatible_action"
-        | "destination_required"
-        | "evidence_or_no_photo_reason_required";
+        "incompatible_action" | "destination_required" | "evidence_or_no_photo_reason_required";
       keepsActiveRiskVisible: true;
     };
 

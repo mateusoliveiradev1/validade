@@ -36,9 +36,7 @@ export interface GppAvariaDraft {
 }
 
 export type GppAvariaValidationError =
-  | "missing_product_code"
-  | "missing_quantity_unit"
-  | "missing_finality_destination";
+  "missing_product_code" | "missing_quantity_unit" | "missing_finality_destination";
 
 export const GPP_AVARIA_VALIDATION_COPY: Record<GppAvariaValidationError, string> = {
   missing_product_code: "Informe o codigo do produto para enviar a avaria ao GPP.",
@@ -101,9 +99,7 @@ export interface GppPurchaseDraft {
 }
 
 export type GppPurchaseValidationError =
-  | "missing_product_description"
-  | "missing_quantity_unit"
-  | "missing_finality";
+  "missing_product_description" | "missing_quantity_unit" | "missing_finality";
 
 export const GPP_PURCHASE_VALIDATION_COPY: Record<GppPurchaseValidationError, string> = {
   missing_product_description: "Descreva o produto para o GPP localizar ou confirmar o codigo.",
