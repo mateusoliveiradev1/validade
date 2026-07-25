@@ -121,11 +121,18 @@ describe("authenticated web shell", () => {
       expect(screen.getByRole("heading", { name: "Area de venda segura agora?" })).toBeTruthy();
     });
     expect(screen.getByText("Loja Ficticia Piloto")).toBeTruthy();
-    const commandCenterCall = fetchMock.mock.calls.find(([input]) =>
-      (input instanceof Request ? input.url : String(input)).includes("/command-center"),
-    );
-    const commandCenterHeaders = headersFromFetchCall(commandCenterCall);
-    expect(commandCenterHeaders.get("authorization")).toBe(`Bearer ${activeSession.sessionToken}`);
+    const commandCenterCall = fetchMock.mock.calls.find((call) => {
+      const [input] = call;
+      const isCommandCenterRequest = (
+        input instanceof Request ? input.url : String(input)
+      ).includes("/command-center");
+
+      return (
+        isCommandCenterRequest &&
+        headersFromFetchCall(call).get("authorization") === `Bearer ${activeSession.sessionToken}`
+      );
+    });
+    expect(commandCenterCall).toBeDefined();
     expect(screen.queryByText("Ambiente seguro para desenvolvimento")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir navegacao" }));
