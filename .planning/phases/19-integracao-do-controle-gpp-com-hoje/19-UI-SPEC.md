@@ -1,10 +1,11 @@
 ---
 phase: 19
 slug: integracao-do-controle-gpp-com-hoje
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-25
+reviewed_at: 2026-07-25
 ---
 
 # Phase 19 — UI Design Contract
@@ -84,6 +85,8 @@ Do not expose the three GPP destination choices before step 4. Do not use a moda
 ## Visual Hierarchy
 
 ### Terminal Resolution
+
+**Visual anchor:** the physical-removal confirmation is the focal point until it is accepted; after submission, the paired physical-risk and GPP-delivery status notices become the focal point.
 
 The visible order is locked:
 
