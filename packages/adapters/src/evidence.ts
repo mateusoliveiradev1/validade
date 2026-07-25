@@ -1,9 +1,5 @@
 export type EvidenceStoreBody =
-  | ReadableStream<Uint8Array>
-  | ArrayBuffer
-  | Uint8Array
-  | Blob
-  | string;
+  ReadableStream<Uint8Array> | ArrayBuffer | Uint8Array | Blob | string;
 
 export interface EvidenceStoreObjectMetadata {
   sizeBytes: number;

@@ -8,11 +8,7 @@ import type { GppClient, GppCreateResult } from "./gpp-client";
 
 export type GppPendingKind = "avaria" | "purchase";
 export type GppPendingState =
-  | "pending_retry"
-  | "retrying"
-  | "central_confirmed"
-  | "conflict"
-  | "discarded";
+  "pending_retry" | "retrying" | "central_confirmed" | "conflict" | "discarded";
 
 export type GppPendingPayload = GppAvariaCreateRequest | GppPurchaseCreateRequest;
 

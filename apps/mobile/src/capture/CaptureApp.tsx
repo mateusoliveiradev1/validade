@@ -152,8 +152,7 @@ export function CaptureApp({
   onboardingClient?: OnboardingProgressClient | undefined;
   registerPushDeviceClient?: RegisterPushDeviceClient | undefined;
   closeShiftClient?:
-    | ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>)
-    | undefined;
+    ((request: ShiftCloseSafeRequest) => Promise<ShiftClosureSnapshot>) | undefined;
   buildInfo?: MobileBuildInfo | undefined;
   authControls?: AuthGateReadyControls | undefined;
   session?: SessionContextResponse | undefined;

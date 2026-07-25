@@ -94,11 +94,9 @@ export interface MobileAuthClient {
   submitPrivacyRequest(input: PrivacyRequest): Promise<void>;
   prepareTurn(input: PrepareTurnRequest): Promise<PrepareTurnResponse>;
   loadOnboardingProgress?:
-    | ((input: OnboardingProgressQuery) => Promise<OnboardingProgressResponse>)
-    | undefined;
+    ((input: OnboardingProgressQuery) => Promise<OnboardingProgressResponse>) | undefined;
   saveOnboardingProgress?:
-    | ((input: OnboardingProgressMutationRequest) => Promise<OnboardingProgressResponse>)
-    | undefined;
+    ((input: OnboardingProgressMutationRequest) => Promise<OnboardingProgressResponse>) | undefined;
   registerPushDevice?: ((input: DevicePushRegistrationCommand) => Promise<void>) | undefined;
   listCentralCategories?: (() => Promise<CentralCategoryCatalogResponse>) | undefined;
   searchCentralProducts(input: ProductSearchRequest): Promise<ProductSearchResponse>;

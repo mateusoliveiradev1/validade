@@ -1581,8 +1581,7 @@ describe("database repositories", () => {
       activatedAt: new Date("2026-06-22T10:05:00.000Z"),
     });
     const credential = repository.readStoredState().credentials[0] as
-      | { passwordAlgorithm: string }
-      | undefined;
+      { passwordAlgorithm: string } | undefined;
     expect(credential).toBeDefined();
     if (credential !== undefined) credential.passwordAlgorithm = "pbkdf2-sha256:310000";
 

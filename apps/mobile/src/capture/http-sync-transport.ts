@@ -8,9 +8,7 @@ export function createFetchSyncTransport(input: {
   storeId: string;
   storeName?: string | undefined;
   headers?:
-    | SyncTransportHeaders
-    | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>)
-    | undefined;
+    SyncTransportHeaders | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>) | undefined;
   fetcher?: typeof fetch | undefined;
 }): SyncTransport {
   const fetcher = input.fetcher ?? fetch;
@@ -34,8 +32,7 @@ export function createFetchSyncTransport(input: {
         body: JSON.stringify(batch),
       });
       const payload = (await response.json().catch(() => undefined)) as
-        | { results?: unknown }
-        | undefined;
+        { results?: unknown } | undefined;
 
       if (!response.ok) {
         throw new Error("Central sync rejected the command batch.");
@@ -48,9 +45,7 @@ export function createFetchSyncTransport(input: {
 
 async function resolveHeaders(
   headers:
-    | SyncTransportHeaders
-    | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>)
-    | undefined,
+    SyncTransportHeaders | (() => SyncTransportHeaders | Promise<SyncTransportHeaders>) | undefined,
 ): Promise<Record<string, string>> {
   const resolved = typeof headers === "function" ? await headers() : headers;
   return resolved ?? {};

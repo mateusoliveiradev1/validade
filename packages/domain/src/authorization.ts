@@ -41,10 +41,7 @@ export const MEMBERSHIP_STATUSES = ["active", "inactive"] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
 export type AuthorizationDenialReason =
-  | "unauthenticated"
-  | "inactive_membership"
-  | "capability_not_allowed"
-  | "outside_store_scope";
+  "unauthenticated" | "inactive_membership" | "capability_not_allowed" | "outside_store_scope";
 
 export interface StoreMembership {
   subjectId: string;

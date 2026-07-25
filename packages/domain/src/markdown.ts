@@ -37,9 +37,7 @@ export const MARKDOWN_REQUEST_REASONS = [
 export type MarkdownRequestReason = (typeof MARKDOWN_REQUEST_REASONS)[number];
 
 export type MarkdownStartBlockerCode =
-  | "presence_required"
-  | "not_markdown_due"
-  | "early_justification_required";
+  "presence_required" | "not_markdown_due" | "early_justification_required";
 
 export interface MarkdownStartBlocker {
   code: MarkdownStartBlockerCode;
@@ -74,12 +72,7 @@ export interface MarkdownStageTaskCandidateInput {
   lotIdentity: string;
   currentLocation: {
     kind:
-      | "area_de_venda"
-      | "estoque"
-      | "camara_fria"
-      | "ilha_promocional"
-      | "retirada_perda"
-      | "other";
+      "area_de_venda" | "estoque" | "camara_fria" | "ilha_promocional" | "retirada_perda" | "other";
     customName?: string;
   };
   sourceRisk: {

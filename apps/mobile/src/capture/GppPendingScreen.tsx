@@ -28,8 +28,7 @@ export function GppPendingScreen({
   sentToday?: readonly GppSentTodayRecord[] | undefined;
   mode?: "pending" | "sent";
   syncNotice?:
-    | { tone: "info" | "success" | "warning" | "critical"; title: string; body: string }
-    | undefined;
+    { tone: "info" | "success" | "warning" | "critical"; title: string; body: string } | undefined;
   onBack: () => void;
   onSyncPending?: (() => void) | undefined;
   onDiscardConflict?: ((localId: string, justification: string) => void) | undefined;

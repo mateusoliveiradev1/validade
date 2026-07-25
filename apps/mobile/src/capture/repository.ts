@@ -138,12 +138,7 @@ export type CaptureProductRecord = CaptureProductInput & {
   catalogSource?: "central" | "draft_pending_review" | "local";
   reviewStatus?: "validated" | "pending_review" | "rejected" | "discarded";
   centralSyncState?:
-    | "local"
-    | "pending_central"
-    | "synchronized"
-    | "conflict"
-    | "discarded"
-    | "resolved";
+    "local" | "pending_central" | "synchronized" | "conflict" | "discarded" | "resolved";
   draftId?: string;
   categoryName?: string;
   draftReviewMessage?: string;
@@ -294,10 +289,7 @@ export interface RecentLotsQuery {
 }
 
 export type TodayTaskRefreshSource =
-  | "today_open"
-  | "manual_refresh"
-  | "lot_change"
-  | "observation_change";
+  "today_open" | "manual_refresh" | "lot_change" | "observation_change";
 
 export interface RefreshTodayTasksInput {
   currentDate: string;
