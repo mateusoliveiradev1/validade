@@ -2,7 +2,7 @@
 phase: 18-controle-gpp-mobile-para-avaria-e-compras-internas
 status: human_needed
 requirements: ["GPP-08"]
-verified_at: 2026-07-10T07:40:00-03:00
+verified_at: 2026-07-25T09:37:28-03:00
 source:
   - 18-01-PLAN.md
   - 18-02-PLAN.md
@@ -26,7 +26,7 @@ source:
 
 `human_needed`
 
-Plan 18-06 closes the diagnosed conflict-discard code gap. Focused automated proof, review, build, security, and performance gates pass. The installed Android package remains build 170 and was deliberately not overwritten, so one native retest of the post-170 code remains before Phase 18 can be called fully verified.
+Plan 18-06 closes the diagnosed conflict-discard code gap. Focused automated proof, review, build, security, and performance gates pass. Deliberate Android build 171 now exists and its package metadata/signature are verified, but this host cannot boot an installable Android target because nested virtualization is unavailable. One native retest on build 171 remains before Phase 18 can be called fully verified.
 
 ## Goal Verdict
 
@@ -72,9 +72,11 @@ Plan 18-06 closes the diagnosed conflict-discard code gap. Focused automated pro
 
 ## Human Verification Required
 
-1. Build an intentional post-170 Android artifact when the GPP release is approved. Reproduce a central GPP rejection, enter a non-empty discard reason, press `Descartar registro deste aparelho` once, and confirm the conflict leaves the active queue with device-local discard feedback and no central success claim.
+1. Completed: deliberate build 171 generated and verified (`com.validadezero.app`, `0.12.0`/`171`, v2 signature, SHA-256 recorded in `18-HUMAN-UAT.md`).
+2. Blocked by device: install build 171 on a physical Android device or accelerated x86_64 AVD.
+3. Reproduce a central GPP rejection, enter a non-empty discard reason, press `Descartar registro deste aparelho` once, and confirm the conflict leaves the active queue with device-local discard feedback and no central success claim.
 
-This item is persisted in `18-HUMAN-UAT.md` and must remain pending until the deliberate build exists and the path is actually exercised.
+This item is persisted in `18-HUMAN-UAT.md` and remains blocked until build 171 can be installed and the path is actually exercised.
 
 ## Non-Blocking Repository Debt Outside Plan 18-06
 
@@ -89,4 +91,4 @@ No open Plan 18-06 code gap remains.
 
 ## Decision
 
-Keep Phase 18 at `human_needed`. Run `$gsd-verify-work 18` after the deliberate post-170 Android proof, or explicitly record a release-boundary deferral. Do not treat repository automation or the still-installed build 170 as proof that the new fix ran natively.
+Keep Phase 18 at `human_needed`. Resume `$gsd-verify-work 18` when build 171 can be installed on an Android target. Do not treat repository automation, APK validation, or the non-booting AVD as proof that the new fix ran natively.

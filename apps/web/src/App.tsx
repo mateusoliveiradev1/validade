@@ -142,7 +142,7 @@ export function App() {
         onRecovery={() => setScreen("recovery")}
       />
     );
-  if (session === undefined)
+  if (session === undefined || sessionToken === undefined || sessionToken.trim().length === 0)
     return (
       <LoginPage
         {...(error === undefined ? {} : { error })}

@@ -3,7 +3,7 @@ status: complete
 phase: 18-controle-gpp-mobile-para-avaria-e-compras-internas
 source: [18-VALIDATION.md, 18-05-PLAN.md]
 started: 2026-07-03T02:47:00-03:00
-updated: 2026-07-10T07:25:56-03:00
+updated: 2026-07-25T09:37:28-03:00
 ---
 
 # Phase 18 UAT - Controle GPP Mobile
@@ -92,3 +92,12 @@ blocked: 0
   remaining_external_proof:
     - "Retest this exact path on the intentionally built post-170 APK when the GPP release is approved; do not treat build 170 as containing this fix."
   debug_session: "autonomous emulator UAT 2026-07-10"
+
+## Post-170 Artifact Evidence
+
+- Build 171 was deliberately generated from stabilized `main` as
+  `artifacts/validade-zero-staging-0.12.0-171.apk`.
+- Package/version metadata and v2 signature verification passed.
+- Native Test 5 remains tracked separately in `18-HUMAN-UAT.md` as blocked by
+  the current host's unavailable Android virtualization/device, not by an
+  observed application defect.
