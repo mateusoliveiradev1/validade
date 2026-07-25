@@ -690,7 +690,7 @@ function BuildUpdateCard({
         />
         <ReadinessRow
           label="Artefato aprovado"
-          value={buildInfo?.approvedArtifactLabel ?? "phase-18-gpp-conflict-discard-apk-171"}
+          value={buildInfo?.approvedArtifactLabel ?? "phase-18-gpp-physical-staging-apk-172"}
         />
         <ReadinessRow label="Ambiente" value={buildInfo?.environment ?? "desconhecido"} />
         <ReadinessRow label="API:" value={buildInfo?.apiTarget ?? "API nao informada"} />
