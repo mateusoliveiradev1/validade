@@ -155,7 +155,7 @@ Plans:
 **Goal:** Connect Hoje task resolution to Controle GPP only after the GPP web/API/mobile base is proven, so vencido/retirado lots can generate avaria, reaproveitamento, or producao interna records without hiding sales-area risk prematurely.
 
 **Requirements:** GPP-09
-**Status:** Not started
+**Status:** Planned — source execution blocked on Phase 18 physical UAT; final closure later blocked on approved-build Phase 19 Maestro E2E
 **Depends on:** Phase 18
 
 **Success criteria:**
@@ -165,12 +165,19 @@ Plans:
 3. Hoje-created GPP records preserve lot linkage, product code, quantity/unit, destination/finality, actor, and central acknowledgement state.
 4. Internal purchases remain separate from Hoje and cannot be used to hide vencido or sales-area risk.
 5. Existing build 170 semantics remain untouched until this future mobile version is intentionally built and validated.
+6. Physical confirmation immediately leaves durable actionable `awaiting_destination`; interruption before destination or before send is recoverable from Hoje without mislabeling it as transport pending.
 
-**Plans:** 0 plans
+**Plans:** 7 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-ui-phase 19 after Phase 18 verification)
+- [ ] `19-01-PLAN.md` — Blocking Phase 18 native conflict-discard proof before source work.
+- [ ] `19-02-PLAN.md` — Linked-removal domain policy and additive runtime contracts.
+- [ ] `19-03-PLAN.md` — Store-scoped central provenance, audit, idempotency, and API.
+- [ ] `19-04-PLAN.md` — Durable mobile physical receipt and memory/SQLite parity.
+- [ ] `19-05-PLAN.md` — Truthful delivery classification, retry, conflict, and discard.
+- [ ] `19-06-PLAN.md` — Approved terminal flow, locked review, and two-truth receipt.
+- [ ] `19-07-PLAN.md` — Compact Hoje follow-up, pending-retry-only sync, Maestro specifications, mutation/full regression evidence, and blocked native closure gate.
 
 ### Phase 20: Mobile GPP Central Operacional
 

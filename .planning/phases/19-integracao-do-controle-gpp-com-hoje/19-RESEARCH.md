@@ -341,7 +341,7 @@ apps/mobile/src/capture/
 - Make physical receipt, correction, conflict, and discard append-only audit facts. A discard may remove an active local GPP attempt but must retain removal receipt, justification, and timestamp. [VERIFIED: D-17, `.planning/STATE.md` audit decisions]
 - Bound all free text and identifiers with existing schemas; do not expose raw HTTP/provider/database details in UI copy or public artifacts. [VERIFIED: `packages/contracts/src/gpp.ts`, `19-UI-SPEC.md`]
 - Threat cases to include in the plan: forged source task/lot, cross-store provenance, duplicate retry, actor spoofing, quantity above pending, negative/NaN quantity, stale partial-removal race, central conflict replay, unauthorized correction, and local discard without reason.
-- ASVS-aligned focus: V4 access control, V5 validation, V7 error/log handling, V8 data protection, V9 communications, V10 malicious code/package avoidance, and V13 API security. MASVS-aligned focus: storage, auth, network, platform permission fallback, and resilience. [ASSUMED: standards category mapping; verify against the project’s chosen ASVS/MASVS checklist version during planning]
+- Phase 19's executable security checklist is **OWASP ASVS 5.0.0 Level 1**. The repository pins Level 1 in `.planning/config.json` but does not pin a version, so planning verified the current canonical ASVS release and versioned checklist on 2026-07-25. Applicable Phase 19 controls are V2.1.1 (validation/business-logic documentation), V2.2.1-V2.2.2 (trusted-layer input/business validation), V2.3.1 (ordered business flows), V8.2.1-V8.2.2 and V8.3.1 (function/data/operation authorization), and V15.3.1 (return only required data). MASVS remains a complementary mobile reference, but it is not substituted for the executable ASVS L1 mappings in the Phase 19 threat registers. [VERIFIED: `.planning/config.json`; OWASP ASVS current release `https://github.com/OWASP/ASVS/releases/tag/latest`; ASVS 5.0.0 requirements CSV `https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/docs_en/OWASP_Application_Security_Verification_Standard_5.0.0_en.csv`]
 
 ## Validation Architecture
 
@@ -466,11 +466,17 @@ Both examples are planning patterns derived from the locked state semantics and 
 
 | # | Claim | Section | Risk if wrong |
 |---|---|---|---|
-| A1 | ASVS/MASVS category numbers listed match the checklist version the project will use | Security | Planner should verify checklist version before recording compliance. |
+| A1 | RESOLVED — Phase 19 uses OWASP ASVS 5.0.0 Level 1 as its executable checklist; the current official release and versioned CSV were verified on 2026-07-25, and every plan threat register cites concrete 5.0.0 L1 control IDs. MASVS remains complementary only. | Security | No residual assumption; re-verify the official release only if the project later changes its pinned ASVS version. |
 
 No product/package/API capability claim in this research depends on training knowledge; technical findings come from the repository and locked phase artifacts.
 
 ## Sources
+
+### Standards sources
+
+- `.planning/config.json` — repository security baseline pins ASVS Level 1.
+- `https://github.com/OWASP/ASVS/releases/tag/latest` — current official OWASP ASVS release artifacts, verified 2026-07-25.
+- `https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/docs_en/OWASP_Application_Security_Verification_Standard_5.0.0_en.csv` — versioned ASVS 5.0.0 control IDs and levels used by the Phase 19 threat mappings.
 
 ### Primary project sources
 
@@ -508,4 +514,3 @@ No product/package/API capability claim in this research depends on training kno
 ## Research Conclusion
 
 Phase 19 is technically plannable, but execution is still gated by the open Phase 18 native physical proof. The plan should begin with that explicit checkpoint and then implement a durable linked removal receipt, additive central provenance, truthful unit handling, partial-removal repository semantics, and structured conflict impact before wiring the approved progressive UI. No new dependency, build, APK, push, deployment, Phase 20 queue, Phase 21 realtime behavior, or internal-purchase integration belongs in this phase.
-
