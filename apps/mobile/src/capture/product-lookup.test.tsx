@@ -365,6 +365,54 @@ describe("manual product discovery", () => {
     expect(openedCreation).toBe(true);
   });
 
+  it("blocks an invalid optional GTIN before calling the draft repository", async () => {
+    const repository = createRepository();
+    await repository.initialize();
+    await repository.createProduct({
+      displayName: "Banana Prata Exemplo FICTICIA",
+      categoryId: "categoria-ficticia-frutas",
+      categoryRuleProfile: {
+        categoryId: "categoria-ficticia-frutas",
+        mode: "formal_validity",
+        windows: { radarDays: 60, markdownDays: 15, criticalDays: 3, expiredDays: 0 },
+      },
+    });
+    const createProductDraft = vi.spyOn(repository, "createProductDraft");
+    let tree: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = create(
+        <ProductFormScreen
+          repository={repository}
+          initialGtin="12345"
+          onCreated={() => undefined}
+          onBack={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      getInput(tree!, "Nome do produto").props.onChangeText("Banana Nanica Exemplo FICTICIA");
+      press(tree!, "Embalado pelo fornecedor");
+    });
+
+    act(() => {
+      press(tree!, "categoria-ficticia-frutas");
+    });
+
+    await act(async () => {
+      press(tree!, "Cadastrar produto novo");
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree!.toJSON())).toContain(
+      "GTIN deve ter entre 8 e 14 digitos. Corrija ou deixe o campo vazio.",
+    );
+    expect(createProductDraft).not.toHaveBeenCalled();
+  });
+
   it("shows similar central products before creating an operational draft", async () => {
     const repository = createRepository();
     await repository.initialize();

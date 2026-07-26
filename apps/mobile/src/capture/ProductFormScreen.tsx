@@ -16,6 +16,7 @@ import {
   productPresentationQuestion,
 } from "./capture-copy";
 import { productPolicyPreview, toDomainCategoryRuleProfile } from "./product-policy-copy";
+import { productDraftGtinField } from "./product-form-input";
 import {
   Field,
   PrimaryAction,
@@ -136,6 +137,12 @@ export function ProductFormScreen({
       return;
     }
 
+    const gtinField = productDraftGtinField(gtin);
+    if ("error" in gtinField) {
+      setError(gtinField.error);
+      return;
+    }
+
     try {
       const policy = resolveProductOperationalPolicy({
         storePresentation,
@@ -160,7 +167,7 @@ export function ProductFormScreen({
           categoryRuleProfile,
           requestedAt: new Date().toISOString(),
           ...(supplierName.trim().length === 0 ? {} : { supplierName }),
-          ...(gtin.trim().length === 0 ? {} : { gtin }),
+          ...gtinField,
           ...(linkedIdentifier === undefined ? {} : { identifiers: [linkedIdentifier] }),
           storePresentation,
           similarCandidateIds: similarCandidates.map((candidate) => candidate.centralProductId),
@@ -194,7 +201,7 @@ export function ProductFormScreen({
         categoryId: selectedCategory.categoryId,
         categoryRuleProfile,
         ...(supplierName.trim().length === 0 ? {} : { supplierName }),
-        ...(gtin.trim().length === 0 ? {} : { gtin }),
+        ...gtinField,
         storePresentation,
       });
 
