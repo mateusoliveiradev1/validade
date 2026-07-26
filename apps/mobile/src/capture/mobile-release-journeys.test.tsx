@@ -1013,14 +1013,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "172",
+            appBuild: "173",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "phase-18-gpp-physical-staging-apk-172",
+            approvedArtifactLabel: "product-registration-fix-staging-apk-173",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "172",
-            buildRef: "phase-18-gpp-physical-staging-172",
+            approvedBuild: "173",
+            buildRef: "product-registration-fix-staging-173",
             buildCompatibility: "atual",
           }}
         />,
@@ -1072,14 +1072,14 @@ describe("mobile release journeys", () => {
           storeId="loja-ficticia"
           buildInfo={{
             appVersion: "0.12.0",
-            appBuild: "172",
+            appBuild: "173",
             environment: "staging",
             apiTarget: "https://validade-zero-api-staging.validadezero.workers.dev/",
             packageId: "com.validadezero.app",
-            approvedArtifactLabel: "phase-18-gpp-physical-staging-apk-172",
+            approvedArtifactLabel: "product-registration-fix-staging-apk-173",
             approvedAppVersion: "0.12.0",
-            approvedBuild: "172",
-            buildRef: "phase-18-gpp-physical-staging-172",
+            approvedBuild: "173",
+            buildRef: "product-registration-fix-staging-173",
             buildCompatibility: "atual",
           }}
         />,

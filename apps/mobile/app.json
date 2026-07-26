@@ -15,10 +15,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://validade-zero-api-staging.validadezero.workers.dev",
       "VALIDADE_ZERO_APP_ENV": "staging",
-      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "phase-18-gpp-physical-staging-apk-172",
+      "VALIDADE_ZERO_APPROVED_ARTIFACT_LABEL": "product-registration-fix-staging-apk-173",
       "VALIDADE_ZERO_APPROVED_APP_VERSION": "0.12.0",
-      "VALIDADE_ZERO_APPROVED_BUILD": "172",
-      "VALIDADE_ZERO_BUILD_REF": "phase-18-gpp-physical-staging-172",
+      "VALIDADE_ZERO_APPROVED_BUILD": "173",
+      "VALIDADE_ZERO_BUILD_REF": "product-registration-fix-staging-173",
       "eas": {
         "projectId": "8f483a71-09f7-4612-832f-01e6f1282ec9"
       }
@@ -42,7 +42,7 @@
     ],
     "android": {
       "package": "com.validadezero.app",
-      "versionCode": 172,
+      "versionCode": 173,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B3D2E"
