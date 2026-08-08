@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-08T00:11:57.052Z",
+  "phase": "19",
+  "phase_name": "integracao-do-controle-gpp-com-hoje",
+  "phase_dir": ".planning/phases/19-integracao-do-controle-gpp-com-hoje",
+  "plan": 1,
+  "task": 1,
+  "total_tasks": 1,
+  "status": "paused",
+  "completed_tasks": [],
+  "remaining_tasks": [
+    {
+      "id": 1,
+      "name": "Prove the inherited conflict-discard flow on an approved Android build",
+      "status": "blocked"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Phase 19 source execution is blocked until Phase 18 Human UAT Test 1 passes on an approved post-170 Android build.",
+      "type": "human_action",
+      "workaround": "Install build 173 on a physical Android device, force the documented central rejection, and record the sanitized conflict-discard observations in 18-HUMAN-UAT.md."
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "Install validade-zero-staging-0.12.0-173.apk on a physical Android device and run Phase 18 Human UAT Test 1.",
+      "context": "Repository tests and APK metadata are green, but native conflict-discard behavior still needs physical proof before Phase 19 source work starts.",
+      "blocking": true
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Keep Phase 19 source execution blocked until the native conflict-discard gate passes.",
+      "rationale": "A renderer test or APK signature cannot replace proof that the destructive local discard requires justification and preserves the physical-removal receipt.",
+      "phase": "19"
+    },
+    {
+      "decision": "Use build 173 as the latest approved post-170 staging artifact for the physical test.",
+      "rationale": "Build 173 contains the GTIN product-registration fix, passed 320 mobile tests, typecheck, secret scanning, APK metadata checks, and signature verification.",
+      "phase": "18"
+    }
+  ],
+  "uncommitted_files": [],
+  "next_action": "Restore the private disaster-recovery backup, clone the public repository, run pnpm install, install build 173 on a physical Android device, execute 18-HUMAN-UAT Test 1, then resume with $gsd-resume-work.",
+  "context_notes": "The main branch was clean and synchronized before pausing. Phase 19 has seven plans and a draft Nyquist-compliant validation strategy, but Plan 19-01 is a blocking human checkpoint. No project server, emulator, Gradle process, or watcher was running at handoff time. A full git bundle plus ignored artifacts and encrypted local configuration are being uploaded separately to private cloud backup before the PC is formatted."
+}
