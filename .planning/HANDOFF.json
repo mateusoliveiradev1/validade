@@ -43,6 +43,6 @@
     }
   ],
   "uncommitted_files": [],
-  "next_action": "Restore the private disaster-recovery backup, clone the public repository, run pnpm install, install build 173 on a physical Android device, execute 18-HUMAN-UAT Test 1, then resume with $gsd-resume-work.",
-  "context_notes": "The main branch was clean and synchronized before pausing. Phase 19 has seven plans and a draft Nyquist-compliant validation strategy, but Plan 19-01 is a blocking human checkpoint. No project server, emulator, Gradle process, or watcher was running at handoff time. A full git bundle plus ignored artifacts and encrypted local configuration are being uploaded separately to private cloud backup before the PC is formatted."
+  "next_action": "Clone the public repository, download release pc-format-2026-08-07 from the private repository mateusoliveiradev1/validade-disaster-recovery-2026-08-07, follow its RESTORE.md, run pnpm install, install build 173 on a physical Android device, execute 18-HUMAN-UAT Test 1, then resume with $gsd-resume-work.",
+  "context_notes": "The main branch was clean and synchronized before pausing. Phase 19 has seven plans and a draft Nyquist-compliant validation strategy, but Plan 19-01 is a blocking human checkpoint. No project server, emulator, Gradle process, or watcher was running at handoff time. Private release pc-format-2026-08-07 contains a complete Git bundle, all 150 artifact files in three encrypted volumes, encrypted ignored/local Codex-GSD state, SHA-256 checksums, and RESTORE.md. The encryption key is stored in the separate secret gist linked only from the private release guide."
 }
