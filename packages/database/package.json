@@ -59,13 +59,13 @@
     "db:push": "drizzle-kit push --config drizzle.config.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
+    "@neondatabase/serverless": "^1.2.0",
     "@validade-zero/contracts": "workspace:*",
     "@validade-zero/domain": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.3"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "vitest": "^4.1.10"
   }
 }
